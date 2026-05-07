@@ -1,135 +1,197 @@
 /**
- * useStore — replaces the old localStorage-persist version.
+ * useStore — MongoDB-backed version.
  *
- * Strategy:
- *  • Zustand holds the in-memory UI state (instant rendering).
- *  • Every mutating action fires an API call in the background.
- *  • On app boot call `loadAll()` to hydrate from MongoDB.
- *  • Timer ticks are local-only; only start/pause/resume/stop hit the API.
+ * KEY FIX: re-adds `profile`, `theme`, `updateProfile`, `updateTheme`
+ * so Dashboard / Settings / FocusMode don't crash.
+ * Profile data is synced from the authenticated user's settings doc in Atlas.
  */
 
 import { create } from 'zustand';
 import { api } from '../utils/api';
-import type { Task, JournalEntry, TimerState, Priority, Subtask, TimerSession } from '../types';
+import type {
+  Task, JournalEntry, TimerState, Priority,
+  Subtask, ThemeSettings, UserProfile,
+} from '../types';
+
+// ── Default fallbacks (used before Atlas data loads) ─────────────────────────
+const DEFAULT_THEME: ThemeSettings = {
+  mode: 'dark',
+  accentColor: '#0ea5e9',
+  fontSize: 'md',
+  glassmorphism: true,
+  animatedBackground: true,
+  reducedMotion: false,
+};
+
+const DEFAULT_PROFILE: UserProfile = {
+  name: 'Focus Master',
+  dailyGoal: 8,
+  pomodoroWork: 25,
+  pomodoroBreak: 5,
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+};
 
 // ── Shape ─────────────────────────────────────────────────────────────────────
 interface StoreState {
-  tasks:    Task[];
+  tasks: Task[];
   journals: JournalEntry[];
-  activeTaskId:    string | null;
-  activeSessionId: string | null;   // MongoDB _id of the active Session doc
+  profile: UserProfile;
+  theme: ThemeSettings;
+  activeTaskId: string | null;
+  activeSessionId: string | null;
   activeTimerState: TimerState;
   currentSessionStart?: number;
-  currentPauseStart?:   number;
+  currentPauseStart?: number;
   dataLoading: boolean;
-  dataError:   string | null;
+  dataError: string | null;
 
   // Boot
   loadAll: () => Promise<void>;
 
   // Tasks
-  fetchTasks:    () => Promise<void>;
-  addTask:       (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
-  updateTask:    (id: string, updates: Partial<Task>) => Promise<void>;
-  deleteTask:    (id: string) => Promise<void>;
-  completeTask:  (id: string) => Promise<void>;
+  fetchTasks: () => Promise<void>;
+  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  completeTask: (id: string) => Promise<void>;
+  reorderTasks: (tasks: Task[]) => void;
 
   // Timer
-  startTimer:  (taskId: string) => Promise<void>;
-  pauseTimer:  (taskId: string) => void;
+  startTimer: (taskId: string) => Promise<void>;
+  pauseTimer: (taskId: string) => void;
   resumeTimer: (taskId: string) => void;
-  stopTimer:   (taskId: string) => void;
-  tick:        () => void;
+  stopTimer: (taskId: string) => void;
+  tick: () => void;
 
   // Subtasks
-  addSubtask:    (taskId: string, title: string) => Promise<void>;
+  addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
 
   // Journals
-  fetchJournals:  () => Promise<void>;
-  addJournal:     (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateJournal:  (id: string, updates: Partial<JournalEntry>) => Promise<void>;
-  deleteJournal:  (id: string) => Promise<void>;
+  fetchJournals: () => Promise<void>;
+  addJournal: (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateJournal: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
+  deleteJournal: (id: string) => Promise<void>;
+
+  // Profile + Theme (persisted to Atlas on the User doc)
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  updateTheme: (updates: Partial<ThemeSettings>) => Promise<void>;
 
   // Helpers
-  getTask:      (id: string) => Task | undefined;
+  getTask: (id: string) => Task | undefined;
   getTodayTime: () => number;
-  getWeekTime:  () => number;
+  getWeekTime: () => number;
 }
 
-// ── Helpers to map MongoDB docs → frontend Task shape ─────────────────────────
+// ── Mappers: MongoDB doc → frontend shape ─────────────────────────────────────
 function mapTask(doc: any): Task {
   return {
-    id:          doc._id,
-    title:       doc.title,
-    description: doc.description || '',
-    priority:    doc.priority as Priority,
-    status:      doc.status,
-    category:    doc.category || 'Work',
-    deadline:    doc.deadline ? new Date(doc.deadline).getTime() : undefined,
-    color:       doc.color || '#0ea5e9',
-    tags:        doc.tags || [],
-    subtasks:    (doc.subtasks || []).map((s: any): Subtask => ({
-      id:        s._id,
-      title:     s.title,
+    id: doc._id,
+    title: doc.title ?? '',
+    description: doc.description ?? '',
+    priority: (doc.priority ?? 'medium') as Priority,
+    status: doc.status ?? 'todo',
+    category: doc.category ?? 'Work',
+    deadline: doc.deadline ? new Date(doc.deadline).getTime() : undefined,
+    color: doc.color ?? '#0ea5e9',
+    tags: doc.tags ?? [],
+    subtasks: (doc.subtasks ?? []).map((s: any): Subtask => ({
+      id: s._id,
+      title: s.title,
       completed: s.completed,
-      createdAt: new Date(s.createdAt || Date.now()).getTime(),
+      createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
     })),
-    sessions:    [],          // session history loaded separately if needed
-    totalTime:   doc.totalTime || 0,
-    createdAt:   new Date(doc.createdAt).getTime(),
-    updatedAt:   new Date(doc.updatedAt).getTime(),
+    sessions: [],
+    totalTime: doc.totalTime ?? 0,
+    createdAt: new Date(doc.createdAt).getTime(),
+    updatedAt: new Date(doc.updatedAt).getTime(),
   };
 }
 
 function mapJournal(doc: any): JournalEntry {
   return {
-    id:           doc._id,
-    taskId:       doc.taskId || '',
-    content:      doc.content,
-    mood:         doc.mood,
-    focusRating:  doc.focusRating,
-    createdAt:    new Date(doc.createdAt).getTime(),
-    updatedAt:    new Date(doc.updatedAt).getTime(),
+    id: doc._id,
+    taskId: doc.taskId ?? '',
+    content: doc.content,
+    mood: doc.mood,
+    focusRating: doc.focusRating,
+    createdAt: new Date(doc.createdAt).getTime(),
+    updatedAt: new Date(doc.updatedAt).getTime(),
+  };
+}
+
+// User.settings from Atlas → local profile + theme shapes
+function mapSettings(settings: any): { profile: UserProfile; theme: ThemeSettings } {
+  return {
+    profile: {
+      name: settings?.name ?? DEFAULT_PROFILE.name,
+      dailyGoal: settings?.dailyGoal ?? DEFAULT_PROFILE.dailyGoal,
+      pomodoroWork: settings?.pomodoroWork ?? DEFAULT_PROFILE.pomodoroWork,
+      pomodoroBreak: settings?.pomodoroBreak ?? DEFAULT_PROFILE.pomodoroBreak,
+      timezone: DEFAULT_PROFILE.timezone,
+    },
+    theme: {
+      mode: 'dark',
+      accentColor: settings?.accentColor ?? DEFAULT_THEME.accentColor,
+      fontSize: (settings?.fontSize ?? DEFAULT_THEME.fontSize) as 'sm' | 'md' | 'lg',
+      glassmorphism: settings?.glassmorphism ?? DEFAULT_THEME.glassmorphism,
+      animatedBackground: settings?.animatedBg ?? DEFAULT_THEME.animatedBackground,
+      reducedMotion: settings?.reducedMotion ?? DEFAULT_THEME.reducedMotion,
+    },
   };
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 export const useStore = create<StoreState>((set, get) => ({
-  tasks:            [],
-  journals:         [],
-  activeTaskId:     null,
-  activeSessionId:  null,
-  activeTimerState: 'idle',
-  dataLoading:      false,
-  dataError:        null,
+  tasks: [],
+  journals: [],
+  profile: DEFAULT_PROFILE,
+  theme: DEFAULT_THEME,
+  activeTaskId: null,
+  activeSessionId: null,
+  activeTimerState: 'idle' as TimerState,
+  dataLoading: false,
+  dataError: null,
 
   // ── Boot ────────────────────────────────────────────────────────────────────
   loadAll: async () => {
     set({ dataLoading: true, dataError: null });
     try {
-      const [taskDocs, journalDocs] = await Promise.all([
+      const [taskDocs, journalDocs, userDoc] = await Promise.all([
         api.tasks.list(),
         api.journals.list(),
+        api.profile.get(),
       ]);
 
-      // Restore any in-progress session
-      const activeSessions = await api.sessions.list({ active: true });
-      let activeTaskId: string | null     = null;
-      let activeSessionId: string | null  = null;
+      // Hydrate profile + theme from user settings stored in Atlas
+      const { profile, theme } = mapSettings({
+        ...userDoc?.settings,
+        name: userDoc?.name,
+      });
+
+      // Restore any in-progress timer session
+      let activeTaskId: string | null = null;
+      let activeSessionId: string | null = null;
       let currentSessionStart: number | undefined;
 
-      if (activeSessions.length > 0) {
-        const s = activeSessions[0];
-        activeTaskId        = s.taskId;
-        activeSessionId     = s._id;
-        currentSessionStart = s.startTime;
+      try {
+        const activeSessions = await api.sessions.list({ active: true });
+        if (activeSessions.length > 0) {
+          const s = activeSessions[0];
+          activeTaskId = s.taskId;
+          activeSessionId = s._id;
+          currentSessionStart = s.startTime;
+        }
+      } catch {
+        // Non-fatal — timer just won't auto-restore
       }
 
       set({
-        tasks:    taskDocs.map(mapTask),
+        tasks: taskDocs.map(mapTask),
         journals: journalDocs.map(mapJournal),
+        profile,
+        theme,
         activeTaskId,
         activeSessionId,
         activeTimerState: activeTaskId ? 'running' : 'idle',
@@ -153,7 +215,6 @@ export const useStore = create<StoreState>((set, get) => ({
 
   // ── Task CRUD ────────────────────────────────────────────────────────────────
   addTask: async (data) => {
-    // Optimistic
     const tempId = `temp_${Date.now()}`;
     const tempTask: Task = {
       ...data, id: tempId,
@@ -162,20 +223,16 @@ export const useStore = create<StoreState>((set, get) => ({
     };
     set(s => ({ tasks: [tempTask, ...s.tasks] }));
 
-    // API
     const doc = await api.tasks.create({
       ...data,
       deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined,
     });
     const real = mapTask(doc);
-
-    // Replace temp
     set(s => ({ tasks: s.tasks.map(t => t.id === tempId ? real : t) }));
     return real.id;
   },
 
   updateTask: async (id, updates) => {
-    // Optimistic
     set(s => ({
       tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t),
     }));
@@ -185,7 +242,10 @@ export const useStore = create<StoreState>((set, get) => ({
   deleteTask: async (id) => {
     const { activeTaskId, stopTimer } = get();
     if (activeTaskId === id) stopTimer(id);
-    set(s => ({ tasks: s.tasks.filter(t => t.id !== id), journals: s.journals.filter(j => j.taskId !== id) }));
+    set(s => ({
+      tasks: s.tasks.filter(t => t.id !== id),
+      journals: s.journals.filter(j => j.taskId !== id),
+    }));
     await api.tasks.delete(id);
   },
 
@@ -195,11 +255,11 @@ export const useStore = create<StoreState>((set, get) => ({
     await get().updateTask(id, { status: 'completed' });
   },
 
+  reorderTasks: (tasks) => set({ tasks }),
+
   // ── Timer ────────────────────────────────────────────────────────────────────
   startTimer: async (taskId) => {
     const now = Date.now();
-
-    // Optimistic: add a local session shell
     set(s => ({
       activeTaskId: taskId,
       activeSessionId: null,
@@ -208,21 +268,33 @@ export const useStore = create<StoreState>((set, get) => ({
       currentPauseStart: undefined,
       tasks: s.tasks.map(t =>
         t.id === taskId
-          ? { ...t, status: 'active', sessions: [...t.sessions, { id: 'pending', startTime: now, totalPauseDuration: 0, activeTime: 0 }] }
+          ? {
+            ...t,
+            status: 'active',
+            sessions: [
+              ...t.sessions,
+              { id: 'pending', startTime: now, totalPauseDuration: 0, activeTime: 0 },
+            ],
+          }
           : t
       ),
     }));
-
-    // API: create session doc
-    const sessionDoc = await api.sessions.start(taskId, now);
-    set({ activeSessionId: sessionDoc._id });
+    try {
+      const sessionDoc = await api.sessions.start(taskId, now);
+      set({ activeSessionId: sessionDoc._id });
+    } catch (err) {
+      console.error('Failed to persist session start:', err);
+    }
   },
 
   pauseTimer: (taskId) => {
     const { activeSessionId } = get();
     const now = Date.now();
-    set({ activeTimerState: 'paused', currentPauseStart: now });
-    set(s => ({ tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'paused' } : t) }));
+    set(s => ({
+      activeTimerState: 'paused',
+      currentPauseStart: now,
+      tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'paused' } : t),
+    }));
     if (activeSessionId) api.sessions.pause(activeSessionId, now).catch(console.error);
   },
 
@@ -238,7 +310,12 @@ export const useStore = create<StoreState>((set, get) => ({
         if (t.id !== taskId) return t;
         const sessions = [...t.sessions];
         const last = sessions[sessions.length - 1];
-        if (last) sessions[sessions.length - 1] = { ...last, totalPauseDuration: last.totalPauseDuration + pauseDuration };
+        if (last) {
+          sessions[sessions.length - 1] = {
+            ...last,
+            totalPauseDuration: last.totalPauseDuration + pauseDuration,
+          };
+        }
         return { ...t, sessions, status: 'active' };
       }),
     }));
@@ -260,20 +337,22 @@ export const useStore = create<StoreState>((set, get) => ({
         const sessions = [...t.sessions];
         const last = sessions[sessions.length - 1];
         if (last && !last.endTime) {
-          const extraPause = (activeTimerState === 'paused' && currentPauseStart) ? now - currentPauseStart : 0;
+          const extraPause = (activeTimerState === 'paused' && currentPauseStart)
+            ? now - currentPauseStart : 0;
           const totalPause = last.totalPauseDuration + extraPause;
           const activeTime = Math.max(0, now - last.startTime - totalPause);
-          sessions[sessions.length - 1] = { ...last, endTime: now, totalPauseDuration: totalPause, activeTime };
+          sessions[sessions.length - 1] = {
+            ...last, endTime: now, totalPauseDuration: totalPause, activeTime,
+          };
         }
         const totalTime = sessions.reduce((a, s) => a + s.activeTime, 0);
         return { ...t, sessions, totalTime, status: 'todo' };
       }),
     }));
 
-    // API will recalculate totalTime server-side and return updated task
     if (activeSessionId) {
       api.sessions.stop(activeSessionId, now)
-        .then(() => get().fetchTasks())  // sync fresh task totalTime from DB
+        .then(() => get().fetchTasks())
         .catch(console.error);
     }
   },
@@ -288,8 +367,10 @@ export const useStore = create<StoreState>((set, get) => ({
         const sessions = [...t.sessions];
         const last = sessions[sessions.length - 1];
         if (last && !last.endTime) {
-          const activeTime = Math.max(0, now - last.startTime - last.totalPauseDuration);
-          sessions[sessions.length - 1] = { ...last, activeTime };
+          sessions[sessions.length - 1] = {
+            ...last,
+            activeTime: Math.max(0, now - last.startTime - last.totalPauseDuration),
+          };
         }
         return { ...t, sessions };
       }),
@@ -303,7 +384,6 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   toggleSubtask: async (taskId, subtaskId, completed) => {
-    // Optimistic
     set(s => ({
       tasks: s.tasks.map(t =>
         t.id === taskId
@@ -318,7 +398,9 @@ export const useStore = create<StoreState>((set, get) => ({
   deleteSubtask: async (taskId, subtaskId) => {
     set(s => ({
       tasks: s.tasks.map(t =>
-        t.id === taskId ? { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) } : t
+        t.id === taskId
+          ? { ...t, subtasks: t.subtasks.filter(st => st.id !== subtaskId) }
+          : t
       ),
     }));
     const doc = await api.tasks.deleteSubtask(taskId, subtaskId);
@@ -332,7 +414,9 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   updateJournal: async (id, updates) => {
-    set(s => ({ journals: s.journals.map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j) }));
+    set(s => ({
+      journals: s.journals.map(j => j.id === id ? { ...j, ...updates, updatedAt: Date.now() } : j),
+    }));
     await api.journals.update(id, updates);
   },
 
@@ -341,23 +425,50 @@ export const useStore = create<StoreState>((set, get) => ({
     await api.journals.delete(id);
   },
 
+  // ── Profile + Theme ───────────────────────────────────────────────────────────
+  updateProfile: async (updates) => {
+    set(s => ({ profile: { ...s.profile, ...updates } }));
+    // Persist settings fields that exist on the User.settings sub-doc
+    await api.profile.update({
+      name: get().profile.name,
+      settings: {
+        dailyGoal: get().profile.dailyGoal,
+        pomodoroWork: get().profile.pomodoroWork,
+        pomodoroBreak: get().profile.pomodoroBreak,
+        ...updates,
+      },
+    });
+  },
+
+  updateTheme: async (updates) => {
+    set(s => ({ theme: { ...s.theme, ...updates } }));
+    await api.profile.update({
+      settings: {
+        accentColor: get().theme.accentColor,
+        fontSize: get().theme.fontSize,
+        glassmorphism: get().theme.glassmorphism,
+        animatedBg: get().theme.animatedBackground,
+        reducedMotion: get().theme.reducedMotion,
+        ...updates,
+      },
+    });
+  },
+
   // ── Helpers ──────────────────────────────────────────────────────────────────
   getTask: (id) => get().tasks.find(t => t.id === id),
 
   getTodayTime: () => {
     const tasks = get().tasks;
     let total = 0;
-    const start = new Date(); start.setHours(0,0,0,0);
+    const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
     const now = Date.now();
     for (const task of tasks) {
       for (const session of task.sessions) {
-        if (session.startTime >= start.getTime()) {
+        if (session.startTime >= startOfDay.getTime()) {
           const end = session.endTime || now;
           total += Math.max(0, end - session.startTime - session.totalPauseDuration);
         }
       }
-      // Also count totalTime for tasks with no local sessions loaded
-      if (task.sessions.length === 0) total += task.totalTime;
     }
     return total;
   },
