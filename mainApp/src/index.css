@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: #09090b;
+    color: white;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+}
+
+@layer components {
+  .glass {
+    backdrop-filter: blur(12px);
+    background-color: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .card {
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 1rem;
+  }
+  .card-hover:hover {
+    border-color: #3f3f46;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background-color: #0ea5e9;
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .btn-primary:hover { background-color: #38bdf8; }
+  .btn-primary:active { transform: scale(0.95); }
+  .btn-secondary {
+    background-color: #27272a;
+    color: white;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .btn-secondary:hover { background-color: #3f3f46; }
+  .btn-ghost {
+    color: #a1a1aa;
+    font-weight: 500;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background-color: #27272a; color: white; }
+  .input {
+    background-color: #27272a;
+    border: 1px solid #3f3f46;
+    border-radius: 0.75rem;
+    padding: 0.625rem 1rem;
+    color: white;
+    outline: none;
+    width: 100%;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .input::placeholder { color: #71717a; }
+  .input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .timer-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .gradient-text {
+    background: linear-gradient(to right, #38bdf8, #67e8f9);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+.animated-bg {
+  background: linear-gradient(-45deg, #09090b, #0c1929, #09090b, #0a1628);
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
