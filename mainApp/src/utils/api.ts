@@ -1,18 +1,30 @@
-// Central API utility — attaches the JWT from localStorage to every request.
-// All functions throw on non-2xx so callers can catch and show errors.
+// ── Add this `reports` block to your existing src/utils/api.ts ───────────────
+// Paste inside the `export const api = { ... }` object
 
+/*
+  reports: {
+    summary: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to)   params.set('to',   to);
+      return request<any[]>(`/reports/summary?${params}`);
+    },
+    day: (date: string) => request<any>(`/reports/day?date=${date}`),
+    // Public share endpoint — no auth needed, called directly
+    share: (userId: string, date: string) =>
+      fetch(`${BASE}/reports/share/${userId}/${date}`).then(r => r.json()),
+  },
+*/
+
+// ── Full updated api.ts (complete replacement) ────────────────────────────────
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 function getToken(): string | null {
   return localStorage.getItem('ff_token');
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
-
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
@@ -21,57 +33,39 @@ async function request<T>(
       ...(options.headers || {}),
     },
   });
-
   const data = await res.json().catch(() => ({}));
-
   if (!res.ok) {
-    throw new Error((data as { message?: string }).message || `HTTP ${res.status}`);
+    const msg = (data as { message?: string }).message || `HTTP ${res.status}`;
+    console.error(`API Error [${res.status}] ${options.method || 'GET'} ${path}:`, msg);
+    throw new Error(msg);
   }
-
   return data as T;
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 export const api = {
   auth: {
     register: (name: string, email: string, password: string) =>
-      request<{ token: string; user: any }>('/auth/register', {
-        method: 'POST',
-        body: JSON.stringify({ name, email, password }),
-      }),
-
+      request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
     login: (email: string, password: string) =>
-      request<{ token: string; user: any }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      }),
-
+      request<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     me: () => request<{ user: any }>('/auth/me'),
   },
 
-  // ── Tasks ───────────────────────────────────────────────────────────────────
   tasks: {
-    list:   ()           => request<any[]>('/tasks'),
-    create: (body: any)  => request<any>('/tasks',       { method: 'POST',   body: JSON.stringify(body) }),
-    update: (id: string, body: any) =>
-      request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    delete: (id: string) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
-
-    addSubtask: (taskId: string, title: string) =>
+    list:   ()            => request<any[]>('/tasks'),
+    create: (body: any)   => request<any>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string)  => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
+    addSubtask:    (taskId: string, title: string) =>
       request<any>(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
-
     toggleSubtask: (taskId: string, subId: string, completed: boolean) =>
-      request<any>(`/tasks/${taskId}/subtasks/${subId}`, {
-        method: 'PATCH', body: JSON.stringify({ completed }),
-      }),
-
+      request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'PATCH', body: JSON.stringify({ completed }) }),
     deleteSubtask: (taskId: string, subId: string) =>
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'DELETE' }),
   },
 
-  // ── Sessions ─────────────────────────────────────────────────────────────────
   sessions: {
-    list:   (params?: { taskId?: string; active?: boolean }) => {
+    list: (params?: { taskId?: string; active?: boolean }) => {
       const qs = new URLSearchParams(params as any).toString();
       return request<any[]>(`/sessions${qs ? '?' + qs : ''}`);
     },
@@ -85,21 +79,52 @@ export const api = {
       request<any>(`/sessions/${id}/stop`,   { method: 'PATCH', body: JSON.stringify({ endTime }) }),
   },
 
-  // ── Journals ─────────────────────────────────────────────────────────────────
   journals: {
-    list:   (taskId?: string) =>
-      request<any[]>(`/journals${taskId ? '?taskId=' + taskId : ''}`),
-    create: (body: any) =>
-      request<any>('/journals', { method: 'POST',   body: JSON.stringify(body) }),
-    update: (id: string, body: any) =>
-      request<any>(`/journals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    delete: (id: string) =>
-      request<any>(`/journals/${id}`, { method: 'DELETE' }),
+    list:   (taskId?: string) => request<any[]>(`/journals${taskId ? '?taskId=' + taskId : ''}`),
+    create: (body: any) => request<any>('/journals', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request<any>(`/journals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) => request<any>(`/journals/${id}`, { method: 'DELETE' }),
   },
 
-  // ── Profile ──────────────────────────────────────────────────────────────────
   profile: {
     get:    ()           => request<any>('/profile'),
     update: (body: any)  => request<any>('/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+  },
+
+  workLogs: {
+    list:     (active?: boolean) => {
+      const qs = active !== undefined ? `?active=${active}` : '';
+      return request<any[]>(`/worklogs${qs}`);
+    },
+    get:      (id: string)       => request<any>(`/worklogs/${id}`),
+    create:   (body: any)        => request<any>('/worklogs', { method: 'POST', body: JSON.stringify(body) }),
+    update:   (id: string, body: any) => request<any>(`/worklogs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete:   (id: string)       => request<any>(`/worklogs/${id}`, { method: 'DELETE' }),
+    close:    (id: string)       => request<any>(`/worklogs/${id}/close`,    { method: 'POST' }),
+    continue: (id: string)       => request<any>(`/worklogs/${id}/continue`, { method: 'POST' }),
+    addCompleted:    (id: string, text: string) =>
+      request<any>(`/worklogs/${id}/completed`, { method: 'POST', body: JSON.stringify({ text }) }),
+    deleteCompleted: (id: string, itemId: string) =>
+      request<any>(`/worklogs/${id}/completed/${itemId}`, { method: 'DELETE' }),
+    addLink:    (id: string, label: string, url: string) =>
+      request<any>(`/worklogs/${id}/links`, { method: 'POST', body: JSON.stringify({ label, url }) }),
+    deleteLink: (id: string, linkId: string) =>
+      request<any>(`/worklogs/${id}/links/${linkId}`, { method: 'DELETE' }),
+  },
+
+  // ── Reports ──────────────────────────────────────────────────────────────────
+  reports: {
+    // Calendar heatmap data for a date range
+    summary: (from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to)   params.set('to',   to);
+      return request<any[]>(`/reports/summary?${params}`);
+    },
+    // Full detail for one day (authenticated — your own data)
+    day: (date: string) => request<any>(`/reports/day?date=${date}`),
+    // Public shareable day report (for lead to view — no auth)
+    share: (userId: string, date: string) =>
+      fetch(`${BASE}/reports/share/${userId}/${date}`).then(r => r.json()) as Promise<any>,
   },
 };
