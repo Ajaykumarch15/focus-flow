@@ -1,23 +1,4 @@
-// ── Add this `reports` block to your existing src/utils/api.ts ───────────────
-// Paste inside the `export const api = { ... }` object
-
-/*
-  reports: {
-    summary: (from?: string, to?: string) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', from);
-      if (to)   params.set('to',   to);
-      return request<any[]>(`/reports/summary?${params}`);
-    },
-    day: (date: string) => request<any>(`/reports/day?date=${date}`),
-    // Public share endpoint — no auth needed, called directly
-    share: (userId: string, date: string) =>
-      fetch(`${BASE}/reports/share/${userId}/${date}`).then(r => r.json()),
-  },
-*/
-
-// ── Full updated api.ts (complete replacement) ────────────────────────────────
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:6000/api';
 
 function getToken(): string | null {
   return localStorage.getItem('ff_token');
@@ -52,11 +33,11 @@ export const api = {
   },
 
   tasks: {
-    list:   ()            => request<any[]>('/tasks'),
-    create: (body: any)   => request<any>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
+    list: () => request<any[]>('/tasks'),
+    create: (body: any) => request<any>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    delete: (id: string)  => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
-    addSubtask:    (taskId: string, title: string) =>
+    delete: (id: string) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
+    addSubtask: (taskId: string, title: string) =>
       request<any>(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
     toggleSubtask: (taskId: string, subId: string, completed: boolean) =>
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'PATCH', body: JSON.stringify({ completed }) }),
@@ -69,61 +50,69 @@ export const api = {
       const qs = new URLSearchParams(params as any).toString();
       return request<any[]>(`/sessions${qs ? '?' + qs : ''}`);
     },
-    start:  (taskId: string, startTime: number) =>
+    start: (taskId: string, startTime: number) =>
       request<any>('/sessions', { method: 'POST', body: JSON.stringify({ taskId, startTime }) }),
-    pause:  (id: string, pauseTime: number) =>
-      request<any>(`/sessions/${id}/pause`,  { method: 'PATCH', body: JSON.stringify({ pauseTime }) }),
+    pause: (id: string, pauseTime: number) =>
+      request<any>(`/sessions/${id}/pause`, { method: 'PATCH', body: JSON.stringify({ pauseTime }) }),
     resume: (id: string, resumeTime: number) =>
       request<any>(`/sessions/${id}/resume`, { method: 'PATCH', body: JSON.stringify({ resumeTime }) }),
-    stop:   (id: string, endTime: number) =>
-      request<any>(`/sessions/${id}/stop`,   { method: 'PATCH', body: JSON.stringify({ endTime }) }),
+    stop: (id: string, endTime: number) =>
+      request<any>(`/sessions/${id}/stop`, { method: 'PATCH', body: JSON.stringify({ endTime }) }),
   },
 
   journals: {
-    list:   (taskId?: string) => request<any[]>(`/journals${taskId ? '?taskId=' + taskId : ''}`),
+    list: (taskId?: string) => request<any[]>(`/journals${taskId ? '?taskId=' + taskId : ''}`),
     create: (body: any) => request<any>('/journals', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/journals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) => request<any>(`/journals/${id}`, { method: 'DELETE' }),
   },
 
   profile: {
-    get:    ()           => request<any>('/profile'),
-    update: (body: any)  => request<any>('/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+    get: () => request<any>('/profile'),
+    update: (body: any) => request<any>('/profile', { method: 'PATCH', body: JSON.stringify(body) }),
   },
 
   workLogs: {
-    list:     (active?: boolean) => {
+    list: (active?: boolean) => {
       const qs = active !== undefined ? `?active=${active}` : '';
       return request<any[]>(`/worklogs${qs}`);
     },
-    get:      (id: string)       => request<any>(`/worklogs/${id}`),
-    create:   (body: any)        => request<any>('/worklogs', { method: 'POST', body: JSON.stringify(body) }),
-    update:   (id: string, body: any) => request<any>(`/worklogs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    delete:   (id: string)       => request<any>(`/worklogs/${id}`, { method: 'DELETE' }),
-    close:    (id: string)       => request<any>(`/worklogs/${id}/close`,    { method: 'POST' }),
-    continue: (id: string)       => request<any>(`/worklogs/${id}/continue`, { method: 'POST' }),
-    addCompleted:    (id: string, text: string) =>
+    get: (id: string) => request<any>(`/worklogs/${id}`),
+    create: (body: any) => request<any>('/worklogs', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request<any>(`/worklogs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) => request<any>(`/worklogs/${id}`, { method: 'DELETE' }),
+    close: (id: string) => request<any>(`/worklogs/${id}/close`, { method: 'POST' }),
+    continue: (id: string) => request<any>(`/worklogs/${id}/continue`, { method: 'POST' }),
+
+    // ── NEW: sync session time into work entries ────────────────────────────
+    syncTime: (id: string) =>
+      request<any>(`/worklogs/${id}/sync-time`, { method: 'POST' }),
+
+    // ── NEW: update "what I did" text for a specific day ───────────────────
+    updateEntry: (id: string, entryId: string, what: string) =>
+      request<any>(`/worklogs/${id}/entries/${entryId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ what }),
+      }),
+
+    addCompleted: (id: string, text: string) =>
       request<any>(`/worklogs/${id}/completed`, { method: 'POST', body: JSON.stringify({ text }) }),
     deleteCompleted: (id: string, itemId: string) =>
       request<any>(`/worklogs/${id}/completed/${itemId}`, { method: 'DELETE' }),
-    addLink:    (id: string, label: string, url: string) =>
+    addLink: (id: string, label: string, url: string) =>
       request<any>(`/worklogs/${id}/links`, { method: 'POST', body: JSON.stringify({ label, url }) }),
     deleteLink: (id: string, linkId: string) =>
       request<any>(`/worklogs/${id}/links/${linkId}`, { method: 'DELETE' }),
   },
 
-  // ── Reports ──────────────────────────────────────────────────────────────────
   reports: {
-    // Calendar heatmap data for a date range
     summary: (from?: string, to?: string) => {
       const params = new URLSearchParams();
       if (from) params.set('from', from);
-      if (to)   params.set('to',   to);
+      if (to) params.set('to', to);
       return request<any[]>(`/reports/summary?${params}`);
     },
-    // Full detail for one day (authenticated — your own data)
     day: (date: string) => request<any>(`/reports/day?date=${date}`),
-    // Public shareable day report (for lead to view — no auth)
     share: (userId: string, date: string) =>
       fetch(`${BASE}/reports/share/${userId}/${date}`).then(r => r.json()) as Promise<any>,
   },
