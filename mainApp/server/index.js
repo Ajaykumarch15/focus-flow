@@ -40,7 +40,7 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
 });
 
-const PORT = process.env.PORT || 6000;
+const PORT = process.env.PORT || 5001;
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
