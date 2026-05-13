@@ -55,6 +55,8 @@ export interface WorkLog {
 interface WorkLogState {
   activeLogs: WorkLog[];
   closedLogs: WorkLog[];
+  todayLog: WorkLog | null;
+  loadToday: () => Promise<void>;
   loading:    boolean;
   creating:   boolean;
   error:      string | null;
@@ -130,6 +132,7 @@ function patchList(logs: WorkLog[], id: string, updated: WorkLog): WorkLog[] {
 export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   activeLogs: [],
   closedLogs: [],
+  todayLog: null,
   loading:    false,
   creating:   false,
   error:      null,
@@ -164,6 +167,35 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       set({ error: err.message, loading: false });
     }
   },
+
+  loadToday: async () => {
+  set({ loading: true, error: null });
+
+  try {
+    const docs = await api.workLogs.list(true);
+
+    const logs = docs.map(mapLog);
+
+    const today = new Date().toDateString();
+
+    const todayLog =
+      logs.find(log =>
+        log.workEntries?.some(
+          e => new Date(e.date).toDateString() === today
+        )
+      ) || logs[0] || null;
+
+    set({
+      todayLog,
+      loading: false,
+    });
+  } catch (err: any) {
+    set({
+      error: err.message,
+      loading: false,
+    });
+  }
+},
 
   // Re-fetch a single log (called after timer stop to get fresh workEntries)
   refreshLog: async (id) => {
