@@ -210,7 +210,7 @@ export function TaskDetail() {
                   animate={{ opacity: 1, x: 0 }}
                   className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-800/50 group"
                 >
-                  <button onClick={() => toggleSubtask(task.id, st.id)}>
+                  <button onClick={() => toggleSubtask(task.id, st.id, !st.completed)}>
                     {st.completed
                       ? <CheckCircle size={18} className="text-emerald-400" />
                       : <Circle size={18} className="text-surface-500 hover:text-white" />}
