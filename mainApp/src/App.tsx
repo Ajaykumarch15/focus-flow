@@ -1,10 +1,8 @@
-// ── src/App.tsx ───────────────────────────────────────────────────────────────
-// Replace your existing App.tsx with this
-
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
+import { clearTimer }      from './utils/timerPersist';   // ← clear on logout
 
 import { AppLayout }       from './components/layout/AppLayout';
 import { ProtectedRoute }  from './components/auth/ProtectedRoute';
@@ -21,26 +19,35 @@ import { FocusMode }       from './pages/FocusMode';
 import { Settings }        from './pages/Settings';
 import { WorkLogPage }     from './pages/WorkLog';
 import { ReportsPage }     from './pages/Reports';
-import { ShareReportPage } from './pages/ShareReport';  // public — no auth
+import { ShareReportPage } from './pages/ShareReport';
 
 export default function App() {
-  const { user, restoreSession } = useAuthStore();
-  const { loadAll }              = useStore();
+  const { user, restoreSession, logout } = useAuthStore();
+  const { loadAll }                      = useStore();
 
-  useEffect(() => { restoreSession(); }, []);
-  useEffect(() => { if (user) loadAll(); }, [user?._id]);
+  // Step 1: restore JWT session on mount
+  useEffect(() => {
+    restoreSession();
+  }, []);
+
+  // Step 2: once user is confirmed, load all their data from Atlas
+  useEffect(() => {
+    if (user) {
+      loadAll();
+    } else {
+      // User logged out — clear timer backup so it doesn't bleed into next session
+      clearTimer();
+    }
+  }, [user?._id]);
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public */}
-        <Route path="/"                             element={<Landing />} />
-        <Route path="/login"                        element={<Login />} />
-        <Route path="/register"                     element={<Register />} />
-        {/* ↓ Public share page — lead views this without logging in */}
-        <Route path="/reports/share/:userId/:date"  element={<ShareReportPage />} />
+        <Route path="/"                            element={<Landing />} />
+        <Route path="/login"                       element={<Login />} />
+        <Route path="/register"                    element={<Register />} />
+        <Route path="/reports/share/:userId/:date" element={<ShareReportPage />} />
 
-        {/* Protected */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard"  element={<Dashboard />} />

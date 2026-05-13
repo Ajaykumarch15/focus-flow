@@ -2,31 +2,36 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 
 interface AuthUser {
-  _id: string;
-  name: string;
-  email: string;
-  avatar?: string;
+  _id:      string;
+  name:     string;
+  email:    string;
+  avatar?:  string;
   settings: Record<string, any>;
 }
 
 interface AuthState {
-  user: AuthUser | null;
-  token: string | null;
+  user:    AuthUser | null;
+  token:   string | null;
   loading: boolean;
-  error: string | null;
+  error:   string | null;
 
-  // Actions
-  register:  (name: string, email: string, password: string) => Promise<void>;
-  login:     (email: string, password: string) => Promise<void>;
-  logout:    () => void;
+  register:       (name: string, email: string, password: string) => Promise<void>;
+  login:          (email: string, password: string) => Promise<void>;
+  logout:         () => void;
   restoreSession: () => Promise<void>;
-  clearError: () => void;
+  clearError:     () => void;
 }
+
+// ── Key fix ────────────────────────────────────────────────────────────────────
+// If a token already exists in localStorage, start with loading: true.
+// This makes ProtectedRoute show the spinner instead of redirecting to /login
+// while restoreSession() is still running the async /auth/me call.
+const existingToken = localStorage.getItem('ff_token');
 
 export const useAuthStore = create<AuthState>((set) => ({
   user:    null,
-  token:   localStorage.getItem('ff_token'),
-  loading: false,
+  token:   existingToken,
+  loading: !!existingToken,   // ← THE FIX: true when token exists, false when not
   error:   null,
 
   register: async (name, email, password) => {
@@ -55,21 +60,28 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem('ff_token');
-    // Also clear app data so next user starts fresh
     localStorage.removeItem('focusflow-storage');
-    set({ user: null, token: null });
+    localStorage.removeItem('ff_profile_cache');
+    localStorage.removeItem('ff_theme_cache');
+    set({ user: null, token: null, loading: false });
   },
 
-  // Called once on app boot — validates stored token
   restoreSession: async () => {
     const token = localStorage.getItem('ff_token');
-    if (!token) return;
-    set({ loading: true });
+
+    // No token — nothing to restore, stay on loading: false
+    if (!token) {
+      set({ loading: false });
+      return;
+    }
+
+    // Token exists — loading was already set to true at initialization.
+    // Validate it with the server.
     try {
       const { user } = await api.auth.me();
       set({ user, token, loading: false });
     } catch {
-      // Token expired or invalid — clear it
+      // Token expired or invalid — clear everything
       localStorage.removeItem('ff_token');
       set({ user: null, token: null, loading: false });
     }
