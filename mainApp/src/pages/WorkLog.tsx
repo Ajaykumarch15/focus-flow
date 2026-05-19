@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { useStore } from '../store/useStore';
+import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -382,15 +383,19 @@ function WorkEntryRow({ logId, entry }: { logId: string; entry: WorkEntry }) {
         </div>
       </div>
 
-      {/* What I did */}
-      <div className="relative">
-        <textarea rows={2} className="input resize-none text-sm w-full pr-8 bg-surface-800/60"
-          placeholder={today ? 'What are you working on today?' : 'What did you do on this day?'}
-          value={what} onChange={e => { setWhat(e.target.value); setSaved(false); }} />
-        <div className="absolute right-2.5 bottom-2.5">
-          {saved ? <Save size={11} className="text-surface-700" /> : <Loader2 size={11} className="text-brand-400 animate-spin" />}
-        </div>
-      </div>
+      {/* What I did — ProEditor */}
+      <AutoProEditor
+        logId={logId}
+        field={`entry_${entry._id}`}
+        value={what}
+        placeholder={today ? 'What are you working on today?' : 'What did you do on this day?'}
+        minRows={2}
+        hint="Supports **bold**, *italic*, - lists, `code`"
+        updateFn={async (_id, _field, val) => {
+          setWhat(val);
+          await updateEntry(logId, entry._id, val);
+        }}
+      />
     </motion.div>
   );
 }
@@ -720,8 +725,9 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                     <label className="flex items-center gap-1.5 text-xs text-red-400 font-medium mb-1.5">
                       <AlertCircle size={12} /> Problem I'm Solving
                     </label>
-                    <AutoTextarea logId={log._id} field="problem"
-                      placeholder="What ticket/feature/bug? What user pain?" value={log.problem} rows={3} />
+                    <AutoProEditor logId={log._id} field="problem" value={log.problem}
+                      placeholder="What ticket/feature/bug? What user pain?" minRows={3}
+                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium mb-1.5">
@@ -734,15 +740,17 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                     <label className="flex items-center gap-1.5 text-xs text-brand-400 font-medium mb-1.5">
                       <Zap size={12} /> What I'm Working On
                     </label>
-                    <AutoTextarea logId={log._id} field="currentWork"
-                      placeholder="Specific function, component, API…" value={log.currentWork} rows={3} />
+                    <AutoProEditor logId={log._id} field="currentWork" value={log.currentWork}
+                      placeholder="Specific function, component, API…" minRows={3}
+                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium mb-1.5">
                       <AlertCircle size={12} /> Blockers
                     </label>
-                    <AutoTextarea logId={log._id} field="blockers"
-                      placeholder="What's blocking you?" value={log.blockers} rows={2} />
+                    <AutoProEditor logId={log._id} field="blockers" value={log.blockers}
+                      placeholder="What's blocking you?" minRows={2}
+                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
                   </div>
                 </div>
 
@@ -784,16 +792,18 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                     <label className="flex items-center gap-1.5 text-xs text-yellow-400 font-medium mb-1.5">
                       <Lightbulb size={12} /> Plan
                     </label>
-                    <AutoTextarea logId={log._id} field="plan"
-                      placeholder={"1. First…\n2. Then…"} value={log.plan} rows={4} />
+                    <AutoProEditor logId={log._id} field="plan" value={log.plan}
+                      placeholder={"1. First…\n2. Then…"} minRows={4}
+                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
                   </div>
 
                   <div>
                     <label className="flex items-center gap-1.5 text-xs text-purple-400 font-medium mb-1.5">
                       <Pencil size={12} /> Design / Architecture
                     </label>
-                    <AutoTextarea logId={log._id} field="designNotes"
-                      placeholder="Schema, components, tradeoffs…" value={log.designNotes} rows={3} />
+                    <AutoProEditor logId={log._id} field="designNotes" value={log.designNotes}
+                      placeholder="Schema, components, tradeoffs…" minRows={3}
+                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
                   </div>
 
                   {/* Links */}
