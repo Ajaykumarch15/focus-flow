@@ -1,37 +1,50 @@
 import { useState, useEffect } from 'react';
-import { useStore }              from '../store/useStore';
-import { formatDuration }        from '../utils/time';
+import { useStore } from '../store/useStore';
+import { formatDuration } from '../utils/time';
+import { loadTimer, calcElapsed } from '../utils/timerPersist';
 
-/**
- * useActiveTimer — used by the Sidebar widget and WorkLog timer panel.
- *
- * Returns a display string that ticks every second while running.
- * On refresh restore the initial value comes from the injected session
- * (which already has the correct elapsed time from timerPersist).
- */
 export function useActiveTimer() {
   const { activeTaskId, activeTimerState, tasks } = useStore();
-  const [display, setDisplay] = useState('00:00');
 
-  const activeTask    = tasks.find(t => t.id === activeTaskId);
-  const lastSession   = activeTask?.sessions[activeTask.sessions.length - 1];
+  // Read correct initial value from store or localStorage immediately
+  // so sidebar shows the right time on first render after refresh
+  const getInitial = () => {
+    const state = useStore.getState();
+    const task = state.tasks.find(t => t.id === state.activeTaskId);
+    const session = task?.sessions[task.sessions.length - 1];
+    if (session?.activeTime) return formatDuration(session.activeTime);
+
+    // Tasks not loaded yet — use localStorage
+    const p = loadTimer();
+    if (p && p.taskId === state.activeTaskId) return formatDuration(calcElapsed(p));
+    return '00:00';
+  };
+
+  const [display, setDisplay] = useState(getInitial);
+
+  const activeTask = tasks.find(t => t.id === activeTaskId);
+  const lastSession = activeTask?.sessions[activeTask.sessions.length - 1];
 
   useEffect(() => {
-    // Set immediately (handles restore case where session already has elapsed time)
-    if (lastSession) {
-      setDisplay(formatDuration(lastSession.activeTime));
-    } else {
-      setDisplay('00:00');
-    }
+    const update = () => {
+      const state = useStore.getState();
+      const task = state.tasks.find(t => t.id === state.activeTaskId);
+      const session = task?.sessions[task.sessions.length - 1];
 
-    if (activeTimerState !== 'running' || !lastSession) return;
-
-    const interval = setInterval(() => {
-      if (lastSession) {
-        setDisplay(formatDuration(lastSession.activeTime));
+      if (session?.activeTime) {
+        setDisplay(formatDuration(session.activeTime));
+      } else {
+        // Fallback while tasks are loading
+        const p = loadTimer();
+        if (p && p.taskId === state.activeTaskId) {
+          setDisplay(formatDuration(calcElapsed(p)));
+        }
       }
-    }, 1000);
+    };
 
+    update();
+    if (activeTimerState !== 'running') return;
+    const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
   }, [activeTimerState, activeTaskId, lastSession?.activeTime]);
 

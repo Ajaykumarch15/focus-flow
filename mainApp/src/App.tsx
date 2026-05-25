@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
-import { clearTimer }      from './utils/timerPersist';   // ← clear on logout
+import { clearTimer }      from './utils/timerPersist';   // clear after auth is known
 
 import { AppLayout }       from './components/layout/AppLayout';
 import { ProtectedRoute }  from './components/auth/ProtectedRoute';
@@ -22,7 +22,7 @@ import { ReportsPage }     from './pages/Reports';
 import { ShareReportPage } from './pages/ShareReport';
 
 export default function App() {
-  const { user, restoreSession, logout } = useAuthStore();
+  const { user, token, loading, restoreSession } = useAuthStore();
   const { loadAll }                      = useStore();
 
   // Step 1: restore JWT session on mount
@@ -34,11 +34,11 @@ export default function App() {
   useEffect(() => {
     if (user) {
       loadAll();
-    } else {
-      // User logged out — clear timer backup so it doesn't bleed into next session
+    } else if (!loading && !token) {
+      // Auth restore is finished and there is no signed-in user.
       clearTimer();
     }
-  }, [user?._id]);
+  }, [user?._id, token, loading]);
 
   return (
     <BrowserRouter>
