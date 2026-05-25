@@ -18,7 +18,7 @@
  */
 
 import { create } from 'zustand';
-import { api }    from '../utils/api';
+import { api } from '../utils/api';
 import {
   saveTimer, loadTimer, clearTimer, calcElapsed, PersistedTimer,
 } from '../utils/timerPersist';
@@ -26,10 +26,11 @@ import type {
   Task, JournalEntry, TimerState, Priority,
   Subtask, ThemeSettings, UserProfile,
 } from '../types';
+import { useWorkLogStore } from './useWorkLogStore';
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const PROFILE_KEY = 'ff_profile_cache';
-const THEME_KEY   = 'ff_theme_cache';
+const THEME_KEY = 'ff_theme_cache';
 
 const DEFAULT_THEME: ThemeSettings = {
   mode: 'dark', accentColor: '#0ea5e9', fontSize: 'md',
@@ -51,13 +52,45 @@ function saveCache(key: string, value: unknown): void {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
+function docId(value: any): string {
+  return String(value?._id ?? value ?? '');
+}
+
+function getOpenPauseStart(sessionDoc: any): number | undefined {
+  const pauseLog = Array.isArray(sessionDoc?.pauseLog) ? sessionDoc.pauseLog : [];
+  const openPause = [...pauseLog].reverse().find((p: any) => p?.pauseStart && !p?.resumeTime);
+  return openPause?.pauseStart;
+}
+
+function injectLiveSession(
+  tasks: Task[],
+  taskId: string,
+  session: { id: string; startTime: number; totalPauseDuration: number; activeTime: number },
+  timerState: TimerState,
+): Task[] {
+  return tasks.map(t => {
+    if (t.id !== taskId) return t;
+    return {
+      ...t,
+      status: (timerState === 'paused' ? 'paused' : 'active') as Task['status'],
+      sessions: [{
+        id: session.id,
+        startTime: session.startTime,
+        endTime: undefined,
+        totalPauseDuration: session.totalPauseDuration,
+        activeTime: session.activeTime,
+      }],
+    };
+  });
+}
+
 // ── Restore timer state instantly from localStorage ───────────────────────────
 function buildRestoredTimerState(persisted: PersistedTimer | null, tasks: Task[]): {
-  activeTaskId:        string | null;
-  activeTimerState:    TimerState;
+  activeTaskId: string | null;
+  activeTimerState: TimerState;
   currentSessionStart: number | undefined;
-  currentPauseStart:   number | undefined;
-  tasks:               Task[];
+  currentPauseStart: number | undefined;
+  tasks: Task[];
 } {
   if (!persisted) {
     return { activeTaskId: null, activeTimerState: 'idle', currentSessionStart: undefined, currentPauseStart: undefined, tasks };
@@ -74,44 +107,44 @@ function buildRestoredTimerState(persisted: PersistedTimer | null, tasks: Task[]
       sessions: [
         ...t.sessions,
         {
-          id:                 persisted.sessionId || 'restored',
-          startTime:          persisted.sessionStartTime,
-          endTime:            undefined,
+          id: persisted.sessionId || 'restored',
+          startTime: persisted.sessionStartTime,
+          endTime: undefined,
           totalPauseDuration: persisted.totalPauseDuration,
-          activeTime:         elapsed,
+          activeTime: elapsed,
         },
       ],
     };
   });
 
   return {
-    activeTaskId:        persisted.taskId,
-    activeTimerState:    persisted.timerState,
+    activeTaskId: persisted.taskId,
+    activeTimerState: persisted.timerState,
     currentSessionStart: persisted.sessionStartTime,
-    currentPauseStart:   persisted.timerState === 'paused' ? persisted.pauseStart : undefined,
-    tasks:               patchedTasks,
+    currentPauseStart: persisted.timerState === 'paused' ? persisted.pauseStart : undefined,
+    tasks: patchedTasks,
   };
 }
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
 function mapTask(doc: any): Task {
   return {
-    id:          doc._id,
-    title:       doc.title       ?? '',
+    id: doc._id,
+    title: doc.title ?? '',
     description: doc.description ?? '',
-    priority:    (doc.priority   ?? 'medium') as Priority,
-    status:      doc.status      ?? 'todo',
-    category:    doc.category    ?? 'Work',
-    deadline:    doc.deadline ? new Date(doc.deadline).getTime() : undefined,
-    color:       doc.color       ?? '#0ea5e9',
-    tags:        doc.tags        ?? [],
-    subtasks:    (doc.subtasks ?? []).map((s: any): Subtask => ({
-      id:        s._id,
-      title:     s.title,
+    priority: (doc.priority ?? 'medium') as Priority,
+    status: doc.status ?? 'todo',
+    category: doc.category ?? 'Work',
+    deadline: doc.deadline ? new Date(doc.deadline).getTime() : undefined,
+    color: doc.color ?? '#0ea5e9',
+    tags: doc.tags ?? [],
+    subtasks: (doc.subtasks ?? []).map((s: any): Subtask => ({
+      id: s._id,
+      title: s.title,
       completed: s.completed,
       createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
     })),
-    sessions:  [],         // populated from timer restore / loadAll
+    sessions: [],         // populated from timer restore / loadAll
     totalTime: doc.totalTime ?? 0,
     createdAt: new Date(doc.createdAt).getTime(),
     updatedAt: new Date(doc.updatedAt).getTime(),
@@ -120,13 +153,13 @@ function mapTask(doc: any): Task {
 
 function mapJournal(doc: any): JournalEntry {
   return {
-    id:          doc._id,
-    taskId:      doc.taskId ?? '',
-    content:     doc.content,
-    mood:        doc.mood,
+    id: doc._id,
+    taskId: doc.taskId ?? '',
+    content: doc.content,
+    mood: doc.mood,
     focusRating: doc.focusRating,
-    createdAt:   new Date(doc.createdAt).getTime(),
-    updatedAt:   new Date(doc.updatedAt).getTime(),
+    createdAt: new Date(doc.createdAt).getTime(),
+    updatedAt: new Date(doc.updatedAt).getTime(),
   };
 }
 
@@ -134,66 +167,66 @@ function mapSettings(userDoc: any) {
   const s = userDoc?.settings ?? {};
   return {
     profile: {
-      name:          userDoc?.name          ?? DEFAULT_PROFILE.name,
-      dailyGoal:     s.dailyGoal            ?? DEFAULT_PROFILE.dailyGoal,
-      pomodoroWork:  s.pomodoroWork         ?? DEFAULT_PROFILE.pomodoroWork,
-      pomodoroBreak: s.pomodoroBreak        ?? DEFAULT_PROFILE.pomodoroBreak,
-      timezone:      DEFAULT_PROFILE.timezone,
+      name: userDoc?.name ?? DEFAULT_PROFILE.name,
+      dailyGoal: s.dailyGoal ?? DEFAULT_PROFILE.dailyGoal,
+      pomodoroWork: s.pomodoroWork ?? DEFAULT_PROFILE.pomodoroWork,
+      pomodoroBreak: s.pomodoroBreak ?? DEFAULT_PROFILE.pomodoroBreak,
+      timezone: DEFAULT_PROFILE.timezone,
     } as UserProfile,
     theme: {
-      mode:              'dark' as const,
-      accentColor:       s.accentColor      ?? DEFAULT_THEME.accentColor,
-      fontSize:          (s.fontSize        ?? DEFAULT_THEME.fontSize) as 'sm' | 'md' | 'lg',
-      glassmorphism:     s.glassmorphism    ?? DEFAULT_THEME.glassmorphism,
-      animatedBackground:s.animatedBg       ?? DEFAULT_THEME.animatedBackground,
-      reducedMotion:     s.reducedMotion    ?? DEFAULT_THEME.reducedMotion,
+      mode: 'dark' as const,
+      accentColor: s.accentColor ?? DEFAULT_THEME.accentColor,
+      fontSize: (s.fontSize ?? DEFAULT_THEME.fontSize) as 'sm' | 'md' | 'lg',
+      glassmorphism: s.glassmorphism ?? DEFAULT_THEME.glassmorphism,
+      animatedBackground: s.animatedBg ?? DEFAULT_THEME.animatedBackground,
+      reducedMotion: s.reducedMotion ?? DEFAULT_THEME.reducedMotion,
     } as ThemeSettings,
   };
 }
 
 // ── Store shape ───────────────────────────────────────────────────────────────
 interface StoreState {
-  tasks:            Task[];
-  journals:         JournalEntry[];
-  profile:          UserProfile;
-  theme:            ThemeSettings;
-  activeTaskId:     string | null;
-  activeSessionId:  string | null;
+  tasks: Task[];
+  journals: JournalEntry[];
+  profile: UserProfile;
+  theme: ThemeSettings;
+  activeTaskId: string | null;
+  activeSessionId: string | null;
   activeTimerState: TimerState;
   currentSessionStart?: number;
-  currentPauseStart?:   number;
-  dataLoading:      boolean;
-  dataError:        string | null;
+  currentPauseStart?: number;
+  dataLoading: boolean;
+  dataError: string | null;
 
-  loadAll:      () => Promise<void>;
-  fetchTasks:   () => Promise<void>;
-  addTask:      (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
-  updateTask:   (id: string, updates: Partial<Task>) => Promise<void>;
-  deleteTask:   (id: string) => Promise<void>;
+  loadAll: () => Promise<void>;
+  fetchTasks: () => Promise<void>;
+  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
   completeTask: (id: string) => Promise<void>;
   reorderTasks: (tasks: Task[]) => void;
 
-  startTimer:  (taskId: string) => Promise<void>;
-  pauseTimer:  (taskId: string) => void;
+  startTimer: (taskId: string) => Promise<void>;
+  pauseTimer: (taskId: string) => void;
   resumeTimer: (taskId: string) => void;
-  stopTimer:   (taskId: string) => void;
-  tick:        () => void;
+  stopTimer: (taskId: string) => void;
+  tick: () => void;
 
-  addSubtask:    (taskId: string, title: string) => Promise<void>;
+  addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
 
-  fetchJournals:  () => Promise<void>;
-  addJournal:     (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateJournal:  (id: string, updates: Partial<JournalEntry>) => Promise<void>;
-  deleteJournal:  (id: string) => Promise<void>;
+  fetchJournals: () => Promise<void>;
+  addJournal: (entry: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateJournal: (id: string, updates: Partial<JournalEntry>) => Promise<void>;
+  deleteJournal: (id: string) => Promise<void>;
 
   updateProfile: (updates: Partial<UserProfile>) => void;
-  updateTheme:   (updates: Partial<ThemeSettings>) => void;
+  updateTheme: (updates: Partial<ThemeSettings>) => void;
 
-  getTask:      (id: string) => Task | undefined;
+  getTask: (id: string) => Task | undefined;
   getTodayTime: () => number;
-  getWeekTime:  () => number;
+  getWeekTime: () => number;
 }
 
 // ── Build initial state from localStorage caches ─────────────────────────────
@@ -204,32 +237,32 @@ const persisted = loadTimer();
 export const useStore = create<StoreState>((set, get) => {
   // Seed profile/theme from cache so they show immediately on refresh
   const cachedProfile = loadCached<UserProfile>(PROFILE_KEY, DEFAULT_PROFILE);
-  const cachedTheme   = loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME);
+  const cachedTheme = loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME);
 
   // Seed timer from localStorage (no tasks yet, we'll patch after loadAll)
   const timerInit = persisted
     ? {
-        activeTaskId:        persisted.taskId,
-        activeTimerState:    persisted.timerState as TimerState,
-        activeSessionId:     persisted.sessionId,
-        currentSessionStart: persisted.sessionStartTime,
-        currentPauseStart:   persisted.timerState === 'paused' ? persisted.pauseStart : undefined,
-      }
+      activeTaskId: persisted.taskId,
+      activeTimerState: persisted.timerState as TimerState,
+      activeSessionId: persisted.sessionId,
+      currentSessionStart: persisted.sessionStartTime,
+      currentPauseStart: persisted.timerState === 'paused' ? persisted.pauseStart : undefined,
+    }
     : {
-        activeTaskId:     null as string | null,
-        activeTimerState: 'idle' as TimerState,
-        activeSessionId:  null as string | null,
-        currentSessionStart: undefined as number | undefined,
-        currentPauseStart:   undefined as number | undefined,
-      };
+      activeTaskId: null as string | null,
+      activeTimerState: 'idle' as TimerState,
+      activeSessionId: null as string | null,
+      currentSessionStart: undefined as number | undefined,
+      currentPauseStart: undefined as number | undefined,
+    };
 
   return {
-    tasks:    [],
+    tasks: [],
     journals: [],
-    profile:  cachedProfile,
-    theme:    cachedTheme,
+    profile: cachedProfile,
+    theme: cachedTheme,
     dataLoading: false,
-    dataError:   null,
+    dataError: null,
     ...timerInit,
 
     // ── Boot ────────────────────────────────────────────────────────────────
@@ -253,62 +286,91 @@ export const useStore = create<StoreState>((set, get) => {
         // ── Restore active timer ───────────────────────────────────────────
         // First check localStorage (instant); then validate against Atlas
         const localTimer = loadTimer();
-        let activeTaskId:        string | null = null;
-        let activeSessionId:     string | null = null;
-        let activeTimerState:    TimerState    = 'idle';
+        let activeTaskId: string | null = null;
+        let activeSessionId: string | null = null;
+        let activeTimerState: TimerState = 'idle';
         let currentSessionStart: number | undefined;
-        let currentPauseStart:   number | undefined;
+        let currentPauseStart: number | undefined;
 
-        if (localTimer) {
-          // Validate that Atlas still has this session as active
-          try {
-            const activeSessions = await api.sessions.list({ active: true });
-            const match = activeSessions.find(s =>
-              s.taskId === localTimer.taskId || s._id === localTimer.sessionId
-            );
+        try {
+          const activeSessions = await api.sessions.list({ active: true });
+          const match = localTimer
+            ? activeSessions.find(s =>
+              docId(s.taskId) === localTimer.taskId || docId(s._id) === localTimer.sessionId
+            )
+            : activeSessions[0];
+          const timerForMatch: PersistedTimer | null = match
+            ? (localTimer ?? {
+              taskId: docId(match.taskId),
+              sessionId: docId(match._id),
+              timerState: (baseTasks.find(t => t.id === docId(match.taskId))?.status === 'paused' || getOpenPauseStart(match))
+                ? 'paused'
+                : 'running',
+              sessionStartTime: match.startTime,
+              totalPauseDuration: match.totalPauseDuration || 0,
+              ...(getOpenPauseStart(match) ? { pauseStart: getOpenPauseStart(match) } : {}),
+            })
+            : localTimer;
 
             if (match) {
               // Session still active in Atlas — restore with correct elapsed
-              activeTaskId        = match.taskId;
-              activeSessionId     = match._id;
-              activeTimerState    = localTimer.timerState;
+              activeTaskId = docId(match.taskId);
+              activeSessionId = docId(match._id);
+              activeTimerState = timerForMatch!.timerState;
               currentSessionStart = match.startTime;
-              currentPauseStart   = localTimer.timerState === 'paused' ? localTimer.pauseStart : undefined;
+              currentPauseStart = timerForMatch!.timerState === 'paused' ? timerForMatch!.pauseStart : undefined;
 
               const elapsed = calcElapsed({
-                ...localTimer,
-                taskId:            match.taskId,
-                sessionId:         match._id,
-                sessionStartTime:  match.startTime,
-                totalPauseDuration:match.totalPauseDuration || 0,
+                ...timerForMatch!,
+                taskId: docId(match.taskId),
+                sessionId: docId(match._id),
+                sessionStartTime: match.startTime,
+                totalPauseDuration: match.totalPauseDuration || 0,
               });
 
               // Inject live session into the task so timer shows correct time
               baseTasks = baseTasks.map(t => {
-                if (t.id !== match.taskId) return t;
+                if (t.id !== docId(match.taskId)) return t;
                 return {
                   ...t,
                   status: (activeTimerState === 'paused' ? 'paused' : 'active') as Task['status'],
                   sessions: [{
-                    id:                 match._id,
-                    startTime:          match.startTime,
-                    endTime:            undefined,
+                    id: docId(match._id),
+                    startTime: match.startTime,
+                    endTime: undefined,
                     totalPauseDuration: match.totalPauseDuration || 0,
-                    activeTime:         elapsed,
+                    activeTime: elapsed,
                   }],
                 };
+              });
+              saveTimer({
+                ...timerForMatch!,
+                taskId: docId(match.taskId),
+                sessionId: docId(match._id),
+                sessionStartTime: match.startTime,
+                totalPauseDuration: match.totalPauseDuration || 0,
               });
 
             } else {
               // Session no longer active in Atlas — clear stale localStorage
               clearTimer();
+              // Cache today's total for instant display on refresh
+              try {
+                const todayMs = get().getTodayTime();
+                localStorage.setItem('ff_today_ms', JSON.stringify({
+                  date: new Date().toISOString(),
+                  ms: todayMs,
+                }));
+              } catch { /* ignore */ }
             }
           } catch {
             // API failed — fall back to localStorage only
-            activeTaskId        = localTimer.taskId;
-            activeTimerState    = localTimer.timerState;
+            if (localTimer) {
+            activeTaskId = localTimer.taskId;
+            activeSessionId = localTimer.sessionId;
+            activeTimerState = localTimer.timerState;
             currentSessionStart = localTimer.sessionStartTime;
-            currentPauseStart   = localTimer.timerState === 'paused' ? localTimer.pauseStart : undefined;
+            currentPauseStart = localTimer.timerState === 'paused' ? localTimer.pauseStart : undefined;
 
             const elapsed = calcElapsed(localTimer);
             baseTasks = baseTasks.map(t => {
@@ -317,19 +379,19 @@ export const useStore = create<StoreState>((set, get) => {
                 ...t,
                 status: (activeTimerState === 'paused' ? 'paused' : 'active') as Task['status'],
                 sessions: [{
-                  id:                 localTimer.sessionId || 'restored',
-                  startTime:          localTimer.sessionStartTime,
-                  endTime:            undefined,
+                  id: localTimer.sessionId || 'restored',
+                  startTime: localTimer.sessionStartTime,
+                  endTime: undefined,
                   totalPauseDuration: localTimer.totalPauseDuration,
-                  activeTime:         elapsed,
+                  activeTime: elapsed,
                 }],
               };
             });
+            }
           }
-        }
 
         set({
-          tasks:    baseTasks,
+          tasks: baseTasks,
           journals: journalDocs.map(mapJournal),
           profile,
           theme,
@@ -385,7 +447,7 @@ export const useStore = create<StoreState>((set, get) => {
       };
       set(s => ({ tasks: [tempTask, ...s.tasks] }));
       try {
-        const doc  = await api.tasks.create({ ...data, deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined });
+        const doc = await api.tasks.create({ ...data, deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined });
         const real = mapTask(doc);
         set(s => ({ tasks: s.tasks.map(t => t.id === tempId ? real : t) }));
         return real.id;
@@ -406,7 +468,7 @@ export const useStore = create<StoreState>((set, get) => {
       const { activeTaskId, stopTimer } = get();
       if (activeTaskId === id) stopTimer(id);
       set(s => ({
-        tasks:    s.tasks.filter(t => t.id !== id),
+        tasks: s.tasks.filter(t => t.id !== id),
         journals: s.journals.filter(j => j.taskId !== id),
       }));
       await api.tasks.delete(id);
@@ -425,20 +487,20 @@ export const useStore = create<StoreState>((set, get) => {
       const now = Date.now();
 
       set(s => ({
-        activeTaskId:        taskId,
-        activeSessionId:     null,
-        activeTimerState:    'running',
+        activeTaskId: taskId,
+        activeSessionId: null,
+        activeTimerState: 'running',
         currentSessionStart: now,
-        currentPauseStart:   undefined,
+        currentPauseStart: undefined,
         tasks: s.tasks.map(t =>
           t.id === taskId
             ? {
-                ...t, status: 'active',
-                sessions: [
-                  ...t.sessions,
-                  { id: 'pending', startTime: now, totalPauseDuration: 0, activeTime: 0 },
-                ],
-              }
+              ...t, status: 'active',
+              sessions: [
+                ...t.sessions,
+                { id: 'pending', startTime: now, totalPauseDuration: 0, activeTime: 0 },
+              ],
+            }
             : t
         ),
       }));
@@ -476,11 +538,11 @@ export const useStore = create<StoreState>((set, get) => {
       const last = get().tasks.find(t => t.id === taskId)?.sessions.slice(-1)[0];
       saveTimer({
         taskId,
-        sessionId:          activeSessionId,
-        timerState:         'paused',
-        sessionStartTime:   last?.startTime ?? (currentSessionStart || Date.now()),
+        sessionId: activeSessionId,
+        timerState: 'paused',
+        sessionStartTime: last?.startTime ?? (currentSessionStart || Date.now()),
         totalPauseDuration: last?.totalPauseDuration ?? 0,
-        pauseStart:         now,
+        pauseStart: now,
       });
 
       if (activeSessionId) api.sessions.pause(activeSessionId, now).catch(console.error);
@@ -488,11 +550,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     resumeTimer: (taskId) => {
       const { activeSessionId, currentPauseStart } = get();
-      const now          = Date.now();
+      const now = Date.now();
       const pauseDuration = currentPauseStart ? now - currentPauseStart : 0;
 
       set(s => ({
-        activeTimerState:  'running',
+        activeTimerState: 'running',
         currentPauseStart: undefined,
         tasks: s.tasks.map(t => {
           if (t.id !== taskId) return t;
@@ -510,9 +572,9 @@ export const useStore = create<StoreState>((set, get) => {
       if (last) {
         saveTimer({
           taskId,
-          sessionId:          activeSessionId,
-          timerState:         'running',
-          sessionStartTime:   last.startTime,
+          sessionId: activeSessionId,
+          timerState: 'running',
+          sessionStartTime: last.startTime,
           totalPauseDuration: last.totalPauseDuration,
         });
       }
@@ -520,38 +582,74 @@ export const useStore = create<StoreState>((set, get) => {
       if (activeSessionId) api.sessions.resume(activeSessionId, now).catch(console.error);
     },
 
-    stopTimer: (taskId) => {
+    stopTimer: async (taskId) => {
       const { activeSessionId, currentPauseStart, activeTimerState } = get();
       const now = Date.now();
 
+      // ── Calculate final session time BEFORE wiping state ──────────────────
+      const stoppingTask = get().tasks.find(t => t.id === taskId);
+      const lastSession = stoppingTask?.sessions[stoppingTask.sessions.length - 1];
+      const extraPause = (activeTimerState === 'paused' && currentPauseStart)
+        ? now - currentPauseStart : 0;
+      const finalPause = (lastSession?.totalPauseDuration || 0) + extraPause;
+      const finalActive = lastSession
+        ? Math.max(0, now - lastSession.startTime - finalPause)
+        : 0;
+
+      // ── Cache today's total BEFORE state wipe so refresh shows correct value
+      try {
+        const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
+        let todayTotal = finalActive; // the session we just stopped
+        // Add other tasks' sessions for today
+        for (const task of get().tasks) {
+          if (task.id === taskId) continue;
+          for (const s of task.sessions) {
+            if (s.startTime >= startOfDay.getTime()) {
+              todayTotal += Math.max(0, (s.endTime || now) - s.startTime - s.totalPauseDuration);
+            }
+          }
+        }
+        localStorage.setItem('ff_today_ms', JSON.stringify({
+          date: new Date().toISOString(),
+          ms: todayTotal,
+        }));
+      } catch { /* ignore */ }
+
+      // ── Now wipe state ────────────────────────────────────────────────────
+      clearTimer();
+
       set(s => ({
-        activeTaskId:        null,
-        activeSessionId:     null,
-        activeTimerState:    'idle',
+        activeTaskId: null,
+        activeSessionId: null,
+        activeTimerState: 'idle',
         currentSessionStart: undefined,
-        currentPauseStart:   undefined,
+        currentPauseStart: undefined,
         tasks: s.tasks.map(t => {
           if (t.id !== taskId) return t;
           const sessions = [...t.sessions];
           const last = sessions[sessions.length - 1];
           if (last && !last.endTime) {
-            const extraPause = (activeTimerState === 'paused' && currentPauseStart) ? now - currentPauseStart : 0;
-            const totalPause = last.totalPauseDuration + extraPause;
-            const activeTime = Math.max(0, now - last.startTime - totalPause);
-            sessions[sessions.length - 1] = { ...last, endTime: now, totalPauseDuration: totalPause, activeTime };
+            sessions[sessions.length - 1] = {
+              ...last,
+              endTime: now,
+              totalPauseDuration: finalPause,
+              activeTime: finalActive,
+            };
           }
           const totalTime = sessions.reduce((a, s) => a + s.activeTime, 0);
           return { ...t, sessions, totalTime, status: 'todo' };
         }),
       }));
 
-      // Clear localStorage — timer is done
-      clearTimer();
-
-      if (activeSessionId) {
-        api.sessions.stop(activeSessionId, now)
-          .then(() => get().fetchTasks())
-          .catch(console.error);
+      // Persist to Atlas
+      const sid = activeSessionId;
+      if (sid) {
+        try {
+          await api.sessions.stop(sid, now);
+          await get().fetchTasks();
+        } catch (err) {
+          console.error('❌ Failed to persist session stop:', err);
+        }
       }
     },
 
@@ -577,15 +675,15 @@ export const useStore = create<StoreState>((set, get) => {
       }));
 
       // Keep localStorage in sync (updates totalPauseDuration if needed)
-      const liveTask    = get().tasks.find(t => t.id === activeTaskId);
+      const liveTask = get().tasks.find(t => t.id === activeTaskId);
       const liveSession = liveTask?.sessions.slice(-1)[0];
       if (liveSession && get().activeSessionId) {
         saveTimer({
-          taskId:            activeTaskId,
-          sessionId:         get().activeSessionId,
-          timerState:        'running',
-          sessionStartTime:  liveSession.startTime,
-          totalPauseDuration:liveSession.totalPauseDuration,
+          taskId: activeTaskId,
+          sessionId: get().activeSessionId,
+          timerState: 'running',
+          sessionStartTime: liveSession.startTime,
+          totalPauseDuration: liveSession.totalPauseDuration,
         });
       }
     },
@@ -657,8 +755,8 @@ export const useStore = create<StoreState>((set, get) => {
       api.profile.update({
         name: updates.name ?? current.name,
         settings: {
-          dailyGoal:     updates.dailyGoal     ?? current.dailyGoal,
-          pomodoroWork:  updates.pomodoroWork  ?? current.pomodoroWork,
+          dailyGoal: updates.dailyGoal ?? current.dailyGoal,
+          pomodoroWork: updates.pomodoroWork ?? current.pomodoroWork,
           pomodoroBreak: updates.pomodoroBreak ?? current.pomodoroBreak,
         },
       }).catch(console.error);
@@ -670,10 +768,10 @@ export const useStore = create<StoreState>((set, get) => {
       saveCache(THEME_KEY, current); // update cache immediately
       api.profile.update({
         settings: {
-          accentColor:   updates.accentColor   ?? current.accentColor,
-          fontSize:      updates.fontSize      ?? current.fontSize,
+          accentColor: updates.accentColor ?? current.accentColor,
+          fontSize: updates.fontSize ?? current.fontSize,
           glassmorphism: updates.glassmorphism ?? current.glassmorphism,
-          animatedBg:    updates.animatedBackground ?? current.animatedBackground,
+          animatedBg: updates.animatedBackground ?? current.animatedBackground,
           reducedMotion: updates.reducedMotion ?? current.reducedMotion,
         },
       }).catch(console.error);
@@ -687,6 +785,7 @@ export const useStore = create<StoreState>((set, get) => {
       let total = 0;
       const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
       const now = Date.now();
+
       for (const task of tasks) {
         for (const session of task.sessions) {
           if (session.startTime >= startOfDay.getTime()) {
@@ -694,9 +793,34 @@ export const useStore = create<StoreState>((set, get) => {
           }
         }
       }
+
+      // Work Log entries for today
+      try {
+        const { activeLogs, closedLogs } = useWorkLogStore.getState();
+        for (const log of [...activeLogs, ...closedLogs]) {
+          for (const entry of log.workEntries || []) {
+            const d = new Date(entry.date); d.setHours(0, 0, 0, 0);
+            if (d.getTime() === startOfDay.getTime()) {
+              total += entry.activeMs || 0;
+            }
+          }
+        }
+      } catch { /* ignore */ }
+
+      // If nothing loaded yet (tasks still fetching), read localStorage cache
+      if (total === 0) {
+        try {
+          const cached = localStorage.getItem('ff_today_ms');
+          if (cached) {
+            const { date, ms } = JSON.parse(cached);
+            const cachedDate = new Date(date); cachedDate.setHours(0, 0, 0, 0);
+            if (cachedDate.getTime() === startOfDay.getTime()) total = ms;
+          }
+        } catch { /* ignore */ }
+      }
+
       return total;
     },
-
     getWeekTime: () => {
       const tasks = get().tasks;
       let total = 0;
