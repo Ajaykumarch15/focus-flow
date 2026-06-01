@@ -66,6 +66,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_theme_cache');
     localStorage.removeItem('ff_worklog_cache');
     localStorage.removeItem('ff_habit_cache');
+    localStorage.removeItem('ff_habit_timer');
     localStorage.removeItem('ff_today_ms');
     clearTimer();
     set({ user: null, token: null, loading: false });

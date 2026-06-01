@@ -36,6 +36,12 @@ interface HabitState {
   loading: boolean;
   creating: boolean;
   error: string | null;
+  activeHabitId: string | null;
+  habitTimerState: 'idle' | 'running' | 'paused';
+  habitTimerStartedAt?: number;
+  habitTimerPausedAt?: number;
+  habitTimerPausedMs: number;
+  habitTimerBaseMinutes: number;
   loadHabits: () => Promise<void>;
   createHabit: (data: { title: string; description?: string; color?: string; targetMinutes?: number; checklist?: string[] }) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Habit>) => Promise<void>;
@@ -43,9 +49,25 @@ interface HabitState {
   addChecklistItem: (id: string, text: string) => Promise<void>;
   deleteChecklistItem: (id: string, itemId: string) => Promise<void>;
   updateToday: (id: string, entry: Partial<Pick<HabitEntry, 'completedItems' | 'minutes' | 'feeling' | 'note'>>) => Promise<void>;
+  startTimer: (id: string) => void;
+  pauseTimer: (id: string) => void;
+  resumeTimer: (id: string) => void;
+  stopTimer: (id: string) => Promise<void>;
+  getLiveMinutes: (id: string) => number;
+  getLiveElapsedMs: (id: string) => number;
 }
 
 const CACHE_KEY = 'ff_habit_cache';
+const TIMER_KEY = 'ff_habit_timer';
+
+interface PersistedHabitTimer {
+  habitId: string;
+  state: 'running' | 'paused';
+  startedAt: number;
+  pausedAt?: number;
+  pausedMs: number;
+  baseMinutes: number;
+}
 
 function todayKey(): string {
   const d = new Date();
@@ -94,6 +116,27 @@ function writeCache(habits: Habit[]): void {
   } catch { /* ignore */ }
 }
 
+function readTimer(): PersistedHabitTimer | null {
+  try {
+    const raw = localStorage.getItem(TIMER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeTimer(timer: PersistedHabitTimer): void {
+  try {
+    localStorage.setItem(TIMER_KEY, JSON.stringify(timer));
+  } catch { /* ignore */ }
+}
+
+function clearTimer(): void {
+  try {
+    localStorage.removeItem(TIMER_KEY);
+  } catch { /* ignore */ }
+}
+
 function patchHabit(habits: Habit[], updated: Habit): Habit[] {
   return habits.map(h => h._id === updated._id ? updated : h);
 }
@@ -117,11 +160,65 @@ export function getTodayHabitEntry(habit: Habit): HabitEntry {
   };
 }
 
+function elapsedMs(timer: {
+  state: 'idle' | 'running' | 'paused';
+  startedAt?: number;
+  pausedAt?: number;
+  pausedMs: number;
+}): number {
+  if (!timer.startedAt || timer.state === 'idle') return 0;
+  const end = timer.state === 'paused' && timer.pausedAt ? timer.pausedAt : Date.now();
+  return Math.max(0, end - timer.startedAt - timer.pausedMs);
+}
+
+function mergeTodayMinutes(habits: Habit[], id: string, minutes: number): Habit[] {
+  return habits.map(habit => {
+    if (habit._id !== id) return habit;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const existing = habit.entries.find(entry => {
+      const d = new Date(entry.date);
+      d.setHours(0, 0, 0, 0);
+      return d.getTime() === today.getTime();
+    });
+
+    if (existing) {
+      return {
+        ...habit,
+        entries: habit.entries.map(entry => entry._id === existing._id ? { ...entry, minutes } : entry),
+      };
+    }
+
+    return {
+      ...habit,
+      entries: [
+        ...habit.entries,
+        {
+          _id: 'today',
+          date: todayKey(),
+          completedItems: [],
+          minutes,
+          feeling: 'okay',
+          note: '',
+        },
+      ],
+    };
+  });
+}
+
+const persistedTimer = readTimer();
+
 export const useHabitStore = create<HabitState>((set, get) => ({
   habits: readCache(),
   loading: false,
   creating: false,
   error: null,
+  activeHabitId: persistedTimer?.habitId ?? null,
+  habitTimerState: persistedTimer?.state ?? 'idle',
+  habitTimerStartedAt: persistedTimer?.startedAt,
+  habitTimerPausedAt: persistedTimer?.pausedAt,
+  habitTimerPausedMs: persistedTimer?.pausedMs ?? 0,
+  habitTimerBaseMinutes: persistedTimer?.baseMinutes ?? 0,
 
   loadHabits: async () => {
     set({ loading: true, error: null });
@@ -163,6 +260,17 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   },
 
   deleteHabit: async (id) => {
+    if (get().activeHabitId === id) {
+      clearTimer();
+      set({
+        activeHabitId: null,
+        habitTimerState: 'idle',
+        habitTimerStartedAt: undefined,
+        habitTimerPausedAt: undefined,
+        habitTimerPausedMs: 0,
+        habitTimerBaseMinutes: 0,
+      });
+    }
     const habits = get().habits.filter(h => h._id !== id);
     writeCache(habits);
     set({ habits });
@@ -188,5 +296,96 @@ export const useHabitStore = create<HabitState>((set, get) => ({
     const habits = patchHabit(get().habits, normalizeHabit(doc));
     writeCache(habits);
     set({ habits });
+  },
+
+  startTimer: (id) => {
+    const habit = get().habits.find(h => h._id === id);
+    if (!habit) return;
+    const baseMinutes = getTodayHabitEntry(habit).minutes;
+    const startedAt = Date.now();
+    const timer: PersistedHabitTimer = {
+      habitId: id,
+      state: 'running',
+      startedAt,
+      pausedMs: 0,
+      baseMinutes,
+    };
+    writeTimer(timer);
+    set({
+      activeHabitId: id,
+      habitTimerState: 'running',
+      habitTimerStartedAt: startedAt,
+      habitTimerPausedAt: undefined,
+      habitTimerPausedMs: 0,
+      habitTimerBaseMinutes: baseMinutes,
+    });
+  },
+
+  pauseTimer: (id) => {
+    const state = get();
+    if (state.activeHabitId !== id || state.habitTimerState !== 'running' || !state.habitTimerStartedAt) return;
+    const pausedAt = Date.now();
+    writeTimer({
+      habitId: id,
+      state: 'paused',
+      startedAt: state.habitTimerStartedAt,
+      pausedAt,
+      pausedMs: state.habitTimerPausedMs,
+      baseMinutes: state.habitTimerBaseMinutes,
+    });
+    set({ habitTimerState: 'paused', habitTimerPausedAt: pausedAt });
+  },
+
+  resumeTimer: (id) => {
+    const state = get();
+    if (state.activeHabitId !== id || state.habitTimerState !== 'paused' || !state.habitTimerStartedAt) return;
+    const extraPause = state.habitTimerPausedAt ? Date.now() - state.habitTimerPausedAt : 0;
+    const pausedMs = state.habitTimerPausedMs + extraPause;
+    writeTimer({
+      habitId: id,
+      state: 'running',
+      startedAt: state.habitTimerStartedAt,
+      pausedMs,
+      baseMinutes: state.habitTimerBaseMinutes,
+    });
+    set({ habitTimerState: 'running', habitTimerPausedAt: undefined, habitTimerPausedMs: pausedMs });
+  },
+
+  stopTimer: async (id) => {
+    const minutes = get().getLiveMinutes(id);
+    clearTimer();
+    const habits = mergeTodayMinutes(get().habits, id, minutes);
+    writeCache(habits);
+    set({
+      habits,
+      activeHabitId: null,
+      habitTimerState: 'idle',
+      habitTimerStartedAt: undefined,
+      habitTimerPausedAt: undefined,
+      habitTimerPausedMs: 0,
+      habitTimerBaseMinutes: 0,
+    });
+    await get().updateToday(id, { minutes });
+  },
+
+  getLiveElapsedMs: (id) => {
+    const state = get();
+    if (state.activeHabitId !== id) return 0;
+    return elapsedMs({
+      state: state.habitTimerState,
+      startedAt: state.habitTimerStartedAt,
+      pausedAt: state.habitTimerPausedAt,
+      pausedMs: state.habitTimerPausedMs,
+    });
+  },
+
+  getLiveMinutes: (id) => {
+    const state = get();
+    if (state.activeHabitId !== id) {
+      const habit = state.habits.find(h => h._id === id);
+      return habit ? getTodayHabitEntry(habit).minutes : 0;
+    }
+    const addedMinutes = Math.round((state.getLiveElapsedMs(id) / 60000) * 10) / 10;
+    return Math.round((state.habitTimerBaseMinutes + addedMinutes) * 10) / 10;
   },
 }));
