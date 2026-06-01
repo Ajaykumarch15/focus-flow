@@ -17,6 +17,7 @@ import { Analytics }       from './pages/Analytics';
 import { Journal }         from './pages/Journal';
 import { FocusMode }       from './pages/FocusMode';
 import { Settings }        from './pages/Settings';
+import { Habits }          from './pages/Habits';
 import { WorkLogPage }     from './pages/WorkLog';
 import { ReportsPage }     from './pages/Reports';
 import { ShareReportPage } from './pages/ShareReport';
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/tasks/:id"  element={<TaskDetail />} />
             <Route path="/analytics"  element={<Analytics />} />
             <Route path="/journal"    element={<Journal />} />
+            <Route path="/habits"     element={<Habits />} />
             <Route path="/focus"      element={<FocusMode />} />
             <Route path="/settings"   element={<Settings />} />
           </Route>
