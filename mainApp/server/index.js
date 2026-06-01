@@ -9,6 +9,7 @@ const sessionRoutes = require('./routes/sessions');
 const journalRoutes = require('./routes/journals');
 const profileRoutes = require('./routes/profile');
 const workLogRoutes = require('./routes/workLogs');
+const habitRoutes = require('./routes/habits');
 const reportRoutes = require('./routes/reports');   // ← NEW
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/sessions', sessionRoutes);
 app.use('/api/journals', journalRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/worklogs', workLogRoutes);
+app.use('/api/habits', habitRoutes);
 app.use('/api/reports', reportRoutes);            // ← NEW
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));

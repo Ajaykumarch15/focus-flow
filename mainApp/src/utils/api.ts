@@ -105,6 +105,21 @@ export const api = {
       request<any>(`/worklogs/${id}/links/${linkId}`, { method: 'DELETE' }),
   },
 
+  habits: {
+    list: () => request<any[]>('/habits'),
+    create: (body: any) => request<any>('/habits', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request<any>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) => request<any>(`/habits/${id}`, { method: 'DELETE' }),
+    addChecklistItem: (id: string, text: string) =>
+      request<any>(`/habits/${id}/checklist`, { method: 'POST', body: JSON.stringify({ text }) }),
+    updateChecklistItem: (id: string, itemId: string, body: any) =>
+      request<any>(`/habits/${id}/checklist/${itemId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    deleteChecklistItem: (id: string, itemId: string) =>
+      request<any>(`/habits/${id}/checklist/${itemId}`, { method: 'DELETE' }),
+    updateToday: (id: string, body: any) =>
+      request<any>(`/habits/${id}/today`, { method: 'PATCH', body: JSON.stringify(body) }),
+  },
+
   reports: {
     summary: (from?: string, to?: string) => {
       const params = new URLSearchParams();
