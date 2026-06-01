@@ -21,6 +21,8 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 import {
   saveTimer, loadTimer, clearTimer, calcElapsed, PersistedTimer,
+  addCompletedSession,
+  loadTodayMs,
 } from '../utils/timerPersist';
 import type {
   Task, JournalEntry, TimerState, Priority,
@@ -312,60 +314,60 @@ export const useStore = create<StoreState>((set, get) => {
             })
             : localTimer;
 
-            if (match) {
-              // Session still active in Atlas — restore with correct elapsed
-              activeTaskId = docId(match.taskId);
-              activeSessionId = docId(match._id);
-              activeTimerState = timerForMatch!.timerState;
-              currentSessionStart = match.startTime;
-              currentPauseStart = timerForMatch!.timerState === 'paused' ? timerForMatch!.pauseStart : undefined;
+          if (match) {
+            // Session still active in Atlas — restore with correct elapsed
+            activeTaskId = docId(match.taskId);
+            activeSessionId = docId(match._id);
+            activeTimerState = timerForMatch!.timerState;
+            currentSessionStart = match.startTime;
+            currentPauseStart = timerForMatch!.timerState === 'paused' ? timerForMatch!.pauseStart : undefined;
 
-              const elapsed = calcElapsed({
-                ...timerForMatch!,
-                taskId: docId(match.taskId),
-                sessionId: docId(match._id),
-                sessionStartTime: match.startTime,
-                totalPauseDuration: match.totalPauseDuration || 0,
-              });
+            const elapsed = calcElapsed({
+              ...timerForMatch!,
+              taskId: docId(match.taskId),
+              sessionId: docId(match._id),
+              sessionStartTime: match.startTime,
+              totalPauseDuration: match.totalPauseDuration || 0,
+            });
 
-              // Inject live session into the task so timer shows correct time
-              baseTasks = baseTasks.map(t => {
-                if (t.id !== docId(match.taskId)) return t;
-                return {
-                  ...t,
-                  status: (activeTimerState === 'paused' ? 'paused' : 'active') as Task['status'],
-                  sessions: [{
-                    id: docId(match._id),
-                    startTime: match.startTime,
-                    endTime: undefined,
-                    totalPauseDuration: match.totalPauseDuration || 0,
-                    activeTime: elapsed,
-                  }],
-                };
-              });
-              saveTimer({
-                ...timerForMatch!,
-                taskId: docId(match.taskId),
-                sessionId: docId(match._id),
-                sessionStartTime: match.startTime,
-                totalPauseDuration: match.totalPauseDuration || 0,
-              });
+            // Inject live session into the task so timer shows correct time
+            baseTasks = baseTasks.map(t => {
+              if (t.id !== docId(match.taskId)) return t;
+              return {
+                ...t,
+                status: (activeTimerState === 'paused' ? 'paused' : 'active') as Task['status'],
+                sessions: [{
+                  id: docId(match._id),
+                  startTime: match.startTime,
+                  endTime: undefined,
+                  totalPauseDuration: match.totalPauseDuration || 0,
+                  activeTime: elapsed,
+                }],
+              };
+            });
+            saveTimer({
+              ...timerForMatch!,
+              taskId: docId(match.taskId),
+              sessionId: docId(match._id),
+              sessionStartTime: match.startTime,
+              totalPauseDuration: match.totalPauseDuration || 0,
+            });
 
-            } else {
-              // Session no longer active in Atlas — clear stale localStorage
-              clearTimer();
-              // Cache today's total for instant display on refresh
-              try {
-                const todayMs = get().getTodayTime();
-                localStorage.setItem('ff_today_ms', JSON.stringify({
-                  date: new Date().toISOString(),
-                  ms: todayMs,
-                }));
-              } catch { /* ignore */ }
-            }
-          } catch {
-            // API failed — fall back to localStorage only
-            if (localTimer) {
+          } else {
+            // Session no longer active in Atlas — clear stale localStorage
+            clearTimer();
+            // Cache today's total for instant display on refresh
+            try {
+              const todayMs = get().getTodayTime();
+              localStorage.setItem('ff_today_ms', JSON.stringify({
+                date: new Date().toISOString(),
+                ms: todayMs,
+              }));
+            } catch { /* ignore */ }
+          }
+        } catch {
+          // API failed — fall back to localStorage only
+          if (localTimer) {
             activeTaskId = localTimer.taskId;
             activeSessionId = localTimer.sessionId;
             activeTimerState = localTimer.timerState;
@@ -387,8 +389,8 @@ export const useStore = create<StoreState>((set, get) => {
                 }],
               };
             });
-            }
           }
+        }
 
         set({
           tasks: baseTasks,
@@ -597,22 +599,9 @@ export const useStore = create<StoreState>((set, get) => {
         : 0;
 
       // ── Cache today's total BEFORE state wipe so refresh shows correct value
+      // ✅ CORRECT — one line, uses the new helper
       try {
-        const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
-        let todayTotal = finalActive; // the session we just stopped
-        // Add other tasks' sessions for today
-        for (const task of get().tasks) {
-          if (task.id === taskId) continue;
-          for (const s of task.sessions) {
-            if (s.startTime >= startOfDay.getTime()) {
-              todayTotal += Math.max(0, (s.endTime || now) - s.startTime - s.totalPauseDuration);
-            }
-          }
-        }
-        localStorage.setItem('ff_today_ms', JSON.stringify({
-          date: new Date().toISOString(),
-          ms: todayTotal,
-        }));
+        addCompletedSession(finalActive);
       } catch { /* ignore */ }
 
       // ── Now wipe state ────────────────────────────────────────────────────
@@ -781,45 +770,23 @@ export const useStore = create<StoreState>((set, get) => {
     getTask: (id) => get().tasks.find(t => t.id === id),
 
     getTodayTime: () => {
-      const tasks = get().tasks;
-      let total = 0;
-      const startOfDay = new Date(); startOfDay.setHours(0, 0, 0, 0);
       const now = Date.now();
 
-      for (const task of tasks) {
-        for (const session of task.sessions) {
-          if (session.startTime >= startOfDay.getTime()) {
-            total += Math.max(0, (session.endTime || now) - session.startTime - session.totalPauseDuration);
-          }
+      // Completed sessions today — from localStorage cache (set in stopTimer)
+      const completedMs = loadTodayMs();
+
+      // Current live session — from store (ticks every second)
+      let liveMs = 0;
+      const { activeTaskId, tasks } = get();
+      if (activeTaskId) {
+        const activeTask = tasks.find(t => t.id === activeTaskId);
+        const session = activeTask?.sessions[activeTask.sessions.length - 1];
+        if (session && !session.endTime) {
+          liveMs = Math.max(0, now - session.startTime - session.totalPauseDuration);
         }
       }
 
-      // Work Log entries for today
-      try {
-        const { activeLogs, closedLogs } = useWorkLogStore.getState();
-        for (const log of [...activeLogs, ...closedLogs]) {
-          for (const entry of log.workEntries || []) {
-            const d = new Date(entry.date); d.setHours(0, 0, 0, 0);
-            if (d.getTime() === startOfDay.getTime()) {
-              total += entry.activeMs || 0;
-            }
-          }
-        }
-      } catch { /* ignore */ }
-
-      // If nothing loaded yet (tasks still fetching), read localStorage cache
-      if (total === 0) {
-        try {
-          const cached = localStorage.getItem('ff_today_ms');
-          if (cached) {
-            const { date, ms } = JSON.parse(cached);
-            const cachedDate = new Date(date); cachedDate.setHours(0, 0, 0, 0);
-            if (cachedDate.getTime() === startOfDay.getTime()) total = ms;
-          }
-        } catch { /* ignore */ }
-      }
-
-      return total;
+      return completedMs + liveMs;
     },
     getWeekTime: () => {
       const tasks = get().tasks;
