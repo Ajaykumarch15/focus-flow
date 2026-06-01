@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity, Check, Clock, Plus, SmilePlus, Target, Trash2, X,
+  Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X,
 } from 'lucide-react';
 import { Habit, HabitFeeling, getTodayHabitEntry, useHabitStore } from '../store/useHabitStore';
 
@@ -18,6 +18,21 @@ function completionPercent(habit: Habit): number {
   if (habit.checklist.length === 0) return 0;
   const entry = getTodayHabitEntry(habit);
   return Math.round((entry.completedItems.length / habit.checklist.length) * 100);
+}
+
+function formatClock(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) {
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function formatMinutes(minutes: number): string {
+  return Number.isInteger(minutes) ? String(minutes) : minutes.toFixed(1);
 }
 
 function NewHabitForm({ onClose }: { onClose: () => void }) {
@@ -131,14 +146,32 @@ function NewHabitForm({ onClose }: { onClose: () => void }) {
 }
 
 function HabitCard({ habit }: { habit: Habit }) {
-  const { addChecklistItem, deleteChecklistItem, deleteHabit, updateToday } = useHabitStore();
+  const {
+    addChecklistItem, deleteChecklistItem, deleteHabit, updateToday,
+    activeHabitId, habitTimerState, startTimer, pauseTimer, resumeTimer, stopTimer,
+    getLiveElapsedMs, getLiveMinutes,
+  } = useHabitStore();
   const entry = getTodayHabitEntry(habit);
   const [newItem, setNewItem] = useState('');
   const [note, setNote] = useState(entry.note);
+  const [, forceTick] = useState(0);
+
+  const isThisActive = activeHabitId === habit._id;
+  const isRunning = isThisActive && habitTimerState === 'running';
+  const isPaused = isThisActive && habitTimerState === 'paused';
+  const liveElapsedMs = getLiveElapsedMs(habit._id);
+  const liveMinutes = getLiveMinutes(habit._id);
+  const extraMinutes = Math.max(0, liveMinutes - habit.targetMinutes);
 
   useEffect(() => {
     setNote(entry.note);
   }, [entry.note]);
+
+  useEffect(() => {
+    if (!isThisActive) return;
+    const timer = setInterval(() => forceTick(t => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isThisActive, habitTimerState]);
 
   const toggleItem = (itemId: string) => {
     const completedItems = entry.completedItems.includes(itemId)
@@ -156,7 +189,7 @@ function HabitCard({ habit }: { habit: Habit }) {
 
   const percent = completionPercent(habit);
   const minutesPercent = habit.targetMinutes > 0
-    ? Math.min(100, Math.round((entry.minutes / habit.targetMinutes) * 100))
+    ? Math.min(100, Math.round((liveMinutes / habit.targetMinutes) * 100))
     : 0;
 
   return (
@@ -175,13 +208,85 @@ function HabitCard({ habit }: { habit: Habit }) {
           </div>
           {habit.description && <p className="text-sm text-surface-400 line-clamp-2">{habit.description}</p>}
         </div>
-        <button
-          onClick={() => deleteHabit(habit._id)}
-          className="p-2 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
-          aria-label="Delete habit"
-        >
-          <Trash2 size={15} />
-        </button>
+        <div className="flex items-center gap-2">
+          {!isThisActive && (
+            <button
+              onClick={() => startTimer(habit._id)}
+              disabled={!!activeHabitId}
+              className="btn-primary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Play size={14} fill="currentColor" /> Start
+            </button>
+          )}
+          {isRunning && (
+            <button
+              onClick={() => pauseTimer(habit._id)}
+              className="btn-secondary flex items-center gap-2 text-yellow-300"
+            >
+              <Pause size={14} /> Pause
+            </button>
+          )}
+          {isPaused && (
+            <button
+              onClick={() => resumeTimer(habit._id)}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Play size={14} fill="currentColor" /> Resume
+            </button>
+          )}
+          {isThisActive && (
+            <button
+              onClick={() => stopTimer(habit._id)}
+              className="btn-secondary flex items-center gap-2 text-red-300"
+            >
+              <Square size={13} fill="currentColor" /> Stop
+            </button>
+          )}
+          <button
+            onClick={() => deleteHabit(habit._id)}
+            className="p-2 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+            aria-label="Delete habit"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      </div>
+
+      <div className={`rounded-xl border p-4 mb-5 ${
+        isRunning
+          ? 'border-emerald-400/30 bg-emerald-400/10'
+          : isPaused
+          ? 'border-yellow-400/30 bg-yellow-400/10'
+          : 'border-surface-800 bg-surface-900/50'
+      }`}>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-xs text-surface-400 mb-1">
+              {isRunning ? 'Running' : isPaused ? 'Paused' : 'Ready to track'}
+            </div>
+            <div className={`timer-display text-3xl font-bold ${
+              isRunning ? 'text-emerald-300' : isPaused ? 'text-yellow-300' : 'text-surface-300'
+            }`}>
+              {isThisActive ? formatClock(liveElapsedMs) : formatClock(0)}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-surface-400 mb-1">Today total</div>
+            <div className="text-lg font-display font-bold text-white">
+              {formatMinutes(liveMinutes)}m / {habit.targetMinutes}m
+            </div>
+            {extraMinutes > 0 && (
+              <div className="text-xs text-emerald-300 mt-1">
+                +{formatMinutes(extraMinutes)}m more time worked
+              </div>
+            )}
+          </div>
+        </div>
+        {!!activeHabitId && !isThisActive && (
+          <div className="text-xs text-yellow-300 mt-3">
+            Another habit timer is running. Stop it before starting this one.
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-5">
@@ -197,7 +302,7 @@ function HabitCard({ habit }: { habit: Habit }) {
         <div className="bg-surface-900/60 border border-surface-800 rounded-xl p-3">
           <div className="flex items-center justify-between text-xs text-surface-400 mb-2">
             <span>Time</span>
-            <span>{entry.minutes}/{habit.targetMinutes}m</span>
+            <span>{formatMinutes(liveMinutes)}/{habit.targetMinutes}m</span>
           </div>
           <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
             <div className="h-full rounded-full bg-brand-400" style={{ width: `${minutesPercent}%` }} />
@@ -256,7 +361,9 @@ function HabitCard({ habit }: { habit: Habit }) {
             className="input"
             type="number"
             min={0}
-            value={entry.minutes}
+            step={0.1}
+            value={liveMinutes}
+            disabled={isThisActive}
             onChange={e => updateToday(habit._id, { minutes: Number(e.target.value) })}
           />
         </div>
@@ -295,14 +402,14 @@ function HabitCard({ habit }: { habit: Habit }) {
 }
 
 export function Habits() {
-  const { habits, loading, loadHabits } = useHabitStore();
+  const { habits, loading, loadHabits, getLiveMinutes } = useHabitStore();
   const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     loadHabits();
   }, []);
 
-  const todayMinutes = habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).minutes, 0);
+  const todayMinutes = habits.reduce((sum, habit) => sum + getLiveMinutes(habit._id), 0);
   const completedToday = habits.filter(habit => completionPercent(habit) === 100 && habit.checklist.length > 0).length;
 
   return (
