@@ -70,6 +70,7 @@ interface WorkLogState {
 
   createLog:    (title: string, taskRefId?: string) => Promise<WorkLog>;
   updateField:  (id: string, field: string, value: any) => Promise<void>;
+  linkTask:     (id: string, taskRefId?: string) => Promise<void>;
   updateEntry:  (id: string, entryId: string, what: string) => Promise<void>;
   syncTime:     (id: string) => Promise<void>;    // pull latest session data in
   deleteLog:    (id: string) => Promise<void>;
@@ -293,6 +294,18 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     await api.workLogs.update(id, patch);
   },
 
+  linkTask: async (id, taskRefId) => {
+    const doc = await api.workLogs.linkTask(id, taskRefId || undefined);
+    const updated = mapLog(doc);
+    set(s => {
+      const activeLogs = patchList(s.activeLogs, id, updated);
+      const closedLogs = patchList(s.closedLogs, id, updated);
+      const todayLog = s.todayLog?._id === id ? updated : getTodayLog(activeLogs);
+      cacheLogs(activeLogs, closedLogs, todayLog);
+      return { activeLogs, closedLogs, todayLog };
+    });
+  },
+
   // ── Update "what I did" text on a specific day entry ─────────────────────────
   updateEntry: async (id, entryId, what) => {
     // Optimistic
@@ -318,19 +331,15 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Sync session time into work entries ───────────────────────────────────────
   syncTime: async (id) => {
-    try {
-      const doc     = await api.workLogs.syncTime(id);
-      const updated = mapLog(doc);
-      set(s => {
-        const activeLogs = patchList(s.activeLogs, id, updated);
-        const closedLogs = patchList(s.closedLogs, id, updated);
-        const todayLog = s.todayLog?._id === id ? updated : getTodayLog(activeLogs);
-        cacheLogs(activeLogs, closedLogs, todayLog);
-        return { activeLogs, closedLogs, todayLog };
-      });
-    } catch (err) {
-      console.error('syncTime failed:', err);
-    }
+    const doc     = await api.workLogs.syncTime(id);
+    const updated = mapLog(doc);
+    set(s => {
+      const activeLogs = patchList(s.activeLogs, id, updated);
+      const closedLogs = patchList(s.closedLogs, id, updated);
+      const todayLog = s.todayLog?._id === id ? updated : getTodayLog(activeLogs);
+      cacheLogs(activeLogs, closedLogs, todayLog);
+      return { activeLogs, closedLogs, todayLog };
+    });
   },
 
   // ── Delete ────────────────────────────────────────────────────────────────────

@@ -1,6 +1,8 @@
 const express = require('express');
 const Task = require('../models/Task');
 const Session = require('../models/Session');
+const Journal = require('../models/Journal');
+const WorkLog = require('../models/WorkLog');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
@@ -69,7 +71,14 @@ router.delete('/:id', async (req, res) => {
   try {
     const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
-    await Session.deleteMany({ taskId: req.params.id });
+    await Promise.all([
+      Session.deleteMany({ taskId: req.params.id, userId: req.user._id }),
+      Journal.deleteMany({ taskId: req.params.id, userId: req.user._id }),
+      WorkLog.updateMany(
+        { taskRef: req.params.id, userId: req.user._id },
+        { $unset: { taskRef: '' } }
+      ),
+    ]);
     console.log(`🗑 Task deleted: ${req.params.id}`);
     res.json({ message: 'Task deleted' });
   } catch (err) {

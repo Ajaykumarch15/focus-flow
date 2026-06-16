@@ -1,232 +1,333 @@
-const express  = require('express');
+const express = require('express');
 const mongoose = require('mongoose');
-const WorkLog  = require('../models/WorkLog');
-const Session  = require('../models/Session');
-const Task     = require('../models/Task');
-const User     = require('../models/User');
-const protect  = require('../middleware/auth');
+const crypto = require('crypto');
+const WorkLog = require('../models/WorkLog');
+const Session = require('../models/Session');
+const User = require('../models/User');
+const ReportShare = require('../models/ReportShare');
+const protect = require('../middleware/auth');
 
 const router = express.Router();
 
-// ── Helper: build start/end of a given date ───────────────────────────────────
-function dayRange(dateStr) {
-  const start = new Date(dateStr);
-  start.setHours(0, 0, 0, 0);
+function getOffsetMs(date, timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    const asUtc = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour === '24' ? '0' : values.hour),
+      Number(values.minute),
+      Number(values.second)
+    );
+    return asUtc - date.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+function localDateToUtc(dateStr, timeZone = 'UTC') {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(utcGuess.getTime() - getOffsetMs(utcGuess, timeZone));
+}
+
+function dayRange(dateStr, timeZone = 'UTC') {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))) return null;
+  const start = localDateToUtc(dateStr, timeZone);
+  if (Number.isNaN(start.getTime())) return null;
   const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  end.setUTCDate(end.getUTCDate() + 1);
   return { start, end };
 }
 
-// ── GET /api/reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD ───────────────────
-// Returns per-day summary for the date range (for calendar heatmap)
-router.get('/summary', protect, async (req, res) => {
-  try {
-    const from = req.query.from
-      ? new Date(req.query.from)
-      : (() => { const d = new Date(); d.setDate(d.getDate() - 29); d.setHours(0,0,0,0); return d; })();
+function isValidDateKey(dateStr) {
+  return typeof dateStr === 'string' && !!dayRange(dateStr);
+}
 
-    const to = req.query.to
-      ? new Date(req.query.to)
-      : (() => { const d = new Date(); d.setHours(23,59,59,999); return d; })();
+function userTimezone(user) {
+  return user?.settings?.timezone || 'UTC';
+}
 
-    const userId = req.user._id;
+function dayKey(ts, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ts));
+}
 
-    // All sessions in range
-    const sessions = await Session.find({
+function sanitizeWorkLog(log) {
+  return {
+    _id: log._id,
+    title: log.title,
+    problem: log.problem,
+    gitBranch: log.gitBranch,
+    currentWork: log.currentWork,
+    plan: log.plan,
+    designNotes: log.designNotes,
+    blockers: log.blockers,
+    completedItems: log.completedItems,
+    links: log.links,
+    status: log.status,
+    mood: log.mood,
+    tags: log.tags,
+    createdAt: log.createdAt,
+    updatedAt: log.updatedAt,
+  };
+}
+
+async function buildDayReport(userId, date, timeZone, includeSessionDetails = true) {
+  const range = dayRange(date, timeZone);
+  if (!range) {
+    const err = new Error('Invalid report date');
+    err.status = 400;
+    throw err;
+  }
+
+  const { start, end } = range;
+  const [sessions, workLogs] = await Promise.all([
+    Session.find({
       userId,
-      startTime: { $gte: from.getTime(), $lte: to.getTime() },
-      isActive:  false,
-    }).populate('taskId', 'title color category');
-
-    // All work logs created or updated in range
-    const workLogs = await WorkLog.find({
+      startTime: { $gte: start.getTime(), $lt: end.getTime() },
+      isActive: false,
+    }).populate('taskId', 'title color category priority'),
+    WorkLog.find({
       userId,
       $or: [
-        { createdAt: { $gte: from, $lte: to } },
-        { updatedAt: { $gte: from, $lte: to } },
+        { createdAt: { $gte: start, $lt: end } },
+        { updatedAt: { $gte: start, $lt: end } },
+        { 'workEntries.date': { $gte: start, $lt: end } },
       ],
-    });
+    }).sort({ updatedAt: -1 }),
+  ]);
 
-    // Build day-keyed map
+  const taskMap = {};
+  let totalMs = 0;
+
+  for (const session of sessions) {
+    const task = session.taskId;
+    const tid = task?._id?.toString() || 'unknown';
+    if (!taskMap[tid]) {
+      taskMap[tid] = {
+        taskId: tid,
+        title: task?.title || 'Deleted task',
+        color: task?.color || '#6b7280',
+        category: task?.category || 'Other',
+        priority: task?.priority || 'medium',
+        totalMs: 0,
+        sessionCount: 0,
+        sessions: [],
+      };
+    }
+
+    taskMap[tid].totalMs += session.activeTime || 0;
+    taskMap[tid].sessionCount += 1;
+    if (includeSessionDetails) {
+      taskMap[tid].sessions.push({
+        _id: session._id,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        activeTime: session.activeTime,
+        totalPauseDuration: session.totalPauseDuration,
+      });
+    }
+    totalMs += session.activeTime || 0;
+  }
+
+  return {
+    date,
+    totalMs,
+    totalHours: Math.round(totalMs / 3600000 * 10) / 10,
+    tasks: Object.values(taskMap).sort((a, b) => b.totalMs - a.totalMs),
+    workLogs: workLogs.map(sanitizeWorkLog),
+    sessionCount: sessions.length,
+    workLogCount: workLogs.length,
+    completedCount: workLogs.reduce((a, log) => a + log.completedItems.length, 0),
+    branches: [...new Set(workLogs.map(log => log.gitBranch).filter(Boolean))],
+  };
+}
+
+router.get('/summary', protect, async (req, res) => {
+  try {
+    const timeZone = userTimezone(req.user);
+    const today = dayKey(Date.now(), timeZone);
+    const fromKey = isValidDateKey(req.query.from)
+      ? req.query.from
+      : (() => {
+        const d = localDateToUtc(today, timeZone);
+        d.setUTCDate(d.getUTCDate() - 29);
+        return dayKey(d.getTime(), timeZone);
+      })();
+    const toKey = isValidDateKey(req.query.to) ? req.query.to : today;
+    const from = dayRange(fromKey, timeZone).start;
+    const to = dayRange(toKey, timeZone).end;
+
+    const [sessions, workLogs] = await Promise.all([
+      Session.find({
+        userId: req.user._id,
+        startTime: { $gte: from.getTime(), $lt: to.getTime() },
+        isActive: false,
+      }).populate('taskId', 'title color category'),
+      WorkLog.find({
+        userId: req.user._id,
+        $or: [
+          { createdAt: { $gte: from, $lt: to } },
+          { updatedAt: { $gte: from, $lt: to } },
+          { 'workEntries.date': { $gte: from, $lt: to } },
+        ],
+      }),
+    ]);
+
     const dayMap = {};
-
-    const getDay = (ts) => new Date(ts).toISOString().split('T')[0];
-
     for (const session of sessions) {
-      const day = getDay(session.startTime);
-      if (!dayMap[day]) dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
-      dayMap[day].totalMs      += session.activeTime;
+      const day = dayKey(session.startTime, timeZone);
+      if (!dayMap[day]) {
+        dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
+      }
+      dayMap[day].totalMs += session.activeTime || 0;
       dayMap[day].sessionCount += 1;
       if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());
     }
 
     for (const log of workLogs) {
-      const day = getDay(log.updatedAt);
-      if (!dayMap[day]) dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
-      dayMap[day].workLogCount   += 1;
-      dayMap[day].completedCount += log.completedItems.length;
+      const entryDays = (log.workEntries || [])
+        .filter(entry => entry.date >= from && entry.date < to)
+        .map(entry => dayKey(entry.date.getTime(), timeZone));
+      const days = entryDays.length > 0 ? [...new Set(entryDays)] : [dayKey(log.updatedAt.getTime(), timeZone)];
+
+      for (const day of days) {
+        if (!dayMap[day]) {
+          dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
+        }
+        dayMap[day].workLogCount += 1;
+        dayMap[day].completedCount += log.completedItems.length;
+      }
     }
 
-    // Serialize
-    const summary = Object.values(dayMap).map(d => ({
-      date:           d.date,
-      totalMs:        d.totalMs,
-      totalHours:     Math.round(d.totalMs / 3600000 * 10) / 10,
-      sessionCount:   d.sessionCount,
-      taskCount:      d.taskIds.size,
-      workLogCount:   d.workLogCount,
-      completedCount: d.completedCount,
-    }));
-
-    res.json(summary);
+    res.json(Object.values(dayMap).map(day => ({
+      date: day.date,
+      totalMs: day.totalMs,
+      totalHours: Math.round(day.totalMs / 3600000 * 10) / 10,
+      sessionCount: day.sessionCount,
+      taskCount: day.taskIds.size,
+      workLogCount: day.workLogCount,
+      completedCount: day.completedCount,
+    })));
   } catch (err) {
     console.error('GET /reports/summary error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// ── GET /api/reports/day?date=YYYY-MM-DD ──────────────────────────────────────
-// Full detail for a single day — used by "day detail" view and lead view
 router.get('/day', protect, async (req, res) => {
   try {
-    const { start, end } = dayRange(req.query.date || new Date().toISOString().split('T')[0]);
-    const userId = req.user._id;
-
-    // Sessions that started on this day
-    const sessions = await Session.find({
-      userId,
-      startTime: { $gte: start.getTime(), $lt: end.getTime() },
-    }).populate('taskId', 'title color category priority');
-
-    // Work logs updated/created on this day
-    const workLogs = await WorkLog.find({
-      userId,
-      $or: [
-        { createdAt: { $gte: start, $lt: end } },
-        { updatedAt: { $gte: start, $lt: end } },
-      ],
-    }).sort({ updatedAt: -1 });
-
-    // Aggregate by task
-    const taskMap = {};
-    let totalMs = 0;
-
-    for (const session of sessions) {
-      const task = session.taskId;
-      const tid  = task?._id?.toString() || 'unknown';
-      if (!taskMap[tid]) {
-        taskMap[tid] = {
-          taskId:      tid,
-          title:       task?.title    || 'Deleted task',
-          color:       task?.color    || '#6b7280',
-          category:    task?.category || 'Other',
-          priority:    task?.priority || 'medium',
-          totalMs:     0,
-          sessions:    [],
-        };
-      }
-      taskMap[tid].totalMs += session.activeTime;
-      taskMap[tid].sessions.push({
-        _id:                session._id,
-        startTime:          session.startTime,
-        endTime:            session.endTime,
-        activeTime:         session.activeTime,
-        totalPauseDuration: session.totalPauseDuration,
-      });
-      totalMs += session.activeTime;
+    const requestedDate = req.query.date || dayKey(Date.now(), userTimezone(req.user));
+    if (!isValidDateKey(requestedDate)) {
+      return res.status(400).json({ message: 'Invalid report date' });
     }
-
-    res.json({
-      date:          start.toISOString().split('T')[0],
-      totalMs,
-      totalHours:    Math.round(totalMs / 3600000 * 10) / 10,
-      tasks:         Object.values(taskMap).sort((a, b) => b.totalMs - a.totalMs),
-      workLogs:      workLogs.map(l => ({
-        _id:            l._id,
-        title:          l.title,
-        problem:        l.problem,
-        gitBranch:      l.gitBranch,
-        currentWork:    l.currentWork,
-        plan:           l.plan,
-        designNotes:    l.designNotes,
-        blockers:       l.blockers,
-        completedItems: l.completedItems,
-        links:          l.links,
-        status:         l.status,
-        mood:           l.mood,
-        tags:           l.tags,
-        createdAt:      l.createdAt,
-        updatedAt:      l.updatedAt,
-      })),
-      sessionCount:  sessions.length,
-      workLogCount:  workLogs.length,
-      completedCount:workLogs.reduce((a, l) => a + l.completedItems.length, 0),
-      branches:      [...new Set(workLogs.map(l => l.gitBranch).filter(Boolean))],
-    });
+    res.json(await buildDayReport(req.user._id, requestedDate, userTimezone(req.user)));
   } catch (err) {
     console.error('GET /reports/day error:', err);
+    res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+router.post('/share', protect, async (req, res) => {
+  try {
+    const { date } = req.body;
+    if (!isValidDateKey(date)) {
+      return res.status(400).json({ message: 'Invalid report date' });
+    }
+
+    const expiresInDays = Number(req.body.expiresInDays || 30);
+    const expiresAt = Number.isFinite(expiresInDays) && expiresInDays > 0
+      ? new Date(Date.now() + Math.min(expiresInDays, 365) * 86400000)
+      : undefined;
+    const share = await ReportShare.create({
+      token: crypto.randomBytes(24).toString('base64url'),
+      userId: req.user._id,
+      date,
+      expiresAt,
+    });
+
+    res.status(201).json({
+      token: share.token,
+      date: share.date,
+      expiresAt: share.expiresAt,
+    });
+  } catch (err) {
+    console.error('POST /reports/share error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// ── GET /api/reports/share/:userId/:date ──────────────────────────────────────
-// PUBLIC endpoint — no auth — lets a lead view a specific day's report
-// Returns sanitized data (no private fields)
-router.get('/share/:userId/:date', async (req, res) => {
+router.post('/share/:token/revoke', protect, async (req, res) => {
   try {
-    const userId = mongoose.Types.ObjectId.createFromHexString(req.params.userId);
-    const { start, end } = dayRange(req.params.date);
+    const share = await ReportShare.findOneAndUpdate(
+      { token: req.params.token, userId: req.user._id, revokedAt: null },
+      { revokedAt: new Date() },
+      { new: true }
+    );
+    if (!share) return res.status(404).json({ message: 'Share link not found' });
+    res.json({ message: 'Share link revoked' });
+  } catch (err) {
+    console.error('POST /reports/share/:token/revoke error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
 
-    const [user, sessions, workLogs] = await Promise.all([
-      User.findById(userId).select('name'),
-      Session.find({
-        userId,
-        startTime: { $gte: start.getTime(), $lt: end.getTime() },
-        isActive: false,
-      }).populate('taskId', 'title color category'),
-      WorkLog.find({
-        userId,
-        $or: [
-          { createdAt: { $gte: start, $lt: end } },
-          { updatedAt: { $gte: start, $lt: end } },
-        ],
-      }).sort({ updatedAt: -1 }),
-    ]);
-
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const taskMap = {};
-    let totalMs = 0;
-    for (const s of sessions) {
-      const tid = s.taskId?._id?.toString() || 'x';
-      if (!taskMap[tid]) taskMap[tid] = { title: s.taskId?.title || 'Task', color: s.taskId?.color || '#6b7280', category: s.taskId?.category, totalMs: 0, sessionCount: 0 };
-      taskMap[tid].totalMs     += s.activeTime;
-      taskMap[tid].sessionCount += 1;
-      totalMs += s.activeTime;
+router.get('/share/token/:token', async (req, res) => {
+  try {
+    const share = await ReportShare.findOne({ token: req.params.token });
+    if (!share || share.revokedAt || (share.expiresAt && share.expiresAt.getTime() < Date.now())) {
+      return res.status(404).json({ message: 'Share link expired or revoked' });
     }
 
+    const user = await User.findById(share.userId).select('name settings');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const report = await buildDayReport(share.userId, share.date, userTimezone(user), false);
     res.json({
-      intern:        user.name,
-      date:          req.params.date,
-      totalMs,
-      totalHours:    Math.round(totalMs / 3600000 * 10) / 10,
-      tasks:         Object.values(taskMap).sort((a, b) => b.totalMs - a.totalMs),
-      workLogs:      workLogs.map(l => ({
-        title:          l.title,
-        problem:        l.problem,
-        gitBranch:      l.gitBranch,
-        currentWork:    l.currentWork,
-        plan:           l.plan,
-        designNotes:    l.designNotes,
-        blockers:       l.blockers,
-        completedItems: l.completedItems,
-        links:          l.links,
-        status:         l.status,
-        mood:           l.mood,
-        tags:           l.tags,
-      })),
-      branches:      [...new Set(workLogs.map(l => l.gitBranch).filter(Boolean))],
-      completedCount:workLogs.reduce((a, l) => a + l.completedItems.length, 0),
+      intern: user.name,
+      share: { token: share.token, expiresAt: share.expiresAt },
+      ...report,
+    });
+  } catch (err) {
+    console.error('GET /reports/share/token error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.get('/share/:userId/:date', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid share link' });
+    }
+    if (!isValidDateKey(req.params.date)) {
+      return res.status(400).json({ message: 'Invalid report date' });
+    }
+
+    const userId = mongoose.Types.ObjectId.createFromHexString(req.params.userId);
+    const user = await User.findById(userId).select('name settings');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const report = await buildDayReport(userId, req.params.date, userTimezone(user), false);
+    res.json({
+      intern: user.name,
+      legacyShare: true,
+      ...report,
     });
   } catch (err) {
     console.error('GET /reports/share error:', err);

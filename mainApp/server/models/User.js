@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema(
       dailyGoal:     { type: Number,  default: 8 },
       pomodoroWork:  { type: Number,  default: 25 },
       pomodoroBreak: { type: Number,  default: 5 },
+      timezone:      { type: String,  default: 'UTC' },
       accentColor:   { type: String,  default: '#0ea5e9' },
       fontSize:      { type: String,  default: 'md' },
       glassmorphism: { type: Boolean, default: true },

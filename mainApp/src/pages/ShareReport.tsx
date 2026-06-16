@@ -21,18 +21,25 @@ function formatMs(ms: number): string {
 }
 
 export function ShareReportPage() {
-  const { userId, date } = useParams<{ userId: string; date: string }>();
+  const { userId, date, token } = useParams<{ userId?: string; date?: string; token?: string }>();
   const [data, setData]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
   useEffect(() => {
+    if (token) {
+      api.reports.shareToken(token)
+        .then(d => { if (d.message) throw new Error(d.message); setData(d); })
+        .catch(e => setError(e.message))
+        .finally(() => setLoading(false));
+      return;
+    }
     if (!userId || !date) return;
     api.reports.share(userId, date)
       .then(d => { if (d.message) throw new Error(d.message); setData(d); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [userId, date]);
+  }, [userId, date, token]);
 
   if (loading) return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center">
@@ -52,7 +59,8 @@ export function ShareReportPage() {
     </div>
   );
 
-  const dateLabel = date ? format(parseISO(date), 'EEEE, MMMM d, yyyy') : '';
+  const reportDate = data?.date || date || '';
+  const dateLabel = reportDate ? format(parseISO(reportDate), 'EEEE, MMMM d, yyyy') : '';
 
   return (
     <div className="min-h-screen bg-surface-950 py-10 px-4">

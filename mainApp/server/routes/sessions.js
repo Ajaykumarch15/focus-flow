@@ -29,11 +29,33 @@ router.post('/', async (req, res) => {
     const task = await Task.findOne({ _id: taskId, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // Close any orphaned active sessions for this task (safety net)
-    await Session.updateMany(
-      { taskId, userId: req.user._id, isActive: true },
-      { $set: { isActive: false, endTime: Date.now() } }
-    );
+    // The UI supports one active timer per user. Finalize any orphaned active
+    // sessions before starting a new one so restore/reporting stays coherent.
+    const orphanEndTime = Date.now();
+    const orphanedSessions = await Session.find({ userId: req.user._id, isActive: true });
+    const orphanedTaskIds = [...new Set(orphanedSessions.map(s => s.taskId.toString()))];
+    await Promise.all(orphanedSessions.map(async (activeSession) => {
+      const lastPause = [...activeSession.pauseLog].reverse().find(p => !p.resumeTime);
+      if (lastPause) {
+        lastPause.resumeTime = orphanEndTime;
+        activeSession.totalPauseDuration += orphanEndTime - lastPause.pauseStart;
+      }
+      activeSession.endTime = orphanEndTime;
+      activeSession.isActive = false;
+      activeSession.activeTime = Math.max(
+        0,
+        orphanEndTime - activeSession.startTime - activeSession.totalPauseDuration
+      );
+      await activeSession.save();
+    }));
+    await Promise.all(orphanedTaskIds.map(async (orphanedTaskId) => {
+      const allSessions = await Session.find({ taskId: orphanedTaskId, userId: req.user._id, isActive: false });
+      const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
+      await Task.findOneAndUpdate(
+        { _id: orphanedTaskId, userId: req.user._id },
+        { totalTime, status: 'todo' }
+      );
+    }));
 
     const session = await Session.create({
       userId: req.user._id,
@@ -118,7 +140,7 @@ router.patch('/:id/stop', async (req, res) => {
     await session.save();
 
     // Roll up total time on the Task document
-    const allSessions = await Session.find({ taskId: session.taskId, isActive: false });
+    const allSessions = await Session.find({ taskId: session.taskId, userId: req.user._id, isActive: false });
     const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
     await Task.findByIdAndUpdate(session.taskId, { totalTime, status: 'todo' });
 

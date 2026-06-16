@@ -1,4 +1,12 @@
-const BASE = (import.meta as any).env.VITE_API_URL || 'http://localhost:5001/api';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+
+type ApiUser = {
+  _id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+  settings: Record<string, any>;
+};
 
 function getToken(): string | null {
   return localStorage.getItem('ff_token');
@@ -26,10 +34,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   auth: {
     register: (name: string, email: string, password: string) =>
-      request<{ token: string; user: any }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
+      request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
     login: (email: string, password: string) =>
-      request<{ token: string; user: any }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-    me: () => request<{ user: any }>('/auth/me'),
+      request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    me: () => request<{ user: ApiUser }>('/auth/me'),
   },
 
   tasks: {
@@ -61,7 +69,11 @@ export const api = {
   },
 
   journals: {
-    list: (taskId?: string) => request<any[]>(`/journals${taskId ? '?taskId=' + taskId : ''}`),
+    list: (taskId?: string) => {
+      const qs = new URLSearchParams();
+      if (taskId) qs.set('taskId', taskId);
+      return request<any[]>(`/journals${qs.size ? '?' + qs : ''}`);
+    },
     create: (body: any) => request<any>('/journals', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/journals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) => request<any>(`/journals/${id}`, { method: 'DELETE' }),
@@ -83,6 +95,8 @@ export const api = {
     delete: (id: string) => request<any>(`/worklogs/${id}`, { method: 'DELETE' }),
     close: (id: string) => request<any>(`/worklogs/${id}/close`, { method: 'POST' }),
     continue: (id: string) => request<any>(`/worklogs/${id}/continue`, { method: 'POST' }),
+    linkTask: (id: string, taskRef?: string) =>
+      request<any>(`/worklogs/${id}/task`, { method: 'PATCH', body: JSON.stringify({ taskRef }) }),
 
     // ── NEW: sync session time into work entries ────────────────────────────
     syncTime: (id: string) =>
@@ -127,8 +141,17 @@ export const api = {
       if (to) params.set('to', to);
       return request<any[]>(`/reports/summary?${params}`);
     },
-    day: (date: string) => request<any>(`/reports/day?date=${date}`),
+    day: (date: string) => {
+      const params = new URLSearchParams({ date });
+      return request<any>(`/reports/day?${params}`);
+    },
     share: (userId: string, date: string) =>
-      fetch(`${BASE}/reports/share/${userId}/${date}`).then(r => r.json()) as Promise<any>,
+      request<any>(`/reports/share/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`),
+    createShare: (date: string, expiresInDays = 30) =>
+      request<any>('/reports/share', { method: 'POST', body: JSON.stringify({ date, expiresInDays }) }),
+    revokeShare: (token: string) =>
+      request<any>(`/reports/share/${encodeURIComponent(token)}/revoke`, { method: 'POST' }),
+    shareToken: (token: string) =>
+      request<any>(`/reports/share/token/${encodeURIComponent(token)}`),
   },
 };
