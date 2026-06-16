@@ -4,12 +4,13 @@ import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
   Share2, Copy, Check, ChevronLeft, ChevronRight,
   BarChart3, Zap, BookMarked, AlertTriangle, Link2,
-  Loader2, TrendingUp, ArrowLeft,
+  Loader2, TrendingUp, ArrowLeft, Download, RotateCcw,
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval,
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
          isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns';
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
+import { toast } from '../store/useToastStore';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -42,6 +43,16 @@ interface DayDetail {
   workLogCount: number;
   completedCount: number;
   branches: string[];
+}
+
+interface SummaryTotals {
+  totalMs: number;
+  totalHours: number;
+  daysWorked: number;
+  sessionCount: number;
+  taskCount: number;
+  workLogCount: number;
+  completedCount: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -82,29 +93,135 @@ const HEAT_STYLES = [
 // ── Share link button ─────────────────────────────────────────────────────────
 function ShareButton({ userId, date }: { userId: string; date: string }) {
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/reports/share/${userId}/${date}`;
+  const [copyError, setCopyError] = useState('');
+  const [token, setToken] = useState('');
+  const [loading, setLoading] = useState(false);
+  const url = token
+    ? `${window.location.origin}/reports/share/token/${token}`
+    : `${window.location.origin}/reports/share/${userId}/${date}`;
 
-  const copy = () => {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const generate = async () => {
+    setLoading(true);
+    try {
+      const share = await api.reports.createShare(date, 30);
+      setToken(share.token);
+      toast.success('Share link generated', 'This token link expires in 30 days.');
+    } catch (err: any) {
+      toast.error('Could not generate share link', err.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const revoke = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      await api.reports.revokeShare(token);
+      setToken('');
+      toast.success('Share link revoked');
+    } catch (err: any) {
+      toast.error('Could not revoke share link', err.message || 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyError('');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setCopied(false);
+      setCopyError('Copy failed');
+      setTimeout(() => setCopyError(''), 2500);
+    }
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <div className="flex-1 px-3 py-2 bg-surface-800 rounded-xl text-xs text-surface-300 font-mono truncate border border-surface-700">
         {url}
       </div>
       <button
+        onClick={generate}
+        disabled={loading}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all"
+      >
+        {loading ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
+        {token ? 'Regenerate' : 'Generate'}
+      </button>
+      <button
         onClick={copy}
+        disabled={loading}
         className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
           copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/15 hover:bg-brand-500/25 text-brand-400'
         }`}
       >
-        {copied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> Copy</>}
+        {copied ? <><Check size={13} /> Copied!</> : <><Copy size={13} /> {copyError || 'Copy'}</>}
       </button>
+      {token && (
+        <button
+          onClick={revoke}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-red-400/10 hover:bg-red-400/20 text-red-400 transition-all"
+        >
+          Revoke
+        </button>
+      )}
     </div>
   );
+}
+
+function summarizeDays(days: DaySummary[]): SummaryTotals {
+  const taskDays = days.reduce((a, d) => a + d.taskCount, 0);
+  return {
+    totalMs: days.reduce((a, d) => a + d.totalMs, 0),
+    totalHours: Math.round(days.reduce((a, d) => a + d.totalMs, 0) / 3600000 * 10) / 10,
+    daysWorked: days.filter(d => d.totalMs > 0 || d.workLogCount > 0).length,
+    sessionCount: days.reduce((a, d) => a + d.sessionCount, 0),
+    taskCount: taskDays,
+    workLogCount: days.reduce((a, d) => a + d.workLogCount, 0),
+    completedCount: days.reduce((a, d) => a + d.completedCount, 0),
+  };
+}
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyText(text: string) {
+  await navigator.clipboard.writeText(text);
+}
+
+function buildDayExport(data: DayDetail): string {
+  const lines = [
+    `FocusFlow Daily Report - ${data.date}`,
+    `Total time: ${formatMs(data.totalMs)}`,
+    `Timer sessions: ${data.sessionCount}`,
+    `Work logs: ${data.workLogCount}`,
+    `Completed items: ${data.completedCount}`,
+    '',
+    'Work Logs',
+  ];
+  for (const log of data.workLogs) {
+    lines.push(`- ${log.title} [${log.status}]`);
+    if (log.gitBranch) lines.push(`  Branch: ${log.gitBranch}`);
+    if (log.currentWork) lines.push(`  What I did: ${log.currentWork}`);
+    if (log.blockers) lines.push(`  Blockers: ${log.blockers}`);
+    for (const item of log.completedItems) lines.push(`  Done: ${item.text}`);
+  }
+  lines.push('', 'Time by Task');
+  for (const task of data.tasks) lines.push(`- ${task.title}: ${formatMs(task.totalMs)}`);
+  return lines.join('\n');
 }
 
 // ── Day detail panel ─────────────────────────────────────────────────────────
@@ -112,13 +229,18 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
   const { user } = useAuthStore();
   const [data, setData]       = useState<DayDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showShare, setShowShare] = useState(false);
 
   useEffect(() => {
     setLoading(true);
+    setError('');
     api.reports.day(date)
       .then(d => setData(d))
-      .catch(console.error)
+      .catch((err) => {
+        setError(err.message || 'Failed to load day report');
+        toast.error('Could not load report', err.message);
+      })
       .finally(() => setLoading(false));
   }, [date]);
 
@@ -127,6 +249,13 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
       <Loader2 size={28} className="animate-spin text-brand-400" />
+    </div>
+  );
+
+  if (error) return (
+    <div className="card p-10 text-center">
+      <p className="text-red-400 font-medium">Could not load this day</p>
+      <p className="text-sm text-surface-400 mt-1">{error}</p>
     </div>
   );
 
@@ -156,6 +285,20 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
           className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
         >
           <Share2 size={14} /> Share with Lead
+        </button>
+        <button
+          onClick={() => downloadText(`focusflow-${date}.txt`, buildDayExport(data))}
+          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
+        >
+          <Download size={14} /> Export
+        </button>
+        <button
+          onClick={() => copyText(buildDayExport(data))
+            .then(() => toast.success('Summary copied'))
+            .catch((err) => toast.error('Copy failed', err.message))}
+          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
+        >
+          <Copy size={14} /> Copy Summary
         </button>
       </div>
 
@@ -418,6 +561,14 @@ export function ReportsPage() {
   const [summary, setSummary]         = useState<DaySummary[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
+  const [dayInput, setDayInput] = useState(todayKey);
+  const [rangeFrom, setRangeFrom] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [rangeTo, setRangeTo] = useState(todayKey);
+  const [rangeSummary, setRangeSummary] = useState<DaySummary[]>([]);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const [weekSummary, setWeekSummary] = useState<DaySummary[]>([]);
+  const [monthSummary, setMonthSummary] = useState<DaySummary[]>([]);
 
   // Load summary whenever month changes
   useEffect(() => {
@@ -426,15 +577,57 @@ export function ReportsPage() {
     const to   = format(endOfMonth(month),   'yyyy-MM-dd');
     api.reports.summary(from, to)
       .then(data => setSummary(data))
-      .catch(console.error)
+      .catch((err) => {
+        setSummary([]);
+        toast.error('Could not load report summary', err.message || 'Please try again.');
+      })
       .finally(() => setLoadingSummary(false));
   }, [month]);
+
+  useEffect(() => {
+    setRangeLoading(true);
+    api.reports.summary(rangeFrom, rangeTo)
+      .then(data => setRangeSummary(data))
+      .catch((err) => {
+        setRangeSummary([]);
+        toast.error('Could not load range summary', err.message || 'Please try again.');
+      })
+      .finally(() => setRangeLoading(false));
+  }, [rangeFrom, rangeTo]);
+
+  useEffect(() => {
+    const now = new Date();
+    const weekFrom = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekTo = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const monthFrom = format(startOfMonth(now), 'yyyy-MM-dd');
+    const monthTo = format(endOfMonth(now), 'yyyy-MM-dd');
+
+    Promise.all([
+      api.reports.summary(weekFrom, weekTo),
+      api.reports.summary(monthFrom, monthTo),
+    ])
+      .then(([weekData, monthData]) => {
+        setWeekSummary(weekData);
+        setMonthSummary(monthData);
+      })
+      .catch((err) => {
+        toast.error('Could not load time overview', err.message || 'Please try again.');
+      });
+  }, []);
 
   // Totals for the viewed month
   const monthHours  = summary.reduce((a, d) => a + d.totalHours, 0);
   const monthDays   = summary.filter(d => d.totalHours > 0).length;
   const monthDone   = summary.reduce((a, d) => a + d.completedCount, 0);
   const avgPerDay   = monthDays > 0 ? (monthHours / monthDays).toFixed(1) : '0';
+  const rangeTotals = summarizeDays(rangeSummary);
+  const weekTotals = summarizeDays(weekSummary);
+  const currentMonthTotals = summarizeDays(monthSummary);
+
+  const applyQuickRange = (from: Date, to: Date) => {
+    setRangeFrom(format(from, 'yyyy-MM-dd'));
+    setRangeTo(format(to, 'yyyy-MM-dd'));
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -452,6 +645,100 @@ export function ReportsPage() {
         <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} />
       ) : (
         <>
+          <div className="card p-5 mb-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <div>
+                <h2 className="font-display font-semibold text-white flex items-center gap-2">
+                  <Clock size={17} className="text-brand-400" /> Time Lookup
+                </h2>
+                <p className="text-xs text-surface-400 mt-1">
+                  Check work for one day, a custom range, this week, or this month.
+                </p>
+              </div>
+              {rangeLoading && (
+                <span className="text-xs text-surface-400 flex items-center gap-1.5">
+                  <Loader2 size={12} className="animate-spin" /> Loading range
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-5">
+              <div className="rounded-xl border border-surface-700 bg-surface-800/40 p-4">
+                <label className="block text-xs text-surface-400 mb-2">Work on this day</label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={dayInput}
+                    onChange={e => setDayInput(e.target.value)}
+                  />
+                  <button
+                    onClick={() => dayInput && setSelectedDate(dayInput)}
+                    className="btn-primary px-4 text-sm flex items-center gap-2"
+                  >
+                    <Calendar size={14} /> View Day
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-surface-700 bg-surface-800/40 p-4">
+                <label className="block text-xs text-surface-400 mb-2">From date to date</label>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={rangeFrom}
+                    onChange={e => setRangeFrom(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={rangeTo}
+                    onChange={e => setRangeTo(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => applyQuickRange(new Date(), new Date())}
+                    className="px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-xs text-surface-200 transition-all"
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => applyQuickRange(startOfWeek(new Date(), { weekStartsOn: 1 }), endOfWeek(new Date(), { weekStartsOn: 1 }))}
+                    className="px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-xs text-surface-200 transition-all"
+                  >
+                    This Week
+                  </button>
+                  <button
+                    onClick={() => applyQuickRange(startOfMonth(new Date()), endOfMonth(new Date()))}
+                    className="px-3 py-1.5 rounded-lg bg-surface-700 hover:bg-surface-600 text-xs text-surface-200 transition-all"
+                  >
+                    This Month
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: 'Selected Range', value: formatMs(rangeTotals.totalMs), sub: `${rangeTotals.daysWorked} day${rangeTotals.daysWorked !== 1 ? 's' : ''} worked`, color: 'text-brand-400', icon: Clock },
+                { label: 'Weekly Time', value: formatMs(weekTotals.totalMs), sub: `${weekTotals.sessionCount} session${weekTotals.sessionCount !== 1 ? 's' : ''}`, color: 'text-purple-400', icon: TrendingUp },
+                { label: 'Monthly Time', value: formatMs(currentMonthTotals.totalMs), sub: `${currentMonthTotals.daysWorked} day${currentMonthTotals.daysWorked !== 1 ? 's' : ''} worked`, color: 'text-yellow-400', icon: Calendar },
+                { label: 'Completed', value: String(rangeTotals.completedCount), sub: `${rangeTotals.workLogCount} work log${rangeTotals.workLogCount !== 1 ? 's' : ''}`, color: 'text-emerald-400', icon: CheckCircle2 },
+              ].map(({ label, value, sub, color, icon: Icon }) => (
+                <div key={label} className="rounded-xl border border-surface-700 bg-surface-900/60 p-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Icon size={13} className={color} />
+                    <p className="text-xs text-surface-400">{label}</p>
+                  </div>
+                  <p className={`text-xl font-display font-bold ${color}`}>{value}</p>
+                  <p className="text-xs text-surface-500 mt-1">{sub}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Month stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {[

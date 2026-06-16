@@ -8,49 +8,98 @@ const router = express.Router();
 router.use(protect);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function toMidnight(d) {
-  const date = d ? new Date(d) : new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
 function sumMs(entries) {
   return (entries || []).reduce((a, e) => a + (e.activeMs || 0), 0);
 }
 
-// Pull today's session data for a task and upsert a workEntry for today
-async function syncTodayEntry(log, userId) {
-  if (!log.taskRef) return log;
+function userTimezone(req) {
+  return req.user?.settings?.timezone || 'UTC';
+}
 
-  const today = toMidnight();
-  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+function dayKey(ts, timeZone) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(ts));
+}
+
+function getOffsetMs(date, timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    const asUtc = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour === '24' ? '0' : values.hour),
+      Number(values.minute),
+      Number(values.second)
+    );
+    return asUtc - date.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+function localDateToUtc(dateKey, timeZone) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  return new Date(utcGuess.getTime() - getOffsetMs(utcGuess, timeZone));
+}
+
+// Pull all completed session data for a task and upsert one workEntry per day.
+async function syncWorkEntries(log, userId, timeZone = 'UTC') {
+  if (!log.taskRef) return log;
 
   const sessions = await Session.find({
     userId,
     taskId:    log.taskRef,
-    startTime: { $gte: today.getTime(), $lt: tomorrow.getTime() },
     isActive:  false,
   });
 
   if (sessions.length === 0) return log;
 
-  const activeMs   = sessions.reduce((a, s) => a + (s.activeTime || 0), 0);
-  const startedAt  = Math.min(...sessions.map(s => s.startTime));
-  const endedAt    = Math.max(...sessions.map(s => s.endTime || s.startTime));
-  const sessionIds = sessions.map(s => s._id);
+  const grouped = new Map();
+  for (const session of sessions) {
+    const key = dayKey(session.startTime, timeZone);
+    const existing = grouped.get(key) || {
+      date: localDateToUtc(key, timeZone),
+      activeMs: 0,
+      startedAt: session.startTime,
+      endedAt: session.endTime || session.startTime,
+      sessionIds: [],
+    };
+    existing.activeMs += session.activeTime || 0;
+    existing.startedAt = Math.min(existing.startedAt, session.startTime);
+    existing.endedAt = Math.max(existing.endedAt, session.endTime || session.startTime);
+    existing.sessionIds.push(session._id);
+    grouped.set(key, existing);
+  }
 
-  const existingIdx = log.workEntries.findIndex(e => {
-    const d = new Date(e.date); d.setHours(0,0,0,0);
-    return d.getTime() === today.getTime();
-  });
-
-  if (existingIdx >= 0) {
-    log.workEntries[existingIdx].activeMs   = activeMs;
-    log.workEntries[existingIdx].startedAt  = startedAt;
-    log.workEntries[existingIdx].endedAt    = endedAt;
-    log.workEntries[existingIdx].sessionIds = sessionIds;
-  } else {
-    log.workEntries.push({ date: today, activeMs, startedAt, endedAt, sessionIds, what: '' });
+  for (const [key, aggregate] of grouped.entries()) {
+    const existingIdx = log.workEntries.findIndex(e =>
+      dayKey(e.date.getTime(), timeZone) === key || e.date.toISOString().slice(0, 10) === key
+    );
+    if (existingIdx >= 0) {
+      log.workEntries[existingIdx].date = aggregate.date;
+      log.workEntries[existingIdx].activeMs = aggregate.activeMs;
+      log.workEntries[existingIdx].startedAt = aggregate.startedAt;
+      log.workEntries[existingIdx].endedAt = aggregate.endedAt;
+      log.workEntries[existingIdx].sessionIds = aggregate.sessionIds;
+    } else {
+      log.workEntries.push({ ...aggregate, what: '' });
+    }
   }
 
   log.totalActiveMs = sumMs(log.workEntries);
@@ -85,7 +134,7 @@ router.get('/:id', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
 
     // Auto-sync today's time from linked task sessions
-    log = await syncTodayEntry(log, req.user._id);
+    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
     res.json(log);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -115,7 +164,7 @@ router.post('/', async (req, res) => {
 
     // If task linked, seed today's entry immediately
     let populated = await log.populate('taskRef', 'title color category totalTime');
-    populated = await syncTodayEntry(populated, req.user._id);
+    populated = await syncWorkEntries(populated, req.user._id, userTimezone(req));
 
     console.log(`✅ WorkLog created: "${log.title}" linked to task: ${taskRef || 'none'}`);
     res.status(201).json(populated);
@@ -148,11 +197,35 @@ router.post('/:id/sync-time', async (req, res) => {
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
 
-    log = await syncTodayEntry(log, req.user._id);
+    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
     await log.populate('taskRef', 'title color category totalTime');
     res.json(log);
   } catch (err) {
     console.error('sync-time error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH /api/worklogs/:id/task - link, change, or unlink the backing task
+router.patch('/:id/task', async (req, res) => {
+  try {
+    const { taskRef } = req.body;
+    if (taskRef) {
+      const task = await Task.findOne({ _id: taskRef, userId: req.user._id });
+      if (!task) return res.status(404).json({ message: 'Task not found' });
+    }
+
+    let log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      taskRef ? { $set: { taskRef } } : { $unset: { taskRef: '' }, $set: { totalActiveMs: 0, workEntries: [] } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime');
+
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
+    await log.populate('taskRef', 'title color category totalTime');
+    res.json(log);
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });

@@ -3,6 +3,29 @@ import { useStore } from '../store/useStore';
 import { Moon, Sun, Palette, User, Clock, Bell } from 'lucide-react';
 import { TASK_COLORS } from '../utils/colors';
 
+const LOCAL_CACHE_KEYS = [
+  'focusflow-storage',
+  'ff_profile_cache',
+  'ff_theme_cache',
+  'ff_worklog_cache',
+  'ff_habit_cache',
+  'ff_habit_timer',
+  'ff_today_ms',
+  'ff_active_timer',
+];
+
+const TIMEZONE_OPTIONS = [
+  Intl.DateTimeFormat().resolvedOptions().timeZone,
+  'Asia/Calcutta',
+  'UTC',
+  'America/New_York',
+  'America/Los_Angeles',
+  'Europe/London',
+  'Europe/Berlin',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+].filter((zone, index, zones) => zone && zones.indexOf(zone) === index);
+
 export function Settings() {
   const { theme, profile, updateTheme, updateProfile } = useStore();
 
@@ -35,6 +58,21 @@ export function Settings() {
                 value={profile.dailyGoal}
                 onChange={e => updateProfile({ dailyGoal: Number(e.target.value) })}
               />
+            </div>
+            <div>
+              <label className="block text-sm text-surface-300 mb-1.5">Report Timezone</label>
+              <select
+                className="input"
+                value={profile.timezone}
+                onChange={e => updateProfile({ timezone: e.target.value })}
+              >
+                {TIMEZONE_OPTIONS.map(zone => (
+                  <option key={zone} value={zone}>{zone}</option>
+                ))}
+              </select>
+              <p className="text-xs text-surface-500 mt-1.5">
+                Daily reports and work-log history use this timezone for day boundaries.
+              </p>
             </div>
           </div>
         </motion.section>
@@ -126,17 +164,19 @@ export function Settings() {
         {/* Data */}
         <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Bell size={18} className="text-brand-400" /> Data</h2>
-          <p className="text-sm text-surface-400 mb-4">All data is stored locally in your browser. Clear it to reset the app.</p>
+          <p className="text-sm text-surface-400 mb-4">
+            FocusFlow syncs your account data with the server and keeps a local cache for faster loading. Clear the cache if the app looks stale.
+          </p>
           <button
             onClick={() => {
-              if (confirm('This will delete all your tasks, journals, and settings. Continue?')) {
-                localStorage.clear();
+              if (confirm('This clears only FocusFlow cached data on this device. Your server data will remain. Continue?')) {
+                LOCAL_CACHE_KEYS.forEach(key => localStorage.removeItem(key));
                 window.location.reload();
               }
             }}
             className="px-4 py-2 bg-red-400/10 hover:bg-red-400/20 text-red-400 border border-red-400/20 rounded-xl text-sm font-medium transition-all"
           >
-            Clear All Data
+            Clear Local Cache
           </button>
         </motion.section>
       </div>

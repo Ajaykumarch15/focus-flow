@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { useStore } from '../store/useStore';
+import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
 
@@ -157,9 +158,13 @@ function TimerPanel({ log }: { log: WorkLog }) {
   // After stop — auto-sync time into work entries
   const handleStop = async () => {
     if (!linkedTaskId) return;
-    stopTimer(linkedTaskId);
-    // Give the session route ~600ms to persist, then sync
-    setTimeout(() => syncTime(log._id), 800);
+    try {
+      await stopTimer(linkedTaskId);
+      await syncTime(log._id);
+      toast.success('Time synced', 'Work log history was updated from the stopped timer.');
+    } catch (err: any) {
+      toast.error('Timer stopped, sync failed', err.message || 'Try syncing the work log again.');
+    }
   };
 
   // No linked task — show a message explaining how to link
@@ -173,8 +178,7 @@ function TimerPanel({ log }: { log: WorkLog }) {
           <div>
             <p className="text-sm font-medium text-surface-300">No task linked</p>
             <p className="text-xs text-surface-500 mt-0.5">
-              Link this work log to a task when creating it (or delete & recreate).
-              Time will then be tracked here automatically when you use the timer.
+              Link this work log to a task below. Time will then be tracked here automatically when you use the timer.
             </p>
           </div>
         </div>
@@ -520,6 +524,60 @@ function WorkHistorySection({ log }: { log: WorkLog }) {
 }
 
 // ── Full work log card ────────────────────────────────────────────────────────
+function TaskLinkControl({ log }: { log: WorkLog }) {
+  const { tasks } = useStore();
+  const { linkTask } = useWorkLogStore();
+  const [selected, setSelected] = useState(log.taskRef?._id || '');
+  const [saving, setSaving] = useState(false);
+  const activeTasks = tasks.filter(t => t.status !== 'completed' || t.id === log.taskRef?._id);
+
+  useEffect(() => {
+    setSelected(log.taskRef?._id || '');
+  }, [log.taskRef?._id]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await linkTask(log._id, selected || undefined);
+      toast.success(selected ? 'Task linked' : 'Task unlinked', 'Work log time history has been refreshed.');
+    } catch (err: any) {
+      toast.error('Could not update task link', err.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-surface-700 bg-surface-800/40 p-4 mb-4">
+      <div className="flex items-end gap-3 flex-wrap">
+        <div className="flex-1 min-w-[220px]">
+          <label className="flex items-center gap-1.5 text-xs text-surface-300 font-medium mb-1.5">
+            <Timer size={12} className="text-brand-400" /> Linked Task
+          </label>
+          <select className="input text-sm" value={selected} onChange={e => setSelected(e.target.value)}>
+            <option value="">No task link</option>
+            {activeTasks.map(task => (
+              <option key={task.id} value={task.id}>{task.title}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || selected === (log.taskRef?._id || '')}
+          className="btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          Save Link
+        </button>
+      </div>
+      <p className="text-xs text-surface-500 mt-2">
+        Changing the linked task refreshes this log's daily time history from completed sessions.
+      </p>
+    </div>
+  );
+}
+
 function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultExpanded?: boolean }) {
   const {
     closeLog, continueLog, deleteLog,
@@ -710,6 +768,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
               </div>
 
               {/* ★ TIMER PANEL — the new key feature ★ */}
+              <TaskLinkControl log={log} />
               <TimerPanel log={log} />
 
               {/* Time summary */}

@@ -29,6 +29,7 @@ import type {
   Subtask, ThemeSettings, UserProfile,
 } from '../types';
 import { useWorkLogStore } from './useWorkLogStore';
+import { toast } from './useToastStore';
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const PROFILE_KEY = 'ff_profile_cache';
@@ -173,7 +174,7 @@ function mapSettings(userDoc: any) {
       dailyGoal: s.dailyGoal ?? DEFAULT_PROFILE.dailyGoal,
       pomodoroWork: s.pomodoroWork ?? DEFAULT_PROFILE.pomodoroWork,
       pomodoroBreak: s.pomodoroBreak ?? DEFAULT_PROFILE.pomodoroBreak,
-      timezone: DEFAULT_PROFILE.timezone,
+      timezone: s.timezone ?? DEFAULT_PROFILE.timezone,
     } as UserProfile,
     theme: {
       mode: 'dark' as const,
@@ -211,7 +212,7 @@ interface StoreState {
   startTimer: (taskId: string) => Promise<void>;
   pauseTimer: (taskId: string) => void;
   resumeTimer: (taskId: string) => void;
-  stopTimer: (taskId: string) => void;
+  stopTimer: (taskId: string) => Promise<void>;
   tick: () => void;
 
   addSubtask: (taskId: string, title: string) => Promise<void>;
@@ -486,6 +487,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     // ── Timer ─────────────────────────────────────────────────────────────────
     startTimer: async (taskId) => {
+      const currentActiveTaskId = get().activeTaskId;
+      if (currentActiveTaskId && currentActiveTaskId !== taskId) {
+        await get().stopTimer(currentActiveTaskId);
+      }
+
       const now = Date.now();
 
       set(s => ({
@@ -747,8 +753,12 @@ export const useStore = create<StoreState>((set, get) => {
           dailyGoal: updates.dailyGoal ?? current.dailyGoal,
           pomodoroWork: updates.pomodoroWork ?? current.pomodoroWork,
           pomodoroBreak: updates.pomodoroBreak ?? current.pomodoroBreak,
+          timezone: updates.timezone ?? current.timezone,
         },
-      }).catch(console.error);
+      }).catch((err) => {
+        console.error(err);
+        toast.error('Could not save settings', err.message || 'Profile changes were kept locally only.');
+      });
     },
 
     updateTheme: (updates) => {
@@ -763,7 +773,10 @@ export const useStore = create<StoreState>((set, get) => {
           animatedBg: updates.animatedBackground ?? current.animatedBackground,
           reducedMotion: updates.reducedMotion ?? current.reducedMotion,
         },
-      }).catch(console.error);
+      }).catch((err) => {
+        console.error(err);
+        toast.error('Could not save appearance', err.message || 'Theme changes were kept locally only.');
+      });
     },
 
     // ── Helpers ────────────────────────────────────────────────────────────────
