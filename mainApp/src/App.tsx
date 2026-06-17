@@ -20,6 +20,8 @@ const Settings        = lazy(() => import('./pages/Settings').then(module => ({ 
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
+const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
+const AdminPage       = lazy(() => import('./pages/Admin').then(module => ({ default: module.AdminDashboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 
 function RouteFallback() {
@@ -69,8 +71,10 @@ export default function App() {
               <Route path="/analytics"  element={<Analytics />} />
               <Route path="/journal"    element={<Journal />} />
               <Route path="/habits"     element={<Habits />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/focus"      element={<FocusMode />} />
               <Route path="/settings"   element={<Settings />} />
+              <Route path="/admin"      element={<AdminPage />} />
             </Route>
           </Route>
 

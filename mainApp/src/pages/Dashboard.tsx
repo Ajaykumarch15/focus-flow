@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, CheckCircle, Flame, TrendingUp, Plus, Play, Target, Zap } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { api } from '../utils/api';
 import { formatHours, formatHoursDecimal, getWeekDays, isToday } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
@@ -35,11 +36,42 @@ function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }: {
 }
 
 export function Dashboard() {
-  const { tasks, getTodayTime, getWeekTime, profile, journals } = useStore();
+  const { tasks, profile, journals, activeTaskId } = useStore();
   const [showCreate, setShowCreate] = useState(false);
+  const [sessions, setSessions] = useState<any[]>([]);
 
-  const todayMs = getTodayTime();
-  const weekMs = getWeekTime();
+  useEffect(() => {
+    api.sessions.list().then(setSessions).catch(console.error);
+  }, []);
+
+  const { todayMs, weekMs } = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const ts = todayStart.getTime();
+
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const ws = weekStart.getTime();
+
+    let tMs = 0;
+    let wMs = 0;
+    for (const s of sessions) {
+      if (s.startTime >= ts) tMs += (s.activeTime || 0);
+      if (s.startTime >= ws) wMs += (s.activeTime || 0);
+    }
+
+    if (activeTaskId) {
+      const activeTask = tasks.find(t => t.id === activeTaskId);
+      const live = activeTask?.sessions.find(s => !s.endTime);
+      if (live) {
+        if (live.startTime >= ts) tMs += live.activeTime;
+        if (live.startTime >= ws) wMs += live.activeTime;
+      }
+    }
+    return { todayMs: tMs, weekMs: wMs };
+  }, [sessions, tasks, activeTaskId]);
+
   const completedToday = tasks.filter(t => t.status === 'completed' && isToday(t.updatedAt)).length;
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   const recentTasks = activeTasks.slice(0, 5);
@@ -51,17 +83,25 @@ export function Dashboard() {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
     d.setHours(0, 0, 0, 0);
-    const end = new Date(d);
-    end.setHours(23, 59, 59, 999);
+    const start = d.getTime();
+    const end = start + 86399999;
 
     let hours = 0;
-    for (const task of tasks) {
-      for (const session of task.sessions) {
-        if (session.startTime >= d.getTime() && session.startTime <= end.getTime()) {
-          hours += session.activeTime / 3600000;
-        }
+    // Add completed sessions from API
+    for (const s of sessions) {
+      if (s.startTime >= start && s.startTime <= end) {
+        hours += (s.activeTime || 0) / 3600000;
       }
     }
+    // Add live session if it matches this day
+    if (activeTaskId) {
+      const activeTask = tasks.find(t => t.id === activeTaskId);
+      const live = activeTask?.sessions.find(s => !s.endTime);
+      if (live && live.startTime >= start && live.startTime <= end) {
+        hours += live.activeTime / 3600000;
+      }
+    }
+
     return { day, hours: Math.round(hours * 10) / 10 };
   });
 
@@ -117,10 +157,24 @@ export function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Clock} label="Today" value={formatHours(todayMs)} sub="focused time" color="#0ea5e9" delay={0.1} />
-        <StatCard icon={TrendingUp} label="This Week" value={`${formatHoursDecimal(weekMs)}h`} sub="total hours" color="#8b5cf6" delay={0.15} />
-        <StatCard icon={CheckCircle} label="Completed" value={String(completedToday)} sub="tasks today" color="#22c55e" delay={0.2} />
-        <StatCard icon={Flame} label="Active Tasks" value={String(activeTasks.length)} sub="in progress" color="#f97316" delay={0.25} />
+        <StatCard icon={Clock} label="Today" value={formatHours(todayMs)} sub={`Goal: ${profile.dailyGoal}h`} color="#0ea5e9" delay={0.1} />
+        <StatCard 
+          icon={Flame} 
+          label="Current Streak" 
+          value={`${profile.streak?.current || 0} Days`} 
+          sub={`Best: ${profile.streak?.best || 0}`} 
+          color="#f97316" 
+          delay={0.15} 
+        />
+        <StatCard 
+          icon={Zap} 
+          label="Focus Points" 
+          value={(profile.totalPoints || 0).toLocaleString()} 
+          sub="Rank: Novice" 
+          color="#8b5cf6" 
+          delay={0.2} 
+        />
+        <StatCard icon={CheckCircle} label="Completed" value={String(completedToday)} sub="tasks today" color="#22c55e" delay={0.25} />
       </div>
 
       {/* Main Content */}

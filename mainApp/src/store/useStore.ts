@@ -42,6 +42,9 @@ const DEFAULT_THEME: ThemeSettings = {
 const DEFAULT_PROFILE: UserProfile = {
   name: 'Focus Master', dailyGoal: 8, pomodoroWork: 25,
   pomodoroBreak: 5, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  streak: { current: 0, best: 0, lastDate: '' },
+  totalPoints: 0,
+  leaderboardOptIn: true,
 };
 
 function loadCached<T>(key: string, fallback: T): T {
@@ -175,6 +178,9 @@ function mapSettings(userDoc: any) {
       pomodoroWork: s.pomodoroWork ?? DEFAULT_PROFILE.pomodoroWork,
       pomodoroBreak: s.pomodoroBreak ?? DEFAULT_PROFILE.pomodoroBreak,
       timezone: s.timezone ?? DEFAULT_PROFILE.timezone,
+      streak: userDoc.streak ?? DEFAULT_PROFILE.streak,
+      totalPoints: userDoc.totalPoints ?? 0,
+      leaderboardOptIn: userDoc.leaderboardOptIn ?? true,
     } as UserProfile,
     theme: {
       mode: 'dark' as const,
@@ -521,7 +527,18 @@ export const useStore = create<StoreState>((set, get) => {
 
       try {
         const sessionDoc = await api.sessions.start(taskId, now);
-        set({ activeSessionId: sessionDoc._id });
+        set(s => ({
+          activeSessionId: sessionDoc._id,
+          tasks: s.tasks.map(t => {
+            if (t.id !== taskId) return t;
+            const sessions = [...t.sessions];
+            const lastIdx = sessions.findIndex(sess => sess.id === 'pending' && sess.startTime === now);
+            if (lastIdx >= 0) {
+              sessions[lastIdx] = { ...sessions[lastIdx], id: sessionDoc._id };
+            }
+            return { ...t, sessions };
+          }),
+        }));
         // Update localStorage with real session ID
         saveTimer({
           taskId, sessionId: sessionDoc._id, timerState: 'running',
@@ -749,6 +766,7 @@ export const useStore = create<StoreState>((set, get) => {
       saveCache(PROFILE_KEY, current); // update cache immediately
       api.profile.update({
         name: updates.name ?? current.name,
+        leaderboardOptIn: updates.leaderboardOptIn ?? current.leaderboardOptIn,
         settings: {
           dailyGoal: updates.dailyGoal ?? current.dailyGoal,
           pomodoroWork: updates.pomodoroWork ?? current.pomodoroWork,

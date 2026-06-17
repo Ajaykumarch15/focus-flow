@@ -11,6 +11,8 @@ const profileRoutes = require('./routes/profile');
 const workLogRoutes = require('./routes/workLogs');
 const habitRoutes = require('./routes/habits');
 const reportRoutes = require('./routes/reports');   // ← NEW
+const adminRoutes = require('./routes/admin');     // ← NEW
+const teamRoutes  = require('./routes/teams');     // ← NEW
 
 const app = express();
 
@@ -34,6 +36,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/worklogs', workLogRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/reports', reportRoutes);            // ← NEW
+app.use('/api/admin', adminRoutes);              // ← NEW
+app.use('/api/teams', teamRoutes);              // ← NEW
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
 
@@ -50,3 +54,6 @@ mongoose
     app.listen(PORT, () => console.log(`🚀  Server on http://localhost:${PORT}`));
   })
   .catch(err => { console.error('❌  MongoDB connection failed:', err.message); process.exit(1); });
+
+
+

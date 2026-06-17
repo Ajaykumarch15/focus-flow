@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  Target, LogOut, BookMarked, LineChart, Activity,
+  Target, LogOut, BookMarked, LineChart, Activity, ShieldCheck, Trophy
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -12,13 +12,18 @@ import { useActiveTimer } from '../../hooks/useActiveTimer';
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
-  { to: '/reports',   icon: LineChart,       label: 'Reports'    },  // ← NEW
+  { to: '/reports',   icon: LineChart,       label: 'Reports'    },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },
+  { to: '/leaderboard', icon: Trophy,        label: 'Leaderboard'},
   { to: '/analytics', icon: BarChart3,       label: 'Analytics'  },
   { to: '/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
   { to: '/settings',  icon: Settings,        label: 'Settings'   },
+];
+
+const ADMIN_ITEMS = [
+  { to: '/admin',     icon: ShieldCheck,     label: 'Admin'      },
 ];
 
 export function Sidebar() {
@@ -93,6 +98,35 @@ export function Sidebar() {
             )}
           </NavLink>
         ))}
+
+        {user?.role === 'admin' && (
+          <>
+            <div className={`my-4 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
+            {ADMIN_ITEMS.map(({ to, icon: Icon, label }) => (
+              <NavLink key={to} to={to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
+                  ${isActive ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20' : 'text-surface-300 hover:text-white hover:bg-surface-800'}`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon size={18} className="flex-shrink-0" />
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+                          className="text-sm font-medium whitespace-nowrap"
+                        >{label}</motion.span>
+                      )}
+                    </AnimatePresence>
+                    {isActive && <motion.div layoutId="activeNavAdmin" className="absolute inset-0 rounded-xl bg-purple-500/10 -z-10" />}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* User */}

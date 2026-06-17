@@ -161,6 +161,29 @@ export function Settings() {
           </div>
         </motion.section>
 
+        {/* Community */}
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="card p-6">
+          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <Users size={18} className="text-brand-400" /> Community
+          </h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="block text-sm text-surface-200">Show on Leaderboard</span>
+              <p className="text-xs text-surface-500 mt-1">Allows other users to see your focus points and streak</p>
+            </div>
+            <button
+              onClick={() => updateProfile({ leaderboardOptIn: !profile.leaderboardOptIn })}
+              className={`w-11 h-6 rounded-full transition-all relative ${profile.leaderboardOptIn ? 'bg-brand-500' : 'bg-surface-700'}`}
+            >
+              <motion.div
+                className="w-4 h-4 bg-white rounded-full absolute top-1"
+                animate={{ left: profile.leaderboardOptIn ? '1.5rem' : '0.25rem' }}
+                transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+              />
+            </button>
+          </div>
+        </motion.section>
+
         {/* Data */}
         <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card p-6">
           <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Bell size={18} className="text-brand-400" /> Data</h2>

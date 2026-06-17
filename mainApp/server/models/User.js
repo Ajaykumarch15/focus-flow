@@ -6,7 +6,15 @@ const userSchema = new mongoose.Schema(
     name:         { type: String, required: true, trim: true },
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
+    role:         { type: String, enum: ['user', 'admin'], default: 'user' },
     avatar:       { type: String, default: '' },
+    streak: {
+      current:    { type: Number, default: 0 },
+      lastDate:   { type: String, default: '' }, // YYYY-MM-DD
+      best:       { type: Number, default: 0 },
+    },
+    leaderboardOptIn: { type: Boolean, default: true },
+    totalPoints:      { type: Number,  default: 0 },
     settings: {
       dailyGoal:     { type: Number,  default: 8 },
       pomodoroWork:  { type: Number,  default: 25 },
