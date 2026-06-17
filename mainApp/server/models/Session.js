@@ -15,7 +15,9 @@ const sessionSchema = new mongoose.Schema(
     endTime:              { type: Number },                  // epoch ms — null while running
     pauseLog:             [pauseLogSchema],
     totalPauseDuration:   { type: Number, default: 0 },      // ms
+    pauseCount:           { type: Number, default: 0 },
     activeTime:           { type: Number, default: 0 },      // ms (endTime - startTime - pauses)
+    focusScore:           { type: Number, default: 0 },      // 0-100 score
     isActive:             { type: Boolean, default: true },   // false once stopped
   },
   { timestamps: true }

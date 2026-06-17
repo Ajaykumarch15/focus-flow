@@ -17,6 +17,7 @@ export interface TimerSession {
   pauseStart?: number;
   totalPauseDuration: number;
   activeTime: number;
+  focusScore?: number;
 }
 
 export interface JournalEntry {
@@ -62,6 +63,13 @@ export interface UserProfile {
   pomodoroWork: number;
   pomodoroBreak: number;
   timezone: string;
+  streak: {
+    current: number;
+    best: number;
+    lastDate: string;
+  };
+  totalPoints: number;
+  leaderboardOptIn: boolean;
 }
 
 export interface AppState {

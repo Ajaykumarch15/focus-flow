@@ -4,6 +4,7 @@ type ApiUser = {
   _id: string;
   name: string;
   email: string;
+  role: 'user' | 'admin';
   avatar?: string;
   settings: Record<string, any>;
 };
@@ -153,5 +154,35 @@ export const api = {
       request<any>(`/reports/share/${encodeURIComponent(token)}/revoke`, { method: 'POST' }),
     shareToken: (token: string) =>
       request<any>(`/reports/share/token/${encodeURIComponent(token)}`),
+    leaderboard: () => request<any[]>('/reports/leaderboard'),
+  },
+
+  admin: {
+    getStats: () => request<any>('/admin/stats'),
+    listUsers: () => request<any[]>('/admin/users'),
+    getUserAnalytics: (userId: string, from?: number, to?: number) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', String(from));
+      if (to)   params.set('to', String(to));
+      const qs = params.toString();
+      return request<any>(`/admin/users/${userId}/analytics${qs ? '?' + qs : ''}`);
+    },
+  },
+
+  teams: {
+    list: () => request<any[]>('/teams'),
+    create: (data: { name: string; description?: string; members?: string[] }) => 
+      request<any>('/teams', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; description?: string; members?: string[] }) => 
+      request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => 
+      request<any>(`/teams/${id}`, { method: 'DELETE' }),
+    getAnalytics: (id: string, from?: number, to?: number) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', String(from));
+      if (to)   params.set('to', String(to));
+      const qs = params.toString();
+      return request<any>(`/teams/${id}/analytics${qs ? '?' + qs : ''}`);
+    },
   },
 };

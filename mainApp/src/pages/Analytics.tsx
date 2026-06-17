@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend,
 } from 'recharts';
-import { BarChart3, CheckCircle2, Clock, Loader2, Target, TrendingUp } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Loader2, Target, TrendingUp, Zap } from 'lucide-react';
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#22c55e', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
 
@@ -20,6 +20,7 @@ type ApiSession = {
   totalPauseDuration?: number;
   activeTime?: number;
   isActive?: boolean;
+  focusScore?: number;
 };
 
 type AnalyticsSession = {
@@ -29,6 +30,7 @@ type AnalyticsSession = {
   endTime?: number;
   activeTime: number;
   totalPauseDuration: number;
+  focusScore?: number;
 };
 
 function docId(value: any): string {
@@ -49,7 +51,7 @@ function toChartHours(ms: number): number {
 }
 
 export function Analytics() {
-  const { tasks, activeTaskId } = useStore();
+  const { tasks, activeTaskId, profile } = useStore();
   const [apiSessions, setApiSessions] = useState<AnalyticsSession[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -66,6 +68,7 @@ export function Analytics() {
           endTime: doc.endTime,
           activeTime: doc.activeTime || 0,
           totalPauseDuration: doc.totalPauseDuration || 0,
+          focusScore: doc.focusScore,
         })));
       })
       .catch((err) => {
@@ -93,6 +96,7 @@ export function Analytics() {
         endTime: live.endTime,
         activeTime: live.activeTime,
         totalPauseDuration: live.totalPauseDuration,
+        focusScore: 100, // Live sessions start at 100
       }];
     });
   }, [tasks]);
@@ -154,9 +158,12 @@ export function Analytics() {
 
   const totalTracked = sessions.reduce((acc, session) => acc + session.activeTime, 0);
   const totalPaused = sessions.reduce((acc, session) => acc + session.totalPauseDuration, 0);
-  const focusRatio = totalTracked + totalPaused > 0
-    ? Math.round(totalTracked / (totalTracked + totalPaused) * 100)
+  
+  const sessionsWithScore = sessions.filter(s => s.focusScore !== undefined);
+  const avgFocusScore = sessionsWithScore.length > 0
+    ? Math.round(sessionsWithScore.reduce((acc, s) => acc + (s.focusScore || 0), 0) / sessionsWithScore.length)
     : 0;
+
   const completedCount = tasks.filter(task => task.status === 'completed').length;
   const completionRate = tasks.length > 0 ? Math.round(completedCount / tasks.length * 100) : 0;
 
@@ -182,8 +189,8 @@ export function Analytics() {
         {[
           { icon: Clock, label: 'Today', value: formatHours(totalToday), color: '#0ea5e9' },
           { icon: TrendingUp, label: 'This Week', value: formatHours(totalWeek), color: '#8b5cf6' },
-          { icon: Target, label: 'Focus Ratio', value: `${focusRatio}%`, color: '#22c55e' },
-          { icon: CheckCircle2, label: 'Completion', value: `${completionRate}%`, color: '#f97316' },
+          { icon: Zap, label: 'Focus Quality', value: `${avgFocusScore}%`, color: '#f97316' },
+          { icon: CheckCircle2, label: 'Completion', value: `${completionRate}%`, color: '#10b981' },
         ].map(({ icon: Icon, label, value, color }, i) => (
           <motion.div
             key={label}

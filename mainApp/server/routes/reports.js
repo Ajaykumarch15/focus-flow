@@ -335,4 +335,17 @@ router.get('/share/:userId/:date', async (req, res) => {
   }
 });
 
+// ── GET /api/reports/leaderboard ───────────────────────────────────────────
+router.get('/leaderboard', protect, async (req, res) => {
+  try {
+    const topUsers = await User.find({ leaderboardOptIn: true })
+      .select('name avatar totalPoints streak')
+      .sort({ totalPoints: -1 })
+      .limit(10);
+    res.json(topUsers);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
