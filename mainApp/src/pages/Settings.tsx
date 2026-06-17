@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
-import { Moon, Sun, Palette, User, Clock, Bell } from 'lucide-react';
+import { Moon, Sun, Palette, User, Clock, Bell, Users } from 'lucide-react';
 import { TASK_COLORS } from '../utils/colors';
 
 const LOCAL_CACHE_KEYS = [
