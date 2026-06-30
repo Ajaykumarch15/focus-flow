@@ -26,6 +26,12 @@ const userSchema = new mongoose.Schema(
       animatedBg:    { type: Boolean, default: true },
       reducedMotion: { type: Boolean, default: false },
     },
+    googleConnected: { type: Boolean, default: false },
+    googleTokens: {
+      accessToken:  { type: String },
+      refreshToken: { type: String },
+      expiryDate:   { type: Number },
+    },
   },
   { timestamps: true }
 );

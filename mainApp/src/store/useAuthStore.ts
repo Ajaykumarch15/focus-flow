@@ -9,6 +9,7 @@ interface AuthUser {
   role:     'user' | 'admin';
   avatar?:  string;
   settings: Record<string, any>;
+  googleConnected?: boolean;
 }
 
 interface AuthState {

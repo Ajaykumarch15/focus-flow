@@ -185,4 +185,15 @@ export const api = {
       return request<any>(`/teams/${id}/analytics${qs ? '?' + qs : ''}`);
     },
   },
+
+  projects: {
+    list: () => request<any[]>('/projects'),
+    create: (name: string) => request<any>('/projects', { method: 'POST', body: JSON.stringify({ name }) }),
+    syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
+  },
+
+  google: {
+    getUrl: () => request<{ url: string }>('/auth/google/url'),
+    disconnect: () => request<any>('/auth/google/disconnect', { method: 'POST' }),
+  },
 };

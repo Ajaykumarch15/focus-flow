@@ -5,10 +5,11 @@ import {
   ExternalLink, Link2, Lightbulb, Pencil, BookMarked,
   Zap, Loader2, ChevronDown, ChevronUp, Save,
   CheckCheck, RotateCcw, X, Sparkles, Clock,
-  Calendar, TrendingUp, Play, Pause, Square, Timer,
+  Calendar, TrendingUp, Play, Pause, Square, Timer,FolderOpen,
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { useStore } from '../store/useStore';
+import { useProjectStore } from '../store/useProjectStore';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -688,6 +689,24 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
         {/* Right actions */}
         <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
           <span className="text-lg">{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
+          {/* Open Google Doc */}
+{log.googleDocUrl && (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      window.open(log.googleDocUrl, "_blank", "noopener,noreferrer");
+    }}
+    title="Open Google Document"
+    className="flex items-center gap-1.5 px-3 py-1.5
+      bg-blue-500/15 hover:bg-blue-500/25
+      text-blue-400 rounded-lg text-xs font-medium
+      transition-all border border-blue-500/20
+      hover:border-blue-400/40"
+  >
+    <ExternalLink size={13} />
+    <span>Open Doc</span>
+  </button>
+)}
 
           {log.isActive ? (
             <button
@@ -918,9 +937,15 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 function CreateLogModal({ onClose }: { onClose: () => void }) {
   const { createLog, creating } = useWorkLogStore();
   const { tasks } = useStore();
+  const { projects, loadProjects } = useProjectStore();
   const [title, setTitle]         = useState('');
   const [taskRefId, setTaskRefId] = useState('');
+  const [projectId, setProjectId] = useState('');
   const [error, setError]         = useState('');
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const activeTasks = tasks.filter(t => t.status !== 'completed');
 
@@ -937,7 +962,7 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
     if (!title.trim()) return;
     setError('');
     try {
-      await createLog(title.trim(), taskRefId || undefined);
+      await createLog(title.trim(), taskRefId || undefined, projectId || undefined);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create');
@@ -974,6 +999,16 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm text-surface-300 mb-1.5">Work Item Title *</label>
             <input className="input" placeholder="e.g. Fix login bug, Build profile page…"
               value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+          </div>
+
+          <div>
+            <label className="block text-sm text-surface-300 mb-1.5">Link to Project</label>
+            <select className="input" value={projectId} onChange={e => setProjectId(e.target.value)}>
+              <option value="">— Standalone Log (No project) —</option>
+              {projects.map(p => (
+                <option key={p._id} value={p._id}>{p.name}</option>
+              ))}
+            </select>
           </div>
 
           <div>

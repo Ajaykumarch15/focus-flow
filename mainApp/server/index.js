@@ -13,6 +13,7 @@ const habitRoutes = require('./routes/habits');
 const reportRoutes = require('./routes/reports');   // ← NEW
 const adminRoutes = require('./routes/admin');     // ← NEW
 const teamRoutes  = require('./routes/teams');     // ← NEW
+const projectRoutes = require('./routes/projects');
 
 const app = express();
 
@@ -28,6 +29,8 @@ app.use((req, _res, next) => {
   next();
 });
 
+app.get('/auth/google/callback', authRoutes.handleGoogleCallback);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/sessions', sessionRoutes);
@@ -38,6 +41,7 @@ app.use('/api/habits', habitRoutes);
 app.use('/api/reports', reportRoutes);            // ← NEW
 app.use('/api/admin', adminRoutes);              // ← NEW
 app.use('/api/teams', teamRoutes);              // ← NEW
+app.use('/api/projects', projectRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
 
