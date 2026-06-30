@@ -68,4 +68,85 @@ router.get('/me', protect, (req, res) => {
   res.json({ user: req.user });
 });
 
+// ── Google OAuth URL Generator ────────────────────────────────────────────────
+router.get('/google/url', protect, (req, res) => {
+  try {
+    const { getOAuth2Client } = require('../utils/googleDrive');
+    const oauth2Client = getOAuth2Client();
+    
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No authorization token provided' });
+    }
+
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: [
+        'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile'
+      ],
+      state: token
+    });
+
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Google OAuth Disconnect ───────────────────────────────────────────────────
+router.post('/google/disconnect', protect, async (req, res) => {
+  try {
+    const user = req.user;
+    user.googleConnected = false;
+    user.googleTokens = undefined;
+    await user.save();
+    res.json({ message: 'Disconnected Google Drive successfully', user });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Google Callback Route Handler ─────────────────────────────────────────────
+const handleGoogleCallback = async (req, res) => {
+  const { code, state } = req.query;
+  if (!code || !state) {
+    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=missing_params`);
+  }
+
+  try {
+    const { getOAuth2Client } = require('../utils/googleDrive');
+    const decoded = jwt.verify(state, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=user_not_found`);
+    }
+
+    const oauth2Client = getOAuth2Client();
+    const { tokens } = await oauth2Client.getToken(code);
+
+    user.googleConnected = true;
+    user.googleTokens = {
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token || user.googleTokens?.refreshToken,
+      expiryDate: tokens.expiry_date,
+    };
+
+    user.markModified('googleTokens');
+    await user.save();
+
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?google_connected=true`);
+  } catch (err) {
+    console.error('Google OAuth callback error:', err);
+    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=oauth_failed`);
+  }
+};
+
+router.handleGoogleCallback = handleGoogleCallback;
+
 module.exports = router;

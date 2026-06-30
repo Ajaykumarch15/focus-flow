@@ -41,6 +41,15 @@ const workLogSchema = new mongoose.Schema(
       ref:  'Task',
     },
 
+    projectRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref:  'Project',
+      index: true,
+    },
+
+    googleDocId:  { type: String, default: '' },
+    googleDocUrl: { type: String, default: '' },
+
     title:       { type: String, default: 'Untitled Work Item' },
     problem:     { type: String, default: '' },
     gitBranch:   { type: String, default: '' },

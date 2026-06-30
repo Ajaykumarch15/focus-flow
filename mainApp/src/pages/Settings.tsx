@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
-import { Moon, Sun, Palette, User, Clock, Bell, Users } from 'lucide-react';
+import { useAuthStore } from '../store/useAuthStore';
+import { api } from '../utils/api';
+import { Moon, Sun, Palette, User, Clock, Bell, Users, Cloud, Check } from 'lucide-react';
 import { TASK_COLORS } from '../utils/colors';
 
 const LOCAL_CACHE_KEYS = [
@@ -28,6 +31,35 @@ const TIMEZONE_OPTIONS = [
 
 export function Settings() {
   const { theme, profile, updateTheme, updateProfile } = useStore();
+  const { user, restoreSession } = useAuthStore();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google_connected') === 'true') {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      restoreSession();
+    }
+  }, [restoreSession]);
+
+  const handleConnectGoogle = async () => {
+    try {
+      const { url } = await api.google.getUrl();
+      window.location.href = url;
+    } catch (err: any) {
+      alert(err.message || 'Failed to connect Google Drive');
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    if (confirm('Disconnect Google Drive? FocusFlow will stop organizing projects and logs into documents.')) {
+      try {
+        await api.google.disconnect();
+        await restoreSession();
+      } catch (err: any) {
+        alert(err.message || 'Failed to disconnect');
+      }
+    }
+  };
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
@@ -182,6 +214,37 @@ export function Settings() {
               />
             </button>
           </div>
+        </motion.section>
+
+        {/* Google Drive Connection */}
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }} className="card p-6">
+          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <Cloud size={18} className="text-brand-400" /> Google Drive Integration
+          </h2>
+          <p className="text-sm text-surface-400 mb-4">
+            Connect your Google Drive to build a searchable knowledge repository for your projects. FocusFlow will automatically create project folders and structure your daily work logs as rich Google Documents.
+          </p>
+
+          {user?.googleConnected ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium self-start">
+                <Check size={16} /> Google Drive is connected!
+              </div>
+              <button
+                onClick={handleDisconnectGoogle}
+                className="px-4 py-2 self-start bg-surface-700 hover:bg-surface-600 text-surface-200 border border-surface-600 rounded-xl text-sm font-medium transition-all"
+              >
+                Disconnect Google Drive
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleConnectGoogle}
+              className="btn-primary flex items-center gap-2"
+            >
+              <Cloud size={16} /> Connect Google Drive
+            </button>
+          )}
         </motion.section>
 
         {/* Data */}

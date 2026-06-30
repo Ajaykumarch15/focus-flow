@@ -6,12 +6,12 @@ const WORKLOG_CACHE_KEY = 'ff_worklog_cache';
 export type WorkLogStatus = 'planning' | 'in-progress' | 'reviewing' | 'blocked' | 'done';
 
 export interface WorkEntry {
-  _id:       string;
-  date:      string;       // ISO string
-  what:      string;       // what was done this day
+  _id: string;
+  date: string;       // ISO string
+  what: string;       // what was done this day
   startedAt?: number;      // epoch ms
-  endedAt?:   number;      // epoch ms
-  activeMs:   number;      // focused ms this day
+  endedAt?: number;      // epoch ms
+  activeMs: number;      // focused ms this day
 }
 
 export interface CompletedItem {
@@ -23,35 +23,46 @@ export interface WorkLink {
 }
 
 export interface LinkedTask {
-  _id:       string;
-  title:     string;
-  color:     string;
-  category:  string;
-  totalTime: number;       // total ms tracked via timer (all time, all sessions)
+  _id: string;
+  title: string;
+  color: string;
+  category: string;
+  totalTime: number;
+}
+
+export interface LinkedProject {
+  _id: string;
+  name: string;
+  googleFolderId?: string;
+  workLogsFolderId?: string;
 }
 
 export interface WorkLog {
-  _id:          string;
-  title:        string;
-  taskRef?:     LinkedTask;   // populated Task reference
-  problem:      string;
-  gitBranch:    string;
-  currentWork:  string;
-  plan:         string;
-  designNotes:  string;
-  blockers:     string;
-  workEntries:  WorkEntry[];  // per-day history
-  totalActiveMs:number;       // sum of all workEntries.activeMs
+  _id: string;
+  title: string;
+  taskRef?: LinkedTask;
+  projectRef?: LinkedProject;
+  googleDocId?: string;
+  googleDocUrl?: string;
+  problem: string;
+  gitBranch: string;
+  currentWork: string;
+  plan: string;
+  designNotes: string;
+  blockers: string;
+  workEntries: WorkEntry[];
+  totalActiveMs: number;
   completedItems: CompletedItem[];
-  links:        WorkLink[];
-  status:       WorkLogStatus;
-  isActive:     boolean;
-  closedAt?:    string;
-  reopenedAt?:  string;
-  mood:         number;
-  tags:         string[];
-  createdAt:    string;
-  updatedAt:    string;
+  links: WorkLink[];
+  status: WorkLogStatus;
+  isActive: boolean;
+  closedAt?: string;
+  reopenedAt?: string;
+  mood: number;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+
 }
 
 interface WorkLogState {
@@ -59,72 +70,80 @@ interface WorkLogState {
   closedLogs: WorkLog[];
   todayLog: WorkLog | null;
   loadToday: () => Promise<void>;
-  loading:    boolean;
-  creating:   boolean;
-  error:      string | null;
+  loading: boolean;
+  creating: boolean;
+  error: string | null;
 
-  loadActive:   () => Promise<void>;
-  loadClosed:   () => Promise<void>;
-  loadAll:      () => Promise<void>;
-  refreshLog:   (id: string) => Promise<void>;    // re-fetch one log (after timer stop)
+  loadActive: () => Promise<void>;
+  loadClosed: () => Promise<void>;
+  loadAll: () => Promise<void>;
+  refreshLog: (id: string) => Promise<void>;
 
-  createLog:    (title: string, taskRefId?: string) => Promise<WorkLog>;
-  updateField:  (id: string, field: string, value: any) => Promise<void>;
-  linkTask:     (id: string, taskRefId?: string) => Promise<void>;
-  updateEntry:  (id: string, entryId: string, what: string) => Promise<void>;
-  syncTime:     (id: string) => Promise<void>;    // pull latest session data in
-  deleteLog:    (id: string) => Promise<void>;
-  closeLog:     (id: string) => Promise<void>;
-  continueLog:  (id: string) => Promise<void>;
+  createLog: (title: string, taskRefId?: string, projectId?: string) => Promise<WorkLog>;
+  updateField: (id: string, field: string, value: any) => Promise<void>;
+  linkTask: (id: string, taskRefId?: string) => Promise<void>;
+  updateEntry: (id: string, entryId: string, what: string) => Promise<void>;
+  syncTime: (id: string) => Promise<void>;
+  deleteLog: (id: string) => Promise<void>;
+  closeLog: (id: string) => Promise<void>;
+  continueLog: (id: string) => Promise<void>;
 
-  addCompleted:    (id: string, text: string)   => Promise<void>;
+  addCompleted: (id: string, text: string) => Promise<void>;
   deleteCompleted: (id: string, itemId: string) => Promise<void>;
-  addLink:         (id: string, label: string, url: string) => Promise<void>;
-  deleteLink:      (id: string, linkId: string) => Promise<void>;
+  addLink: (id: string, label: string, url: string) => Promise<void>;
+  deleteLink: (id: string, linkId: string) => Promise<void>;
 }
 
 // ── Map raw MongoDB doc → typed WorkLog ───────────────────────────────────────
 function mapLog(doc: any): WorkLog {
   return {
-    _id:          doc._id,
-    title:        doc.title         || 'Untitled Work Item',
-    taskRef:      doc.taskRef ? {
-      _id:       doc.taskRef._id,
-      title:     doc.taskRef.title,
-      color:     doc.taskRef.color     || '#0ea5e9',
-      category:  doc.taskRef.category  || 'Work',
+    _id: doc._id,
+    title: doc.title || 'Untitled Work Item',
+    taskRef: doc.taskRef ? {
+      _id: doc.taskRef._id,
+      title: doc.taskRef.title,
+      color: doc.taskRef.color || '#0ea5e9',
+      category: doc.taskRef.category || 'Work',
       totalTime: doc.taskRef.totalTime || 0,
     } : undefined,
-    problem:      doc.problem       || '',
-    gitBranch:    doc.gitBranch     || '',
-    currentWork:  doc.currentWork   || '',
-    plan:         doc.plan          || '',
-    designNotes:  doc.designNotes   || '',
-    blockers:     doc.blockers      || '',
-    workEntries:  (doc.workEntries || []).map((e: any): WorkEntry => ({
-      _id:       e._id,
-      date:      e.date,
-      what:      e.what      || '',
+    projectRef: doc.projectRef ? {
+      _id: doc.projectRef._id,
+      name: doc.projectRef.name,
+      googleFolderId: doc.projectRef.googleFolderId,
+      workLogsFolderId: doc.projectRef.workLogsFolderId,
+    } : undefined,
+    googleDocId: doc.googleDocId || '',
+    googleDocUrl: doc.googleDocUrl || '',
+    problem: doc.problem || '',
+    gitBranch: doc.gitBranch || '',
+    currentWork: doc.currentWork || '',
+    plan: doc.plan || '',
+    designNotes: doc.designNotes || '',
+    blockers: doc.blockers || '',
+    workEntries: (doc.workEntries || []).map((e: any): WorkEntry => ({
+      _id: e._id,
+      date: e.date,
+      what: e.what || '',
       startedAt: e.startedAt,
-      endedAt:   e.endedAt,
-      activeMs:  e.activeMs  || 0,
+      endedAt: e.endedAt,
+      activeMs: e.activeMs || 0,
     })).sort((a: WorkEntry, b: WorkEntry) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     ),
     totalActiveMs: doc.totalActiveMs || 0,
-    completedItems:(doc.completedItems || []).map((i: any) => ({
+    completedItems: (doc.completedItems || []).map((i: any) => ({
       _id: i._id, text: i.text, done: i.done,
       createdAt: new Date(i.createdAt || Date.now()).getTime(),
     })),
-    links:        (doc.links || []).map((l: any) => ({ _id: l._id, label: l.label, url: l.url })),
-    status:       doc.status    || 'in-progress',
-    isActive:     doc.isActive  ?? true,
-    closedAt:     doc.closedAt,
-    reopenedAt:   doc.reopenedAt,
-    mood:         doc.mood      || 3,
-    tags:         doc.tags      || [],
-    createdAt:    doc.createdAt,
-    updatedAt:    doc.updatedAt,
+    links: (doc.links || []).map((l: any) => ({ _id: l._id, label: l.label, url: l.url })),
+    status: doc.status || 'in-progress',
+    isActive: doc.isActive ?? true,
+    closedAt: doc.closedAt,
+    reopenedAt: doc.reopenedAt,
+    mood: doc.mood || 3,
+    tags: doc.tags || [],
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
   };
 }
 
@@ -168,9 +187,9 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   activeLogs: cachedLogs.activeLogs,
   closedLogs: cachedLogs.closedLogs,
   todayLog: cachedLogs.todayLog,
-  loading:    false,
-  creating:   false,
-  error:      null,
+  loading: false,
+  creating: false,
+  error: null,
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   loadActive: async () => {
@@ -202,7 +221,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     set({ loading: true, error: null });
     try {
       const docs = await api.workLogs.list();
-      const all  = docs.map(mapLog);
+      const all = docs.map(mapLog);
       const activeLogs = all.filter(l => l.isActive);
       const closedLogs = all.filter(l => !l.isActive);
       const todayLog = getTodayLog(activeLogs);
@@ -214,41 +233,29 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   },
 
   loadToday: async () => {
-  set({ loading: true, error: null });
-
-  try {
-    const docs = await api.workLogs.list(true);
-
-    const logs = docs.map(mapLog);
-
-    const today = new Date().toDateString();
-
-    const todayLog =
-      logs.find(log =>
-        log.workEntries?.some(
-          e => new Date(e.date).toDateString() === today
-        )
+    set({ loading: true, error: null });
+    try {
+      const docs = await api.workLogs.list(true);
+      const logs = docs.map(mapLog);
+      const today = new Date().toDateString();
+      const todayLog = logs.find(log =>
+        log.workEntries?.some(e => new Date(e.date).toDateString() === today)
       ) || logs[0] || null;
+      const { closedLogs } = get();
+      cacheLogs(logs, closedLogs, todayLog);
+      set({
+        activeLogs: logs,
+        todayLog,
+        loading: false,
+      });
+    } catch (err: any) {
+      set({ error: err.message, loading: false });
+    }
+  },
 
-    const { closedLogs } = get();
-    cacheLogs(logs, closedLogs, todayLog);
-    set({
-      activeLogs: logs,
-      todayLog,
-      loading: false,
-    });
-  } catch (err: any) {
-    set({
-      error: err.message,
-      loading: false,
-    });
-  }
-},
-
-  // Re-fetch a single log (called after timer stop to get fresh workEntries)
   refreshLog: async (id) => {
     try {
-      const doc     = await api.workLogs.get(id);
+      const doc = await api.workLogs.get(id);
       const updated = mapLog(doc);
       set(s => {
         const activeLogs = patchList(s.activeLogs, id, updated);
@@ -263,10 +270,16 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   },
 
   // ── Create ────────────────────────────────────────────────────────────────────
-  createLog: async (title, taskRefId) => {
+  createLog: async (title, taskRefId, projectId) => {
     set({ creating: true });
     try {
-      const doc = await api.workLogs.create({ title, status: 'in-progress', isActive: true, taskRef: taskRefId || undefined });
+      const doc = await api.workLogs.create({
+        title,
+        status: 'in-progress',
+        isActive: true,
+        taskRef: taskRefId || undefined,
+        projectId: projectId || undefined,
+      });
       const log = mapLog(doc);
       set(s => {
         const activeLogs = [log, ...s.activeLogs];
@@ -308,7 +321,6 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Update "what I did" text on a specific day entry ─────────────────────────
   updateEntry: async (id, entryId, what) => {
-    // Optimistic
     set(s => {
       const activeLogs = s.activeLogs.map(l =>
         l._id === id
@@ -331,7 +343,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Sync session time into work entries ───────────────────────────────────────
   syncTime: async (id) => {
-    const doc     = await api.workLogs.syncTime(id);
+    const doc = await api.workLogs.syncTime(id);
     const updated = mapLog(doc);
     set(s => {
       const activeLogs = patchList(s.activeLogs, id, updated);
@@ -356,7 +368,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Close / Continue ──────────────────────────────────────────────────────────
   closeLog: async (id) => {
-    const doc    = await api.workLogs.close(id);
+    const doc = await api.workLogs.close(id);
     const closed = mapLog(doc);
     set(s => {
       const activeLogs = s.activeLogs.filter(l => l._id !== id);
@@ -368,7 +380,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   },
 
   continueLog: async (id) => {
-    const doc    = await api.workLogs.continue(id);
+    const doc = await api.workLogs.continue(id);
     const active = mapLog(doc);
     set(s => {
       const closedLogs = s.closedLogs.filter(l => l._id !== id);
@@ -381,7 +393,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Completed items ───────────────────────────────────────────────────────────
   addCompleted: async (id, text) => {
-    const doc     = await api.workLogs.addCompleted(id, text);
+    const doc = await api.workLogs.addCompleted(id, text);
     const updated = mapLog(doc);
     set(s => {
       const activeLogs = patchList(s.activeLogs, id, updated);
@@ -410,7 +422,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
 
   // ── Links ─────────────────────────────────────────────────────────────────────
   addLink: async (id, label, url) => {
-    const doc     = await api.workLogs.addLink(id, label, url);
+    const doc = await api.workLogs.addLink(id, label, url);
     const updated = mapLog(doc);
     set(s => {
       const activeLogs = patchList(s.activeLogs, id, updated);
