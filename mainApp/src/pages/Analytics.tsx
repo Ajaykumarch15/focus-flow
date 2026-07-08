@@ -8,7 +8,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend,
 } from 'recharts';
-import { BarChart3, CheckCircle2, Clock, Loader2, Target, TrendingUp, Zap } from 'lucide-react';
+import { BarChart3, CheckCircle2, Clock, Loader2, Target, TrendingUp, Zap, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#22c55e', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
 
@@ -33,6 +34,8 @@ type AnalyticsSession = {
   focusScore?: number;
 };
 
+type Timeframe = 'week' | 'month' | 'prev-month' | 'custom';
+
 function docId(value: any): string {
   return String(value?._id ?? value ?? '');
 }
@@ -54,6 +57,11 @@ export function Analytics() {
   const { tasks, activeTaskId, profile } = useStore();
   const [apiSessions, setApiSessions] = useState<AnalyticsSession[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Timeframe and custom dates
+  const [timeframe, setTimeframe] = useState<Timeframe>('week');
+  const [customStart, setCustomStart] = useState<string>('');
+  const [customEnd, setCustomEnd] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +104,7 @@ export function Analytics() {
         endTime: live.endTime,
         activeTime: live.activeTime,
         totalPauseDuration: live.totalPauseDuration,
-        focusScore: 100, // Live sessions start at 100
+        focusScore: 100,
       }];
     });
   }, [tasks]);
@@ -107,103 +115,312 @@ export function Analytics() {
     return [...completed, ...liveSessions].filter(session => session.taskId && session.activeTime > 0);
   }, [apiSessions, liveSessions]);
 
-  const days = getWeekDays();
-  const weekData = days.map((day, i) => {
-    const { start, end } = dayRange(6 - i);
-    let productive = 0;
-    let paused = 0;
-    for (const session of sessions) {
-      if (session.startTime >= start && session.startTime <= end) {
-        productive += session.activeTime;
-        paused += session.totalPauseDuration;
+  // Compute boundaries for current selected timeframe
+  const rangeBounds = useMemo(() => {
+    const now = new Date();
+    let startMs = 0;
+    let endMs = now.getTime();
+
+    if (timeframe === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      d.setHours(0, 0, 0, 0);
+      startMs = d.getTime();
+    } else if (timeframe === 'month') {
+      const d = startOfMonth(now);
+      startMs = d.getTime();
+    } else if (timeframe === 'prev-month') {
+      const d = startOfMonth(subMonths(now, 1));
+      startMs = d.getTime();
+      const endD = endOfMonth(subMonths(now, 1));
+      endMs = endD.getTime();
+    } else if (timeframe === 'custom') {
+      if (customStart) {
+        const d = new Date(customStart);
+        d.setHours(0, 0, 0, 0);
+        startMs = d.getTime();
+      }
+      if (customEnd) {
+        const d = new Date(customEnd);
+        d.setHours(23, 59, 59, 999);
+        endMs = d.getTime();
       }
     }
-    return {
-      day,
-      productive: toChartHours(productive),
-      paused: toChartHours(paused),
-      total: toChartHours(productive + paused),
-    };
-  });
+    return { start: startMs, end: endMs };
+  }, [timeframe, customStart, customEnd]);
 
-  const categoryMap: Record<string, number> = {};
-  for (const session of sessions) {
-    const task = taskById.get(session.taskId);
-    const category = task?.category || 'Other';
-    categoryMap[category] = (categoryMap[category] || 0) + session.activeTime;
+  // Compute boundaries for previous period comparison
+  const prevRangeBounds = useMemo(() => {
+    const now = new Date();
+    let startMs = 0;
+    let endMs = now.getTime();
+
+    if (timeframe === 'week') {
+      const d = new Date();
+      d.setDate(d.getDate() - 13);
+      d.setHours(0, 0, 0, 0);
+      startMs = d.getTime();
+      const e = new Date();
+      e.setDate(e.getDate() - 7);
+      e.setHours(23, 59, 59, 999);
+      endMs = e.getTime();
+    } else if (timeframe === 'month') {
+      const d = startOfMonth(subMonths(now, 1));
+      startMs = d.getTime();
+      const endD = endOfMonth(subMonths(now, 1));
+      endMs = endD.getTime();
+    } else if (timeframe === 'prev-month') {
+      const d = startOfMonth(subMonths(now, 2));
+      startMs = d.getTime();
+      const endD = endOfMonth(subMonths(now, 2));
+      endMs = endD.getTime();
+    } else if (timeframe === 'custom') {
+      if (customStart && customEnd) {
+        const s = new Date(customStart).getTime();
+        const e = new Date(customEnd).getTime();
+        const duration = e - s;
+        startMs = s - duration;
+        endMs = e - duration;
+      } else {
+        const d = startOfMonth(subMonths(now, 1));
+        startMs = d.getTime();
+        const endD = endOfMonth(subMonths(now, 1));
+        endMs = endD.getTime();
+      }
+    }
+    return { start: startMs, end: endMs };
+  }, [timeframe, customStart, customEnd]);
+
+  // Filter sessions
+  const currentSessions = useMemo(() => {
+    return sessions.filter(s => s.startTime >= rangeBounds.start && s.startTime <= rangeBounds.end);
+  }, [sessions, rangeBounds]);
+
+  const prevSessions = useMemo(() => {
+    return sessions.filter(s => s.startTime >= prevRangeBounds.start && s.startTime <= prevRangeBounds.end);
+  }, [sessions, prevRangeBounds]);
+
+  // Current selected period statistics
+  const selectedFocus = useMemo(() => currentSessions.reduce((acc, s) => acc + s.activeTime, 0), [currentSessions]);
+  const selectedPaused = useMemo(() => currentSessions.reduce((acc, s) => acc + s.totalPauseDuration, 0), [currentSessions]);
+
+  const selectedFocusScore = useMemo(() => {
+    const scored = currentSessions.filter(s => s.focusScore !== undefined);
+    return scored.length > 0
+      ? Math.round(scored.reduce((acc, s) => acc + (s.focusScore || 0), 0) / scored.length)
+      : 0;
+  }, [currentSessions]);
+
+  const selectedCompletedTasks = useMemo(() => {
+    return tasks.filter(task => 
+      task.status === 'completed' && 
+      task.updatedAt >= rangeBounds.start && 
+      task.updatedAt <= rangeBounds.end
+    ).length;
+  }, [tasks, rangeBounds]);
+
+  const selectedTotalTasks = useMemo(() => {
+    return tasks.filter(task => 
+      task.createdAt <= rangeBounds.end && 
+      (task.status !== 'completed' || task.updatedAt >= rangeBounds.start)
+    ).length;
+  }, [tasks, rangeBounds]);
+
+  const selectedCompletionRate = useMemo(() => {
+    return selectedTotalTasks > 0 ? Math.round(selectedCompletedTasks / selectedTotalTasks * 100) : 0;
+  }, [selectedCompletedTasks, selectedTotalTasks]);
+
+  // Previous period statistics (for comparison)
+  const prevFocus = useMemo(() => prevSessions.reduce((acc, s) => acc + s.activeTime, 0), [prevSessions]);
+  const prevPaused = useMemo(() => prevSessions.reduce((acc, s) => acc + s.totalPauseDuration, 0), [prevSessions]);
+
+  const prevFocusScore = useMemo(() => {
+    const scored = prevSessions.filter(s => s.focusScore !== undefined);
+    return scored.length > 0
+      ? Math.round(scored.reduce((acc, s) => acc + (s.focusScore || 0), 0) / scored.length)
+      : 0;
+  }, [prevSessions]);
+
+  const prevCompletedTasks = useMemo(() => {
+    return tasks.filter(task => 
+      task.status === 'completed' && 
+      task.updatedAt >= prevRangeBounds.start && 
+      task.updatedAt <= prevRangeBounds.end
+    ).length;
+  }, [tasks, prevRangeBounds]);
+
+  const prevTotalTasks = useMemo(() => {
+    return tasks.filter(task => 
+      task.createdAt <= prevRangeBounds.end && 
+      (task.status !== 'completed' || task.updatedAt >= prevRangeBounds.start)
+    ).length;
+  }, [tasks, prevRangeBounds]);
+
+  const prevCompletionRate = useMemo(() => {
+    return prevTotalTasks > 0 ? Math.round(prevCompletedTasks / prevTotalTasks * 100) : 0;
+  }, [prevCompletedTasks, prevTotalTasks]);
+
+  // Comparison formatter
+  function formatComparison(current: number, prev: number, isPercent = false) {
+    if (prev <= 0) return 'No comparison data';
+    const percentChange = Math.round(((current - prev) / prev) * 100);
+    const sign = percentChange > 0 ? '+' : '';
+    if (isPercent) {
+      return `${sign}${percentChange}% vs last period`;
+    }
+    return `${sign}${percentChange}% (${formatHours(prev)} last period)`;
   }
-  const categoryData = Object.entries(categoryMap)
-    .map(([name, ms]) => ({ name, hours: toChartHours(ms) }))
-    .filter(item => item.hours > 0)
-    .sort((a, b) => b.hours - a.hours);
 
-  const taskTimeMap = new Map<string, number>();
-  for (const task of tasks) taskTimeMap.set(task.id, task.totalTime || 0);
-  for (const live of liveSessions) {
-    taskTimeMap.set(live.taskId, (taskTimeMap.get(live.taskId) || 0) + live.activeTime);
-  }
-  const topTasks = [...tasks]
-    .map(task => ({ ...task, analyticsTime: taskTimeMap.get(task.id) || 0 }))
-    .filter(task => task.analyticsTime > 0)
-    .sort((a, b) => b.analyticsTime - a.analyticsTime)
-    .slice(0, 5);
+  // Chart data
+  const chartData = useMemo(() => {
+    const data: { day: string; productive: number; paused: number; total: number }[] = [];
+    const { start, end } = rangeBounds;
+    if (start === 0) return [];
 
-  const totalToday = sessions
-    .filter(session => isToday(session.startTime))
-    .reduce((acc, session) => acc + session.activeTime, 0);
+    const msPerDay = 86400000;
+    const duration = end - start;
+    const daysCount = Math.ceil(duration / msPerDay);
 
-  const totalWeek = sessions
-    .filter(session => isThisWeek(session.startTime))
-    .reduce((acc, session) => acc + session.activeTime, 0);
+    for (let i = 0; i < daysCount; i++) {
+      const dayStart = start + i * msPerDay;
+      const dayEnd = dayStart + msPerDay - 1;
+      const d = new Date(dayStart);
 
-  const totalTracked = sessions.reduce((acc, session) => acc + session.activeTime, 0);
-  const totalPaused = sessions.reduce((acc, session) => acc + session.totalPauseDuration, 0);
-  
-  const sessionsWithScore = sessions.filter(s => s.focusScore !== undefined);
-  const avgFocusScore = sessionsWithScore.length > 0
-    ? Math.round(sessionsWithScore.reduce((acc, s) => acc + (s.focusScore || 0), 0) / sessionsWithScore.length)
-    : 0;
+      const label = timeframe === 'week' 
+        ? d.toLocaleDateString('en-US', { weekday: 'short' })
+        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  const completedCount = tasks.filter(task => task.status === 'completed').length;
-  const completionRate = tasks.length > 0 ? Math.round(completedCount / tasks.length * 100) : 0;
+      let productive = 0;
+      let paused = 0;
+      for (const session of sessions) {
+        if (session.startTime >= dayStart && session.startTime <= dayEnd) {
+          productive += session.activeTime;
+          paused += session.totalPauseDuration;
+        }
+      }
+
+      data.push({
+        day: label,
+        productive: toChartHours(productive),
+        paused: toChartHours(paused),
+        total: toChartHours(productive + paused),
+      });
+    }
+    return data;
+  }, [sessions, rangeBounds, timeframe]);
+
+  // Categories
+  const categoryData = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const session of currentSessions) {
+      const task = taskById.get(session.taskId);
+      const category = task?.category || 'Other';
+      map[category] = (map[category] || 0) + session.activeTime;
+    }
+    return Object.entries(map)
+      .map(([name, ms]) => ({ name, hours: toChartHours(ms) }))
+      .filter(item => item.hours > 0)
+      .sort((a, b) => b.hours - a.hours);
+  }, [currentSessions, taskById]);
+
+  // Top tasks (selected timeframe's most time taken tasks)
+  const topTasks = useMemo(() => {
+    const taskTimeMap = new Map<string, number>();
+    for (const session of currentSessions) {
+      taskTimeMap.set(session.taskId, (taskTimeMap.get(session.taskId) || 0) + session.activeTime);
+    }
+    for (const live of liveSessions) {
+      if (live.startTime >= rangeBounds.start && live.startTime <= rangeBounds.end) {
+        taskTimeMap.set(live.taskId, (taskTimeMap.get(live.taskId) || 0) + live.activeTime);
+      }
+    }
+
+    return [...tasks]
+      .map(task => ({ ...task, analyticsTime: taskTimeMap.get(task.id) || 0 }))
+      .filter(task => task.analyticsTime > 0)
+      .sort((a, b) => b.analyticsTime - a.analyticsTime)
+      .slice(0, 5);
+  }, [tasks, currentSessions, liveSessions, rangeBounds]);
+
+  const totalToday = useMemo(() => {
+    return sessions
+      .filter(session => isToday(session.startTime))
+      .reduce((acc, session) => acc + session.activeTime, 0);
+  }, [sessions]);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8 flex items-start justify-between gap-4"
+        className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4"
       >
         <div>
           <h1 className="text-2xl font-display font-bold text-white">Analytics</h1>
           <p className="text-surface-300 mt-1">Your productivity insights</p>
         </div>
-        {loading && (
-          <span className="flex items-center gap-2 text-xs text-surface-400">
-            <Loader2 size={13} className="animate-spin" /> Loading sessions
-          </span>
-        )}
+
+        <div className="flex flex-col gap-2 items-end">
+          <div className="flex items-center gap-2 bg-surface-900 p-1 rounded-xl border border-surface-800 flex-wrap">
+            {(['week', 'month', 'prev-month', 'custom'] as Timeframe[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTimeframe(t)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  timeframe === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'
+                }`}
+              >
+                {t === 'week' ? 'This Week' : t === 'month' ? 'This Month' : t === 'prev-month' ? 'Previous Month' : 'Custom Range'}
+              </button>
+            ))}
+          </div>
+
+          {timeframe === 'custom' && (
+            <motion.div 
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 p-2 rounded-xl bg-surface-900 border border-surface-800"
+            >
+              <input
+                type="date"
+                className="input text-xs py-1 px-2"
+                value={customStart}
+                onChange={e => setCustomStart(e.target.value)}
+              />
+              <span className="text-xs text-surface-500">to</span>
+              <input
+                type="date"
+                className="input text-xs py-1 px-2"
+                value={customEnd}
+                onChange={e => setCustomEnd(e.target.value)}
+              />
+            </motion.div>
+          )}
+        </div>
       </motion.div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { icon: Clock, label: 'Today', value: formatHours(totalToday), color: '#0ea5e9' },
-          { icon: TrendingUp, label: 'This Week', value: formatHours(totalWeek), color: '#8b5cf6' },
-          { icon: Zap, label: 'Focus Quality', value: `${avgFocusScore}%`, color: '#f97316' },
-          { icon: CheckCircle2, label: 'Completion', value: `${completionRate}%`, color: '#10b981' },
-        ].map(({ icon: Icon, label, value, color }, i) => (
+          { icon: Clock, label: 'Focused Time', value: formatHours(selectedFocus), comparison: formatComparison(selectedFocus, prevFocus), color: '#0ea5e9' },
+          { icon: TrendingUp, label: 'Paused Time', value: formatHours(selectedPaused), comparison: formatComparison(selectedPaused, prevPaused), color: '#8b5cf6' },
+          { icon: Zap, label: 'Focus Quality', value: `${selectedFocusScore}%`, comparison: formatComparison(selectedFocusScore, prevFocusScore, true), color: '#f97316' },
+          { icon: CheckCircle2, label: 'Completion Rate', value: `${selectedCompletionRate}%`, comparison: formatComparison(selectedCompletionRate, prevCompletionRate, true), color: '#10b981' },
+        ].map(({ icon: Icon, label, value, comparison, color }, i) => (
           <motion.div
             key={label}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
-            className="card p-5"
+            className="card p-5 flex flex-col justify-between"
           >
-            <div className="flex items-center gap-2 text-surface-400 text-sm mb-2">
-              <Icon size={14} style={{ color }} />
-              {label}
+            <div>
+              <div className="flex items-center gap-2 text-surface-400 text-sm mb-2">
+                <Icon size={14} style={{ color }} />
+                {label}
+              </div>
+              <div className="text-2xl font-display font-bold" style={{ color }}>{value}</div>
             </div>
-            <div className="text-2xl font-display font-bold" style={{ color }}>{value}</div>
+            <div className="text-[10px] text-surface-500 mt-2 font-medium">{comparison}</div>
           </motion.div>
         ))}
       </div>
@@ -216,11 +433,11 @@ export function Analytics() {
           className="card p-6"
         >
           <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <BarChart3 size={16} className="text-brand-400" /> Weekly Breakdown
+            <BarChart3 size={16} className="text-brand-400" /> Focus Breakdown
           </h3>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={weekData} barGap={4}>
-              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <BarChart data={chartData} barGap={4}>
+              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
@@ -242,14 +459,14 @@ export function Analytics() {
         >
           <h3 className="font-semibold text-white mb-4">Focus Trend</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={weekData}>
+            <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="focusTrend" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.45} />
                   <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
@@ -307,10 +524,10 @@ export function Analytics() {
           <h3 className="font-semibold text-white mb-4">Task Health</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Total Tasks', value: String(tasks.length), color: 'text-brand-400' },
-              { label: 'Completed', value: String(completedCount), color: 'text-emerald-400' },
-              { label: 'Tracked Time', value: formatHours(totalTracked), color: 'text-purple-400' },
-              { label: 'Paused Time', value: formatHours(totalPaused), color: 'text-yellow-400' },
+              { label: 'Active Tasks', value: String(tasks.filter(t => t.status !== 'completed').length), color: 'text-brand-400' },
+              { label: 'Completed', value: String(selectedCompletedTasks), color: 'text-emerald-400' },
+              { label: 'Tracked Time', value: formatHours(selectedFocus), color: 'text-purple-400' },
+              { label: 'Paused Time', value: formatHours(selectedPaused), color: 'text-yellow-400' },
             ].map(item => (
               <div key={item.label} className="rounded-xl border border-surface-700 bg-surface-800/40 p-4">
                 <p className={`text-xl font-display font-bold ${item.color}`}>{item.value}</p>
@@ -327,9 +544,11 @@ export function Analytics() {
         transition={{ delay: 0.35 }}
         className="card p-6"
       >
-        <h3 className="font-semibold text-white mb-4">Most Focused Tasks</h3>
+        <h3 className="font-semibold text-white mb-4">
+          {timeframe === 'week' ? "This Week's Most Time Taken Tasks" : "Selected Period's Most Time Taken Tasks"}
+        </h3>
         {topTasks.length === 0 ? (
-          <p className="text-surface-400">No tasks with tracked time yet</p>
+          <p className="text-surface-400">No tasks with tracked time in this period</p>
         ) : (
           <div className="space-y-3">
             {topTasks.map((task, i) => {

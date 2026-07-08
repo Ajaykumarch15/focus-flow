@@ -167,6 +167,17 @@ export const api = {
       const qs = params.toString();
       return request<any>(`/admin/users/${userId}/analytics${qs ? '?' + qs : ''}`);
     },
+    getUserReportsSummary: (userId: string, from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      if (to)   params.set('to', to);
+      const qs = params.toString();
+      return request<any[]>(`/admin/users/${userId}/reports/summary${qs ? '?' + qs : ''}`);
+    },
+    getUserReportDay: (userId: string, date: string) => {
+      const params = new URLSearchParams({ date });
+      return request<any>(`/admin/users/${userId}/reports/day?${params}`);
+    },
   },
 
   teams: {

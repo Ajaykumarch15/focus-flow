@@ -2,10 +2,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Users, User as UserIcon, Search, Loader2, Clock, 
-  CheckCircle2, BarChart3, BookMarked, ChevronRight,
+  CheckCircle2, BarChart3, BookMarked, ChevronRight, ChevronLeft, GitBranch, ExternalLink,
   Calendar, ArrowLeft, Filter, TrendingUp, Zap, Activity,
   Settings, Plus, Trash2, Edit2, X, Check, ShieldCheck, Mail
 } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isToday as isTodayDateFns, subMonths, addMonths } from 'date-fns';
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell,
   PieChart, Pie, Legend
@@ -508,7 +509,125 @@ export function AdminDashboard() {
   );
 }
 
+const STATUS_COLOR: Record<string, string> = {
+  planning:    'text-purple-400 bg-purple-400/10 border-purple-400/20',
+  'in-progress':'text-brand-400 bg-brand-400/10 border-brand-400/20',
+  reviewing:   'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
+  blocked:     'text-red-400 bg-red-400/10 border-red-400/20',
+  done:        'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
+};
+const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
+
+const HEAT_STYLES = [
+  'bg-surface-800',
+  'bg-brand-900/60 border-brand-800',
+  'bg-brand-700/50 border-brand-600',
+  'bg-brand-500/60 border-brand-500',
+  'bg-brand-400    border-brand-300',
+];
+
+function heatLevel(hours: number): number {
+  if (hours === 0) return 0;
+  if (hours < 2)   return 1;
+  if (hours < 4)   return 2;
+  if (hours < 6)   return 3;
+  return 4;
+}
+
+function CalendarHeatmap({
+  month, summary, onDayClick, selectedDate,
+}: {
+  month: Date;
+  summary: any[];
+  onDayClick: (date: string) => void;
+  selectedDate: string | null;
+}) {
+  const days   = eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
+  const sumMap = Object.fromEntries(summary.map(s => [s.date, s]));
+  const firstDow = startOfMonth(month).getDay(); // 0=Sun
+
+  return (
+    <div>
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
+          <div key={d} className="text-center text-xs text-surface-500 py-1 font-semibold">{d}</div>
+        ))}
+      </div>
+      {/* Grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {/* Empty cells before first day */}
+        {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+
+        {days.map(day => {
+          const ds   = format(day, 'yyyy-MM-dd');
+          const data = sumMap[ds];
+          const heat = heatLevel(data?.totalHours || 0);
+          const sel  = selectedDate === ds;
+          const tod  = isTodayDateFns(day);
+
+          return (
+            <motion.button
+              key={ds}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => onDayClick(ds)}
+              className={`
+                aspect-square rounded-lg border transition-all text-xs relative
+                ${HEAT_STYLES[heat]}
+                ${sel  ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-950' : ''}
+                ${tod  ? 'ring-1 ring-brand-400' : ''}
+              `}
+              title={data ? `${ds}: ${data.totalHours}h, ${data.workLogCount} logs, ${data.completedCount} completed` : ds}
+            >
+              <span className={`absolute inset-0 flex items-center justify-center text-[10px] md:text-xs
+                ${heat >= 2 ? 'text-white' : 'text-surface-400'} ${tod ? 'font-bold' : ''}`}>
+                {day.getDate()}
+              </span>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }: any) {
+  const [detailTab, setDetailTab] = useState<'analytics' | 'worklogs' | 'reports'>('analytics');
+
+  // Reports tab state
+  const [reportMonth, setReportMonth] = useState(new Date());
+  const [reportSummary, setReportSummary] = useState<any[]>([]);
+  const [loadingReportSummary, setLoadingReportSummary] = useState(false);
+  const [selectedReportDate, setSelectedReportDate] = useState<string | null>(null);
+  const [dayReportDetail, setDayReportDetail] = useState<any>(null);
+  const [loadingDayReportDetail, setLoadingDayReportDetail] = useState(false);
+
+  // Load reports summary for user
+  useEffect(() => {
+    if (detailTab !== 'reports') return;
+    setLoadingReportSummary(true);
+    const from = format(startOfMonth(reportMonth), 'yyyy-MM-dd');
+    const to = format(endOfMonth(reportMonth), 'yyyy-MM-dd');
+    api.admin.getUserReportsSummary(user._id, from, to)
+      .then(setReportSummary)
+      .catch(err => toast.error('Failed to load report summary', err.message))
+      .finally(() => setLoadingReportSummary(false));
+  }, [detailTab, reportMonth, user._id]);
+
+  // Load day report detail
+  useEffect(() => {
+    if (!selectedReportDate) {
+      setDayReportDetail(null);
+      return;
+    }
+    setLoadingDayReportDetail(true);
+    api.admin.getUserReportDay(user._id, selectedReportDate)
+      .then(setDayReportDetail)
+      .catch(err => toast.error('Failed to load day report', err.message))
+      .finally(() => setLoadingDayReportDetail(false));
+  }, [selectedReportDate, user._id]);
+
   const chartData = useMemo(() => {
     if (!analytics) return [];
     const days: Record<string, number> = {};
@@ -524,7 +643,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 
   return (
     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-      <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"><ArrowLeft size={20} /></button>
           <div>
@@ -532,46 +651,333 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
             <p className="text-surface-400">{user.email}</p>
           </div>
         </div>
-        <FilterSelector active={filter} onChange={setFilter} />
+        {detailTab === 'analytics' && <FilterSelector active={filter} onChange={setFilter} />}
       </div>
 
-      {loading ? <LoadingPlaceholder /> : analytics && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Clock} label="Focus Time" value={formatHours(analytics.summary.totalTimeMs)} color="#0ea5e9" />
-            <StatCard icon={CheckCircle2} label="Tasks Done" value={String(analytics.summary.completedTasks)} color="#22c55e" />
-            <StatCard icon={BookMarked} label="Work Logs" value={String(analytics.summary.workLogCount)} color="#8b5cf6" />
-            <StatCard icon={BarChart3} label="Sessions" value={String(analytics.summary.sessionCount)} color="#f97316" />
-          </div>
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-surface-800 mb-6">
+        {[
+          { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+          { id: 'worklogs', label: 'Work Logs', icon: BookMarked },
+          { id: 'reports', label: 'Daily Reports', icon: Calendar }
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => {
+              setDetailTab(t.id as any);
+              setSelectedReportDate(null);
+            }}
+            className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-all ${
+              detailTab === t.id
+                ? 'border-brand-500 text-brand-400'
+                : 'border-transparent text-surface-400 hover:text-white'
+            }`}
+          >
+            <t.icon size={16} />
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 card p-6">
-              <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-brand-400" /> Daily Focus</h2>
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
-                    <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <Tooltip cursor={{ fill: '#27272a', radius: 8 }} contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} />
-                    <Bar dataKey="hours" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+      {loading ? (
+        <LoadingPlaceholder />
+      ) : (
+        <>
+          {detailTab === 'analytics' && analytics && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard icon={Clock} label="Focus Time" value={formatHours(analytics.summary.totalTimeMs)} color="#0ea5e9" />
+                <StatCard icon={CheckCircle2} label="Tasks Done" value={String(analytics.summary.completedTasks)} color="#22c55e" />
+                <StatCard icon={BookMarked} label="Work Logs" value={String(analytics.summary.workLogCount)} color="#8b5cf6" />
+                <StatCard icon={BarChart3} label="Sessions" value={String(analytics.summary.sessionCount)} color="#f97316" />
               </div>
-            </div>
-            <div className="card p-6">
-              <h2 className="text-lg font-bold text-white mb-4">Top Tasks</h2>
-              <div className="space-y-3">
-                {analytics.tasks.slice(0, 6).map((t: any) => (
-                  <div key={t._id} className="p-3 bg-surface-900/50 rounded-xl border border-surface-800">
-                    <p className="text-white text-sm font-medium truncate">{t.title}</p>
-                    <p className="text-[10px] text-surface-500 uppercase mt-1">{t.category} · {formatHours(t.totalTime)}</p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 card p-6">
+                  <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-brand-400" /> Daily Focus</h2>
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                        <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <Tooltip cursor={{ fill: '#27272a', radius: 8 }} contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} />
+                        <Bar dataKey="hours" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
+                </div>
+                <div className="card p-6">
+                  <h2 className="text-lg font-bold text-white mb-4">Top Tasks</h2>
+                  <div className="space-y-3">
+                    {analytics.tasks.slice(0, 6).map((t: any) => (
+                      <div key={t._id} className="p-3 bg-surface-900/50 rounded-xl border border-surface-800">
+                        <p className="text-white text-sm font-medium truncate">{t.title}</p>
+                        <p className="text-[10px] text-surface-500 uppercase mt-1">{t.category} · {formatHours(t.totalTime)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          )}
+
+          {detailTab === 'worklogs' && analytics && (
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                <BookMarked className="text-brand-400" size={18} /> User Work Logs
+              </h2>
+              {analytics.workLogs && analytics.workLogs.length > 0 ? (
+                analytics.workLogs.map((log: any) => (
+                  <div key={log._id} className="card p-5 border border-surface-800 flex flex-col gap-4">
+                    <div className="flex items-center gap-3 flex-wrap justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white text-base">{log.title}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
+                          {log.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {log.mood && <span className="text-xl">{MOOD_EMOJIS[log.mood - 1]}</span>}
+                        <span className="text-xs text-surface-500">Updated {new Date(log.updatedAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+
+                    {log.gitBranch && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-mono">
+                        <GitBranch size={12} /> {log.gitBranch}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {log.problem && (
+                        <div className="bg-surface-900/30 p-3 rounded-xl border border-surface-800/40">
+                          <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Problem</span>
+                          <p className="text-sm text-surface-200">{log.problem}</p>
+                        </div>
+                      )}
+                      {log.currentWork && (
+                        <div className="bg-surface-900/30 p-3 rounded-xl border border-surface-800/40">
+                          <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">What was done</span>
+                          <p className="text-sm text-surface-200">{log.currentWork}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {log.completedItems && log.completedItems.length > 0 && (
+                      <div>
+                        <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-2 font-semibold">Completed Checklist</span>
+                        <div className="space-y-1.5 pl-1">
+                          {log.completedItems.map((item: any) => (
+                            <div key={item._id} className="flex items-start gap-2 text-xs text-surface-300">
+                              <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              <span>{item.text}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {log.blockers && (
+                      <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
+                        <span className="block text-[10px] text-red-400 uppercase tracking-wider mb-1 font-semibold">Blockers</span>
+                        <p className="text-sm text-surface-300">{log.blockers}</p>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {log.plan && (
+                        <div>
+                          <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Next Plan</span>
+                          <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.plan}</p>
+                        </div>
+                      )}
+                      {log.designNotes && (
+                        <div>
+                          <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Design & Arch Notes</span>
+                          <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.designNotes}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {log.links && log.links.length > 0 && (
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-surface-800/40">
+                        {log.links.map((link: any) => (
+                          <a key={link._id} href={link.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
+                            <ExternalLink size={12} /> {link.label}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="card p-8 text-center text-surface-400 italic">No work logs found for this user.</div>
+              )}
+            </div>
+          )}
+
+          {detailTab === 'reports' && (
+            <div className="space-y-6">
+              {selectedReportDate ? (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setSelectedReportDate(null)}
+                      className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"
+                    >
+                      <ArrowLeft size={16} />
+                    </button>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Daily Report - {selectedReportDate}</h2>
+                      <p className="text-xs text-surface-400">Viewing work details for {user.name}</p>
+                    </div>
+                  </div>
+
+                  {loadingDayReportDetail ? (
+                    <LoadingPlaceholder />
+                  ) : dayReportDetail ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                      {/* Stats Row */}
+                      <div className="lg:col-span-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="card p-4">
+                          <span className="block text-xs text-surface-400 mb-1">Time Worked</span>
+                          <span className="text-lg font-bold text-brand-400">{formatHours(dayReportDetail.totalMs)}</span>
+                        </div>
+                        <div className="card p-4">
+                          <span className="block text-xs text-surface-400 mb-1">Sessions Count</span>
+                          <span className="text-lg font-bold text-purple-400">{dayReportDetail.sessionCount}</span>
+                        </div>
+                        <div className="card p-4">
+                          <span className="block text-xs text-surface-400 mb-1">Tasks Worked</span>
+                          <span className="text-lg font-bold text-yellow-400">{dayReportDetail.tasks?.length || 0}</span>
+                        </div>
+                        <div className="card p-4">
+                          <span className="block text-xs text-surface-400 mb-1">Completed Items</span>
+                          <span className="text-lg font-bold text-emerald-400">{dayReportDetail.completedCount}</span>
+                        </div>
+                      </div>
+
+                      {/* Work Logs */}
+                      <div className="lg:col-span-3 space-y-4">
+                        <h3 className="font-semibold text-white flex items-center gap-2">
+                          <BookMarked size={16} className="text-brand-400" /> Work Logs
+                        </h3>
+                        {dayReportDetail.workLogs?.length === 0 ? (
+                          <p className="text-sm text-surface-500 italic">No work logs for this day</p>
+                        ) : (
+                          dayReportDetail.workLogs.map((log: any) => (
+                            <div key={log._id} className="card p-4 border border-surface-800 flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-white text-sm">{log.title}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
+                                  {log.status}
+                                </span>
+                                {log.mood && <span className="text-base ml-auto">{MOOD_EMOJIS[log.mood - 1]}</span>}
+                              </div>
+                              {log.gitBranch && <p className="text-xs font-mono text-emerald-400">Branch: {log.gitBranch}</p>}
+                              {log.problem && <p className="text-xs text-surface-300"><strong className="text-surface-400">Problem:</strong> {log.problem}</p>}
+                              {log.currentWork && <p className="text-xs text-surface-300"><strong className="text-surface-400">What I did:</strong> {log.currentWork}</p>}
+                              {log.completedItems?.length > 0 && (
+                                <div className="space-y-1 mt-1">
+                                  {log.completedItems.map((item: any) => (
+                                    <div key={item._id} className="flex items-center gap-1 text-[11px] text-surface-300">
+                                      <CheckCircle2 size={10} className="text-emerald-400" />
+                                      <span>{item.text}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {/* Tasks & Times */}
+                      <div className="lg:col-span-2 space-y-4">
+                        <h3 className="font-semibold text-white flex items-center gap-2">
+                          <Clock size={16} className="text-brand-400" /> Time by Task
+                        </h3>
+                        {dayReportDetail.tasks?.length === 0 ? (
+                          <p className="text-sm text-surface-500 italic">No sessions tracked</p>
+                        ) : (
+                          dayReportDetail.tasks.map((task: any) => {
+                            const pct = dayReportDetail.totalMs > 0 ? (task.totalMs / dayReportDetail.totalMs) * 100 : 0;
+                            return (
+                              <div key={task.taskId} className="card p-3 flex flex-col gap-1.5">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-xs font-medium text-white truncate">{task.title}</span>
+                                  <span className="text-xs font-mono text-brand-400">{formatHours(task.totalMs)}</span>
+                                </div>
+                                <div className="h-1 bg-surface-800 rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: task.color }} />
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-surface-400 italic">No report details available for this day.</p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        <Calendar size={18} className="text-brand-400" /> Heatmap & Month Summary
+                      </h2>
+                      <p className="text-xs text-surface-400">Click any day to view detailed daily reports</p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setReportMonth(m => subMonths(m, 1))}
+                        className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <span className="text-sm font-semibold text-white min-w-[100px] text-center">
+                        {format(reportMonth, 'MMMM yyyy')}
+                      </span>
+                      <button
+                        onClick={() => setReportMonth(m => addMonths(m, 1))}
+                        className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {loadingReportSummary ? (
+                    <LoadingPlaceholder />
+                  ) : (
+                    <>
+                      <div className="card p-6">
+                        <CalendarHeatmap
+                          month={reportMonth}
+                          summary={reportSummary}
+                          onDayClick={setSelectedReportDate}
+                          selectedDate={selectedReportDate}
+                        />
+                      </div>
+                      {/* Legend */}
+                      <div className="flex items-center gap-2 justify-end">
+                        <span className="text-xs text-surface-500 font-semibold">Less</span>
+                        {['bg-surface-800', 'bg-brand-900/60 border border-brand-800', 'bg-brand-700/50 border border-brand-600', 'bg-brand-500/60 border border-brand-500', 'bg-brand-400 border border-brand-300'].map((cls, i) => (
+                          <div key={i} className={`w-4 h-4 rounded border ${cls}`} />
+                        ))}
+                        <span className="text-xs text-surface-500 font-semibold font-medium">More</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </motion.div>
   );
