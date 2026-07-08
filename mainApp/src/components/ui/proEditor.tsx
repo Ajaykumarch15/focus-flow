@@ -1,10 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Bold, Italic, Code, List, ListOrdered, Quote,
-  Minus, Link2, Eye, EyeOff, Maximize2, Minimize2,
-  Loader2, Save, Type, Hash,
-} from 'lucide-react';
+import { Bold, Italic, Code, List, ListOrdered, Quote, Minus, Link2, Maximize2, Minimize2, Loader2, Save, Type, Hash, ExternalLink } from 'lucide-react';
+
 
 // ── Simple markdown renderer (no external dependency) ─────────────────────────
 function renderMarkdown(raw: string): string {
@@ -16,6 +12,9 @@ function renderMarkdown(raw: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
+    // Multi-line code blocks: ```lang ... ```
+    .replace(/```([a-zA-Z0-9]*)\n([\s\S]+?)\n```/g, '<pre class="md-pre"><code class="md-code-block language-$1">$2</code></pre>')
+
     // Headings (must come before bold/italic)
     .replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>')
     .replace(/^## (.+)$/gm,  '<h2 class="md-h2">$1</h2>')
@@ -26,6 +25,10 @@ function renderMarkdown(raw: string): string {
 
     // Horizontal rule
     .replace(/^---$/gm, '<hr class="md-hr" />')
+
+    // Task Checklist items
+    .replace(/^- \[ \] (.+)$/gm, '<li class="md-li md-task-li"><input type="checkbox" disabled class="md-task-checkbox" /> <span>$1</span></li>')
+    .replace(/^- \[x\] (.+)$/gm, '<li class="md-li md-task-li"><input type="checkbox" checked disabled class="md-task-checkbox" /> <span class="line-through text-surface-500">$1</span></li>')
 
     // Inline code
     .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
@@ -48,8 +51,8 @@ function renderMarkdown(raw: string): string {
 
   // Wrap consecutive <li> in <ul>/<ol>
   html = html
-    .replace(/(<li class="md-li(?! md-oli)[^"]*">[^<]*<\/li>\n?)+/g, m => `<ul class="md-ul">${m}</ul>`)
-    .replace(/(<li class="md-li md-oli">[^<]*<\/li>\n?)+/g,           m => `<ol class="md-ol">${m}</ol>`);
+    .replace(/(<li class="md-li(?! md-oli)[^"]*">[\s\S]*?<\/li>\n?)+/g, m => `<ul class="md-ul">${m}</ul>`)
+    .replace(/(<li class="md-li md-oli">[\s\S]*?<\/li>\n?)+/g,           m => `<ol class="md-ol">${m}</ol>`);
 
   // Paragraphs — blank-line-separated blocks not already wrapped in a block tag
   html = html
@@ -57,7 +60,7 @@ function renderMarkdown(raw: string): string {
     .map(block => {
       const trimmed = block.trim();
       if (!trimmed) return '';
-      if (/^<(h[1-3]|ul|ol|blockquote|hr)/.test(trimmed)) return trimmed;
+      if (/^<(h[1-3]|ul|ol|blockquote|hr|pre)/.test(trimmed)) return trimmed;
       return `<p class="md-p">${trimmed.replace(/\n/g, '<br />')}</p>`;
     })
     .join('\n');
@@ -80,7 +83,7 @@ function ToolBtn({
       className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
         active
           ? 'bg-brand-500/20 text-brand-400'
-          : 'text-surface-400 hover:text-white hover:bg-surface-700'
+          : 'text-surface-400 hover:text-white hover:bg-surface-700/60'
       }`}
     >
       <Icon size={14} />
@@ -130,19 +133,15 @@ function countWords(text: string): number {
 
 // ── Main ProEditor component ──────────────────────────────────────────────────
 interface ProEditorProps {
-  /** Current value */
   value: string;
-  /** Called with new value (debounced by parent) */
   onChange: (v: string) => void;
   placeholder?: string;
   label?: string;
   labelColor?: string;
   labelIcon?: React.ElementType;
   minRows?: number;
-  /** Show save spinner / checkmark */
   saving?: boolean;
   saved?: boolean;
-  /** Optional className for outer wrapper */
   className?: string;
 }
 
@@ -164,7 +163,7 @@ export function ProEditor({
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   // Keep textarea height in sync with content
-  useEffect(() => { autoResize(taRef.current, minRows); }, [value, minRows]);
+  useEffect(() => { autoResize(taRef.current, minRows); }, [value, minRows, preview]);
 
   // Close fullscreen on Escape
   useEffect(() => {
@@ -173,6 +172,17 @@ export function ProEditor({
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [fullscreen]);
+
+  // Inject preview styling once on mount
+  useEffect(() => {
+    const styleId = 'prose-editor-preview-styles';
+    if (!document.getElementById(styleId)) {
+      const el = document.createElement('style');
+      el.id = styleId;
+      el.innerHTML = PROSE_STYLES;
+      document.head.appendChild(el);
+    }
+  }, []);
 
   // ── Toolbar actions ─────────────────────────────────────────────────────────
   const wrap = useCallback((before: string, after: string, ph?: string) => {
@@ -214,17 +224,24 @@ export function ProEditor({
       return;
     }
 
-    // Auto-close markdown pairs
-    const pairs: Record<string, string> = { '**': '**', '*': '*', '`': '`' };
-    if (e.key === '*' && e.ctrlKey) return; // let the wrap handle it
-
-    // Continue list on Enter
+    // Continue list or checklist on Enter
     if (e.key === 'Enter') {
       const el = taRef.current!;
       const line = el.value.slice(0, el.selectionStart).split('\n').pop() || '';
+      const checklistMatch = line.match(/^(\s*)- \[( |x)\] /);
       const ulMatch = line.match(/^(\s*)- /);
       const olMatch = line.match(/^(\s*)(\d+)\. /);
-      if (ulMatch) { e.preventDefault(); insertAt('\n' + ulMatch[1] + '- '); return; }
+      
+      if (checklistMatch) { 
+        e.preventDefault(); 
+        insertAt('\n' + checklistMatch[1] + '- [ ] '); 
+        return; 
+      }
+      if (ulMatch) { 
+        e.preventDefault(); 
+        insertAt('\n' + ulMatch[1] + '- '); 
+        return; 
+      }
       if (olMatch) {
         e.preventDefault();
         insertAt('\n' + olMatch[1] + (parseInt(olMatch[2]) + 1) + '. ');
@@ -241,7 +258,7 @@ export function ProEditor({
     <div className={`flex flex-col ${fullscreen ? 'h-full' : ''}`}>
       {/* Label row */}
       {label && (
-        <div className={`flex items-center gap-1.5 text-xs font-medium mb-1.5 ${labelColor}`}>
+        <div className={`flex items-center gap-1.5 text-xs font-semibold mb-1.5 ${labelColor}`}>
           {LabelIcon && <LabelIcon size={12} />}
           {label}
         </div>
@@ -249,88 +266,105 @@ export function ProEditor({
 
       {/* Editor card */}
       <div className={`
-        flex flex-col border rounded-xl overflow-hidden transition-all duration-200
+        flex flex-col border rounded-xl overflow-hidden transition-all duration-200 bg-surface-800/60
         ${focused && !fullscreen
           ? 'border-brand-500/50 ring-1 ring-brand-500/20 bg-surface-800'
           : 'border-surface-700 bg-surface-800/60'}
         ${fullscreen ? 'flex-1' : ''}
       `}>
 
-        {/* ── Toolbar ──────────────────────────────────────────────────────── */}
-        <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-surface-700/60 flex-wrap">
-          <ToolBtn icon={Bold}         label="Bold"          shortcut="Ctrl+B"     onClick={() => wrap('**', '**', 'bold text')} />
-          <ToolBtn icon={Italic}       label="Italic"        shortcut="Ctrl+I"     onClick={() => wrap('*', '*', 'italic text')} />
-          <ToolBtn icon={Code}         label="Inline Code"                         onClick={() => wrap('`', '`', 'code')} />
-          <ToolBtn icon={Link2}        label="Link"          shortcut="Ctrl+K"     onClick={() => {
-            const url = prompt('Enter URL:');
-            if (url) wrap('[', `](${url})`, 'link text');
-          }} />
-
-          {/* Divider */}
-          <span className="w-px h-4 bg-surface-700 mx-1" />
-
-          <ToolBtn icon={Hash}         label="Heading 2"                           onClick={() => prepend('## ')} />
-          <ToolBtn icon={Type}         label="Heading 3"                           onClick={() => prepend('### ')} />
-          <ToolBtn icon={List}         label="Bullet List"                         onClick={() => prepend('- ')} />
-          <ToolBtn icon={ListOrdered}  label="Numbered List"                       onClick={() => prepend('1. ')} />
-          <ToolBtn icon={Quote}        label="Blockquote"                          onClick={() => prepend('> ')} />
-          <ToolBtn icon={Minus}        label="Divider"                             onClick={() => insertAt('\n---\n')} />
-
-          {/* Spacer */}
-          <span className="flex-1" />
-
-          {/* Word count */}
-          <span className="text-xs text-surface-600 mr-2 hidden sm:block tabular-nums">
-            {wordCount}w · {charCount}c
-          </span>
-
-          {/* Save indicator */}
-          <div className="mr-1">
-            {saving
-              ? <Loader2 size={12} className="text-brand-400 animate-spin" />
-              : <Save size={12} className={saved ? 'text-surface-700' : 'text-yellow-400'} />}
+        {/* ── Header Toolbar ────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between border-b border-surface-700/60 bg-surface-900/40 px-3 py-2 flex-wrap gap-2 select-none">
+          {/* Write / Preview Tab Toggles */}
+          <div className="flex items-center gap-1 bg-surface-800 p-0.5 rounded-lg border border-surface-700/50">
+            <button
+              type="button"
+              onClick={() => setPreview(false)}
+              className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                !preview
+                  ? 'bg-brand-500 text-white shadow-sm'
+                  : 'text-surface-400 hover:text-white'
+              }`}
+            >
+              Write
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreview(true)}
+              className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                preview
+                  ? 'bg-brand-500 text-white shadow-sm'
+                  : 'text-surface-400 hover:text-white'
+              }`}
+            >
+              Preview
+            </button>
           </div>
 
-          {/* Divider */}
-          <span className="w-px h-4 bg-surface-700 mx-1" />
+          {/* Formatting & Controls group */}
+          <div className="flex items-center gap-0.5">
+            {!preview && (
+              <>
+                <ToolBtn icon={Bold}         label="Bold"          shortcut="Ctrl+B"     onClick={() => wrap('**', '**', 'bold text')} />
+                <ToolBtn icon={Italic}       label="Italic"        shortcut="Ctrl+I"     onClick={() => wrap('*', '*', 'italic text')} />
+                <ToolBtn icon={Code}         label="Inline Code"                         onClick={() => wrap('`', '`', 'code')} />
+                <ToolBtn icon={Link2}        label="Link"          shortcut="Ctrl+K"     onClick={() => {
+                  const url = prompt('Enter URL:');
+                  if (url) wrap('[', `](${url})`, 'link text');
+                }} />
 
-          {/* Preview toggle */}
-          <ToolBtn
-            icon={preview ? EyeOff : Eye}
-            label={preview ? 'Edit mode' : 'Preview'}
-            active={preview}
-            onClick={() => setPreview(p => !p)}
-          />
+                <span className="w-px h-4 bg-surface-700 mx-1" />
 
-          {/* Fullscreen */}
-          <ToolBtn
-            icon={fullscreen ? Minimize2 : Maximize2}
-            label={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (Ctrl+Enter)'}
-            active={fullscreen}
-            onClick={() => setFullscreen(f => !f)}
-          />
+                <ToolBtn icon={Hash}         label="Heading 2"                           onClick={() => prepend('## ')} />
+                <ToolBtn icon={Type}         label="Heading 3"                           onClick={() => prepend('### ')} />
+                <ToolBtn icon={List}         label="Bullet List"                         onClick={() => prepend('- ')} />
+                <ToolBtn icon={ListOrdered}  label="Numbered List"                       onClick={() => prepend('1. ')} />
+                <ToolBtn icon={Quote}        label="Blockquote"                          onClick={() => prepend('> ')} />
+                <ToolBtn icon={Minus}        label="Divider"                             onClick={() => insertAt('\n---\n')} />
+              </>
+            )}
+
+            <span className="w-px h-4 bg-surface-700/60 mx-1.5" />
+
+            {/* Cloud Auto-Save Indicator */}
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-surface-800/40 text-[10px] border border-surface-700/30">
+              {saving ? (
+                <>
+                  <Loader2 size={11} className="text-brand-400 animate-spin" />
+                  <span className="text-brand-400 font-medium">Saving...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={11} className={saved ? 'text-emerald-400' : 'text-yellow-400'} />
+                  <span className={saved ? 'text-emerald-400 font-medium' : 'text-yellow-400 font-medium'}>
+                    {saved ? 'Synced' : 'Unsaved'}
+                  </span>
+                </>
+              )}
+            </div>
+
+            <span className="w-px h-4 bg-surface-700/60 mx-1.5" />
+
+            {/* Fullscreen Overlay Toggle */}
+            <ToolBtn
+              icon={fullscreen ? Minimize2 : Maximize2}
+              label={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen (Ctrl+Enter)'}
+              active={fullscreen}
+              onClick={() => setFullscreen(f => !f)}
+            />
+          </div>
         </div>
 
-        {/* ── Edit / Preview pane ───────────────────────────────────────────── */}
-        <AnimatePresence mode="wait" initial={false}>
+        {/* ── Edit / Preview Area ─────────────────────────────────────────── */}
+        <div className={`relative ${fullscreen ? 'flex-1 overflow-y-auto' : ''}`}>
           {preview ? (
-            <motion.div
-              key="preview"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className={`prose-editor px-4 py-3 text-sm text-surface-200 overflow-y-auto ${fullscreen ? 'flex-1' : 'min-h-[80px]'}`}
-              dangerouslySetInnerHTML={{ __html: value ? renderMarkdown(value) : `<span class="text-surface-600 italic">${placeholder}</span>` }}
+            <div
+              className={`prose-editor px-4 py-3 text-sm text-surface-200 overflow-y-auto ${fullscreen ? 'h-full' : 'min-h-[96px]'}`}
+              dangerouslySetInnerHTML={{ __html: value ? renderMarkdown(value) : `<span class="text-surface-500 italic">${placeholder}</span>` }}
             />
           ) : (
-            <motion.textarea
-              key="editor"
+            <textarea
               ref={taRef}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
               value={value}
               placeholder={placeholder}
               onFocus={() => setFocused(true)}
@@ -341,74 +375,60 @@ export function ProEditor({
                 w-full px-4 py-3 bg-transparent text-sm text-white
                 placeholder:text-surface-600 resize-none outline-none
                 font-mono leading-relaxed overflow-hidden
-                ${fullscreen ? 'flex-1 min-h-0' : ''}
+                ${fullscreen ? 'h-full min-h-0' : ''}
               `}
               style={{
                 minHeight: `${minRows * 24 + 24}px`,
-                // no max-height → grows to fit all content, no scroll
               }}
               spellCheck
             />
           )}
-        </AnimatePresence>
+        </div>
 
-        {/* ── Shortcut hint (bottom bar, only when focused) ─────────────────── */}
-        <AnimatePresence>
-          {focused && !preview && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="px-3 py-1 border-t border-surface-700/40 flex gap-3 overflow-hidden"
-            >
-              {[
-                ['Ctrl+B', 'Bold'],
-                ['Ctrl+I', 'Italic'],
-                ['Ctrl+K', 'Link'],
-                ['Tab', 'Indent'],
-                ['Ctrl+↵', 'Fullscreen'],
-              ].map(([key, hint]) => (
-                <span key={key} className="text-xs text-surface-600">
-                  <kbd className="text-surface-500 bg-surface-800 border border-surface-700 rounded px-1">{key}</kbd>
-                  {' '}{hint}
-                </span>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── Bottom status bar ───────────────────────────────────────────── */}
+        <div className="flex items-center justify-between border-t border-surface-700/60 bg-surface-900/20 px-3 py-1.5 text-[10px] text-surface-500">
+          <div className="flex gap-3 overflow-hidden select-none">
+            {focused && !preview && (
+              <>
+                <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+B</kbd> Bold</span>
+                <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+I</kbd> Italic</span>
+                <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+K</kbd> Link</span>
+                <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Tab</kbd> Indent</span>
+              </>
+            )}
+          </div>
+          <div className="font-mono text-surface-400 font-medium select-none flex items-center gap-2">
+            <span>{wordCount} words</span>
+            <span className="w-1 h-1 rounded-full bg-surface-600" />
+            <span>{charCount} chars</span>
+          </div>
+        </div>
       </div>
     </div>
   );
 
-  // ── Fullscreen overlay ───────────────────────────────────────────────────────
+  // ── Fullscreen View ────────────────────────────────────────────────────────
   if (fullscreen) {
     return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-surface-950/95 backdrop-blur-sm flex flex-col p-6"
-        >
-          {/* Fullscreen header */}
-          <div className="flex items-center justify-between mb-4">
-            {label && (
-              <div className={`flex items-center gap-2 text-sm font-medium ${labelColor}`}>
-                {LabelIcon && <LabelIcon size={14} />}
-                {label}
-              </div>
-            )}
-            <button
-              onClick={() => setFullscreen(false)}
-              className="text-xs text-surface-400 hover:text-white flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-surface-800 rounded-lg border border-surface-700 transition-colors"
-            >
-              <Minimize2 size={13} /> Exit fullscreen
-              <kbd className="ml-1 text-surface-600 text-xs">Esc</kbd>
-            </button>
-          </div>
-          {editorContent}
-        </motion.div>
-      </AnimatePresence>
+      <div className="fixed inset-0 z-[60] bg-surface-950/95 backdrop-blur-sm flex flex-col p-6">
+        {/* Fullscreen Header */}
+        <div className="flex items-center justify-between mb-4">
+          {label && (
+            <div className={`flex items-center gap-2 text-sm font-semibold ${labelColor}`}>
+              {LabelIcon && <LabelIcon size={14} />}
+              {label}
+            </div>
+          )}
+          <button
+            onClick={() => setFullscreen(false)}
+            className="text-xs text-surface-400 hover:text-white flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-surface-800 rounded-lg border border-surface-700 transition-colors"
+          >
+            <Minimize2 size={13} /> Exit fullscreen
+            <kbd className="ml-1 text-surface-600 text-[10px]">Esc</kbd>
+          </button>
+        </div>
+        {editorContent}
+      </div>
     );
   }
 
@@ -416,7 +436,6 @@ export function ProEditor({
 }
 
 // ── AutoProEditor — drop-in wrapper with debounced auto-save ─────────────────
-// Matches the AutoTextarea API used in WorkLog.tsx
 interface AutoProEditorProps {
   logId:        string;
   field:        string;
@@ -435,17 +454,22 @@ export function AutoProEditor({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(true);
 
-  // Sync if parent value changes (e.g. data loads after mount)
   useEffect(() => { setVal(initial); }, [initial]);
 
-  // Debounce
   useEffect(() => {
     const t = setTimeout(async () => {
       if (val === initial) return;
       setSaving(true);
-      try { await updateFn(logId, field, val); setSaved(true); }
-      catch (e) { console.error(e); }
-      finally   { setSaving(false); }
+      try { 
+        await updateFn(logId, field, val); 
+        setSaved(true); 
+      }
+      catch (e) { 
+        console.error(e); 
+      }
+      finally   { 
+        setSaving(false); 
+      }
     }, 750);
     return () => clearTimeout(t);
   }, [val]);
@@ -462,21 +486,24 @@ export function AutoProEditor({
   );
 }
 
-// ── Markdown preview styles (injected once via a style tag) ───────────────────
-// Call this once in your app root or index.css
+// ── Markdown preview styles ───────────────────────────────────────────────────
 export const PROSE_STYLES = `
-.prose-editor .md-h1 { font-size: 1.25rem; font-weight: 700; color: white; margin: 0.75rem 0 0.5rem; }
-.prose-editor .md-h2 { font-size: 1.1rem;  font-weight: 600; color: white; margin: 0.6rem 0 0.4rem; }
-.prose-editor .md-h3 { font-size: 0.95rem; font-weight: 600; color: #e4e4e7; margin: 0.5rem 0 0.3rem; }
-.prose-editor .md-p  { margin: 0.4rem 0; line-height: 1.65; color: #d4d4d8; }
+.prose-editor .md-h1 { font-size: 1.35rem; font-weight: 700; color: white; margin: 1rem 0 0.5rem; border-bottom: 1px solid #27272a; padding-bottom: 0.25rem; }
+.prose-editor .md-h2 { font-size: 1.15rem;  font-weight: 600; color: white; margin: 0.8rem 0 0.4rem; border-bottom: 1px solid rgba(39, 39, 42, 0.5); padding-bottom: 0.2rem; }
+.prose-editor .md-h3 { font-size: 1.05rem; font-weight: 600; color: #e4e4e7; margin: 0.6rem 0 0.3rem; }
+.prose-editor .md-p  { margin: 0.5rem 0; line-height: 1.7; color: #d4d4d8; }
 .prose-editor .md-bold   { font-weight: 600; color: white; }
 .prose-editor .md-italic { font-style: italic; }
-.prose-editor .md-code   { background: #27272a; border: 1px solid #3f3f46; border-radius: 4px; padding: 1px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #7dd3fc; }
-.prose-editor .md-quote  { border-left: 3px solid #0ea5e9; padding-left: 0.75rem; color: #a1a1aa; margin: 0.4rem 0; font-style: italic; }
-.prose-editor .md-hr     { border: none; border-top: 1px solid #3f3f46; margin: 0.75rem 0; }
-.prose-editor .md-ul     { list-style: disc; padding-left: 1.25rem; margin: 0.4rem 0; }
-.prose-editor .md-ol     { list-style: decimal; padding-left: 1.25rem; margin: 0.4rem 0; }
-.prose-editor .md-li     { margin: 0.2rem 0; color: #d4d4d8; }
-.prose-editor .md-link   { color: #38bdf8; text-decoration: underline; text-underline-offset: 2px; }
-.prose-editor .md-link:hover { color: #7dd3fc; }
+.prose-editor .md-code   { background: #18181b; border: 1px solid #27272a; border-radius: 6px; padding: 2px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #38bdf8; }
+.prose-editor .md-pre { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 0.75rem; overflow-x: auto; margin: 0.75rem 0; }
+.prose-editor .md-code-block { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #d4d4d8; line-height: 1.5; }
+.prose-editor .md-quote  { border-left: 4px solid #0ea5e9; padding-left: 0.75rem; color: #a1a1aa; margin: 0.6rem 0; font-style: italic; background: rgba(14, 165, 233, 0.05); padding-top: 0.25rem; padding-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
+.prose-editor .md-hr     { border: none; border-top: 1px solid #27272a; margin: 1rem 0; }
+.prose-editor .md-ul     { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-editor .md-ol     { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-editor .md-li     { margin: 0.3rem 0; color: #d4d4d8; line-height: 1.6; }
+.prose-editor .md-task-li { list-style: none; padding-left: 0; display: flex; align-items: center; gap: 6px; }
+.prose-editor .md-task-checkbox { width: 14px; height: 14px; accent-color: #0ea5e9; margin: 0; cursor: default; }
+.prose-editor .md-link   { color: #0ea5e9; text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
+.prose-editor .md-link:hover { color: #38bdf8; }
 `;

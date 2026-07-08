@@ -5,6 +5,8 @@ const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
+const reportsRouter = require('./reports');
+const { buildDayReport, userTimezone, dayKey, isValidDateKey, localDateToUtc, dayRange } = reportsRouter.helpers;
 
 const router = express.Router();
 
@@ -110,6 +112,101 @@ router.get('/users/:userId/analytics', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/admin/users/:userId/reports/summary ──────────────────────────────────
+router.get('/users/:userId/reports/summary', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const timeZone = userTimezone(user);
+    const today = dayKey(Date.now(), timeZone);
+    const fromKey = isValidDateKey(req.query.from)
+      ? req.query.from
+      : (() => {
+        const d = localDateToUtc(today, timeZone);
+        d.setUTCDate(d.getUTCDate() - 29);
+        return dayKey(d.getTime(), timeZone);
+      })();
+    const toKey = isValidDateKey(req.query.to) ? req.query.to : today;
+    const from = dayRange(fromKey, timeZone).start;
+    const to = dayRange(toKey, timeZone).end;
+
+    const [sessions, workLogs] = await Promise.all([
+      Session.find({
+        userId,
+        startTime: { $gte: from.getTime(), $lt: to.getTime() },
+        isActive: false,
+      }).populate('taskId', 'title color category'),
+      WorkLog.find({
+        userId,
+        $or: [
+          { createdAt: { $gte: from, $lt: to } },
+          { updatedAt: { $gte: from, $lt: to } },
+          { 'workEntries.date': { $gte: from, $lt: to } },
+        ],
+      }),
+    ]);
+
+    const dayMap = {};
+    for (const session of sessions) {
+      const day = dayKey(session.startTime, timeZone);
+      if (!dayMap[day]) {
+        dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
+      }
+      dayMap[day].totalMs += session.activeTime || 0;
+      dayMap[day].sessionCount += 1;
+      if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());
+    }
+
+    for (const log of workLogs) {
+      const entryDays = (log.workEntries || [])
+        .filter(entry => entry.date >= from && entry.date < to)
+        .map(entry => dayKey(entry.date.getTime(), timeZone));
+      const days = entryDays.length > 0 ? [...new Set(entryDays)] : [dayKey(log.updatedAt.getTime(), timeZone)];
+
+      for (const day of days) {
+        if (!dayMap[day]) {
+          dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
+        }
+        dayMap[day].workLogCount += 1;
+        dayMap[day].completedCount += log.completedItems.length;
+      }
+    }
+
+    res.json(Object.values(dayMap).map(day => ({
+      date: day.date,
+      totalMs: day.totalMs,
+      totalHours: Math.round(day.totalMs / 3600000 * 10) / 10,
+      sessionCount: day.sessionCount,
+      taskCount: day.taskIds.size,
+      workLogCount: day.workLogCount,
+      completedCount: day.completedCount,
+    })));
+  } catch (err) {
+    console.error('GET /admin/users/:userId/reports/summary error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/admin/users/:userId/reports/day ──────────────────────────────────────
+router.get('/users/:userId/reports/day', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const requestedDate = req.query.date || dayKey(Date.now(), userTimezone(user));
+    if (!isValidDateKey(requestedDate)) {
+      return res.status(400).json({ message: 'Invalid report date' });
+    }
+    res.json(await buildDayReport(userId, requestedDate, userTimezone(user)));
+  } catch (err) {
+    console.error('GET /admin/users/:userId/reports/day error:', err);
+    res.status(err.status || 500).json({ message: err.message });
   }
 });
 

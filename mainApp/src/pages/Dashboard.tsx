@@ -74,7 +74,6 @@ export function Dashboard() {
 
   const completedToday = tasks.filter(t => t.status === 'completed' && isToday(t.updatedAt)).length;
   const activeTasks = tasks.filter(t => t.status !== 'completed');
-  const recentTasks = activeTasks.slice(0, 5);
   const dailyGoalProgress = Math.min(100, (todayMs / (profile.dailyGoal * 3600000)) * 100);
 
   // Build weekly chart data
@@ -186,7 +185,7 @@ export function Dashboard() {
             <span className="badge bg-surface-800 text-surface-300">{activeTasks.length}</span>
           </div>
 
-          {recentTasks.length === 0 ? (
+          {activeTasks.length === 0 ? (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -202,7 +201,7 @@ export function Dashboard() {
             </motion.div>
           ) : (
             <div className="space-y-3">
-              {recentTasks.map(task => (
+              {activeTasks.map(task => (
                 <TaskCard key={task.id} task={task} />
               ))}
             </div>

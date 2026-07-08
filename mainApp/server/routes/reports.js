@@ -348,4 +348,13 @@ router.get('/leaderboard', protect, async (req, res) => {
   }
 });
 
+router.helpers = {
+  buildDayReport,
+  userTimezone,
+  dayKey,
+  isValidDateKey,
+  localDateToUtc,
+  dayRange,
+};
+
 module.exports = router;
