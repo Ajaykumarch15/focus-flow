@@ -24,6 +24,7 @@ export interface Habit {
   description: string;
   color: string;
   targetMinutes: number;
+  reminderTime?: string;
   checklist: HabitChecklistItem[];
   entries: HabitEntry[];
   archived: boolean;

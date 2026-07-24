@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BookMarked, GitBranch, CheckCircle2, ArrowRight, Plus, Zap } from 'lucide-react';
@@ -31,7 +31,7 @@ export function WorkLogWidget() {
           <div className="w-7 h-7 rounded-lg bg-brand-500/15 flex items-center justify-center">
             <BookMarked size={14} className="text-brand-400" />
           </div>
-          <span className="text-sm font-medium text-white">Today's Work Log</span>
+          <span className="text-sm font-medium text-surface-50">Today's Work Log</span>
         </div>
         <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors" />
       </div>

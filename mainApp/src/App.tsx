@@ -34,7 +34,7 @@ function RouteFallback() {
 
 export default function App() {
   const { user, token, loading, restoreSession } = useAuthStore();
-  const { loadAll }                      = useStore();
+  const { loadAll }                              = useStore();
 
   // Step 1: restore JWT session on mount
   useEffect(() => {

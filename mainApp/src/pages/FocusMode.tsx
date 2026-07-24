@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, Square, RotateCcw, Minimize2, Coffee, Zap, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDuration } from '../utils/time';
+import { getNotificationSettings } from '../hooks/useNotifications';
+import { toast } from '../store/useToastStore';
 
 const QUOTES = [
   "The secret of getting ahead is getting started.",
@@ -13,7 +15,7 @@ const QUOTES = [
 ];
 
 export function FocusMode() {
-  const { profile, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
+  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
   const [mode, setMode] = useState<'pomodoro' | 'break'>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(profile.pomodoroWork * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -37,6 +39,28 @@ export function FocusMode() {
         setTimeLeft(t => {
           if (t <= 1) {
             setIsRunning(false);
+            const prefs = getNotificationSettings();
+            if (prefs.pomodoroAlerts) {
+              if (mode === 'pomodoro') {
+                try {
+                  new Notification('Focus Session Complete', {
+                    body: 'Time for a break! Great work.',
+                    tag: 'pomodoro-break',
+                    icon: '/favicon.svg',
+                  });
+                } catch { /* ignore */ }
+                toast.success('Focus Session Complete', 'Time for a break! Great work.');
+              } else {
+                try {
+                  new Notification('Break Over', {
+                    body: 'Ready for the next focus session?',
+                    tag: 'pomodoro-work',
+                    icon: '/favicon.svg',
+                  });
+                } catch { /* ignore */ }
+                toast.info('Break Over', 'Ready for the next focus session?');
+              }
+            }
             if (mode === 'pomodoro') setMode('break');
             else setMode('pomodoro');
             return 0;
@@ -84,7 +108,7 @@ export function FocusMode() {
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-10"
-          style={{ background: mode === 'pomodoro' ? 'radial-gradient(circle, #0ea5e9, transparent)' : 'radial-gradient(circle, #22c55e, transparent)' }}
+          style={{ background: mode === 'pomodoro' ? `radial-gradient(circle, ${theme?.accentColor || '#0ea5e9'}, transparent)` : 'radial-gradient(circle, #22c55e, transparent)' }}
           animate={{ scale: isRunning ? [1, 1.1, 1] : 1 }}
           transition={{ duration: 4, repeat: Infinity }}
         />
@@ -97,7 +121,7 @@ export function FocusMode() {
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${mode === m ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+              className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${mode === m ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-50'}`}
             >
               {m === 'pomodoro' ? <span className="flex items-center gap-1.5"><Zap size={14} /> Focus</span> : <span className="flex items-center gap-1.5"><Coffee size={14} /> Break</span>}
             </button>
@@ -111,7 +135,7 @@ export function FocusMode() {
             <motion.circle
               cx="150" cy="150" r={r}
               fill="none"
-              stroke={mode === 'pomodoro' ? '#0ea5e9' : '#22c55e'}
+              stroke={mode === 'pomodoro' ? (theme?.accentColor || '#0ea5e9') : '#22c55e'}
               strokeWidth="8"
               strokeLinecap="round"
               strokeDasharray={circumference}
@@ -120,7 +144,7 @@ export function FocusMode() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="timer-display text-6xl font-bold text-white mb-1">
+            <div className="timer-display text-6xl font-bold text-surface-50 mb-1">
               {formatDuration(timeLeft * 1000)}
             </div>
             <div className={`text-sm font-medium ${mode === 'pomodoro' ? 'text-brand-400' : 'text-emerald-400'}`}>
@@ -133,13 +157,13 @@ export function FocusMode() {
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={handleReset}
-            className="p-3 rounded-2xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all"
+            className="p-3 rounded-2xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-surface-50 transition-all"
           >
             <RotateCcw size={20} />
           </button>
           <button
             onClick={handleToggle}
-            className={`px-10 py-4 rounded-2xl font-semibold text-white text-lg transition-all active:scale-95 ${
+            className={`px-10 py-4 rounded-2xl font-semibold text-surface-50 text-lg transition-all active:scale-95 ${
               isRunning ? 'bg-yellow-500/80 hover:bg-yellow-500' : 'bg-brand-500 hover:bg-brand-400'
             }`}
           >

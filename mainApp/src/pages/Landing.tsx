@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Target, Zap, BarChart3, BookOpen, Play, CheckCircle, Clock, ArrowRight } from 'lucide-react';
 
@@ -28,7 +28,7 @@ export function Landing() {
               <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center">
                 <Target size={16} className="text-white" />
               </div>
-              <span className="font-display font-bold text-white text-lg">FocusFlow</span>
+              <span className="font-display font-bold text-surface-50 text-lg">FocusFlow</span>
             </div>
             <button
               onClick={() => navigate('/dashboard')}
@@ -48,7 +48,7 @@ export function Landing() {
               <span className="text-sm text-brand-300 font-medium">Premium Productivity Tracker</span>
             </div>
 
-            <h1 className="text-5xl lg:text-7xl font-display font-bold text-white leading-tight mb-6">
+            <h1 className="text-5xl lg:text-7xl font-display font-bold text-surface-50 leading-tight mb-6">
               Focus deeper.<br />
               <span className="gradient-text">Achieve more.</span>
             </h1>
@@ -86,7 +86,7 @@ export function Landing() {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h2 className="text-3xl font-display font-bold text-white mb-4">Everything you need</h2>
+          <h2 className="text-3xl font-display font-bold text-surface-50 mb-4">Everything you need</h2>
           <p className="text-surface-300 text-lg">All your productivity tools in one place</p>
         </motion.div>
 
@@ -102,7 +102,7 @@ export function Landing() {
               <div className="w-10 h-10 rounded-xl bg-brand-500/15 flex items-center justify-center mb-4 group-hover:bg-brand-500/25 transition-colors">
                 <Icon size={20} className="text-brand-400" />
               </div>
-              <h3 className="font-semibold text-white mb-2">{title}</h3>
+              <h3 className="font-semibold text-surface-50 mb-2">{title}</h3>
               <p className="text-sm text-surface-400 leading-relaxed">{desc}</p>
             </motion.div>
           ))}
@@ -114,7 +114,7 @@ export function Landing() {
           whileInView={{ opacity: 1, y: 0 }}
           className="text-center mt-16"
         >
-          <h2 className="text-3xl font-display font-bold text-white mb-4">Ready to focus?</h2>
+          <h2 className="text-3xl font-display font-bold text-surface-50 mb-4">Ready to focus?</h2>
           <button
             onClick={() => navigate('/dashboard')}
             className="btn-primary text-base px-10 py-3.5 flex items-center gap-2 mx-auto"

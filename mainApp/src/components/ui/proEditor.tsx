@@ -1,9 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Bold, Italic, Code, List, ListOrdered, Quote, Minus, Link2, Maximize2, Minimize2, Loader2, Save, Type, Hash, ExternalLink } from 'lucide-react';
-
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { Bold, Italic, Code, List, ListOrdered, Quote, Minus, Link2, Maximize2, Minimize2, Loader2, Save, Type, Hash } from 'lucide-react';
 
 // ── Simple markdown renderer (no external dependency) ─────────────────────────
-function renderMarkdown(raw: string): string {
+export function renderMarkdown(raw: string): string {
   if (!raw.trim()) return '';
 
   let html = raw
@@ -11,6 +10,11 @@ function renderMarkdown(raw: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+
+    // Restore safe inline tags (like font color and size tags)
+    .replace(/&lt;font color="([^"]+)"&gt;([\s\S]*?)&lt;\/font&gt;/gi, '<font color="$1">$2</font>')
+    .replace(/&lt;font size="([^"]+)"&gt;([\s\S]*?)&lt;\/font&gt;/gi, '<font size="$1">$2</font>')
+    .replace(/&lt;font color="([^"]+)" size="([^"]+)"&gt;([\s\S]*?)&lt;\/font&gt;/gi, '<font color="$1" size="$2">$3</font>')
 
     // Multi-line code blocks: ```lang ... ```
     .replace(/```([a-zA-Z0-9]*)\n([\s\S]+?)\n```/g, '<pre class="md-pre"><code class="md-code-block language-$1">$2</code></pre>')
@@ -68,6 +72,71 @@ function renderMarkdown(raw: string): string {
   return html;
 }
 
+// ── HTML to Markdown Converter ───────────────────────────────────────────────
+function htmlToMarkdown(html: string): string {
+  let md = html
+    // Headings
+    .replace(/<h1>(.*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2>(.*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3>(.*?)<\/h3>/gi, '### $1\n\n')
+    
+    // Blockquote
+    .replace(/<blockquote>(.*?)<\/blockquote>/gi, '> $1\n\n')
+    
+    // Horizontal Rule
+    .replace(/<hr.*?>/gi, '---\n\n')
+    
+    // Code blocks
+    .replace(/<pre class="md-pre"><code.*?>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
+    .replace(/<code.*?>(.*?)<\/code>/gi, '`$1`')
+    
+    // Lists
+    .replace(/<ul class="md-ul">([\s\S]*?)<\/ul>/gi, '$1\n')
+    .replace(/<ol class="md-ol">([\s\S]*?)<\/ol>/gi, '$1\n')
+    
+    // Checklist items
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" disabled="" class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [ ] $1\n')
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" checked="" disabled="" class="md-task-checkbox"> <span class="line-through text-surface-500">(.*?)<\/span><\/li>/gi, '- [x] $1\n')
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" checked="" disabled="" class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [x] $1\n')
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" disabled class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [ ] $1\n')
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" checked disabled class="md-task-checkbox"> <span class="line-through text-surface-500">(.*?)<\/span><\/li>/gi, '- [x] $1\n')
+    .replace(/<li class="md-li md-task-li"><input type="checkbox" checked disabled class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [x] $1\n')
+    
+    // Standard List items
+    .replace(/<li class="md-li md-oli">(.*?)<\/li>/gi, '1. $1\n')
+    .replace(/<li.*?>(.*?)<\/li>/gi, '- $1\n')
+    
+    // Bold / Italic
+    .replace(/<strong><em>(.*?)<\/em><\/strong>/gi, '***$1***')
+    .replace(/<b><i>(.*?)<\/i><\/b>/gi, '***$1***')
+    .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+    .replace(/<b>(.*?)<\/b>/gi, '**$1**')
+    .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+    .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+    
+    // Colored spans / font tags
+    .replace(/<span style="color:\s*(.*?);?">(.*?)<\/span>/gi, '<font color="$1">$2</font>')
+    .replace(/<font color="(.*?)">(.*?)<\/font>/gi, '<font color="$1">$2</font>')
+    .replace(/<font color="(.*?)" size="(.*?)">(.*?)<\/font>/gi, '<font color="$1" size="$2">$3</font>')
+    
+    // Links
+    .replace(/<a href="(.*?)"\s*>(.*?)<\/a>/gi, '[$2]($1)')
+    
+    // Paragraphs / divs / breaks
+    .replace(/<p.*?>(.*?)<\/p>/gi, '$1\n\n')
+    .replace(/<div.*?>(.*?)<\/div>/gi, '$1\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    
+    // Clean up entities
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ');
+
+  // Trim extra spaces and newlines
+  return md.trim();
+}
+
 // ── Toolbar button ────────────────────────────────────────────────────────────
 function ToolBtn({
   icon: Icon, label, onClick, active = false, shortcut,
@@ -83,7 +152,7 @@ function ToolBtn({
       className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
         active
           ? 'bg-brand-500/20 text-brand-400'
-          : 'text-surface-400 hover:text-white hover:bg-surface-700/60'
+          : 'text-surface-400 hover:text-surface-50 hover:bg-surface-700/60'
       }`}
     >
       <Icon size={14} />
@@ -160,10 +229,19 @@ export function ProEditor({
   const [preview, setPreview]     = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [focused, setFocused]     = useState(false);
+  const [mode, setMode]           = useState<'visual' | 'markdown'>('visual');
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  // Sync value from prop on mount and when it changes externally
+  useEffect(() => {
+    if (mode === 'visual' && editorRef.current && !focused && !preview) {
+      editorRef.current.innerHTML = value ? renderMarkdown(value) : '';
+    }
+  }, [value, mode, focused, preview]);
 
   // Keep textarea height in sync with content
-  useEffect(() => { autoResize(taRef.current, minRows); }, [value, minRows, preview]);
+  useEffect(() => { if (mode === 'markdown') autoResize(taRef.current, minRows); }, [value, minRows, preview, mode]);
 
   // Close fullscreen on Escape
   useEffect(() => {
@@ -184,7 +262,7 @@ export function ProEditor({
     }
   }, []);
 
-  // ── Toolbar actions ─────────────────────────────────────────────────────────
+  // ── Toolbar actions (Markdown Mode) ─────────────────────────────────────────
   const wrap = useCallback((before: string, after: string, ph?: string) => {
     if (!taRef.current) return;
     onChange(wrapSelection(taRef.current, before, after, ph));
@@ -203,6 +281,16 @@ export function ProEditor({
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(s + text.length, s + text.length); });
   }, [onChange]);
 
+  // ── Visual Editing Command executor ─────────────────────────────────────────
+  const execCmd = (command: string, val = '') => {
+    document.execCommand(command, false, val);
+    if (editorRef.current) {
+      editorRef.current.focus();
+      const html = editorRef.current.innerHTML;
+      onChange(htmlToMarkdown(html));
+    }
+  };
+
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const ctrl = e.ctrlKey || e.metaKey;
@@ -217,14 +305,12 @@ export function ProEditor({
     }
     if (ctrl && e.key === 'Enter') { e.preventDefault(); setFullscreen(f => !f); return; }
 
-    // Tab inserts 2 spaces instead of shifting focus
     if (e.key === 'Tab') {
       e.preventDefault();
       insertAt('  ');
       return;
     }
 
-    // Continue list or checklist on Enter
     if (e.key === 'Enter') {
       const el = taRef.current!;
       const line = el.value.slice(0, el.selectionStart).split('\n').pop() || '';
@@ -275,18 +361,29 @@ export function ProEditor({
 
         {/* ── Header Toolbar ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between border-b border-surface-700/60 bg-surface-900/40 px-3 py-2 flex-wrap gap-2 select-none">
-          {/* Write / Preview Tab Toggles */}
+          {/* Write Mode Toggles */}
           <div className="flex items-center gap-1 bg-surface-800 p-0.5 rounded-lg border border-surface-700/50">
             <button
               type="button"
-              onClick={() => setPreview(false)}
+              onClick={() => { setMode('visual'); setPreview(false); }}
               className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                !preview
+                mode === 'visual' && !preview
                   ? 'bg-brand-500 text-white shadow-sm'
-                  : 'text-surface-400 hover:text-white'
+                  : 'text-surface-400 hover:text-surface-50'
               }`}
             >
-              Write
+              Visual
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode('markdown'); setPreview(false); }}
+              className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
+                mode === 'markdown' && !preview
+                  ? 'bg-brand-500 text-white shadow-sm'
+                  : 'text-surface-400 hover:text-surface-50'
+              }`}
+            >
+              Source
             </button>
             <button
               type="button"
@@ -294,7 +391,7 @@ export function ProEditor({
               className={`px-3 py-1 rounded-md text-[11px] font-semibold transition-all ${
                 preview
                   ? 'bg-brand-500 text-white shadow-sm'
-                  : 'text-surface-400 hover:text-white'
+                  : 'text-surface-400 hover:text-surface-50'
               }`}
             >
               Preview
@@ -302,8 +399,62 @@ export function ProEditor({
           </div>
 
           {/* Formatting & Controls group */}
-          <div className="flex items-center gap-0.5">
-            {!preview && (
+          <div className="flex items-center gap-0.5 flex-wrap">
+            {/* Visual Mode Formatting */}
+            {mode === 'visual' && !preview && (
+              <>
+                <ToolBtn icon={Bold}         label="Bold"                           onClick={() => execCmd('bold')} />
+                <ToolBtn icon={Italic}       label="Italic"                         onClick={() => execCmd('italic')} />
+                <ToolBtn icon={Link2}        label="Link"                           onClick={() => {
+                  const url = prompt('Enter URL:');
+                  if (url) execCmd('createLink', url);
+                }} />
+
+                <span className="w-px h-4 bg-surface-700 mx-1" />
+
+                {/* Font Size Select */}
+                <select
+                  onChange={e => execCmd('fontSize', e.target.value)}
+                  className="bg-surface-850 border border-surface-700 rounded px-1.5 py-0.5 text-[10px] text-surface-300 font-semibold outline-none cursor-pointer hover:border-surface-600 transition-colors"
+                  defaultValue="3"
+                >
+                  <option value="2">Small</option>
+                  <option value="3">Normal</option>
+                  <option value="5">Large</option>
+                  <option value="6">XL</option>
+                </select>
+
+                <span className="w-px h-4 bg-surface-700 mx-1" />
+
+                {/* Color Swatches */}
+                <div className="flex items-center gap-1.5 mx-1.5">
+                  {[
+                    { color: '#ffffff', title: 'White' },
+                    { color: '#0ea5e9', title: 'Blue' },
+                    { color: '#22c55e', title: 'Green' },
+                    { color: '#8b5cf6', title: 'Purple' },
+                    { color: '#f97316', title: 'Orange' },
+                    { color: '#ef4444', title: 'Red' },
+                  ].map(swatch => (
+                    <button
+                      key={swatch.color}
+                      type="button"
+                      title={`Text color: ${swatch.title}`}
+                      onClick={() => execCmd('foreColor', swatch.color)}
+                      className="w-3.5 h-3.5 rounded-full border border-surface-700 transition-all hover:scale-125 hover:border-white"
+                      style={{ backgroundColor: swatch.color }}
+                    />
+                  ))}
+                </div>
+
+                <span className="w-px h-4 bg-surface-700 mx-1" />
+                <ToolBtn icon={List}         label="Bullet List"                     onClick={() => execCmd('insertUnorderedList')} />
+                <ToolBtn icon={ListOrdered}  label="Numbered List"                   onClick={() => execCmd('insertOrderedList')} />
+              </>
+            )}
+
+            {/* Markdown Mode Formatting */}
+            {mode === 'markdown' && !preview && (
               <>
                 <ToolBtn icon={Bold}         label="Bold"          shortcut="Ctrl+B"     onClick={() => wrap('**', '**', 'bold text')} />
                 <ToolBtn icon={Italic}       label="Italic"        shortcut="Ctrl+I"     onClick={() => wrap('*', '*', 'italic text')} />
@@ -362,6 +513,25 @@ export function ProEditor({
               className={`prose-editor px-4 py-3 text-sm text-surface-200 overflow-y-auto ${fullscreen ? 'h-full' : 'min-h-[96px]'}`}
               dangerouslySetInnerHTML={{ __html: value ? renderMarkdown(value) : `<span class="text-surface-500 italic">${placeholder}</span>` }}
             />
+          ) : mode === 'visual' ? (
+            <div
+              ref={editorRef}
+              contentEditable
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              onInput={e => {
+                const html = e.currentTarget.innerHTML;
+                onChange(htmlToMarkdown(html));
+              }}
+              className={`
+                w-full px-4 py-3 bg-transparent text-sm text-surface-50 outline-none
+                prose-editor overflow-y-auto leading-relaxed
+                ${fullscreen ? 'h-full min-h-0' : 'min-h-[96px]'}
+              `}
+              style={{
+                minHeight: `${minRows * 24 + 24}px`,
+              }}
+            />
           ) : (
             <textarea
               ref={taRef}
@@ -372,7 +542,7 @@ export function ProEditor({
               onChange={e => { onChange(e.target.value); autoResize(e.target, minRows); }}
               onKeyDown={handleKeyDown}
               className={`
-                w-full px-4 py-3 bg-transparent text-sm text-white
+                w-full px-4 py-3 bg-transparent text-sm text-surface-50
                 placeholder:text-surface-600 resize-none outline-none
                 font-mono leading-relaxed overflow-hidden
                 ${fullscreen ? 'h-full min-h-0' : ''}
@@ -388,13 +558,16 @@ export function ProEditor({
         {/* ── Bottom status bar ───────────────────────────────────────────── */}
         <div className="flex items-center justify-between border-t border-surface-700/60 bg-surface-900/20 px-3 py-1.5 text-[10px] text-surface-500">
           <div className="flex gap-3 overflow-hidden select-none">
-            {focused && !preview && (
+            {focused && !preview && mode === 'markdown' && (
               <>
                 <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+B</kbd> Bold</span>
                 <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+I</kbd> Italic</span>
                 <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Ctrl+K</kbd> Link</span>
                 <span><kbd className="text-[9px] bg-surface-800 border border-surface-700 rounded px-1">Tab</kbd> Indent</span>
               </>
+            )}
+            {focused && mode === 'visual' && (
+              <span className="text-surface-500 font-medium">WYSIWYG Rich Text Mode Active</span>
             )}
           </div>
           <div className="font-mono text-surface-400 font-medium select-none flex items-center gap-2">
@@ -421,7 +594,7 @@ export function ProEditor({
           )}
           <button
             onClick={() => setFullscreen(false)}
-            className="text-xs text-surface-400 hover:text-white flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-surface-800 rounded-lg border border-surface-700 transition-colors"
+            className="text-xs text-surface-400 hover:text-surface-50 flex items-center gap-1.5 ml-auto px-3 py-1.5 bg-surface-800 rounded-lg border border-surface-700 transition-colors"
           >
             <Minimize2 size={13} /> Exit fullscreen
             <kbd className="ml-1 text-surface-600 text-[10px]">Esc</kbd>
@@ -494,16 +667,16 @@ export const PROSE_STYLES = `
 .prose-editor .md-p  { margin: 0.5rem 0; line-height: 1.7; color: #d4d4d8; }
 .prose-editor .md-bold   { font-weight: 600; color: white; }
 .prose-editor .md-italic { font-style: italic; }
-.prose-editor .md-code   { background: #18181b; border: 1px solid #27272a; border-radius: 6px; padding: 2px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #38bdf8; }
+.prose-editor .md-code   { background: #18181b; border: 1px solid #27272a; border-radius: 6px; padding: 2px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--color-brand-400); }
 .prose-editor .md-pre { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 0.75rem; overflow-x: auto; margin: 0.75rem 0; }
 .prose-editor .md-code-block { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #d4d4d8; line-height: 1.5; }
-.prose-editor .md-quote  { border-left: 4px solid #0ea5e9; padding-left: 0.75rem; color: #a1a1aa; margin: 0.6rem 0; font-style: italic; background: rgba(14, 165, 233, 0.05); padding-top: 0.25rem; padding-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
+.prose-editor .md-quote  { border-left: 4px solid var(--color-brand-500); padding-left: 0.75rem; color: #a1a1aa; margin: 0.6rem 0; font-style: italic; background: color-mix(in srgb, var(--color-brand-500) 5%, transparent); padding-top: 0.25rem; padding-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
 .prose-editor .md-hr     { border: none; border-top: 1px solid #27272a; margin: 1rem 0; }
 .prose-editor .md-ul     { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
 .prose-editor .md-ol     { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
 .prose-editor .md-li     { margin: 0.3rem 0; color: #d4d4d8; line-height: 1.6; }
 .prose-editor .md-task-li { list-style: none; padding-left: 0; display: flex; align-items: center; gap: 6px; }
-.prose-editor .md-task-checkbox { width: 14px; height: 14px; accent-color: #0ea5e9; margin: 0; cursor: default; }
-.prose-editor .md-link   { color: #0ea5e9; text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
-.prose-editor .md-link:hover { color: #38bdf8; }
+.prose-editor .md-task-checkbox { width: 14px; height: 14px; accent-color: var(--color-brand-500); margin: 0; cursor: default; }
+.prose-editor .md-link   { color: var(--color-brand-500); text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
+.prose-editor .md-link:hover { color: var(--color-brand-400); }
 `;

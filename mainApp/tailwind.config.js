@@ -1,3 +1,13 @@
+function withOpacity(variableName) {
+  return ({ opacityValue }) => {
+    if (opacityValue !== undefined) {
+      const pct = isNaN(Number(opacityValue)) ? `calc(${opacityValue} * 100%)` : `${Number(opacityValue) * 100}%`;
+      return `color-mix(in srgb, var(${variableName}) ${pct}, transparent)`;
+    }
+    return `var(${variableName})`;
+  };
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -14,26 +24,30 @@ export default {
       },
       colors: {
         brand: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+          50: withOpacity('--color-brand-50'),
+          100: withOpacity('--color-brand-100'),
+          200: withOpacity('--color-brand-200'),
+          300: withOpacity('--color-brand-300'),
+          400: withOpacity('--color-brand-400'),
+          500: withOpacity('--color-brand-500'),
+          600: withOpacity('--color-brand-600'),
+          700: withOpacity('--color-brand-700'),
+          800: withOpacity('--color-brand-800'),
+          900: withOpacity('--color-brand-900'),
         },
         surface: {
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e4e4e7',
-          300: '#d4d4d8',
-          800: '#27272a',
-          850: '#1f1f23',
-          900: '#18181b',
-          950: '#09090b',
+          50: 'var(--color-surface-50)',
+          100: 'var(--color-surface-100)',
+          200: 'var(--color-surface-200)',
+          300: 'var(--color-surface-300)',
+          400: 'var(--color-surface-400)',
+          500: 'var(--color-surface-500)',
+          600: 'var(--color-surface-600)',
+          700: 'var(--color-surface-700)',
+          800: 'var(--color-surface-800)',
+          850: 'var(--color-surface-850)',
+          900: 'var(--color-surface-900)',
+          950: 'var(--color-surface-950)',
         }
       },
       animation: {

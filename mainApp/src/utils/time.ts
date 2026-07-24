@@ -48,6 +48,36 @@ export function formatHoursDecimal(ms: number): number {
   return Math.round((ms / 3600000) * 10) / 10;
 }
 
+// ── Deadline helpers ─────────────────────────────────────────────────────────
+
+export type DeadlineStatus = 'overdue' | 'due-today' | 'due-soon' | 'upcoming';
+
+export function getDeadlineStatus(deadline: number | undefined): { status: DeadlineStatus; label: string } | null {
+  if (!deadline) return null;
+  const now = Date.now();
+  const diff = deadline - now;
+  const daysLeft = Math.ceil(diff / 86400000);
+
+  if (diff < 0) {
+    const daysOver = Math.abs(daysLeft);
+    return { status: 'overdue', label: daysOver === 0 ? 'Overdue today' : `Overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''}` };
+  }
+  if (daysLeft === 0) return { status: 'due-today', label: 'Due today' };
+  if (daysLeft === 1) return { status: 'due-soon', label: 'Due tomorrow' };
+  if (daysLeft <= 3) return { status: 'due-soon', label: `Due in ${daysLeft} days` };
+  return { status: 'upcoming', label: `Due in ${daysLeft} days` };
+}
+
+export function isOverdue(deadline: number | undefined): boolean {
+  if (!deadline) return false;
+  return deadline < Date.now();
+}
+
+export function isDueToday(deadline: number | undefined): boolean {
+  if (!deadline) return false;
+  return isToday(deadline);
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 function pad(n: number): string {

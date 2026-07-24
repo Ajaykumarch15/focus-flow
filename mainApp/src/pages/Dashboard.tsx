@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Clock, CheckCircle, Flame, TrendingUp, Plus, Play, Target, Zap } from 'lucide-react';
+import { Clock, CheckCircle, Flame, TrendingUp, Plus, Play, Target, Zap, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { api } from '../utils/api';
-import { formatHours, formatHoursDecimal, getWeekDays, isToday } from '../utils/time';
+import { formatHours, formatHoursDecimal, getWeekDays, isToday, isOverdue } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
+import { Skeleton, SkeletonStatCard, SkeletonTaskCard, SkeletonChart } from '../components/ui/Skeleton';
 import { AnimatePresence } from 'framer-motion';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer
@@ -28,7 +29,7 @@ function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }: {
           <Icon size={18} style={{ color }} />
         </div>
       </div>
-      <div className="text-2xl font-display font-bold text-white mb-1">{value}</div>
+      <div className="text-2xl font-display font-bold text-surface-50 mb-1">{value}</div>
       <div className="text-sm text-surface-300">{label}</div>
       {sub && <div className="text-xs text-surface-400 mt-1">{sub}</div>}
     </motion.div>
@@ -36,7 +37,7 @@ function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }: {
 }
 
 export function Dashboard() {
-  const { tasks, profile, journals, activeTaskId } = useStore();
+  const { tasks, profile, theme, journals, activeTaskId, dataLoading } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
 
@@ -72,9 +73,63 @@ export function Dashboard() {
     return { todayMs: tMs, weekMs: wMs };
   }, [sessions, tasks, activeTaskId]);
 
+  if (dataLoading && tasks.length === 0) {
+    return (
+      <div className="p-6 max-w-7xl mx-auto">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <Skeleton className="h-8 w-64 rounded mb-2" />
+            <Skeleton className="h-4 w-48 rounded" />
+          </div>
+          <Skeleton className="h-10 w-28 rounded-xl" />
+        </div>
+
+        {/* Goal banner skeleton */}
+        <div className="card p-4 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <Skeleton className="h-4 w-36 rounded" />
+            <Skeleton className="h-4 w-20 rounded" />
+          </div>
+          <Skeleton className="h-2 w-full rounded-full" />
+        </div>
+
+        {/* Stat cards skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonStatCard key={i} />
+          ))}
+        </div>
+
+        {/* Main content skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-3">
+            <Skeleton className="h-5 w-28 rounded mb-1" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonTaskCard key={i} />
+            ))}
+          </div>
+          <div className="space-y-4">
+            <SkeletonChart height={140} />
+            <div className="card p-4">
+              <Skeleton className="h-5 w-32 rounded mb-4" />
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="p-3 bg-surface-800/50 rounded-xl mb-3">
+                  <Skeleton className="h-3 w-24 rounded mb-2" />
+                  <Skeleton className="h-3 w-full rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const completedToday = tasks.filter(t => t.status === 'completed' && isToday(t.updatedAt)).length;
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   const dailyGoalProgress = Math.min(100, (todayMs / (profile.dailyGoal * 3600000)) * 100);
+  const overdueCount = tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length;
 
   // Build weekly chart data
   const days = getWeekDays();
@@ -113,7 +168,7 @@ export function Dashboard() {
         className="flex items-center justify-between mb-8"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-white">
+          <h1 className="text-2xl font-display font-bold text-surface-50">
             Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}, {profile.name.split(' ')[0]} 👋
           </h1>
           <p className="text-surface-300 mt-1">
@@ -129,6 +184,21 @@ export function Dashboard() {
         </button>
       </motion.div>
 
+      {/* Overdue Warning Banner */}
+      {overdueCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="flex items-center gap-3 p-3 mb-6 bg-red-500/10 border border-red-500/20 rounded-xl"
+        >
+          <AlertTriangle size={18} className="text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-300">
+            <span className="font-semibold">{overdueCount} task{overdueCount !== 1 ? 's' : ''}</span> {overdueCount === 1 ? 'is' : 'are'} overdue
+          </p>
+        </motion.div>
+      )}
+
       {/* Daily Goal Banner */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -139,7 +209,7 @@ export function Dashboard() {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Target size={16} className="text-brand-400" />
-            <span className="text-sm font-medium text-white">Daily Goal Progress</span>
+            <span className="text-sm font-medium text-surface-50">Daily Goal Progress</span>
           </div>
           <span className="text-sm text-brand-400 font-medium">{formatHours(todayMs)} / {profile.dailyGoal}h</span>
         </div>
@@ -156,7 +226,7 @@ export function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Clock} label="Today" value={formatHours(todayMs)} sub={`Goal: ${profile.dailyGoal}h`} color="#0ea5e9" delay={0.1} />
+        <StatCard icon={Clock} label="Today" value={formatHours(todayMs)} sub={`Goal: ${profile.dailyGoal}h`} color={theme?.accentColor || "#0ea5e9"} delay={0.1} />
         <StatCard 
           icon={Flame} 
           label="Current Streak" 
@@ -181,7 +251,7 @@ export function Dashboard() {
         {/* Tasks */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-display font-semibold text-white">Active Tasks</h2>
+            <h2 className="font-display font-semibold text-surface-50">Active Tasks</h2>
             <span className="badge bg-surface-800 text-surface-300">{activeTasks.length}</span>
           </div>
 
@@ -217,13 +287,13 @@ export function Dashboard() {
             transition={{ delay: 0.3 }}
             className="card p-4"
           >
-            <h3 className="font-medium text-white mb-4">Weekly Overview</h3>
+            <h3 className="font-medium text-surface-50 mb-4">Weekly Overview</h3>
             <ResponsiveContainer width="100%" height={140}>
               <AreaChart data={weekData}>
                 <defs>
                   <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                    <stop offset="5%" stopColor={theme?.accentColor || "#0ea5e9"} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={theme?.accentColor || "#0ea5e9"} stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -231,16 +301,16 @@ export function Dashboard() {
                 <Tooltip
                   contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: '#a1a1aa' }}
-                  itemStyle={{ color: '#0ea5e9' }}
+                  itemStyle={{ color: theme?.accentColor || '#0ea5e9' }}
                   formatter={(v: number) => [`${v}h`, 'Hours']}
                 />
                 <Area
                   type="monotone"
                   dataKey="hours"
-                  stroke="#0ea5e9"
+                  stroke={theme?.accentColor || "#0ea5e9"}
                   strokeWidth={2}
                   fill="url(#colorHours)"
-                  dot={{ fill: '#0ea5e9', strokeWidth: 0, r: 3 }}
+                  dot={{ fill: theme?.accentColor || "#0ea5e9", strokeWidth: 0, r: 3 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -253,7 +323,7 @@ export function Dashboard() {
             transition={{ delay: 0.4 }}
             className="card p-4"
           >
-            <h3 className="font-medium text-white mb-3">Recent Journal</h3>
+            <h3 className="font-medium text-surface-50 mb-3">Recent Journal</h3>
             {journals.slice(0, 3).length === 0 ? (
               <p className="text-sm text-surface-400">No journal entries yet</p>
             ) : (

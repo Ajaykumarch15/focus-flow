@@ -3,78 +3,143 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    /* LIGHT MODE — Crisp, High-Contrast White/Slate Theme */
+    --color-surface-50: #0f172a;   /* Primary Headings & Bold Text (Slate 900) */
+    --color-surface-100: #1e293b;  /* Subheadings (Slate 800) */
+    --color-surface-200: #334155;  /* Section Titles (Slate 700) */
+    --color-surface-300: #475569;  /* Body Text (Slate 600) */
+    --color-surface-400: #64748b;  /* Secondary Text & Labels (Slate 500) */
+    --color-surface-500: #94a3b8;  /* Muted Icons & Placeholders (Slate 400) */
+    --color-surface-600: #cbd5e1;  /* Disabled Elements & Dividers (Slate 300) */
+    --color-surface-700: #cbd5e1;  /* Hover Borders (Slate 300) */
+    --color-surface-800: #e2e8f0;  /* Card Borders & Input Borders (Slate 200) */
+    --color-surface-850: #f8fafc;  /* Subtle Card Hover & Alt Rows (Slate 50) */
+    --color-surface-900: #ffffff;  /* Card & Modal Backgrounds (Pure White) */
+    --color-surface-950: #f1f5f9;  /* Page Body Background (Slate 100) */
+
+    --card-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+
+    /* Brand defaults — overridden at runtime by applyThemeToDOM */
+    --color-brand-50: #f0f9ff;
+    --color-brand-100: #e0f7fa;
+    --color-brand-200: #b2ebf2;
+    --color-brand-300: #0369a1;
+    --color-brand-400: #0277bd;
+    --color-brand-500: #0288d1;
+    --color-brand-600: #01579b;
+    --color-brand-700: #014980;
+    --color-brand-800: #013a6a;
+    --color-brand-900: #012b54;
+  }
+
+  html.dark {
+    /* DARK MODE — Deep, Rich Zinc Theme */
+    --color-surface-50: #ffffff;
+    --color-surface-100: #f4f4f5;
+    --color-surface-200: #e4e4e7;
+    --color-surface-300: #d4d4d8;
+    --color-surface-400: #a1a1aa;
+    --color-surface-500: #71717a;
+    --color-surface-600: #52525b;
+    --color-surface-700: #3f3f46;
+    --color-surface-800: #27272a;
+    --color-surface-850: #1f1f23;
+    --color-surface-900: #18181b;
+    --color-surface-950: #09090b;
+
+    --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+
+    --color-brand-50: #f0f9ff;
+    --color-brand-100: #e0f2fe;
+    --color-brand-200: #bae6fd;
+    --color-brand-300: #7dd3fc;
+    --color-brand-400: #38bdf8;
+    --color-brand-500: #0ea5e9;
+    --color-brand-600: #0284c7;
+    --color-brand-700: #0369a1;
+    --color-brand-800: #075985;
+    --color-brand-900: #0c4a6e;
+  }
+
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     font-family: 'DM Sans', sans-serif;
-    background-color: #09090b;
-    color: white;
+    background-color: var(--color-surface-950);
+    color: var(--color-surface-50);
     -webkit-font-smoothing: antialiased;
   }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 9999px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+  ::-webkit-scrollbar-thumb { background: var(--color-surface-700); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-surface-600); }
 }
 
 @layer components {
   .glass {
     backdrop-filter: blur(12px);
-    background-color: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background-color: color-mix(in srgb, var(--color-surface-900) 85%, transparent);
+    border: 1px solid var(--color-surface-800);
   }
   .card {
-    background-color: #18181b;
-    border: 1px solid #27272a;
+    background-color: var(--color-surface-900);
+    border: 1px solid var(--color-surface-800);
+    box-shadow: var(--card-shadow);
     border-radius: 1rem;
   }
   .card-hover:hover {
-    border-color: #3f3f46;
+    border-color: var(--color-surface-700);
+    box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.12);
     transition: all 0.2s;
   }
   .btn-primary {
-    background-color: #0ea5e9;
+    background-color: var(--color-brand-500);
     color: white;
-    font-weight: 500;
+    font-weight: 600;
     padding: 0.5rem 1rem;
     border-radius: 0.75rem;
     transition: all 0.2s;
     cursor: pointer;
+    box-shadow: 0 2px 4px 0 color-mix(in srgb, var(--color-brand-500) 30%, transparent);
   }
-  .btn-primary:hover { background-color: #38bdf8; }
-  .btn-primary:active { transform: scale(0.95); }
+  .btn-primary:hover { filter: brightness(1.08); }
+  .btn-primary:active { transform: scale(0.96); }
   .btn-secondary {
-    background-color: #27272a;
-    color: white;
+    background-color: var(--color-surface-800);
+    color: var(--color-surface-50);
     font-weight: 500;
     padding: 0.5rem 1rem;
     border-radius: 0.75rem;
     transition: all 0.2s;
     cursor: pointer;
   }
-  .btn-secondary:hover { background-color: #3f3f46; }
+  .btn-secondary:hover { background-color: var(--color-surface-700); }
   .btn-ghost {
-    color: #a1a1aa;
+    color: var(--color-surface-400);
     font-weight: 500;
     padding: 0.5rem 0.75rem;
     border-radius: 0.75rem;
     transition: all 0.2s;
     cursor: pointer;
   }
-  .btn-ghost:hover { background-color: #27272a; color: white; }
+  .btn-ghost:hover { background-color: var(--color-surface-850); color: var(--color-surface-50); }
   .input {
-    background-color: #27272a;
-    border: 1px solid #3f3f46;
+    background-color: var(--color-surface-900);
+    border: 1px solid var(--color-surface-800);
     border-radius: 0.75rem;
     padding: 0.625rem 1rem;
-    color: white;
+    color: var(--color-surface-50);
     outline: none;
     width: 100%;
     transition: all 0.2s;
     font-family: inherit;
   }
-  .input::placeholder { color: #71717a; }
-  .input:focus { border-color: #0ea5e9; box-shadow: 0 0 0 3px rgba(14,165,233,0.15); }
+  .input::placeholder { color: var(--color-surface-500); }
+  .input:focus {
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 20%, transparent);
+  }
   .badge {
     display: inline-flex;
     align-items: center;
@@ -89,7 +154,7 @@
     font-variant-numeric: tabular-nums;
   }
   .gradient-text {
-    background: linear-gradient(to right, #38bdf8, #67e8f9);
+    background: linear-gradient(to right, var(--color-brand-500), var(--color-brand-700));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -102,7 +167,7 @@
 }
 
 .animated-bg {
-  background: linear-gradient(-45deg, #09090b, #0c1929, #09090b, #0a1628);
+  background: linear-gradient(-45deg, var(--color-surface-950), var(--color-surface-900), var(--color-surface-950));
   background-size: 400% 400%;
   animation: gradient-shift 15s ease infinite;
 }

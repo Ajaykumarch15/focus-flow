@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
@@ -11,6 +11,8 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInte
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
+import { renderMarkdown } from '../components/ui/proEditor';
+import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -148,7 +150,7 @@ function ShareButton({ userId, date }: { userId: string; date: string }) {
       <button
         onClick={generate}
         disabled={loading}
-        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all"
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-surface-50 transition-all"
       >
         {loading ? <Loader2 size={13} className="animate-spin" /> : <RotateCcw size={13} />}
         {token ? 'Regenerate' : 'Generate'}
@@ -247,8 +249,25 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
   const dateLabel = format(parseISO(date), 'EEEE, MMMM d, yyyy');
 
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 size={28} className="animate-spin text-brand-400" />
+    <div className="space-y-4">
+      {/* Header skeleton */}
+      <div className="flex items-center gap-3 mb-5">
+        <Skeleton className="w-9 h-9 rounded-xl" />
+        <Skeleton className="h-6 w-48 rounded" />
+      </div>
+
+      {/* Stat cards skeleton */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonStatCard key={i} />
+        ))}
+      </div>
+
+      {/* Work logs skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SkeletonCard headerWidth="35%" lines={3} />
+        <SkeletonCard headerWidth="40%" lines={4} />
+      </div>
     </div>
   );
 
@@ -270,11 +289,11 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
       {/* Header */}
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all">
+          <button onClick={onBack} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-surface-50 transition-all">
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h2 className="font-display font-bold text-white">{dateLabel}</h2>
+            <h2 className="font-display font-bold text-surface-50">{dateLabel}</h2>
             <p className="text-xs text-surface-400 mt-0.5">
               {data.workLogCount} work log{data.workLogCount !== 1 ? 's' : ''} · {data.sessionCount} timer session{data.sessionCount !== 1 ? 's' : ''}
             </p>
@@ -282,13 +301,13 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
         </div>
         <button
           onClick={() => setShowShare(!showShare)}
-          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
+          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-surface-50 transition-all"
         >
           <Share2 size={14} /> Share with Lead
         </button>
         <button
           onClick={() => downloadText(`focusflow-${date}.txt`, buildDayExport(data))}
-          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
+          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-surface-50 transition-all"
         >
           <Download size={14} /> Export
         </button>
@@ -296,7 +315,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
           onClick={() => copyText(buildDayExport(data))
             .then(() => toast.success('Summary copied'))
             .catch((err) => toast.error('Copy failed', err.message))}
-          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-white transition-all"
+          className="flex items-center gap-2 px-3 py-2 bg-surface-800 hover:bg-surface-700 rounded-xl text-sm text-surface-300 hover:text-surface-50 transition-all"
         >
           <Copy size={14} /> Copy Summary
         </button>
@@ -350,7 +369,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         {/* Work Logs — 3 cols */}
         <div className="lg:col-span-3 space-y-4">
-          <h3 className="font-semibold text-white flex items-center gap-2">
+          <h3 className="font-semibold text-surface-50 flex items-center gap-2">
             <BookMarked size={15} className="text-brand-400" /> Work Logs
           </h3>
           {data.workLogs.length === 0 ? (
@@ -358,7 +377,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
           ) : data.workLogs.map(log => (
             <div key={log._id} className="card p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="font-medium text-white text-sm">{log.title}</span>
+                <span className="font-medium text-surface-50 text-sm">{log.title}</span>
                 <span className={`badge text-xs ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
                   {log.status}
                 </span>
@@ -374,14 +393,14 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
               {log.problem && (
                 <div className="mb-2">
                   <p className="text-xs text-surface-400 mb-0.5">Problem</p>
-                  <p className="text-sm text-surface-200">{log.problem}</p>
+                  <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
                 </div>
               )}
 
               {log.currentWork && (
                 <div className="mb-2">
                   <p className="text-xs text-surface-400 mb-0.5">What I did</p>
-                  <p className="text-sm text-surface-200">{log.currentWork}</p>
+                  <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
                 </div>
               )}
 
@@ -404,21 +423,21 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
                   <p className="text-xs text-yellow-400 mb-0.5 flex items-center gap-1">
                     <AlertTriangle size={10} /> Blockers
                   </p>
-                  <p className="text-xs text-surface-200">{log.blockers}</p>
+                  <div className="prose-editor text-xs text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
                 </div>
               )}
 
               {log.plan && (
                 <div className="mb-2">
                   <p className="text-xs text-surface-400 mb-0.5">Plan</p>
-                  <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.plan}</p>
+                  <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
                 </div>
               )}
 
               {log.designNotes && (
                 <div className="mb-2">
                   <p className="text-xs text-surface-400 mb-0.5">Design / Architecture</p>
-                  <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.designNotes}</p>
+                  <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
                 </div>
               )}
 
@@ -446,7 +465,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
 
         {/* Tasks + Time — 2 cols */}
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="font-semibold text-white flex items-center gap-2">
+          <h3 className="font-semibold text-surface-50 flex items-center gap-2">
             <Clock size={15} className="text-brand-400" /> Time by Task
           </h3>
           {data.tasks.length === 0 ? (
@@ -460,7 +479,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
                     <div className="flex justify-between items-start mb-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: task.color }} />
-                        <span className="text-sm text-white font-medium truncate">{task.title}</span>
+                        <span className="text-sm text-surface-50 font-medium truncate">{task.title}</span>
                       </div>
                       <span className="text-sm font-mono text-brand-400 flex-shrink-0 ml-2">{formatMs(task.totalMs)}</span>
                     </div>
@@ -484,7 +503,7 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
               {/* Total */}
               <div className="card p-3 bg-brand-500/5 border-brand-500/20">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm font-medium text-white">Total time</span>
+                  <span className="text-sm font-medium text-surface-50">Total time</span>
                   <span className="text-lg font-display font-bold text-brand-400">{formatMs(data.totalMs)}</span>
                 </div>
               </div>
@@ -544,7 +563,7 @@ function CalendarHeatmap({
               title={data ? `${ds}: ${data.totalHours}h, ${data.workLogCount} logs, ${data.completedCount} completed` : ds}
             >
               <span className={`absolute inset-0 flex items-center justify-center text-xs
-                ${heat >= 2 ? 'text-white' : 'text-surface-400'} ${tod ? 'font-bold' : ''}`}>
+                ${heat >= 2 ? 'text-surface-50' : 'text-surface-400'} ${tod ? 'font-bold' : ''}`}>
                 {day.getDate()}
               </span>
             </motion.button>
@@ -633,7 +652,7 @@ export function ReportsPage() {
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
           <BarChart3 size={22} className="text-brand-400" /> Daily Reports
         </h1>
         <p className="text-surface-400 text-sm mt-1">
@@ -648,7 +667,7 @@ export function ReportsPage() {
           <div className="card p-5 mb-6">
             <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
               <div>
-                <h2 className="font-display font-semibold text-white flex items-center gap-2">
+                <h2 className="font-display font-semibold text-surface-50 flex items-center gap-2">
                   <Clock size={17} className="text-brand-400" /> Time Lookup
                 </h2>
                 <p className="text-xs text-surface-400 mt-1">
@@ -762,17 +781,17 @@ export function ReportsPage() {
             {/* Nav */}
             <div className="flex items-center justify-between mb-5">
               <button onClick={() => setMonth(m => subMonths(m, 1))}
-                className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all">
+                className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-surface-50 transition-all">
                 <ChevronLeft size={16} />
               </button>
               <div className="text-center">
-                <h2 className="font-display font-semibold text-white">
+                <h2 className="font-display font-semibold text-surface-50">
                   {format(month, 'MMMM yyyy')}
                 </h2>
                 {loadingSummary && <p className="text-xs text-surface-500 mt-0.5">Loading…</p>}
               </div>
               <button onClick={() => setMonth(m => addMonths(m, 1))}
-                className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all">
+                className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-surface-50 transition-all">
                 <ChevronRight size={16} />
               </button>
             </div>
@@ -796,7 +815,7 @@ export function ReportsPage() {
 
           {/* Recent active days list */}
           <div className="space-y-2">
-            <h3 className="font-semibold text-white mb-3">Recent Days</h3>
+            <h3 className="font-semibold text-surface-50 mb-3">Recent Days</h3>
             {summary
               .filter(d => d.totalHours > 0 || d.workLogCount > 0)
               .slice(0, 10)
@@ -809,7 +828,7 @@ export function ReportsPage() {
                   onClick={() => setSelectedDate(day.date)}
                 >
                   <div className="text-center w-12 flex-shrink-0">
-                    <p className="text-lg font-display font-bold text-white">
+                    <p className="text-lg font-display font-bold text-surface-50">
                       {format(parseISO(day.date), 'd')}
                     </p>
                     <p className="text-xs text-surface-400">

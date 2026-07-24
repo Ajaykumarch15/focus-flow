@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { BarChart3, CheckCircle2, Clock, Loader2, Target, TrendingUp, Zap, Calendar } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { Skeleton, SkeletonStatCard, SkeletonChart } from '../components/ui/Skeleton';
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#22c55e', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
 
@@ -54,7 +55,7 @@ function toChartHours(ms: number): number {
 }
 
 export function Analytics() {
-  const { tasks, activeTaskId, profile } = useStore();
+  const { tasks, activeTaskId, profile, theme } = useStore();
   const [apiSessions, setApiSessions] = useState<AnalyticsSession[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -350,13 +351,63 @@ export function Analytics() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
+      {loading && sessions.length === 0 && (
+        <>
+          {/* Header skeleton */}
+          <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <Skeleton className="h-8 w-36 rounded mb-2" />
+              <Skeleton className="h-4 w-48 rounded" />
+            </div>
+            <Skeleton className="h-9 w-64 rounded-xl" />
+          </div>
+
+          {/* Stat cards skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
+          </div>
+
+          {/* Charts skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <SkeletonChart height={240} />
+            <SkeletonChart height={240} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <SkeletonChart height={240} />
+            <div className="card p-5">
+              <Skeleton className="h-5 w-28 rounded mb-4" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 mb-3">
+                  <Skeleton className="h-3 w-20 rounded" />
+                  <Skeleton className="h-3 flex-1 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top tasks skeleton */}
+          <div className="card p-5">
+            <Skeleton className="h-5 w-28 rounded mb-4" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 mb-3">
+                <Skeleton className="h-3 w-24 rounded" />
+                <Skeleton className="h-3 flex-1 rounded" />
+                <Skeleton className="h-3 w-12 rounded" />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-white">Analytics</h1>
+          <h1 className="text-2xl font-display font-bold text-surface-50">Analytics</h1>
           <p className="text-surface-300 mt-1">Your productivity insights</p>
         </div>
 
@@ -367,7 +418,7 @@ export function Analytics() {
                 key={t}
                 onClick={() => setTimeframe(t)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  timeframe === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'
+                  timeframe === t ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-50'
                 }`}
               >
                 {t === 'week' ? 'This Week' : t === 'month' ? 'This Month' : t === 'prev-month' ? 'Previous Month' : 'Custom Range'}
@@ -401,7 +452,7 @@ export function Analytics() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { icon: Clock, label: 'Focused Time', value: formatHours(selectedFocus), comparison: formatComparison(selectedFocus, prevFocus), color: '#0ea5e9' },
+          { icon: Clock, label: 'Focused Time', value: formatHours(selectedFocus), comparison: formatComparison(selectedFocus, prevFocus), color: theme?.accentColor || '#0ea5e9' },
           { icon: TrendingUp, label: 'Paused Time', value: formatHours(selectedPaused), comparison: formatComparison(selectedPaused, prevPaused), color: '#8b5cf6' },
           { icon: Zap, label: 'Focus Quality', value: `${selectedFocusScore}%`, comparison: formatComparison(selectedFocusScore, prevFocusScore, true), color: '#f97316' },
           { icon: CheckCircle2, label: 'Completion Rate', value: `${selectedCompletionRate}%`, comparison: formatComparison(selectedCompletionRate, prevCompletionRate, true), color: '#10b981' },
@@ -432,7 +483,7 @@ export function Analytics() {
           transition={{ delay: 0.15 }}
           className="card p-6"
         >
-          <h3 className="font-semibold text-white mb-4 flex items-center gap-2">
+          <h3 className="font-semibold text-surface-50 mb-4 flex items-center gap-2">
             <BarChart3 size={16} className="text-brand-400" /> Focus Breakdown
           </h3>
           <ResponsiveContainer width="100%" height={240}>
@@ -445,7 +496,7 @@ export function Analytics() {
                 formatter={(value: number, name: string) => [`${value}h`, name]}
               />
               <Legend wrapperStyle={{ fontSize: 12, color: '#71717a' }} />
-              <Bar dataKey="productive" name="Focused" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="productive" name="Focused" fill={theme?.accentColor || '#0ea5e9'} radius={[4, 4, 0, 0]} />
               <Bar dataKey="paused" name="Paused" fill="#374151" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -457,13 +508,13 @@ export function Analytics() {
           transition={{ delay: 0.2 }}
           className="card p-6"
         >
-          <h3 className="font-semibold text-white mb-4">Focus Trend</h3>
+          <h3 className="font-semibold text-surface-50 mb-4">Focus Trend</h3>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={chartData}>
               <defs>
                 <linearGradient id="focusTrend" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.45} />
-                  <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
+                  <stop offset="5%" stopColor={theme?.accentColor || '#0ea5e9'} stopOpacity={0.45} />
+                  <stop offset="95%" stopColor={theme?.accentColor || '#0ea5e9'} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -473,7 +524,7 @@ export function Analytics() {
                 labelStyle={{ color: '#a1a1aa' }}
                 formatter={(value: number) => [`${value}h`, 'Focused']}
               />
-              <Area type="monotone" dataKey="productive" stroke="#0ea5e9" fill="url(#focusTrend)" strokeWidth={2} />
+              <Area type="monotone" dataKey="productive" stroke={theme?.accentColor || '#0ea5e9'} fill="url(#focusTrend)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </motion.div>
@@ -484,7 +535,7 @@ export function Analytics() {
           transition={{ delay: 0.25 }}
           className="card p-6"
         >
-          <h3 className="font-semibold text-white mb-4">By Category</h3>
+          <h3 className="font-semibold text-surface-50 mb-4">By Category</h3>
           {categoryData.length === 0 ? (
             <div className="flex items-center justify-center h-[240px] text-surface-400">
               No tracked sessions yet
@@ -521,7 +572,7 @@ export function Analytics() {
           transition={{ delay: 0.3 }}
           className="card p-6"
         >
-          <h3 className="font-semibold text-white mb-4">Task Health</h3>
+          <h3 className="font-semibold text-surface-50 mb-4">Task Health</h3>
           <div className="grid grid-cols-2 gap-3">
             {[
               { label: 'Active Tasks', value: String(tasks.filter(t => t.status !== 'completed').length), color: 'text-brand-400' },
@@ -544,7 +595,7 @@ export function Analytics() {
         transition={{ delay: 0.35 }}
         className="card p-6"
       >
-        <h3 className="font-semibold text-white mb-4">
+        <h3 className="font-semibold text-surface-50 mb-4">
           {timeframe === 'week' ? "This Week's Most Time Taken Tasks" : "Selected Period's Most Time Taken Tasks"}
         </h3>
         {topTasks.length === 0 ? (
@@ -559,7 +610,7 @@ export function Analytics() {
                   <span className="text-surface-400 text-sm w-4">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between mb-1 gap-3">
-                      <span className="text-sm text-white font-medium truncate">{task.title}</span>
+                      <span className="text-sm text-surface-50 font-medium truncate">{task.title}</span>
                       <span className="text-sm text-brand-400 timer-display flex-shrink-0">{formatHours(task.analyticsTime)}</span>
                     </div>
                     <div className="h-1.5 bg-surface-800 rounded-full overflow-hidden">

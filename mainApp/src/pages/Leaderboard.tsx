@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Medal, Flame, Star, Loader2, Users, ArrowUpRight } from 'lucide-react';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
+import { Skeleton, SkeletonCircle } from '../components/ui/Skeleton';
 
 interface LeaderboardUser {
   _id: string;
@@ -28,8 +29,54 @@ export function Leaderboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 size={32} className="animate-spin text-brand-400" />
+      <div className="p-6 max-w-4xl mx-auto">
+        {/* Header skeleton */}
+        <div className="text-center mb-12">
+          <SkeletonCircle size={56} className="mx-auto mb-4" />
+          <Skeleton className="h-8 w-56 rounded mx-auto mb-2" />
+          <Skeleton className="h-4 w-48 rounded mx-auto" />
+        </div>
+
+        {/* Podium skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
+          {/* Silver */}
+          <div className="card p-6 border-slate-400/20 order-2 md:order-1 h-48 flex flex-col items-center justify-center">
+            <SkeletonCircle size={64} className="mb-3" />
+            <Skeleton className="h-4 w-24 rounded mb-2" />
+            <Skeleton className="h-4 w-16 rounded" />
+          </div>
+          {/* Gold */}
+          <div className="card p-8 border-yellow-400/30 bg-yellow-400/5 order-1 md:order-2 h-56 flex flex-col items-center justify-center">
+            <SkeletonCircle size={80} className="mb-4" />
+            <Skeleton className="h-5 w-28 rounded mb-2" />
+            <Skeleton className="h-5 w-20 rounded mb-2" />
+            <Skeleton className="h-3 w-24 rounded" />
+          </div>
+          {/* Bronze */}
+          <div className="card p-6 border-orange-700/20 order-3 h-44 flex flex-col items-center justify-center">
+            <SkeletonCircle size={64} className="mb-3" />
+            <Skeleton className="h-4 w-24 rounded mb-2" />
+            <Skeleton className="h-4 w-16 rounded" />
+          </div>
+        </div>
+
+        {/* List skeleton */}
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="card p-4 flex items-center gap-4">
+              <Skeleton className="w-6 h-4 rounded" />
+              <SkeletonCircle size={40} />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-32 rounded mb-2" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+              <div className="text-right">
+                <Skeleton className="h-4 w-12 rounded mb-1" />
+                <Skeleton className="h-3 w-10 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -47,7 +94,7 @@ export function Leaderboard() {
         >
           <Trophy size={32} className="text-brand-400" />
         </motion.div>
-        <h1 className="text-3xl font-display font-bold text-white mb-2">Focus Leaderboard</h1>
+        <h1 className="text-3xl font-display font-bold text-surface-50 mb-2">Focus Leaderboard</h1>
         <p className="text-surface-400">The most dedicated focusers this season</p>
       </div>
 
@@ -65,7 +112,7 @@ export function Leaderboard() {
             <div className="w-16 h-16 rounded-2xl bg-surface-800 mb-3 flex items-center justify-center text-2xl font-bold text-slate-400">
               {top3[1].name.charAt(0)}
             </div>
-            <h3 className="text-white font-semibold truncate w-full text-center">{top3[1].name}</h3>
+            <h3 className="text-surface-50 font-semibold truncate w-full text-center">{top3[1].name}</h3>
             <p className="text-brand-400 font-bold">{top3[1].totalPoints.toLocaleString()} pts</p>
           </motion.div>
         )}
@@ -81,7 +128,7 @@ export function Leaderboard() {
             <div className="w-20 h-20 rounded-2xl bg-yellow-400/10 mb-4 flex items-center justify-center text-3xl font-bold text-yellow-400 border-2 border-yellow-400/20">
               {top3[0].name.charAt(0)}
             </div>
-            <h3 className="text-white text-lg font-bold truncate w-full text-center">{top3[0].name}</h3>
+            <h3 className="text-surface-50 text-lg font-bold truncate w-full text-center">{top3[0].name}</h3>
             <p className="text-yellow-400 font-bold text-xl">{top3[0].totalPoints.toLocaleString()} pts</p>
             {top3[0].streak.current > 0 && (
               <div className="mt-2 flex items-center gap-1 text-orange-400 text-sm font-medium">
@@ -103,7 +150,7 @@ export function Leaderboard() {
             <div className="w-16 h-16 rounded-2xl bg-surface-800 mb-3 flex items-center justify-center text-2xl font-bold text-orange-400">
               {top3[2].name.charAt(0)}
             </div>
-            <h3 className="text-white font-semibold truncate w-full text-center">{top3[2].name}</h3>
+            <h3 className="text-surface-50 font-semibold truncate w-full text-center">{top3[2].name}</h3>
             <p className="text-brand-400 font-bold">{top3[2].totalPoints.toLocaleString()} pts</p>
           </motion.div>
         )}
@@ -124,7 +171,7 @@ export function Leaderboard() {
               {user.name.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-white font-medium truncate">{user.name}</h4>
+              <h4 className="text-surface-50 font-medium truncate">{user.name}</h4>
               <div className="flex items-center gap-3">
                 {user.streak.current > 0 && (
                   <span className="text-[10px] text-orange-400 font-bold uppercase flex items-center gap-0.5">
@@ -134,7 +181,7 @@ export function Leaderboard() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-white font-bold">{user.totalPoints.toLocaleString()}</p>
+              <p className="text-surface-50 font-bold">{user.totalPoints.toLocaleString()}</p>
               <p className="text-[10px] text-surface-500 uppercase font-medium">Points</p>
             </div>
           </motion.div>

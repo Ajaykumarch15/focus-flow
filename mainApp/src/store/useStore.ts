@@ -30,6 +30,7 @@ import type {
 } from '../types';
 import { useWorkLogStore } from './useWorkLogStore';
 import { toast } from './useToastStore';
+import { generateBrandShades } from '../utils/colorUtils';
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
 const PROFILE_KEY = 'ff_profile_cache';
@@ -56,6 +57,65 @@ function loadCached<T>(key: string, fallback: T): T {
 
 function saveCache(key: string, value: unknown): void {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
+function applyThemeToDOM(theme: ThemeSettings): void {
+  try {
+    const root = document.documentElement;
+    if (!root) return;
+    // Dark / light mode
+    if (theme.mode === 'light') {
+      root.classList.remove('dark');
+    } else {
+      root.classList.add('dark');
+    }
+    // Font size
+    if (theme.fontSize === 'sm') root.style.fontSize = '14px';
+    else if (theme.fontSize === 'lg') root.style.fontSize = '18px';
+    else root.style.fontSize = '16px';
+
+    // Motion & Effects
+    if (theme.reducedMotion) root.classList.add('reduce-motion');
+    else root.classList.remove('reduce-motion');
+
+    if (theme.glassmorphism === false) root.classList.add('no-glass');
+    else root.classList.remove('no-glass');
+
+    if (theme.animatedBackground === false) root.classList.add('no-anim-bg');
+    else root.classList.remove('no-anim-bg');
+
+    // Accent colour → brand palette
+    if (theme.accentColor) {
+      root.style.setProperty('--color-accent', theme.accentColor);
+
+      // Generate both dark and light palettes for the same accent colour
+      const darkShades  = generateBrandShades(theme.accentColor, 'dark');
+      const lightShades = generateBrandShades(theme.accentColor, 'light');
+
+      // Apply the active palette via inline styles
+      const activeShades = theme.mode === 'light' ? lightShades : darkShades;
+      for (const [level, color] of Object.entries(activeShades)) {
+        root.style.setProperty(`--color-brand-${level}`, color);
+      }
+
+      // Inject a <style> tag with BOTH palettes scoped properly
+      let tag = document.getElementById('ff-accent-overrides') as HTMLStyleElement | null;
+      if (!tag) {
+        tag = document.createElement('style');
+        tag.id = 'ff-accent-overrides';
+        document.head.appendChild(tag);
+      }
+      const toCss = (shades: Record<string, string>) =>
+        Object.entries(shades)
+          .map(([level, color]) => `--color-brand-${level}:${color};`)
+          .join('');
+      tag.textContent =
+        `:root{${toCss(lightShades)}--color-accent:${theme.accentColor};}` +
+        `html.dark{${toCss(darkShades)}--color-accent:${theme.accentColor};}`;
+    }
+  } catch (e) {
+    console.error('applyThemeToDOM failed:', e);
+  }
 }
 
 function docId(value: any): string {
@@ -142,6 +202,7 @@ function mapTask(doc: any): Task {
     status: doc.status ?? 'todo',
     category: doc.category ?? 'Work',
     deadline: doc.deadline ? new Date(doc.deadline).getTime() : undefined,
+    reminderMinutesBefore: doc.reminderMinutesBefore ?? undefined,
     color: doc.color ?? '#0ea5e9',
     tags: doc.tags ?? [],
     subtasks: (doc.subtasks ?? []).map((s: any): Subtask => ({
@@ -183,7 +244,7 @@ function mapSettings(userDoc: any) {
       leaderboardOptIn: userDoc.leaderboardOptIn ?? true,
     } as UserProfile,
     theme: {
-      mode: 'dark' as const,
+      mode: (s.mode ?? DEFAULT_THEME.mode) as 'dark' | 'light',
       accentColor: s.accentColor ?? DEFAULT_THEME.accentColor,
       fontSize: (s.fontSize ?? DEFAULT_THEME.fontSize) as 'sm' | 'md' | 'lg',
       glassmorphism: s.glassmorphism ?? DEFAULT_THEME.glassmorphism,
@@ -265,6 +326,9 @@ export const useStore = create<StoreState>((set, get) => {
       currentPauseStart: undefined as number | undefined,
     };
 
+  // Apply cached theme immediately so there's no wrong flash
+  applyThemeToDOM(cachedTheme);
+
   return {
     tasks: [],
     journals: [],
@@ -284,11 +348,19 @@ export const useStore = create<StoreState>((set, get) => {
           api.profile.get(),
         ]);
 
-        const { profile, theme } = mapSettings(userDoc);
+        const { profile, theme: serverTheme } = mapSettings(userDoc);
+
+        // Merge: keep locally-set accent color / mode if server doesn't have it yet
+        const cached = loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME);
+        const mergedTheme: ThemeSettings = {
+          ...serverTheme,
+          accentColor: serverTheme.accentColor || cached.accentColor || DEFAULT_THEME.accentColor,
+        };
 
         // Cache profile + theme for instant restore next refresh
         saveCache(PROFILE_KEY, profile);
-        saveCache(THEME_KEY, theme);
+        saveCache(THEME_KEY, mergedTheme);
+        applyThemeToDOM(mergedTheme);
 
         let baseTasks = taskDocs.map(mapTask);
 
@@ -403,7 +475,7 @@ export const useStore = create<StoreState>((set, get) => {
           tasks: baseTasks,
           journals: journalDocs.map(mapJournal),
           profile,
-          theme,
+          theme: mergedTheme,
           activeTaskId,
           activeSessionId,
           activeTimerState,
@@ -782,9 +854,11 @@ export const useStore = create<StoreState>((set, get) => {
     updateTheme: (updates) => {
       set(s => ({ theme: { ...s.theme, ...updates } }));
       const current = get().theme;
-      saveCache(THEME_KEY, current); // update cache immediately
+      saveCache(THEME_KEY, current);
+      applyThemeToDOM(current); // apply to DOM immediately
       api.profile.update({
         settings: {
+          mode: updates.mode ?? current.mode,
           accentColor: updates.accentColor ?? current.accentColor,
           fontSize: updates.fontSize ?? current.fontSize,
           glassmorphism: updates.glassmorphism ?? current.glassmorphism,

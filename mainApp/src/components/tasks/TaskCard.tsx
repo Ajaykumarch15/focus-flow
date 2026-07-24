@@ -1,9 +1,9 @@
-import { motion } from 'framer-motion';
-import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag } from 'lucide-react';
+﻿import { motion } from 'framer-motion';
+import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag, Clock } from 'lucide-react';
 import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
-import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../utils/colors';
-import { formatHours, formatDuration } from '../../utils/time';
+import { PRIORITY_CONFIG, STATUS_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
+import { formatHours, formatDuration, getDeadlineStatus } from '../../utils/time';
 import { useNavigate } from 'react-router-dom';
 
 interface TaskCardProps {
@@ -30,6 +30,9 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
   const subtasksTotal = task.subtasks.length;
   const progress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
 
+  const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
+  const isOverdue = deadlineInfo?.status === 'overdue';
+
   return (
     <motion.div
       layout
@@ -39,14 +42,15 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
       whileHover={{ y: -2 }}
       className={`card card-hover p-4 cursor-pointer group relative overflow-hidden
         ${isRunning ? 'border-brand-500/40 bg-brand-500/5' : ''}
+        ${isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}
         ${task.status === 'completed' ? 'opacity-60' : ''}
       `}
       onClick={() => navigate(`/tasks/${task.id}`)}
     >
-      {/* Color accent */}
+      {/* Color accent — red for overdue, task color otherwise */}
       <div
         className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-        style={{ backgroundColor: task.color }}
+        style={{ backgroundColor: isOverdue ? '#ef4444' : task.color }}
       />
 
       {/* Running glow */}
@@ -63,7 +67,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`badge ${priority.bg} ${priority.color} border ${priority.border}`}>
                 {priority.label}
               </span>
@@ -72,8 +76,14 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                   {task.category}
                 </span>
               )}
+              {deadlineInfo && (
+                <span className={`badge ${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
+                  <Clock size={10} className="mr-1" />
+                  {deadlineInfo.label}
+                </span>
+              )}
             </div>
-            <h3 className={`font-medium text-white truncate ${task.status === 'completed' ? 'line-through text-surface-400' : ''}`}>
+            <h3 className={`font-medium text-surface-50 truncate ${task.status === 'completed' ? 'line-through text-surface-400' : ''}`}>
               {task.title}
             </h3>
             {task.description && !compact && (

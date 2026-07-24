@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { api } from '../utils/api';
+import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
 
 const MOOD_EMOJIS   = ['😔', '😐', '🙂', '😊', '🔥'];
 const STATUS_LABELS: Record<string, string> = {
@@ -42,10 +43,44 @@ export function ShareReportPage() {
   }, [userId, date, token]);
 
   if (loading) return (
-    <div className="min-h-screen bg-surface-950 flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 size={32} className="animate-spin text-brand-400" />
-        <p className="text-surface-400">Loading report…</p>
+    <div className="min-h-screen bg-surface-950 py-10 px-4">
+      <div className="max-w-3xl mx-auto">
+        {/* Header skeleton */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Skeleton className="w-10 h-10 rounded-xl" />
+            <div>
+              <Skeleton className="h-5 w-48 rounded mb-1" />
+              <Skeleton className="h-3 w-36 rounded" />
+            </div>
+          </div>
+          <div className="card p-4">
+            <Skeleton className="h-5 w-56 rounded mb-1" />
+            <Skeleton className="h-3 w-32 rounded" />
+          </div>
+        </div>
+
+        {/* Stats skeleton */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonStatCard key={i} />
+          ))}
+        </div>
+
+        {/* Work logs skeleton */}
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Skeleton className="h-5 w-20 rounded-lg" />
+                <Skeleton className="h-5 w-16 rounded-lg" />
+              </div>
+              <Skeleton className="h-4 w-full rounded mb-2" />
+              <Skeleton className="h-4 w-3/4 rounded mb-2" />
+              <Skeleton className="h-4 w-1/2 rounded" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -73,7 +108,7 @@ export function ShareReportPage() {
               <Target size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="font-display font-bold text-white text-xl">FocusFlow Work Report</h1>
+              <h1 className="font-display font-bold text-surface-50 text-xl">FocusFlow Work Report</h1>
               <p className="text-surface-400 text-sm">Daily summary shared by {data.intern}</p>
             </div>
           </div>
@@ -114,7 +149,7 @@ export function ShareReportPage() {
         )}
 
         {/* Work Logs */}
-        <h2 className="font-display font-semibold text-white mb-3 flex items-center gap-2">
+        <h2 className="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
           <BookMarked size={16} className="text-brand-400" /> Work Logs
         </h2>
         <div className="space-y-4 mb-8">
@@ -123,7 +158,7 @@ export function ShareReportPage() {
           ) : data.workLogs.map((log: any, i: number) => (
             <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="card p-5">
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <h3 className="font-semibold text-white">{log.title}</h3>
+                <h3 className="font-semibold text-surface-50">{log.title}</h3>
                 <span className="text-sm text-surface-400">{STATUS_LABELS[log.status] || log.status}</span>
                 <span className="text-xl ml-auto">{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
               </div>
@@ -200,7 +235,7 @@ export function ShareReportPage() {
         {/* Tasks Time Breakdown */}
         {data.tasks.length > 0 && (
           <>
-            <h2 className="font-display font-semibold text-white mb-3 flex items-center gap-2">
+            <h2 className="font-display font-semibold text-surface-50 mb-3 flex items-center gap-2">
               <Clock size={16} className="text-brand-400" /> Time Breakdown
             </h2>
             <div className="card p-5 mb-8">
@@ -212,7 +247,7 @@ export function ShareReportPage() {
                       <div className="flex justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: task.color }} />
-                          <span className="text-sm text-white">{task.title}</span>
+                          <span className="text-sm text-surface-50">{task.title}</span>
                           <span className="text-xs text-surface-500">{task.category}</span>
                         </div>
                         <span className="text-sm font-mono text-brand-400">{formatMs(task.totalMs)}</span>
@@ -224,7 +259,7 @@ export function ShareReportPage() {
                   );
                 })}
                 <div className="border-t border-surface-800 pt-3 flex justify-between">
-                  <span className="text-sm font-medium text-white">Total</span>
+                  <span className="text-sm font-medium text-surface-50">Total</span>
                   <span className="text-sm font-mono font-bold text-brand-400">{formatMs(data.totalMs)}</span>
                 </div>
               </div>

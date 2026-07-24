@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
@@ -13,6 +13,7 @@ import { useProjectStore } from '../store/useProjectStore';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
+import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
@@ -362,7 +363,7 @@ function WorkEntryRow({ logId, entry }: { logId: string; entry: WorkEntry }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Calendar size={13} className={today ? 'text-brand-400' : 'text-surface-400'} />
-          <span className={`text-sm font-medium ${today ? 'text-brand-300' : 'text-white'}`}>{dateLabel}</span>
+          <span className={`text-sm font-medium ${today ? 'text-brand-300' : 'text-surface-50'}`}>{dateLabel}</span>
           {today && (
             <span className="text-xs bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full border border-brand-500/30">
               Active
@@ -417,7 +418,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
     <div className="card p-4 mb-4 bg-gradient-to-r from-brand-500/8 to-purple-500/5 border-brand-500/20">
       <div className="flex items-center gap-2 mb-3">
         <TrendingUp size={14} className="text-brand-400" />
-        <span className="text-sm font-medium text-white">Time Summary</span>
+        <span className="text-sm font-medium text-surface-50">Time Summary</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -459,7 +460,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
                     animate={{ height: `${Math.max(4, pct)}%` }}
                     transition={{ duration: 0.4 }}
                   />
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-800 border border-surface-700 rounded-lg px-2 py-1 text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-800 border border-surface-700 rounded-lg px-2 py-1 text-xs text-surface-50 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                     {format(new Date(entry.date), 'MMM d')}: {formatMs(entry.activeMs)}
                   </div>
                 </div>
@@ -483,7 +484,7 @@ function WorkHistorySection({ log }: { log: WorkLog }) {
         className="w-full flex items-center gap-2 p-4 hover:bg-white/5 transition-colors border-b border-surface-800"
       >
         <Calendar size={14} className="text-brand-400" />
-        <span className="text-sm font-medium text-white">Work History</span>
+        <span className="text-sm font-medium text-surface-50">Work History</span>
         <span className="text-xs text-surface-500 ml-1">
           ({log.workEntries.length} day{log.workEntries.length !== 1 ? 's' : ''})
         </span>
@@ -644,7 +645,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-white text-sm">{log.title}</span>
+            <span className="font-medium text-surface-50 text-sm">{log.title}</span>
             <span className={`badge text-xs ${status.bg} ${status.color} border ${status.border}`}>
               {status.label}
             </span>
@@ -731,7 +732,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
           {confirmDelete ? (
             <div className="flex items-center gap-1">
               <button onClick={() => deleteLog(log._id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs">Yes</button>
-              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-white rounded-lg text-xs">No</button>
+              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
             </div>
           ) : (
             <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
@@ -768,7 +769,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
                           log.status === s.value
                             ? `${s.bg} ${s.color} ring-1 ring-current`
-                            : 'bg-surface-800 text-surface-500 hover:text-white'
+                            : 'bg-surface-800 text-surface-500 hover:text-surface-50'
                         }`}>
                         {s.label}
                       </button>
@@ -917,7 +918,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                         </motion.form>
                       ) : (
                         <button onClick={() => setShowLinkForm(true)}
-                          className="text-xs text-surface-500 hover:text-white flex items-center gap-1 transition-colors">
+                          className="text-xs text-surface-500 hover:text-surface-50 flex items-center gap-1 transition-colors">
                           <Plus size={12} /> Add link
                         </button>
                       )}
@@ -987,7 +988,7 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
             <Sparkles size={17} className="text-brand-400" />
           </div>
           <div>
-            <h2 className="text-base font-display font-bold text-white">New Work Log</h2>
+            <h2 className="text-base font-display font-bold text-surface-50">New Work Log</h2>
             <p className="text-xs text-surface-400">Link a task to get Start/Pause/Stop controls</p>
           </div>
         </div>
@@ -1055,7 +1056,7 @@ export function WorkLogPage() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
             <BookMarked size={22} className="text-brand-400" /> Work Logs
           </h1>
           <p className="text-surface-400 text-sm mt-1">
@@ -1068,13 +1069,33 @@ export function WorkLogPage() {
       </motion.div>
 
       {loading && activeLogs.length === 0 ? (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 size={28} className="animate-spin text-brand-400" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-24 rounded-lg" />
+                  <Skeleton className="h-5 w-16 rounded-lg" />
+                </div>
+                <Skeleton className="h-8 w-20 rounded-lg" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Skeleton className="h-3 w-16 rounded mb-2" />
+                  <Skeleton className="h-4 w-full rounded" />
+                </div>
+                <div>
+                  <Skeleton className="h-3 w-16 rounded mb-2" />
+                  <Skeleton className="h-4 w-full rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : activeLogs.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-12 text-center mb-6">
           <BookMarked size={40} className="text-surface-700 mx-auto mb-4" />
-          <h3 className="font-medium text-white mb-2">No active work logs</h3>
+          <h3 className="font-medium text-surface-50 mb-2">No active work logs</h3>
           <p className="text-surface-400 text-sm mb-5">
             Create a log and link it to a task. You'll get<br />
             Start / Pause / Stop controls right inside the card.
@@ -1096,7 +1117,7 @@ export function WorkLogPage() {
       {closedLogs.length > 0 && (
         <div>
           <button onClick={() => setShowClosed(!showClosed)}
-            className="flex items-center gap-2 text-surface-400 hover:text-white text-sm font-medium transition-colors mb-3">
+            className="flex items-center gap-2 text-surface-400 hover:text-surface-50 text-sm font-medium transition-colors mb-3">
             <CheckCheck size={15} className="text-emerald-400" />
             Completed ({closedLogs.length})
             {showClosed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

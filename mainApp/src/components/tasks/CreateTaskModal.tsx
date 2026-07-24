@@ -1,6 +1,6 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { Priority } from '../../types';
 import { TASK_COLORS, CATEGORIES } from '../../utils/colors';
@@ -17,6 +17,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
     priority: 'medium' as Priority,
     category: 'Work',
     deadline: '',
+    reminderMinutesBefore: 0,
     color: TASK_COLORS[0],
     tags: '',
   });
@@ -31,6 +32,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
       category: form.category,
       status: 'todo',
       deadline: form.deadline ? new Date(form.deadline).getTime() : undefined,
+      reminderMinutesBefore: form.deadline ? form.reminderMinutesBefore : undefined,
       color: form.color,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       subtasks: [],
@@ -55,7 +57,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-display font-bold text-white">Create Task</h2>
+          <h2 className="text-lg font-display font-bold text-surface-50">Create Task</h2>
           <button onClick={onClose} className="btn-ghost p-2">
             <X size={18} />
           </button>
@@ -118,6 +120,24 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))}
             />
           </div>
+
+          {form.deadline && (
+            <div>
+              <label className="block text-sm text-surface-300 mb-1.5 flex items-center gap-1.5">
+                <Bell size={13} /> Remind me
+              </label>
+              <select
+                className="input"
+                value={form.reminderMinutesBefore}
+                onChange={e => setForm(p => ({ ...p, reminderMinutesBefore: Number(e.target.value) }))}
+              >
+                <option value={0}>No reminder</option>
+                <option value={15}>15 minutes before</option>
+                <option value={60}>1 hour before</option>
+                <option value={1440}>1 day before</option>
+              </select>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-surface-300 mb-1.5">Color</label>

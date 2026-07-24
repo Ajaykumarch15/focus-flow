@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X,
 } from 'lucide-react';
 import { Habit, HabitFeeling, getTodayHabitEntry, useHabitStore } from '../store/useHabitStore';
+import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
 const FEELINGS: { value: HabitFeeling; label: string }[] = [
@@ -204,7 +205,7 @@ function HabitCard({ habit }: { habit: Habit }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: habit.color }} />
-            <h2 className="font-display font-semibold text-white truncate">{habit.title}</h2>
+            <h2 className="font-display font-semibold text-surface-50 truncate">{habit.title}</h2>
           </div>
           {habit.description && <p className="text-sm text-surface-400 line-clamp-2">{habit.description}</p>}
         </div>
@@ -272,7 +273,7 @@ function HabitCard({ habit }: { habit: Habit }) {
           </div>
           <div className="text-right">
             <div className="text-xs text-surface-400 mb-1">Today total</div>
-            <div className="text-lg font-display font-bold text-white">
+            <div className="text-lg font-display font-bold text-surface-50">
               {formatMinutes(liveMinutes)}m / {habit.targetMinutes}m
             </div>
             {extraMinutes > 0 && (
@@ -318,7 +319,7 @@ function HabitCard({ habit }: { habit: Habit }) {
               <button
                 onClick={() => toggleItem(item._id)}
                 className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
-                  checked ? 'text-white' : 'border-surface-600 text-transparent hover:text-surface-400'
+                  checked ? 'text-surface-50' : 'border-surface-600 text-transparent hover:text-surface-400'
                 }`}
                 style={checked ? { background: habit.color, borderColor: habit.color } : undefined}
                 aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
@@ -379,7 +380,7 @@ function HabitCard({ habit }: { habit: Habit }) {
                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   entry.feeling === feeling.value
                     ? 'bg-brand-500 text-white'
-                    : 'bg-surface-800 text-surface-300 hover:text-white'
+                    : 'bg-surface-800 text-surface-300 hover:text-surface-50'
                 }`}
               >
                 {feeling.label}
@@ -420,7 +421,7 @@ export function Habits() {
         className="flex items-center justify-between mb-6 flex-wrap gap-4"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
             <Activity size={22} className="text-emerald-400" /> Habit Tracker
           </h1>
           <p className="text-surface-300 text-sm mt-1">
@@ -435,17 +436,17 @@ export function Habits() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <div className="card p-4">
           <Target size={17} className="text-emerald-400 mb-2" />
-          <div className="text-xl font-display font-bold text-white">{completedToday}</div>
+          <div className="text-xl font-display font-bold text-surface-50">{completedToday}</div>
           <div className="text-sm text-surface-400">Fully checked today</div>
         </div>
         <div className="card p-4">
           <Clock size={17} className="text-brand-400 mb-2" />
-          <div className="text-xl font-display font-bold text-white">{todayMinutes}m</div>
+          <div className="text-xl font-display font-bold text-surface-50">{todayMinutes}m</div>
           <div className="text-sm text-surface-400">Habit time today</div>
         </div>
         <div className="card p-4">
           <Check size={17} className="text-purple-400 mb-2" />
-          <div className="text-xl font-display font-bold text-white">
+          <div className="text-xl font-display font-bold text-surface-50">
             {habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).completedItems.length, 0)}
           </div>
           <div className="text-sm text-surface-400">Checklist items done</div>
@@ -457,7 +458,36 @@ export function Habits() {
       </AnimatePresence>
 
       {loading && habits.length === 0 ? (
-        <div className="card p-10 text-center text-surface-400">Loading habits...</div>
+        <div className="space-y-4">
+          {/* Stat cards skeleton */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <SkeletonStatCard key={i} />
+            ))}
+          </div>
+
+          {/* Habit card skeletons */}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-3 h-3 rounded-full" />
+                  <Skeleton className="h-5 w-32 rounded" />
+                </div>
+                <Skeleton className="h-7 w-16 rounded-lg" />
+              </div>
+              <Skeleton className="h-3 w-full rounded-full mb-3" />
+              <div className="grid grid-cols-2 gap-3">
+                {Array.from({ length: 2 }).map((_, j) => (
+                  <div key={j} className="flex items-center gap-2">
+                    <Skeleton className="w-5 h-5 rounded" />
+                    <Skeleton className="h-3 w-24 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : habits.length === 0 ? (
         <div className="card p-10 text-center">
           <Activity size={38} className="text-surface-600 mx-auto mb-3" />

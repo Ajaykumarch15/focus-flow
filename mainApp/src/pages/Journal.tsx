@@ -1,4 +1,4 @@
-
+﻿
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen, Trash2, Search, Bold, Italic } from 'lucide-react';
@@ -86,7 +86,7 @@ export function Journal() {
         className="flex items-center justify-between mb-6"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-white">
+          <h1 className="text-2xl font-display font-bold text-surface-50">
             Journal
           </h1>
           <p className="text-surface-300 text-sm mt-1">
@@ -127,7 +127,7 @@ export function Journal() {
             exit={{ opacity: 0, height: 0 }}
             className="card p-5 mb-6 overflow-hidden"
           >
-            <h3 className="font-medium text-white mb-4">
+            <h3 className="font-medium text-surface-50 mb-4">
               New Journal Entry
             </h3>
 
@@ -151,7 +151,7 @@ export function Journal() {
               <button
                 type="button"
                 onClick={() => wrapSelection('**')}
-                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-white transition-all"
+                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-50 transition-all"
                 title="Bold"
               >
                 <Bold size={16} />
@@ -160,7 +160,7 @@ export function Journal() {
               <button
                 type="button"
                 onClick={() => wrapSelection('*')}
-                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-white transition-all"
+                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-50 transition-all"
                 title="Italic"
               >
                 <Italic size={16} />
