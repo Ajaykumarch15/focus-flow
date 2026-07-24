@@ -1,4 +1,4 @@
-﻿import { motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag, Clock } from 'lucide-react';
 import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
@@ -40,17 +40,19 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -2 }}
-      className={`card card-hover p-4 cursor-pointer group relative overflow-hidden
-        ${isRunning ? 'border-brand-500/40 bg-brand-500/5' : ''}
+      className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group relative overflow-hidden
+        ${isRunning ? 'border-amber-400/50 bg-[#FFFDF5] dark:bg-amber-500/10' : ''}
         ${isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}
-        ${task.status === 'completed' ? 'opacity-60' : ''}
+        ${task.status === 'completed' ? 'opacity-70 bg-surface-900/60' : ''}
       `}
       onClick={() => navigate(`/tasks/${task.id}`)}
     >
-      {/* Color accent — red for overdue, task color otherwise */}
+      {/* Color accent — cyan->blue gradient for running, red for overdue, task color otherwise */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-        style={{ backgroundColor: isOverdue ? '#ef4444' : task.color }}
+        className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
+          isRunning ? 'bg-gradient-to-b from-cyan-400 to-blue-600' : ''
+        }`}
+        style={{ backgroundColor: isRunning ? undefined : isOverdue ? '#ef4444' : task.color }}
       />
 
       {/* Running glow */}
@@ -126,7 +128,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {!isActive && (
                   <button
                     onClick={() => startTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
                   >
                     <Play size={12} />
                     Start
@@ -135,7 +137,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isRunning && (
                   <button
                     onClick={() => pauseTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400/15 hover:bg-yellow-400/25 text-yellow-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-yellow-400/15 dark:hover:bg-yellow-400/25 text-amber-700 dark:text-yellow-400 rounded-lg text-xs font-semibold transition-all border border-amber-200/60 dark:border-transparent"
                   >
                     <Pause size={12} />
                     Pause
@@ -144,7 +146,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isPaused && (
                   <button
                     onClick={() => resumeTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
                   >
                     <Play size={12} />
                     Resume
@@ -153,7 +155,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isActive && (
                   <button
                     onClick={() => stopTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-400/15 dark:hover:bg-red-400/25 text-red-700 dark:text-red-400 rounded-lg text-xs font-semibold transition-all border border-red-200/60 dark:border-transparent"
                   >
                     <Square size={12} />
                     Stop

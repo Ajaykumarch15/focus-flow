@@ -1,4 +1,4 @@
-﻿import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
@@ -36,11 +36,11 @@ export function Sidebar() {
     <motion.aside
       animate={{ width: collapsed ? 72 : 240 }}
       transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-      className="relative flex flex-col h-screen bg-surface-950 border-r border-surface-800 z-20 flex-shrink-0"
+      className="relative flex flex-col h-screen bg-surface-900 border-r border-surface-800 z-20 flex-shrink-0 shadow-sm"
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-surface-800">
-        <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
+        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0 shadow-sm">
           <Target size={16} className="text-white" />
         </div>
         <AnimatePresence>
@@ -64,26 +64,29 @@ export function Sidebar() {
           >
             <div className="bg-brand-500/10 border border-brand-500/20 rounded-xl p-3">
               <div className="flex items-center gap-2 mb-1">
-                <div className={`w-2 h-2 rounded-full ${activeTimerState === 'running' ? 'bg-brand-400 animate-pulse' : 'bg-yellow-400'}`} />
-                <span className="text-xs text-surface-300 truncate">{activeTask.title}</span>
+                <div className={`w-2 h-2 rounded-full ${activeTimerState === 'running' ? 'bg-brand-500 animate-pulse' : 'bg-yellow-500'}`} />
+                <span className="text-xs text-surface-300 truncate font-medium">{activeTask.title}</span>
               </div>
-              <div className="timer-display text-brand-400 font-bold text-xl">{display}</div>
+              <div className="timer-display text-brand-500 dark:text-brand-400 font-bold text-xl">{display}</div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Nav */}
-      <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto no-scrollbar">
+      <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto no-scrollbar">
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
-              ${isActive ? 'bg-brand-500/15 text-brand-400 border border-brand-500/20' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-800'}`
+              ${isActive ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400 font-semibold border border-brand-500/15' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
             }
           >
             {({ isActive }) => (
               <>
+                {isActive && (
+                  <motion.div layoutId="activeNavLeft" className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand-500" />
+                )}
                 <Icon size={18} className="flex-shrink-0" />
                 <AnimatePresence>
                   {!collapsed && (
@@ -93,7 +96,6 @@ export function Sidebar() {
                     >{label}</motion.span>
                   )}
                 </AnimatePresence>
-                {isActive && <motion.div layoutId="activeNav" className="absolute inset-0 rounded-xl bg-brand-500/10 -z-10" />}
               </>
             )}
           </NavLink>
@@ -106,11 +108,14 @@ export function Sidebar() {
               <NavLink key={to} to={to}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
-                  ${isActive ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-800'}`
+                  ${isActive ? 'bg-purple-500/10 text-purple-500 dark:text-purple-400 font-semibold border border-purple-500/15' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
                 }
               >
                 {({ isActive }) => (
                   <>
+                    {isActive && (
+                      <motion.div layoutId="activeNavAdminLeft" className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-purple-500" />
+                    )}
                     <Icon size={18} className="flex-shrink-0" />
                     <AnimatePresence>
                       {!collapsed && (
@@ -120,7 +125,6 @@ export function Sidebar() {
                         >{label}</motion.span>
                       )}
                     </AnimatePresence>
-                    {isActive && <motion.div layoutId="activeNavAdmin" className="absolute inset-0 rounded-xl bg-purple-500/10 -z-10" />}
                   </>
                 )}
               </NavLink>

@@ -16,6 +16,7 @@ import { formatHours, isToday, getWeekDays } from '../utils/time';
 import { toast } from '../store/useToastStore';
 import { renderMarkdown } from '../components/ui/proEditor';
 import { Skeleton, SkeletonStatCard, SkeletonCircle } from '../components/ui/Skeleton';
+import { useStore } from '../store/useStore';
 
 
 interface UserSummary {
@@ -74,7 +75,6 @@ interface GlobalStats {
 
 type FilterRange = 'today' | 'week' | 'month' | 'all';
 type AdminTab = 'overview' | 'users' | 'teams';
-import { useStore } from '../store/useStore';
 
 export function AdminDashboard() {
   const { theme } = useStore();
@@ -256,25 +256,26 @@ export function AdminDashboard() {
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <AnimatePresence mode="wait">
         {!selectedUser && !selectedTeam ? (
           <motion.div key="admin-main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {/* Header & Tabs */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
               <div>
-                <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
-                  <ShieldCheck size={24} className="text-brand-400" /> Admin Console
+                <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl">🛡️</span>
+                  Admin Console
                 </h1>
-                <p className="text-surface-400 mt-1">Manage users, teams, and track global productivity</p>
+                <p className="text-surface-400 font-medium text-sm mt-1.5">Manage users, teams, and track global productivity</p>
               </div>
-              <div className="flex items-center gap-2 bg-surface-900 p-1 rounded-2xl border border-surface-800">
+              <div className="flex items-center gap-2 bg-surface-900 p-1.5 rounded-[14px] border border-surface-800 shadow-sm">
                 {(['overview', 'users', 'teams'] as AdminTab[]).map(tab => (
                   <button
                     key={tab}
                     onClick={() => { setActiveTab(tab); setSearch(''); }}
-                    className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${
-                      activeTab === tab ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'text-surface-400 hover:text-surface-50'
+                    className={`px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${
+                      activeTab === tab ? 'bg-brand-500 text-white shadow-sm' : 'text-surface-400 hover:text-surface-50'
                     }`}
                   >
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -286,7 +287,7 @@ export function AdminDashboard() {
             {/* Content Scoped by Tab */}
             {activeTab === 'overview' && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   <StatCard icon={Users} label="Total Users" value={String(stats?.totalUsers)} color={theme?.accentColor || "#0ea5e9"} />
                   <StatCard icon={Activity} label="Active Now" value={String(stats?.activeUsers)} color="#22c55e" sub="timing focus" />
                   <StatCard icon={Clock} label="Today Focus" value={formatHours(stats?.todayTotalMs || 0)} color="#8b5cf6" />
@@ -295,7 +296,7 @@ export function AdminDashboard() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Top Teams Preview */}
-                  <div className="card p-6">
+                  <div className="card p-6 rounded-[22px] shadow-sm">
                     <div className="flex items-center justify-between mb-6">
                       <h2 className="font-display font-bold text-surface-50 flex items-center gap-2">
                         <Users size={18} className="text-brand-400" /> Active Teams

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
@@ -378,7 +378,14 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
             <div key={log._id} className="card p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="font-medium text-surface-50 text-sm">{log.title}</span>
-                <span className={`badge text-xs ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
+                <span className={`text-xs ${
+                  log.status === 'planning' ? 'chip-planning' :
+                  log.status === 'in-progress' ? 'chip-in-progress' :
+                  log.status === 'reviewing' ? 'chip-review' :
+                  log.status === 'blocked' ? 'chip-blocked' :
+                  log.status === 'done' ? 'chip-done' :
+                  'badge bg-surface-800 text-surface-400'
+                }`}>
                   {log.status}
                 </span>
                 <span className="text-lg ml-auto">{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
@@ -649,13 +656,14 @@ export function ReportsPage() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
-          <BarChart3 size={22} className="text-brand-400" /> Daily Reports
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+          <span className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl">📊</span>
+          Daily Reports
         </h1>
-        <p className="text-surface-400 text-sm mt-1">
+        <p className="text-surface-400 font-medium text-sm mt-1.5">
           Your full work history — click any day to drill in. Share a day's report with your lead.
         </p>
       </motion.div>
@@ -664,19 +672,22 @@ export function ReportsPage() {
         <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} />
       ) : (
         <>
-          <div className="card p-5 mb-6">
-            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <div className="card p-6 rounded-[22px] mb-8 shadow-sm">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
               <div>
-                <h2 className="font-display font-semibold text-surface-50 flex items-center gap-2">
-                  <Clock size={17} className="text-brand-400" /> Time Lookup
+                <h2 className="font-display font-bold text-lg text-surface-50 flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <Clock size={16} />
+                  </div>
+                  Time Lookup
                 </h2>
-                <p className="text-xs text-surface-400 mt-1">
+                <p className="text-xs text-surface-400 mt-1 font-medium">
                   Check work for one day, a custom range, this week, or this month.
                 </p>
               </div>
               {rangeLoading && (
-                <span className="text-xs text-surface-400 flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin" /> Loading range
+                <span className="text-xs text-surface-400 flex items-center gap-1.5 font-medium">
+                  <Loader2 size={13} className="animate-spin text-brand-500" /> Loading range
                 </span>
               )}
             </div>

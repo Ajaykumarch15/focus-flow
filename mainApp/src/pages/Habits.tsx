@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X,
@@ -414,42 +414,49 @@ export function Habits() {
   const completedToday = habits.filter(habit => completionPercent(habit) === 100 && habit.checklist.length > 0).length;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-6 flex-wrap gap-4"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
-            <Activity size={22} className="text-emerald-400" /> Habit Tracker
+          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl">⚡</span>
+            Habits
           </h1>
-          <p className="text-surface-300 text-sm mt-1">
-            {habits.length} habits · {completedToday} completed today · {todayMinutes}m logged
+          <p className="text-surface-400 font-medium text-sm mt-1.5">
+            {habits.length} Habits · {completedToday} Completed Today · {todayMinutes}m Logged
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> New Habit
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <Plus size={18} /> New Habit
         </button>
       </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-        <div className="card p-4">
-          <Target size={17} className="text-emerald-400 mb-2" />
-          <div className="text-xl font-display font-bold text-surface-50">{completedToday}</div>
-          <div className="text-sm text-surface-400">Fully checked today</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
+            <Target size={18} />
+          </div>
+          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{completedToday}</div>
+          <div className="text-sm font-medium text-surface-300">Fully checked today</div>
         </div>
-        <div className="card p-4">
-          <Clock size={17} className="text-brand-400 mb-2" />
-          <div className="text-xl font-display font-bold text-surface-50">{todayMinutes}m</div>
-          <div className="text-sm text-surface-400">Habit time today</div>
+        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+          <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
+            <Clock size={18} />
+          </div>
+          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{todayMinutes}m</div>
+          <div className="text-sm font-medium text-surface-300">Habit time today</div>
         </div>
-        <div className="card p-4">
-          <Check size={17} className="text-purple-400 mb-2" />
-          <div className="text-xl font-display font-bold text-surface-50">
+        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
+            <Check size={18} />
+          </div>
+          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">
             {habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).completedItems.length, 0)}
           </div>
-          <div className="text-sm text-surface-400">Checklist items done</div>
+          <div className="text-sm font-medium text-surface-300">Checklist items done</div>
         </div>
       </div>
 

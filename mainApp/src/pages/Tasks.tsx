@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Search, Filter, CheckCircle, Circle, AlertTriangle, ArrowUpDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -50,19 +50,22 @@ export function Tasks() {
   const overdueCount = tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-6"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-surface-50">Tasks</h1>
-          <p className="text-surface-300 text-sm mt-1">{active.length} active · {tasks.filter(t => t.status === 'completed').length} completed</p>
+          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-xl">✅</span>
+            Tasks
+          </h1>
+          <p className="text-surface-400 font-medium text-sm mt-1.5">{active.length} Active · {tasks.filter(t => t.status === 'completed').length} Completed</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} />
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <Plus size={18} />
           New Task
         </button>
       </motion.div>
@@ -72,65 +75,65 @@ export function Tasks() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 p-3 mb-6 bg-red-500/10 border border-red-500/20 rounded-xl"
+          className="flex items-center gap-3 p-4 mb-6 bg-red-500/10 border border-red-500/20 rounded-[18px]"
         >
-          <AlertTriangle size={18} className="text-red-400 flex-shrink-0" />
-          <p className="text-sm text-red-300">
+          <AlertTriangle size={18} className="text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-600 dark:text-red-300 font-medium">
             <span className="font-semibold">{overdueCount} task{overdueCount !== 1 ? 's' : ''}</span> {overdueCount === 1 ? 'is' : 'are'} overdue
           </p>
         </motion.div>
       )}
 
-      {/* Search + Filters */}
+      {/* Search + Filters Container */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="space-y-3 mb-6"
+        className="card p-6 rounded-[22px] shadow-sm mb-8 space-y-4"
       >
         <div className="relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400" />
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400" />
           <input
-            className="input pl-10"
-            placeholder="Search tasks..."
+            className="input pl-11 h-12 rounded-[14px]"
+            placeholder="Search tasks by title..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {(['all', 'todo', 'active', 'paused'] as const).map(s => (
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filterStatus === s ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-300 hover:text-surface-50'}`}
+              className={`px-3.5 py-2 rounded-[12px] text-xs font-semibold transition-all ${filterStatus === s ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
             >
-              {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+              {s === 'all' ? 'All Status' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
           ))}
-          <div className="w-px bg-surface-700 mx-1" />
+          <div className="w-px h-6 bg-surface-800 mx-1" />
           {(['all', 'low', 'medium', 'high', 'urgent'] as const).map(p => (
             <button
               key={p}
               onClick={() => setFilterPriority(p)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${filterPriority === p ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-300 hover:text-surface-50'}`}
+              className={`px-3.5 py-2 rounded-[12px] text-xs font-semibold transition-all ${filterPriority === p ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
-          <div className="w-px bg-surface-700 mx-1" />
+          <div className="w-px h-6 bg-surface-800 mx-1" />
           <button
             onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${showOverdueOnly ? 'bg-red-500 text-white' : 'bg-surface-800 text-surface-300 hover:text-surface-50'}`}
+            className={`px-3.5 py-2 rounded-[12px] text-xs font-semibold transition-all flex items-center gap-1.5 ${showOverdueOnly ? 'bg-red-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
           >
             <AlertTriangle size={13} />
             Overdue {overdueCount > 0 && `(${overdueCount})`}
           </button>
-          <div className="w-px bg-surface-700 mx-1" />
+          <div className="w-px h-6 bg-surface-800 mx-1" />
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value as typeof sortBy)}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-surface-800 text-surface-300 hover:text-surface-50 transition-all border-0 outline-none cursor-pointer"
+            className="px-3.5 py-2 rounded-[12px] text-xs font-semibold bg-surface-850 text-surface-300 hover:text-surface-50 transition-all border border-surface-800 outline-none cursor-pointer"
           >
             <option value="default">Default Order</option>
             <option value="deadline">Deadline (Soonest)</option>

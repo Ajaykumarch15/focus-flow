@@ -1,4 +1,4 @@
-﻿
+
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen, Trash2, Search, Bold, Italic } from 'lucide-react';
@@ -79,39 +79,40 @@ export function Journal() {
   );
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-6"
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
       >
         <div>
-          <h1 className="text-2xl font-display font-bold text-surface-50">
+          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl">📖</span>
             Journal
           </h1>
-          <p className="text-surface-300 text-sm mt-1">
-            {journals.length} entries
+          <p className="text-surface-400 font-medium text-sm mt-1.5">
+            {journals.length} Entries Logged
           </p>
         </div>
 
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary"
         >
-          <Plus size={16} />
+          <Plus size={18} />
           New Entry
         </button>
       </motion.div>
 
       {/* Search */}
-      <div className="relative mb-6">
+      <div className="relative mb-8">
         <Search
-          size={16}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400"
+          size={18}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400"
         />
 
         <input
-          className="input pl-10"
+          className="input pl-11 h-12 rounded-[14px]"
           placeholder="Search journal entries..."
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -125,9 +126,9 @@ export function Journal() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="card p-5 mb-6 overflow-hidden"
+            className="card p-6 rounded-[22px] shadow-sm mb-8 overflow-hidden"
           >
-            <h3 className="font-medium text-surface-50 mb-4">
+            <h3 className="font-display font-bold text-lg text-surface-50 mb-4">
               New Journal Entry
             </h3>
 
@@ -271,7 +272,7 @@ export function Journal() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="card p-5 group"
+                  className="card p-6 rounded-[22px] shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all group border border-surface-800"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div>

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -66,11 +66,11 @@ export function TaskDetail() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       {/* Back */}
       <button
         onClick={() => navigate('/tasks')}
-        className="flex items-center gap-2 text-surface-400 hover:text-surface-50 mb-6 transition-colors"
+        className="btn-secondary"
       >
         <ArrowLeft size={16} />
         Back to Tasks
@@ -80,13 +80,13 @@ export function TaskDetail() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className={`card p-6 mb-6 relative overflow-hidden ${isTaskOverdue ? 'border-red-500/30' : ''}`}
+        className={`card p-6 rounded-[22px] shadow-sm mb-6 relative overflow-hidden ${isTaskOverdue ? 'border-red-500/30 bg-red-500/5' : ''}`}
       >
-        <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl" style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }} />
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-2xl" style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }} />
         <div className="pl-3">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className={`badge ${priority.bg} ${priority.color} border ${priority.border}`}>{priority.label}</span>
-            <span className="badge bg-surface-700/50 text-surface-300">{task.category}</span>
+            <span className="badge bg-surface-850 text-surface-300 border border-surface-800">{task.category}</span>
             {deadlineInfo && (
               <span className={`badge ${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
                 <Clock size={10} className="mr-1" />
@@ -98,19 +98,19 @@ export function TaskDetail() {
           {editTitle ? (
             <div className="flex items-center gap-2">
               <input
-                className="input text-xl font-display font-bold"
+                className="input text-xl font-display font-bold h-12 rounded-[14px]"
                 value={titleValue}
                 onChange={e => setTitleValue(e.target.value)}
                 autoFocus
               />
               <button onClick={() => { updateTask(task.id, { title: titleValue }); setEditTitle(false); }}
-                className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg"><Check size={16} /></button>
+                className="p-2.5 bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-[14px]"><Check size={16} /></button>
               <button onClick={() => setEditTitle(false)}
-                className="p-2 bg-surface-700 text-surface-300 rounded-lg"><X size={16} /></button>
+                className="p-2.5 bg-surface-850 text-surface-400 rounded-[14px]"><X size={16} /></button>
             </div>
           ) : (
             <div className="flex items-center gap-2 group">
-              <h1 className="text-2xl font-display font-bold text-surface-50">{task.title}</h1>
+              <h1 className="text-3xl font-display font-extrabold text-surface-50">{task.title}</h1>
               <button onClick={() => setEditTitle(true)}
                 className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 transition-all">
                 <Edit2 size={14} />
@@ -119,35 +119,36 @@ export function TaskDetail() {
           )}
 
           {task.description && (
-            <p className="text-surface-300 mt-2">{task.description}</p>
+            <p className="text-surface-300 mt-2 font-medium">{task.description}</p>
           )}
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left: Timer + Time */}
-        <div className="space-y-4">
-          {/* Timer */}
-          <div className="card p-6 text-center">
-            <div className={`timer-display text-5xl font-bold mb-6 ${isRunning ? 'text-brand-400' : isPaused ? 'text-yellow-400' : 'text-surface-50'}`}>
+        <div className="space-y-6">
+          {/* Timer Card */}
+          <div className="card p-6 rounded-[22px] shadow-sm text-center bg-[#FFFDF5] dark:bg-surface-900 border border-amber-200/80 dark:border-surface-800">
+            <div className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-2">Timer Focus</div>
+            <div className={`timer-display text-5xl lg:text-6xl font-extrabold mb-6 ${isRunning ? 'text-amber-500' : isPaused ? 'text-amber-500/80' : 'text-surface-300'}`}>
               {isActive ? formatDuration(liveTime) : formatDuration(task.totalTime)}
             </div>
             {isRunning && (
               <motion.div
-                className="w-3 h-3 bg-brand-400 rounded-full mx-auto mb-4"
+                className="w-3 h-3 bg-amber-500 rounded-full mx-auto mb-4"
                 animate={{ scale: [1, 1.4, 1], opacity: [1, 0.5, 1] }}
                 transition={{ duration: 1.5, repeat: Infinity }}
               />
             )}
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-3 justify-center flex-wrap">
               {!isActive && (
-                <button onClick={() => startTimer(task.id)} className="btn-primary flex items-center gap-2">
-                  <Play size={15} /> Start
+                <button onClick={() => startTimer(task.id)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[14px] font-semibold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2">
+                  <Play size={16} fill="white" /> Start Timer
                 </button>
               )}
               {isRunning && (
-                <button onClick={() => pauseTimer(task.id)} className="flex items-center gap-2 px-4 py-2 bg-yellow-400/15 hover:bg-yellow-400/25 text-yellow-400 rounded-xl font-medium transition-all">
-                  <Pause size={15} /> Pause
+                <button onClick={() => pauseTimer(task.id)} className="btn-secondary">
+                  <Pause size={16} /> Pause
                 </button>
               )}
               {isPaused && (

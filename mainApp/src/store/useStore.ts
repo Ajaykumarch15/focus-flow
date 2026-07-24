@@ -66,8 +66,10 @@ function applyThemeToDOM(theme: ThemeSettings): void {
     // Dark / light mode
     if (theme.mode === 'light') {
       root.classList.remove('dark');
+      root.classList.add('light');
     } else {
       root.classList.add('dark');
+      root.classList.remove('light');
     }
     // Font size
     if (theme.fontSize === 'sm') root.style.fontSize = '14px';

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
@@ -17,13 +17,13 @@ import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
-  value: WorkLogStatus; label: string; color: string; bg: string; border: string;
+  value: WorkLogStatus; label: string; chipClass: string; color: string; bg: string; border: string;
 }[] = [
-  { value: 'planning',    label: '🗺️ Planning',    color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/30' },
-  { value: 'in-progress', label: '⚡ In Progress', color: 'text-brand-400',  bg: 'bg-brand-400/10',  border: 'border-brand-400/30'  },
-  { value: 'reviewing',   label: '👀 Reviewing',   color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/30' },
-  { value: 'blocked',     label: '🚫 Blocked',     color: 'text-red-400',    bg: 'bg-red-400/10',    border: 'border-red-400/30'    },
-  { value: 'done',        label: '✅ Done',         color: 'text-emerald-400',bg: 'bg-emerald-400/10',border: 'border-emerald-400/30'},
+  { value: 'planning',    label: '🗺️ Planning',    chipClass: 'chip-planning',    color: 'text-[#2563EB] dark:text-blue-400',    bg: 'bg-[#EEF5FF] dark:bg-blue-500/10', border: 'border-blue-200/50' },
+  { value: 'in-progress', label: '⚡ In Progress', chipClass: 'chip-in-progress', color: 'text-[#0284C7] dark:text-sky-400',     bg: 'bg-[#E8F5FF] dark:bg-sky-500/10',  border: 'border-[#38BDF8]' },
+  { value: 'reviewing',   label: '👀 Reviewing',   chipClass: 'chip-review',      color: 'text-[#7C3AED] dark:text-purple-400',  bg: 'bg-[#F5F3FF] dark:bg-purple-500/10', border: 'border-purple-200/50' },
+  { value: 'blocked',     label: '🚫 Blocked',     chipClass: 'chip-blocked',     color: 'text-[#DC2626] dark:text-red-400',     bg: 'bg-[#FFF1F2] dark:bg-red-500/10',    border: 'border-red-200/50' },
+  { value: 'done',        label: '✅ Done',         chipClass: 'chip-done',        color: 'text-[#059669] dark:text-emerald-400', bg: 'bg-[#ECFDF5] dark:bg-emerald-500/10',border: 'border-emerald-200/50'},
 ];
 const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
 
@@ -172,14 +172,14 @@ function TimerPanel({ log }: { log: WorkLog }) {
   // No linked task — show a message explaining how to link
   if (!linkedTaskId) {
     return (
-      <div className="rounded-xl border border-surface-700 bg-surface-800/40 p-4 mb-4">
+      <div className="rounded-[18px] border border-surface-800 bg-[#FFFDF5] dark:bg-surface-850 p-4 mb-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
-            <Timer size={16} className="text-surface-400" />
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+            <Timer size={18} />
           </div>
           <div>
-            <p className="text-sm font-medium text-surface-300">No task linked</p>
-            <p className="text-xs text-surface-500 mt-0.5">
+            <p className="text-sm font-semibold text-surface-100">No task linked</p>
+            <p className="text-xs text-surface-400 mt-0.5">
               Link this work log to a task below. Time will then be tracked here automatically when you use the timer.
             </p>
           </div>
@@ -189,63 +189,63 @@ function TimerPanel({ log }: { log: WorkLog }) {
   }
 
   return (
-    <div className={`rounded-xl border p-4 mb-4 transition-all ${
+    <div className={`rounded-[22px] border p-5 mb-5 transition-all shadow-sm ${
       isRunning
-        ? 'border-brand-500/40 bg-brand-500/5'
+        ? 'border-amber-400/50 bg-[#FFFDF5] dark:bg-amber-500/10'
         : isPaused
-        ? 'border-yellow-500/30 bg-yellow-500/5'
-        : 'border-surface-700 bg-surface-800/40'
+        ? 'border-yellow-400/40 bg-[#FFFDF5] dark:bg-amber-500/5'
+        : 'border-amber-200/80 bg-[#FFFDF5] dark:bg-surface-850'
     }`}>
       <div className="flex items-center justify-between flex-wrap gap-4">
 
         {/* Left: task name + live clock */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* Animated ring when running */}
-          <div className="relative flex items-center justify-center w-10 h-10 flex-shrink-0">
+          <div className="relative flex items-center justify-center w-12 h-12 flex-shrink-0">
             {isRunning && (
               <motion.div
-                className="absolute inset-0 rounded-full border-2 border-brand-400 opacity-40"
+                className="absolute inset-0 rounded-full border-2 border-amber-500 opacity-40"
                 animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0, 0.4] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
             )}
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-              isRunning ? 'border-brand-400 bg-brand-500/10' :
-              isPaused  ? 'border-yellow-400 bg-yellow-500/10' :
-              'border-surface-600 bg-surface-700/50'
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+              isRunning ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+              isPaused  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+              'border-surface-800 bg-surface-900 text-surface-400'
             }`}>
-              <Timer size={16} className={isRunning ? 'text-brand-400' : isPaused ? 'text-yellow-400' : 'text-surface-400'} />
+              <Timer size={20} />
             </div>
           </div>
 
           <div>
             {/* Linked task name */}
-            <p className="text-xs text-surface-400 mb-0.5">
-              Tracking: <span style={{ color: log.taskRef?.color }}>{log.taskRef?.title}</span>
+            <p className="text-xs font-medium text-surface-400 mb-0.5">
+              Tracking: <span style={{ color: log.taskRef?.color }} className="font-semibold">{log.taskRef?.title}</span>
             </p>
 
-            {/* Live clock — big and monospaced */}
-            <div className={`font-mono text-2xl font-bold tracking-wider ${
-              isRunning ? 'text-brand-400' : isPaused ? 'text-yellow-400' : 'text-surface-400'
+            {/* Live clock — big, amber accent, monospaced */}
+            <div className={`font-mono text-3xl lg:text-4xl font-extrabold tracking-wider ${
+              isRunning ? 'text-amber-500' : isPaused ? 'text-amber-500/80' : 'text-surface-300'
             }`}>
               {isThisActive ? formatClock(elapsed) : formatClock(log.totalActiveMs)}
             </div>
 
             {/* Status label */}
-            <p className="text-xs mt-0.5">
+            <p className="text-xs mt-1">
               {isRunning ? (
-                <span className="text-brand-400 flex items-center gap-1">
+                <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
                   <motion.span
-                    className="inline-block w-1.5 h-1.5 rounded-full bg-brand-400"
+                    className="inline-block w-2 h-2 rounded-full bg-amber-500"
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
                   />
                   Running
                 </span>
               ) : isPaused ? (
-                <span className="text-yellow-400">Paused</span>
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Paused</span>
               ) : (
-                <span className="text-surface-500">
+                <span className="text-surface-400 font-medium">
                   {log.totalActiveMs > 0 ? `Total logged: ${formatMs(log.totalActiveMs)}` : 'Not started'}
                 </span>
               )}
@@ -254,10 +254,10 @@ function TimerPanel({ log }: { log: WorkLog }) {
         </div>
 
         {/* Right: control buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Another task is running — show warning */}
           {activeTaskId && activeTaskId !== linkedTaskId && (
-            <p className="text-xs text-yellow-400 mr-2">
+            <p className="text-xs text-amber-600 font-medium mr-2">
               Another task is running — stop it first
             </p>
           )}
@@ -265,10 +265,10 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* START */}
           {!isThisActive && (!activeTaskId || activeTaskId === linkedTaskId) && (
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => startTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-400 text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-brand-500/20"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[14px] font-semibold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
             >
               <Play size={15} fill="white" />
               Start Timer
@@ -278,9 +278,9 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* PAUSE */}
           {isRunning && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => pauseTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-yellow-400/15 hover:bg-yellow-400/25 text-yellow-400 border border-yellow-400/25 rounded-xl font-medium text-sm transition-all"
+              className="btn-secondary"
             >
               <Pause size={15} />
               Pause
@@ -290,11 +290,11 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* RESUME */}
           {isPaused && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => resumeTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 border border-brand-400/25 rounded-xl font-medium text-sm transition-all"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[14px] font-semibold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
             >
-              <Play size={15} />
+              <Play size={15} fill="white" />
               Resume
             </motion.button>
           )}
@@ -302,9 +302,9 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* STOP */}
           {isThisActive && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleStop}
-              className="flex items-center gap-2 px-4 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 border border-red-400/25 rounded-xl font-medium text-sm transition-all"
+              className="btn-danger"
             >
               <Square size={14} fill="currentColor" />
               Stop
@@ -1052,19 +1052,20 @@ export function WorkLogPage() {
   useEffect(() => { loadAll(); }, []);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-display font-bold text-surface-50 flex items-center gap-2">
-            <BookMarked size={22} className="text-brand-400" /> Work Logs
+          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl">📋</span>
+            Work Logs
           </h1>
-          <p className="text-surface-400 text-sm mt-1">
-            {activeLogs.length} active · {closedLogs.length} completed
+          <p className="text-surface-400 font-medium text-sm mt-1">
+            {activeLogs.length} Active · {closedLogs.length} Completed
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> New Work Log
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <Plus size={18} /> New Work Log
         </button>
       </motion.div>
 

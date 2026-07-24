@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Bold, Italic, Code, List, ListOrdered, Quote, Minus, Link2, Maximize2, Minimize2, Loader2, Save, Type, Hash } from 'lucide-react';
 
 // ── Simple markdown renderer (no external dependency) ─────────────────────────
@@ -661,20 +661,20 @@ export function AutoProEditor({
 
 // ── Markdown preview styles ───────────────────────────────────────────────────
 export const PROSE_STYLES = `
-.prose-editor .md-h1 { font-size: 1.35rem; font-weight: 700; color: white; margin: 1rem 0 0.5rem; border-bottom: 1px solid #27272a; padding-bottom: 0.25rem; }
-.prose-editor .md-h2 { font-size: 1.15rem;  font-weight: 600; color: white; margin: 0.8rem 0 0.4rem; border-bottom: 1px solid rgba(39, 39, 42, 0.5); padding-bottom: 0.2rem; }
-.prose-editor .md-h3 { font-size: 1.05rem; font-weight: 600; color: #e4e4e7; margin: 0.6rem 0 0.3rem; }
-.prose-editor .md-p  { margin: 0.5rem 0; line-height: 1.7; color: #d4d4d8; }
-.prose-editor .md-bold   { font-weight: 600; color: white; }
+.prose-editor .md-h1 { font-size: 1.35rem; font-weight: 700; color: var(--color-surface-50); margin: 1rem 0 0.5rem; border-bottom: 1px solid var(--color-surface-800); padding-bottom: 0.25rem; }
+.prose-editor .md-h2 { font-size: 1.15rem; font-weight: 600; color: var(--color-surface-50); margin: 0.8rem 0 0.4rem; border-bottom: 1px solid var(--color-surface-800); padding-bottom: 0.2rem; }
+.prose-editor .md-h3 { font-size: 1.05rem; font-weight: 600; color: var(--color-surface-100); margin: 0.6rem 0 0.3rem; }
+.prose-editor .md-p  { margin: 0.5rem 0; line-height: 1.7; color: var(--color-surface-300); }
+.prose-editor .md-bold   { font-weight: 600; color: var(--color-surface-50); }
 .prose-editor .md-italic { font-style: italic; }
-.prose-editor .md-code   { background: #18181b; border: 1px solid #27272a; border-radius: 6px; padding: 2px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--color-brand-400); }
-.prose-editor .md-pre { background: #18181b; border: 1px solid #27272a; border-radius: 8px; padding: 0.75rem; overflow-x: auto; margin: 0.75rem 0; }
-.prose-editor .md-code-block { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #d4d4d8; line-height: 1.5; }
-.prose-editor .md-quote  { border-left: 4px solid var(--color-brand-500); padding-left: 0.75rem; color: #a1a1aa; margin: 0.6rem 0; font-style: italic; background: color-mix(in srgb, var(--color-brand-500) 5%, transparent); padding-top: 0.25rem; padding-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
-.prose-editor .md-hr     { border: none; border-top: 1px solid #27272a; margin: 1rem 0; }
+.prose-editor .md-code   { background: var(--color-surface-850); border: 1px solid var(--color-surface-800); border-radius: 6px; padding: 2px 5px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--color-brand-500); }
+.prose-editor .md-pre { background: var(--color-surface-850); border: 1px solid var(--color-surface-800); border-radius: 8px; padding: 0.75rem; overflow-x: auto; margin: 0.75rem 0; }
+.prose-editor .md-code-block { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: var(--color-surface-200); line-height: 1.5; }
+.prose-editor .md-quote  { border-left: 4px solid var(--color-brand-500); padding-left: 0.75rem; color: var(--color-surface-400); margin: 0.6rem 0; font-style: italic; background: color-mix(in srgb, var(--color-brand-500) 8%, transparent); padding-top: 0.25rem; padding-bottom: 0.25rem; border-radius: 0 4px 4px 0; }
+.prose-editor .md-hr     { border: none; border-top: 1px solid var(--color-surface-800); margin: 1rem 0; }
 .prose-editor .md-ul     { list-style: disc; padding-left: 1.25rem; margin: 0.5rem 0; }
 .prose-editor .md-ol     { list-style: decimal; padding-left: 1.25rem; margin: 0.5rem 0; }
-.prose-editor .md-li     { margin: 0.3rem 0; color: #d4d4d8; line-height: 1.6; }
+.prose-editor .md-li     { margin: 0.3rem 0; color: var(--color-surface-300); line-height: 1.6; }
 .prose-editor .md-task-li { list-style: none; padding-left: 0; display: flex; align-items: center; gap: 6px; }
 .prose-editor .md-task-checkbox { width: 14px; height: 14px; accent-color: var(--color-brand-500); margin: 0; cursor: default; }
 .prose-editor .md-link   { color: var(--color-brand-500); text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
