@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
-import { Moon, Sun, Palette, User, Clock, Bell, Users, Cloud, Check } from 'lucide-react';
-import { TASK_COLORS } from '../utils/colors';
+import { Moon, Sun, Palette, User, Clock, Bell, Users, Cloud, Check, BellRing } from 'lucide-react';
+import { TASK_COLORS, ACCENT_PRESETS } from '../utils/colors';
+import { getNotificationSettings, saveNotificationSettings, NotificationSettings, requestNotificationPermission } from '../hooks/useNotifications';
 
 const LOCAL_CACHE_KEYS = [
   'focusflow-storage',
@@ -62,39 +63,47 @@ export function Settings() {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className="text-2xl font-display font-bold text-white">Settings</h1>
-        <p className="text-surface-300 mt-1">Customize your FocusFlow experience</p>
+        <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+          <span className="w-10 h-10 rounded-2xl bg-slate-500/10 text-slate-600 dark:text-slate-400 flex items-center justify-center text-xl">⚙️</span>
+          Settings
+        </h1>
+        <p className="text-surface-400 font-medium text-sm mt-1.5">Customize your FocusFlow workspace and preferences</p>
       </motion.div>
 
-      <div className="space-y-6">
+      <div className="space-y-8 max-w-3xl">
         {/* Profile */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><User size={18} className="text-brand-400" /> Profile</h2>
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              <User size={16} />
+            </div>
+            Profile
+          </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Your Name</label>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Your Name</label>
               <input
-                className="input"
+                className="input h-12 rounded-[14px]"
                 value={profile.name}
                 onChange={e => updateProfile({ name: e.target.value })}
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Daily Goal (hours)</label>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Daily Goal (hours)</label>
               <input
                 type="number"
-                className="input"
+                className="input h-12 rounded-[14px]"
                 min="1" max="24"
                 value={profile.dailyGoal}
                 onChange={e => updateProfile({ dailyGoal: Number(e.target.value) })}
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Report Timezone</label>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Report Timezone</label>
               <select
-                className="input"
+                className="input h-12 rounded-[14px]"
                 value={profile.timezone}
                 onChange={e => updateProfile({ timezone: e.target.value })}
               >
@@ -102,7 +111,7 @@ export function Settings() {
                   <option key={zone} value={zone}>{zone}</option>
                 ))}
               </select>
-              <p className="text-xs text-surface-500 mt-1.5">
+              <p className="text-xs text-surface-400 mt-1.5 font-medium">
                 Daily reports and work-log history use this timezone for day boundaries.
               </p>
             </div>
@@ -110,31 +119,88 @@ export function Settings() {
         </motion.section>
 
         {/* Theme */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Palette size={18} className="text-brand-400" /> Appearance</h2>
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+              <Palette size={16} />
+            </div>
+            Appearance
+          </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm text-surface-300 mb-2">Accent Color</label>
-              <div className="flex gap-2 flex-wrap">
-                {TASK_COLORS.map(color => (
-                  <button
-                    key={color}
-                    onClick={() => updateTheme({ accentColor: color })}
-                    className={`w-8 h-8 rounded-full transition-all ${theme.accentColor === color ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-900 scale-110' : ''}`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
+              <label className="block text-sm font-semibold text-surface-200 mb-2">Theme Mode</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => updateTheme({ mode: 'dark' })}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-[12px] text-sm font-semibold transition-all ${theme.mode === 'dark' ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
+                >
+                  <Moon size={16} /> Dark
+                </button>
+                <button
+                  onClick={() => updateTheme({ mode: 'light' })}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-[12px] text-sm font-semibold transition-all ${theme.mode === 'light' ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
+                >
+                  <Sun size={16} /> Light
+                </button>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm text-surface-300 mb-2">Font Size</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-semibold text-surface-200">Accent Color</label>
+                <span className="text-xs font-mono text-surface-400 px-2 py-0.5 rounded bg-surface-850 border border-surface-800">
+                  {theme.accentColor || '#0ea5e9'}
+                </span>
+              </div>
+              <div className="flex gap-2 flex-wrap items-center mb-3">
+                {ACCENT_PRESETS.map(preset => {
+                  const isSelected = theme.accentColor?.toLowerCase() === preset.hex.toLowerCase();
+                  return (
+                    <button
+                      key={preset.hex}
+                      onClick={() => updateTheme({ accentColor: preset.hex })}
+                      className={`w-7 h-7 rounded-full transition-all relative ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-surface-900 scale-110 shadow-lg' : 'opacity-75 hover:opacity-100 hover:scale-105'}`}
+                      style={{ backgroundColor: preset.hex }}
+                      title={`${preset.name} (${preset.hex})`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <div className="relative flex items-center">
+                  <input
+                    type="color"
+                    id="accent-color-picker"
+                    value={theme.accentColor || '#0ea5e9'}
+                    onChange={(e) => updateTheme({ accentColor: e.target.value })}
+                    className="w-9 h-9 rounded-xl border border-surface-800 cursor-pointer bg-surface-850 p-1"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="#0ea5e9"
+                  maxLength={7}
+                  value={theme.accentColor || '#0ea5e9'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (/^#[0-9A-Fa-f]{0,6}$/.test(val)) {
+                      updateTheme({ accentColor: val });
+                    }
+                  }}
+                  className="input w-32 text-xs font-mono h-9 rounded-[10px]"
+                />
+                <span className="text-xs text-surface-400">Custom Hex Color</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-surface-200 mb-2">Font Size</label>
               <div className="flex gap-2">
                 {(['sm', 'md', 'lg'] as const).map(size => (
                   <button
                     key={size}
                     onClick={() => updateTheme({ fontSize: size })}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${theme.fontSize === size ? 'bg-brand-500 text-white' : 'bg-surface-800 text-surface-300 hover:text-white'}`}
+                    className={`px-4 py-2 rounded-[12px] text-sm font-semibold transition-all ${theme.fontSize === size ? 'bg-brand-500 text-white shadow-sm' : 'bg-surface-850 text-surface-300 hover:text-surface-50 border border-surface-800'}`}
                   >
                     {size.toUpperCase()}
                   </button>
@@ -149,7 +215,7 @@ export function Settings() {
                 { key: 'reducedMotion', label: 'Reduce Motion' },
               ].map(({ key, label }) => (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm text-surface-200">{label}</span>
+                  <span className="text-sm font-medium text-surface-200">{label}</span>
                   <button
                     onClick={() => updateTheme({ [key]: !theme[key as keyof typeof theme] } as any)}
                     className={`w-11 h-6 rounded-full transition-all relative ${theme[key as keyof typeof theme] ? 'bg-brand-500' : 'bg-surface-700'}`}
@@ -167,24 +233,29 @@ export function Settings() {
         </motion.section>
 
         {/* Pomodoro */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Clock size={18} className="text-brand-400" /> Pomodoro Timer</h2>
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Clock size={16} />
+            </div>
+            Pomodoro Timer
+          </h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Focus Duration (min)</label>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Focus Duration (min)</label>
               <input
                 type="number"
-                className="input"
+                className="input h-12 rounded-[14px]"
                 min="1" max="120"
                 value={profile.pomodoroWork}
                 onChange={e => updateProfile({ pomodoroWork: Number(e.target.value) })}
               />
             </div>
             <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Break Duration (min)</label>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Break Duration (min)</label>
               <input
                 type="number"
-                className="input"
+                className="input h-12 rounded-[14px]"
                 min="1" max="60"
                 value={profile.pomodoroBreak}
                 onChange={e => updateProfile({ pomodoroBreak: Number(e.target.value) })}
@@ -194,14 +265,17 @@ export function Settings() {
         </motion.section>
 
         {/* Community */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <Users size={18} className="text-brand-400" /> Community
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <Users size={16} />
+            </div>
+            Community
           </h2>
           <div className="flex items-center justify-between">
             <div>
-              <span className="block text-sm text-surface-200">Show on Leaderboard</span>
-              <p className="text-xs text-surface-500 mt-1">Allows other users to see your focus points and streak</p>
+              <span className="block text-sm font-semibold text-surface-200">Show on Leaderboard</span>
+              <p className="text-xs text-surface-400 mt-1 font-medium">Allows other users to see your focus points and streak</p>
             </div>
             <button
               onClick={() => updateProfile({ leaderboardOptIn: !profile.leaderboardOptIn })}
@@ -216,23 +290,37 @@ export function Settings() {
           </div>
         </motion.section>
 
-        {/* Google Drive Connection */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
-            <Cloud size={18} className="text-brand-400" /> Google Drive Integration
+        {/* Notifications */}
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.21 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400 flex items-center justify-center">
+              <BellRing size={16} />
+            </div>
+            Notifications
           </h2>
-          <p className="text-sm text-surface-400 mb-4">
+          <NotificationSettingsSection />
+        </motion.section>
+
+        {/* Google Drive Connection */}
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.23 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <Cloud size={16} />
+            </div>
+            Google Drive Integration
+          </h2>
+          <p className="text-sm text-surface-400 mb-4 font-medium leading-relaxed">
             Connect your Google Drive to build a searchable knowledge repository for your projects. FocusFlow will automatically create project folders and structure your daily work logs as rich Google Documents.
           </p>
 
           {user?.googleConnected ? (
             <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl text-sm font-medium self-start">
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-medium self-start">
                 <Check size={16} /> Google Drive is connected!
               </div>
               <button
                 onClick={handleDisconnectGoogle}
-                className="px-4 py-2 self-start bg-surface-700 hover:bg-surface-600 text-surface-200 border border-surface-600 rounded-xl text-sm font-medium transition-all"
+                className="btn-secondary self-start"
               >
                 Disconnect Google Drive
               </button>
@@ -248,9 +336,14 @@ export function Settings() {
         </motion.section>
 
         {/* Data */}
-        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card p-6">
-          <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Bell size={18} className="text-brand-400" /> Data</h2>
-          <p className="text-sm text-surface-400 mb-4">
+        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="card p-6 rounded-[22px] shadow-sm">
+          <h2 className="font-display font-bold text-lg text-surface-50 mb-5 flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+              <Bell size={16} />
+            </div>
+            Data
+          </h2>
+          <p className="text-sm text-surface-400 mb-4 font-medium leading-relaxed">
             FocusFlow syncs your account data with the server and keeps a local cache for faster loading. Clear the cache if the app looks stale.
           </p>
           <button
@@ -260,12 +353,104 @@ export function Settings() {
                 window.location.reload();
               }
             }}
-            className="px-4 py-2 bg-red-400/10 hover:bg-red-400/20 text-red-400 border border-red-400/20 rounded-xl text-sm font-medium transition-all"
+            className="btn-danger self-start"
           >
             Clear Local Cache
           </button>
         </motion.section>
       </div>
+    </div>
+  );
+}
+
+function NotificationSettingsSection() {
+  const settings = getNotificationSettings();
+
+  const updateSetting = (key: keyof NotificationSettings, value: boolean) => {
+    saveNotificationSettings({ ...settings, [key]: value });
+    // Force re-render by triggering a state change
+    window.location.reload();
+  };
+
+  const handleEnableAll = async () => {
+    const granted = await requestNotificationPermission();
+    if (granted) {
+      saveNotificationSettings({
+        enabled: true,
+        deadlineReminders: true,
+        pomodoroAlerts: true,
+        habitReminders: true,
+        dailyGoalReminder: true,
+      });
+      window.location.reload();
+    }
+  };
+
+  if (Notification.permission === 'denied') {
+    return (
+      <div className="text-center py-4">
+        <p className="text-sm text-surface-400 mb-3">
+          Browser notifications are blocked. Please enable them in your browser settings.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <span className="block text-sm text-surface-200">Enable Notifications</span>
+          <p className="text-xs text-surface-500 mt-1">Master switch for all notifications</p>
+        </div>
+        {Notification.permission !== 'granted' ? (
+          <button
+            onClick={handleEnableAll}
+            className="px-3 py-1.5 bg-brand-500 hover:bg-brand-400 text-white text-sm font-medium rounded-lg transition-all"
+          >
+            Enable
+          </button>
+        ) : (
+          <button
+            onClick={() => updateSetting('enabled', !settings.enabled)}
+            className={`w-11 h-6 rounded-full transition-all relative ${settings.enabled ? 'bg-brand-500' : 'bg-surface-700'}`}
+          >
+            <motion.div
+              className="w-4 h-4 bg-white rounded-full absolute top-1"
+              animate={{ left: settings.enabled ? '1.5rem' : '0.25rem' }}
+              transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+            />
+          </button>
+        )}
+      </div>
+
+      {settings.enabled && Notification.permission === 'granted' && (
+        <div className="space-y-3 pt-2 border-t border-surface-800">
+          {[
+            { key: 'deadlineReminders' as const, label: 'Deadline Reminders', desc: 'Get notified when tasks are due or overdue' },
+            { key: 'pomodoroAlerts' as const, label: 'Pomodoro Alerts', desc: 'Alerts when focus/break sessions end' },
+            { key: 'habitReminders' as const, label: 'Habit Reminders', desc: 'Reminders for scheduled habits' },
+            { key: 'dailyGoalReminder' as const, label: 'Daily Goal Reminder', desc: 'Reminder if daily focus goal not met' },
+          ].map(({ key, label, desc }) => (
+            <div key={key} className="flex items-center justify-between">
+              <div>
+                <span className="block text-sm text-surface-200">{label}</span>
+                <p className="text-xs text-surface-500 mt-0.5">{desc}</p>
+              </div>
+              <button
+                onClick={() => updateSetting(key, !settings[key])}
+                className={`w-11 h-6 rounded-full transition-all relative ${settings[key] ? 'bg-brand-500' : 'bg-surface-700'}`}
+              >
+                <motion.div
+                  className="w-4 h-4 bg-white rounded-full absolute top-1"
+                  animate={{ left: settings[key] ? '1.5rem' : '0.25rem' }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

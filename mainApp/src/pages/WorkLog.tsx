@@ -13,16 +13,17 @@ import { useProjectStore } from '../store/useProjectStore';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
+import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
-  value: WorkLogStatus; label: string; color: string; bg: string; border: string;
+  value: WorkLogStatus; label: string; chipClass: string; color: string; bg: string; border: string;
 }[] = [
-  { value: 'planning',    label: '🗺️ Planning',    color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/30' },
-  { value: 'in-progress', label: '⚡ In Progress', color: 'text-brand-400',  bg: 'bg-brand-400/10',  border: 'border-brand-400/30'  },
-  { value: 'reviewing',   label: '👀 Reviewing',   color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/30' },
-  { value: 'blocked',     label: '🚫 Blocked',     color: 'text-red-400',    bg: 'bg-red-400/10',    border: 'border-red-400/30'    },
-  { value: 'done',        label: '✅ Done',         color: 'text-emerald-400',bg: 'bg-emerald-400/10',border: 'border-emerald-400/30'},
+  { value: 'planning',    label: '🗺️ Planning',    chipClass: 'chip-planning',    color: 'text-[#2563EB] dark:text-blue-400',    bg: 'bg-[#EEF5FF] dark:bg-blue-500/10', border: 'border-blue-200/50' },
+  { value: 'in-progress', label: '⚡ In Progress', chipClass: 'chip-in-progress', color: 'text-[#0284C7] dark:text-sky-400',     bg: 'bg-[#E8F5FF] dark:bg-sky-500/10',  border: 'border-[#38BDF8]' },
+  { value: 'reviewing',   label: '👀 Reviewing',   chipClass: 'chip-review',      color: 'text-[#7C3AED] dark:text-purple-400',  bg: 'bg-[#F5F3FF] dark:bg-purple-500/10', border: 'border-purple-200/50' },
+  { value: 'blocked',     label: '🚫 Blocked',     chipClass: 'chip-blocked',     color: 'text-[#DC2626] dark:text-red-400',     bg: 'bg-[#FFF1F2] dark:bg-red-500/10',    border: 'border-red-200/50' },
+  { value: 'done',        label: '✅ Done',         chipClass: 'chip-done',        color: 'text-[#059669] dark:text-emerald-400', bg: 'bg-[#ECFDF5] dark:bg-emerald-500/10',border: 'border-emerald-200/50'},
 ];
 const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
 
@@ -171,14 +172,14 @@ function TimerPanel({ log }: { log: WorkLog }) {
   // No linked task — show a message explaining how to link
   if (!linkedTaskId) {
     return (
-      <div className="rounded-xl border border-surface-700 bg-surface-800/40 p-4 mb-4">
+      <div className="rounded-[18px] border border-surface-800 bg-[#FFFDF5] dark:bg-surface-850 p-4 mb-5 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-surface-700 flex items-center justify-center flex-shrink-0">
-            <Timer size={16} className="text-surface-400" />
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
+            <Timer size={18} />
           </div>
           <div>
-            <p className="text-sm font-medium text-surface-300">No task linked</p>
-            <p className="text-xs text-surface-500 mt-0.5">
+            <p className="text-sm font-semibold text-surface-100">No task linked</p>
+            <p className="text-xs text-surface-400 mt-0.5">
               Link this work log to a task below. Time will then be tracked here automatically when you use the timer.
             </p>
           </div>
@@ -188,63 +189,63 @@ function TimerPanel({ log }: { log: WorkLog }) {
   }
 
   return (
-    <div className={`rounded-xl border p-4 mb-4 transition-all ${
+    <div className={`rounded-[22px] border p-5 mb-5 transition-all shadow-sm ${
       isRunning
-        ? 'border-brand-500/40 bg-brand-500/5'
+        ? 'border-amber-400/50 bg-[#FFFDF5] dark:bg-amber-500/10'
         : isPaused
-        ? 'border-yellow-500/30 bg-yellow-500/5'
-        : 'border-surface-700 bg-surface-800/40'
+        ? 'border-yellow-400/40 bg-[#FFFDF5] dark:bg-amber-500/5'
+        : 'border-amber-200/80 bg-[#FFFDF5] dark:bg-surface-850'
     }`}>
       <div className="flex items-center justify-between flex-wrap gap-4">
 
         {/* Left: task name + live clock */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {/* Animated ring when running */}
-          <div className="relative flex items-center justify-center w-10 h-10 flex-shrink-0">
+          <div className="relative flex items-center justify-center w-12 h-12 flex-shrink-0">
             {isRunning && (
               <motion.div
-                className="absolute inset-0 rounded-full border-2 border-brand-400 opacity-40"
+                className="absolute inset-0 rounded-full border-2 border-amber-500 opacity-40"
                 animate={{ scale: [1, 1.3, 1], opacity: [0.4, 0, 0.4] }}
                 transition={{ duration: 2, repeat: Infinity }}
               />
             )}
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${
-              isRunning ? 'border-brand-400 bg-brand-500/10' :
-              isPaused  ? 'border-yellow-400 bg-yellow-500/10' :
-              'border-surface-600 bg-surface-700/50'
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${
+              isRunning ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+              isPaused  ? 'border-yellow-500/40 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+              'border-surface-800 bg-surface-900 text-surface-400'
             }`}>
-              <Timer size={16} className={isRunning ? 'text-brand-400' : isPaused ? 'text-yellow-400' : 'text-surface-400'} />
+              <Timer size={20} />
             </div>
           </div>
 
           <div>
             {/* Linked task name */}
-            <p className="text-xs text-surface-400 mb-0.5">
-              Tracking: <span style={{ color: log.taskRef?.color }}>{log.taskRef?.title}</span>
+            <p className="text-xs font-medium text-surface-400 mb-0.5">
+              Tracking: <span style={{ color: log.taskRef?.color }} className="font-semibold">{log.taskRef?.title}</span>
             </p>
 
-            {/* Live clock — big and monospaced */}
-            <div className={`font-mono text-2xl font-bold tracking-wider ${
-              isRunning ? 'text-brand-400' : isPaused ? 'text-yellow-400' : 'text-surface-400'
+            {/* Live clock — big, amber accent, monospaced */}
+            <div className={`font-mono text-3xl lg:text-4xl font-extrabold tracking-wider ${
+              isRunning ? 'text-amber-500' : isPaused ? 'text-amber-500/80' : 'text-surface-300'
             }`}>
               {isThisActive ? formatClock(elapsed) : formatClock(log.totalActiveMs)}
             </div>
 
             {/* Status label */}
-            <p className="text-xs mt-0.5">
+            <p className="text-xs mt-1">
               {isRunning ? (
-                <span className="text-brand-400 flex items-center gap-1">
+                <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
                   <motion.span
-                    className="inline-block w-1.5 h-1.5 rounded-full bg-brand-400"
+                    className="inline-block w-2 h-2 rounded-full bg-amber-500"
                     animate={{ opacity: [1, 0, 1] }}
                     transition={{ duration: 1, repeat: Infinity }}
                   />
                   Running
                 </span>
               ) : isPaused ? (
-                <span className="text-yellow-400">Paused</span>
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Paused</span>
               ) : (
-                <span className="text-surface-500">
+                <span className="text-surface-400 font-medium">
                   {log.totalActiveMs > 0 ? `Total logged: ${formatMs(log.totalActiveMs)}` : 'Not started'}
                 </span>
               )}
@@ -253,10 +254,10 @@ function TimerPanel({ log }: { log: WorkLog }) {
         </div>
 
         {/* Right: control buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {/* Another task is running — show warning */}
           {activeTaskId && activeTaskId !== linkedTaskId && (
-            <p className="text-xs text-yellow-400 mr-2">
+            <p className="text-xs text-amber-600 font-medium mr-2">
               Another task is running — stop it first
             </p>
           )}
@@ -264,10 +265,10 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* START */}
           {!isThisActive && (!activeTaskId || activeTaskId === linkedTaskId) && (
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => startTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-500 hover:bg-brand-400 text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-brand-500/20"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[14px] font-semibold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
             >
               <Play size={15} fill="white" />
               Start Timer
@@ -277,9 +278,9 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* PAUSE */}
           {isRunning && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => pauseTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-yellow-400/15 hover:bg-yellow-400/25 text-yellow-400 border border-yellow-400/25 rounded-xl font-medium text-sm transition-all"
+              className="btn-secondary"
             >
               <Pause size={15} />
               Pause
@@ -289,11 +290,11 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* RESUME */}
           {isPaused && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => resumeTimer(linkedTaskId)}
-              className="flex items-center gap-2 px-4 py-2.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 border border-brand-400/25 rounded-xl font-medium text-sm transition-all"
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-[14px] font-semibold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
             >
-              <Play size={15} />
+              <Play size={15} fill="white" />
               Resume
             </motion.button>
           )}
@@ -301,9 +302,9 @@ function TimerPanel({ log }: { log: WorkLog }) {
           {/* STOP */}
           {isThisActive && (
             <motion.button
-              whileTap={{ scale: 0.97 }}
+              whileTap={{ scale: 0.98 }}
               onClick={handleStop}
-              className="flex items-center gap-2 px-4 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 border border-red-400/25 rounded-xl font-medium text-sm transition-all"
+              className="btn-danger"
             >
               <Square size={14} fill="currentColor" />
               Stop
@@ -362,7 +363,7 @@ function WorkEntryRow({ logId, entry }: { logId: string; entry: WorkEntry }) {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Calendar size={13} className={today ? 'text-brand-400' : 'text-surface-400'} />
-          <span className={`text-sm font-medium ${today ? 'text-brand-300' : 'text-white'}`}>{dateLabel}</span>
+          <span className={`text-sm font-medium ${today ? 'text-brand-300' : 'text-surface-50'}`}>{dateLabel}</span>
           {today && (
             <span className="text-xs bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full border border-brand-500/30">
               Active
@@ -417,7 +418,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
     <div className="card p-4 mb-4 bg-gradient-to-r from-brand-500/8 to-purple-500/5 border-brand-500/20">
       <div className="flex items-center gap-2 mb-3">
         <TrendingUp size={14} className="text-brand-400" />
-        <span className="text-sm font-medium text-white">Time Summary</span>
+        <span className="text-sm font-medium text-surface-50">Time Summary</span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -459,7 +460,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
                     animate={{ height: `${Math.max(4, pct)}%` }}
                     transition={{ duration: 0.4 }}
                   />
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-800 border border-surface-700 rounded-lg px-2 py-1 text-xs text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-800 border border-surface-700 rounded-lg px-2 py-1 text-xs text-surface-50 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
                     {format(new Date(entry.date), 'MMM d')}: {formatMs(entry.activeMs)}
                   </div>
                 </div>
@@ -483,7 +484,7 @@ function WorkHistorySection({ log }: { log: WorkLog }) {
         className="w-full flex items-center gap-2 p-4 hover:bg-white/5 transition-colors border-b border-surface-800"
       >
         <Calendar size={14} className="text-brand-400" />
-        <span className="text-sm font-medium text-white">Work History</span>
+        <span className="text-sm font-medium text-surface-50">Work History</span>
         <span className="text-xs text-surface-500 ml-1">
           ({log.workEntries.length} day{log.workEntries.length !== 1 ? 's' : ''})
         </span>
@@ -644,7 +645,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-white text-sm">{log.title}</span>
+            <span className="font-medium text-surface-50 text-sm">{log.title}</span>
             <span className={`badge text-xs ${status.bg} ${status.color} border ${status.border}`}>
               {status.label}
             </span>
@@ -731,7 +732,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
           {confirmDelete ? (
             <div className="flex items-center gap-1">
               <button onClick={() => deleteLog(log._id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs">Yes</button>
-              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-white rounded-lg text-xs">No</button>
+              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
             </div>
           ) : (
             <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
@@ -768,7 +769,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                         className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
                           log.status === s.value
                             ? `${s.bg} ${s.color} ring-1 ring-current`
-                            : 'bg-surface-800 text-surface-500 hover:text-white'
+                            : 'bg-surface-800 text-surface-500 hover:text-surface-50'
                         }`}>
                         {s.label}
                       </button>
@@ -917,7 +918,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                         </motion.form>
                       ) : (
                         <button onClick={() => setShowLinkForm(true)}
-                          className="text-xs text-surface-500 hover:text-white flex items-center gap-1 transition-colors">
+                          className="text-xs text-surface-500 hover:text-surface-50 flex items-center gap-1 transition-colors">
                           <Plus size={12} /> Add link
                         </button>
                       )}
@@ -987,7 +988,7 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
             <Sparkles size={17} className="text-brand-400" />
           </div>
           <div>
-            <h2 className="text-base font-display font-bold text-white">New Work Log</h2>
+            <h2 className="text-base font-display font-bold text-surface-50">New Work Log</h2>
             <p className="text-xs text-surface-400">Link a task to get Start/Pause/Stop controls</p>
           </div>
         </div>
@@ -1051,30 +1052,51 @@ export function WorkLogPage() {
   useEffect(() => { loadAll(); }, []);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between mb-6 flex-wrap gap-4">
+        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
-            <BookMarked size={22} className="text-brand-400" /> Work Logs
+          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl">📋</span>
+            Work Logs
           </h1>
-          <p className="text-surface-400 text-sm mt-1">
-            {activeLogs.length} active · {closedLogs.length} completed
+          <p className="text-surface-400 font-medium text-sm mt-1">
+            {activeLogs.length} Active · {closedLogs.length} Completed
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
-          <Plus size={16} /> New Work Log
+        <button onClick={() => setShowCreate(true)} className="btn-primary">
+          <Plus size={18} /> New Work Log
         </button>
       </motion.div>
 
       {loading && activeLogs.length === 0 ? (
-        <div className="flex items-center justify-center h-48">
-          <Loader2 size={28} className="animate-spin text-brand-400" />
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-24 rounded-lg" />
+                  <Skeleton className="h-5 w-16 rounded-lg" />
+                </div>
+                <Skeleton className="h-8 w-20 rounded-lg" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Skeleton className="h-3 w-16 rounded mb-2" />
+                  <Skeleton className="h-4 w-full rounded" />
+                </div>
+                <div>
+                  <Skeleton className="h-3 w-16 rounded mb-2" />
+                  <Skeleton className="h-4 w-full rounded" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : activeLogs.length === 0 ? (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card p-12 text-center mb-6">
           <BookMarked size={40} className="text-surface-700 mx-auto mb-4" />
-          <h3 className="font-medium text-white mb-2">No active work logs</h3>
+          <h3 className="font-medium text-surface-50 mb-2">No active work logs</h3>
           <p className="text-surface-400 text-sm mb-5">
             Create a log and link it to a task. You'll get<br />
             Start / Pause / Stop controls right inside the card.
@@ -1096,7 +1118,7 @@ export function WorkLogPage() {
       {closedLogs.length > 0 && (
         <div>
           <button onClick={() => setShowClosed(!showClosed)}
-            className="flex items-center gap-2 text-surface-400 hover:text-white text-sm font-medium transition-colors mb-3">
+            className="flex items-center gap-2 text-surface-400 hover:text-surface-50 text-sm font-medium transition-colors mb-3">
             <CheckCheck size={15} className="text-emerald-400" />
             Completed ({closedLogs.length})
             {showClosed ? <ChevronUp size={14} /> : <ChevronDown size={14} />}

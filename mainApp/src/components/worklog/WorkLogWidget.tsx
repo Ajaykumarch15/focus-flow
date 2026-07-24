@@ -22,18 +22,18 @@ export function WorkLogWidget() {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="card p-4 cursor-pointer hover:border-surface-600 transition-all group"
+      className="card p-5 rounded-[22px] cursor-pointer hover:border-surface-700 hover:-translate-y-0.5 transition-all group shadow-sm"
       onClick={() => navigate('/worklog')}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-brand-500/15 flex items-center justify-center">
-            <BookMarked size={14} className="text-brand-400" />
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <BookMarked size={16} />
           </div>
-          <span className="text-sm font-medium text-white">Today's Work Log</span>
+          <span className="text-sm font-semibold text-surface-50">Today's Work Log</span>
         </div>
-        <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors" />
+        <ArrowRight size={16} className="text-surface-400 group-hover:text-surface-50 transition-colors" />
       </div>
 
       {loading && !log ? (
@@ -44,7 +44,7 @@ export function WorkLogWidget() {
         <div className="space-y-2.5">
           {/* Status + mood */}
           <div className="flex items-center gap-2">
-            <span className={`badge text-xs ${status.bg} ${status.color}`}>{status.label}</span>
+            <span className={status.chipClass || `badge ${status.bg} ${status.color}`}>{status.label}</span>
             {log.gitBranch && (
               <span className="flex items-center gap-1 text-xs text-emerald-400 font-mono truncate max-w-[140px]">
                 <GitBranch size={10} />{log.gitBranch}

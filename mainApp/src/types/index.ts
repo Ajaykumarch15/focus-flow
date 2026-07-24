@@ -38,6 +38,7 @@ export interface Task {
   status: TaskStatus;
   category: string;
   deadline?: number;
+  reminderMinutesBefore?: number;
   createdAt: number;
   updatedAt: number;
   subtasks: Subtask[];

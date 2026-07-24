@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
     leaderboardOptIn: { type: Boolean, default: true },
     totalPoints:      { type: Number,  default: 0 },
     settings: {
+      mode:          { type: String,  default: 'dark' },
       dailyGoal:     { type: Number,  default: 8 },
       pomodoroWork:  { type: Number,  default: 25 },
       pomodoroBreak: { type: Number,  default: 5 },

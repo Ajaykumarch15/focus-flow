@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag } from 'lucide-react';
+import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag, Clock } from 'lucide-react';
 import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
-import { PRIORITY_CONFIG, STATUS_CONFIG } from '../../utils/colors';
-import { formatHours, formatDuration } from '../../utils/time';
+import { PRIORITY_CONFIG, STATUS_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
+import { formatHours, formatDuration, getDeadlineStatus } from '../../utils/time';
 import { useNavigate } from 'react-router-dom';
 
 interface TaskCardProps {
@@ -30,6 +30,9 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
   const subtasksTotal = task.subtasks.length;
   const progress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
 
+  const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
+  const isOverdue = deadlineInfo?.status === 'overdue';
+
   return (
     <motion.div
       layout
@@ -37,16 +40,19 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95 }}
       whileHover={{ y: -2 }}
-      className={`card card-hover p-4 cursor-pointer group relative overflow-hidden
-        ${isRunning ? 'border-brand-500/40 bg-brand-500/5' : ''}
-        ${task.status === 'completed' ? 'opacity-60' : ''}
+      className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group relative overflow-hidden
+        ${isRunning ? 'border-amber-400/50 bg-[#FFFDF5] dark:bg-amber-500/10' : ''}
+        ${isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}
+        ${task.status === 'completed' ? 'opacity-70 bg-surface-900/60' : ''}
       `}
       onClick={() => navigate(`/tasks/${task.id}`)}
     >
-      {/* Color accent */}
+      {/* Color accent — cyan->blue gradient for running, red for overdue, task color otherwise */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl"
-        style={{ backgroundColor: task.color }}
+        className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl ${
+          isRunning ? 'bg-gradient-to-b from-cyan-400 to-blue-600' : ''
+        }`}
+        style={{ backgroundColor: isRunning ? undefined : isOverdue ? '#ef4444' : task.color }}
       />
 
       {/* Running glow */}
@@ -63,7 +69,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className={`badge ${priority.bg} ${priority.color} border ${priority.border}`}>
                 {priority.label}
               </span>
@@ -72,8 +78,14 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                   {task.category}
                 </span>
               )}
+              {deadlineInfo && (
+                <span className={`badge ${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
+                  <Clock size={10} className="mr-1" />
+                  {deadlineInfo.label}
+                </span>
+              )}
             </div>
-            <h3 className={`font-medium text-white truncate ${task.status === 'completed' ? 'line-through text-surface-400' : ''}`}>
+            <h3 className={`font-medium text-surface-50 truncate ${task.status === 'completed' ? 'line-through text-surface-400' : ''}`}>
               {task.title}
             </h3>
             {task.description && !compact && (
@@ -116,7 +128,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {!isActive && (
                   <button
                     onClick={() => startTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
                   >
                     <Play size={12} />
                     Start
@@ -125,7 +137,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isRunning && (
                   <button
                     onClick={() => pauseTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-400/15 hover:bg-yellow-400/25 text-yellow-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-yellow-400/15 dark:hover:bg-yellow-400/25 text-amber-700 dark:text-yellow-400 rounded-lg text-xs font-semibold transition-all border border-amber-200/60 dark:border-transparent"
                   >
                     <Pause size={12} />
                     Pause
@@ -134,7 +146,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isPaused && (
                   <button
                     onClick={() => resumeTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/15 hover:bg-brand-500/25 text-brand-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
                   >
                     <Play size={12} />
                     Resume
@@ -143,7 +155,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
                 {isActive && (
                   <button
                     onClick={() => stopTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-400/15 dark:hover:bg-red-400/25 text-red-700 dark:text-red-400 rounded-lg text-xs font-semibold transition-all border border-red-200/60 dark:border-transparent"
                   >
                     <Square size={12} />
                     Stop

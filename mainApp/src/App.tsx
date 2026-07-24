@@ -26,15 +26,15 @@ const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => 
 
 function RouteFallback() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
-      <div className="h-10 w-10 rounded-full border-2 border-cyan-300/30 border-t-cyan-300 animate-spin" aria-label="Loading" />
+    <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center">
+      <div className="h-10 w-10 rounded-full border-2 border-brand-500/30 border-t-brand-500 animate-spin" aria-label="Loading" />
     </div>
   );
 }
 
 export default function App() {
   const { user, token, loading, restoreSession } = useAuthStore();
-  const { loadAll }                      = useStore();
+  const { loadAll }                              = useStore();
 
   // Step 1: restore JWT session on mount
   useEffect(() => {

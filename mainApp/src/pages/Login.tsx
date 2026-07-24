@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Target, Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
@@ -37,7 +37,7 @@ export function Login() {
           <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center mb-4 shadow-lg shadow-brand-500/25">
             <Target size={22} className="text-white" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white">Welcome back</h1>
+          <h1 className="text-2xl font-display font-bold text-surface-50">Welcome back</h1>
           <p className="text-surface-400 mt-1 text-sm">Sign in to your FocusFlow account</p>
         </div>
 

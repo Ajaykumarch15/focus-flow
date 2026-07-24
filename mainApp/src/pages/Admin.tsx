@@ -14,6 +14,10 @@ import {
 import { api } from '../utils/api';
 import { formatHours, isToday, getWeekDays } from '../utils/time';
 import { toast } from '../store/useToastStore';
+import { renderMarkdown } from '../components/ui/proEditor';
+import { Skeleton, SkeletonStatCard, SkeletonCircle } from '../components/ui/Skeleton';
+import { useStore } from '../store/useStore';
+
 
 interface UserSummary {
   _id: string;
@@ -73,6 +77,7 @@ type FilterRange = 'today' | 'week' | 'month' | 'all';
 type AdminTab = 'overview' | 'users' | 'teams';
 
 export function AdminDashboard() {
+  const { theme } = useStore();
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -203,31 +208,74 @@ export function AdminDashboard() {
   );
 
   if (loading) return (
-    <div className="flex items-center justify-center h-screen">
-      <Loader2 size={32} className="animate-spin text-brand-400" />
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header skeleton */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+        <div>
+          <Skeleton className="h-8 w-48 rounded mb-2" />
+          <Skeleton className="h-4 w-64 rounded" />
+        </div>
+        <Skeleton className="h-10 w-48 rounded-2xl" />
+      </div>
+
+      {/* Stat cards skeleton */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonStatCard key={i} />
+        ))}
+      </div>
+
+      {/* Content skeleton */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="card p-6">
+          <Skeleton className="h-5 w-32 rounded mb-6" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 mb-4">
+              <SkeletonCircle size={36} />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-28 rounded mb-1" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="card p-6">
+          <Skeleton className="h-5 w-32 rounded mb-6" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 mb-4">
+              <SkeletonCircle size={36} />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-32 rounded mb-1" />
+                <Skeleton className="h-3 w-24 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <AnimatePresence mode="wait">
         {!selectedUser && !selectedTeam ? (
           <motion.div key="admin-main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             {/* Header & Tabs */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
               <div>
-                <h1 className="text-2xl font-display font-bold text-white flex items-center gap-2">
-                  <ShieldCheck size={24} className="text-brand-400" /> Admin Console
+                <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xl">🛡️</span>
+                  Admin Console
                 </h1>
-                <p className="text-surface-400 mt-1">Manage users, teams, and track global productivity</p>
+                <p className="text-surface-400 font-medium text-sm mt-1.5">Manage users, teams, and track global productivity</p>
               </div>
-              <div className="flex items-center gap-2 bg-surface-900 p-1 rounded-2xl border border-surface-800">
+              <div className="flex items-center gap-2 bg-surface-900 p-1.5 rounded-[14px] border border-surface-800 shadow-sm">
                 {(['overview', 'users', 'teams'] as AdminTab[]).map(tab => (
                   <button
                     key={tab}
                     onClick={() => { setActiveTab(tab); setSearch(''); }}
-                    className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${
-                      activeTab === tab ? 'bg-brand-500 text-white shadow-lg shadow-brand-500/20' : 'text-surface-400 hover:text-white'
+                    className={`px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${
+                      activeTab === tab ? 'bg-brand-500 text-white shadow-sm' : 'text-surface-400 hover:text-surface-50'
                     }`}
                   >
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -239,8 +287,8 @@ export function AdminDashboard() {
             {/* Content Scoped by Tab */}
             {activeTab === 'overview' && (
               <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <StatCard icon={Users} label="Total Users" value={String(stats?.totalUsers)} color="#0ea5e9" />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                  <StatCard icon={Users} label="Total Users" value={String(stats?.totalUsers)} color={theme?.accentColor || "#0ea5e9"} />
                   <StatCard icon={Activity} label="Active Now" value={String(stats?.activeUsers)} color="#22c55e" sub="timing focus" />
                   <StatCard icon={Clock} label="Today Focus" value={formatHours(stats?.todayTotalMs || 0)} color="#8b5cf6" />
                   <StatCard icon={BarChart3} label="Today Sessions" value={String(stats?.todaySessionCount)} color="#f97316" />
@@ -248,9 +296,9 @@ export function AdminDashboard() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Top Teams Preview */}
-                  <div className="card p-6">
+                  <div className="card p-6 rounded-[22px] shadow-sm">
                     <div className="flex items-center justify-between mb-6">
-                      <h2 className="font-display font-bold text-white flex items-center gap-2">
+                      <h2 className="font-display font-bold text-surface-50 flex items-center gap-2">
                         <Users size={18} className="text-brand-400" /> Active Teams
                       </h2>
                       <button onClick={() => setActiveTab('teams')} className="text-xs text-brand-400 hover:underline">View All</button>
@@ -259,12 +307,12 @@ export function AdminDashboard() {
                       {teams.slice(0, 5).map(team => (
                         <div key={team._id} className="p-4 bg-surface-900/50 rounded-2xl border border-surface-800 flex items-center justify-between">
                           <div>
-                            <h3 className="text-white font-semibold">{team.name}</h3>
+                            <h3 className="text-surface-50 font-semibold">{team.name}</h3>
                             <p className="text-xs text-surface-500">{team.members.length} members</p>
                           </div>
                           <div className="flex -space-x-2">
                             {team.members.slice(0, 4).map(m => (
-                              <div key={m._id} className="w-8 h-8 rounded-full bg-surface-700 border-2 border-surface-950 flex items-center justify-center text-[10px] font-bold text-white">
+                              <div key={m._id} className="w-8 h-8 rounded-full bg-surface-700 border-2 border-surface-950 flex items-center justify-center text-[10px] font-bold text-surface-50">
                                 {m.name.charAt(0)}
                               </div>
                             ))}
@@ -282,7 +330,7 @@ export function AdminDashboard() {
                   {/* Quick User List */}
                   <div className="card p-6">
                     <div className="flex items-center justify-between mb-6">
-                      <h2 className="font-display font-bold text-white flex items-center gap-2">
+                      <h2 className="font-display font-bold text-surface-50 flex items-center gap-2">
                         <UserIcon size={18} className="text-emerald-400" /> Recent Users
                       </h2>
                       <button onClick={() => setActiveTab('users')} className="text-xs text-emerald-400 hover:underline">View All</button>
@@ -294,7 +342,7 @@ export function AdminDashboard() {
                             {u.name.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{u.name}</p>
+                            <p className="text-sm font-medium text-surface-50 truncate">{u.name}</p>
                             <p className="text-[10px] text-surface-500 truncate">{u.email}</p>
                           </div>
                           <div className="text-[10px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 font-bold uppercase">
@@ -332,7 +380,7 @@ export function AdminDashboard() {
                           <UserIcon size={24} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold truncate">{u.name}</h3>
+                          <h3 className="text-surface-50 font-semibold truncate">{u.name}</h3>
                           <p className="text-sm text-surface-400 truncate">{u.email}</p>
                         </div>
                         <ChevronRight size={18} className="text-surface-600 group-hover:text-brand-400 transition-colors" />
@@ -385,7 +433,7 @@ export function AdminDashboard() {
                                 setTeamMembers(t.members.map(m => m._id));
                                 setShowTeamModal(true);
                               }}
-                              className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-white transition-all"
+                              className="p-2 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-surface-50 transition-all"
                             >
                               <Edit2 size={16} />
                             </button>
@@ -397,14 +445,14 @@ export function AdminDashboard() {
                             </button>
                           </div>
                         </div>
-                        <h3 className="text-xl font-bold text-white mb-2">{t.name}</h3>
+                        <h3 className="text-xl font-bold text-surface-50 mb-2">{t.name}</h3>
                         <p className="text-sm text-surface-400 mb-6 line-clamp-2">{t.description || 'No description'}</p>
                       </div>
                       
                       <div className="flex items-center justify-between pt-6 border-t border-surface-800">
                         <div className="flex -space-x-2">
                           {t.members.slice(0, 3).map(m => (
-                            <div key={m._id} className="w-8 h-8 rounded-full bg-surface-800 border-2 border-surface-950 flex items-center justify-center text-[10px] font-bold text-white">
+                            <div key={m._id} className="w-8 h-8 rounded-full bg-surface-800 border-2 border-surface-950 flex items-center justify-center text-[10px] font-bold text-surface-50">
                               {m.name.charAt(0)}
                             </div>
                           ))}
@@ -452,7 +500,7 @@ export function AdminDashboard() {
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               className="relative bg-surface-900 border border-surface-800 rounded-3xl w-full max-w-2xl shadow-2xl p-8"
             >
-              <h2 className="text-2xl font-display font-bold text-white mb-6">
+              <h2 className="text-2xl font-display font-bold text-surface-50 mb-6">
                 {editingTeam ? 'Edit Team' : 'Create New Team'}
               </h2>
               
@@ -487,7 +535,7 @@ export function AdminDashboard() {
                             {isMember ? <Check size={18} /> : u.name.charAt(0)}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white">{u.name}</p>
+                            <p className="text-sm font-medium text-surface-50">{u.name}</p>
                             <p className="text-xs text-surface-500">{u.email}</p>
                           </div>
                         </div>
@@ -498,7 +546,7 @@ export function AdminDashboard() {
               </div>
 
               <div className="flex items-center justify-end gap-3 mt-8">
-                <button onClick={() => setShowTeamModal(false)} className="px-6 py-2.5 text-sm font-medium text-surface-400 hover:text-white transition-colors">Cancel</button>
+                <button onClick={() => setShowTeamModal(false)} className="px-6 py-2.5 text-sm font-medium text-surface-400 hover:text-surface-50 transition-colors">Cancel</button>
                 <button onClick={handleSaveTeam} className="btn-primary px-8">{editingTeam ? 'Update Team' : 'Create Team'}</button>
               </div>
             </motion.div>
@@ -581,7 +629,7 @@ function CalendarHeatmap({
               title={data ? `${ds}: ${data.totalHours}h, ${data.workLogCount} logs, ${data.completedCount} completed` : ds}
             >
               <span className={`absolute inset-0 flex items-center justify-center text-[10px] md:text-xs
-                ${heat >= 2 ? 'text-white' : 'text-surface-400'} ${tod ? 'font-bold' : ''}`}>
+                ${heat >= 2 ? 'text-surface-50' : 'text-surface-400'} ${tod ? 'font-bold' : ''}`}>
                 {day.getDate()}
               </span>
             </motion.button>
@@ -593,6 +641,7 @@ function CalendarHeatmap({
 }
 
 function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }: any) {
+  const { theme } = useStore();
   const [detailTab, setDetailTab] = useState<'analytics' | 'worklogs' | 'reports'>('analytics');
 
   // Reports tab state
@@ -647,7 +696,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"><ArrowLeft size={20} /></button>
           <div>
-            <h1 className="text-2xl font-display font-bold text-white">{user.name}</h1>
+            <h1 className="text-2xl font-display font-bold text-surface-50">{user.name}</h1>
             <p className="text-surface-400">{user.email}</p>
           </div>
         </div>
@@ -670,7 +719,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
             className={`flex items-center gap-2 px-4 py-3 border-b-2 font-medium text-sm transition-all ${
               detailTab === t.id
                 ? 'border-brand-500 text-brand-400'
-                : 'border-transparent text-surface-400 hover:text-white'
+                : 'border-transparent text-surface-400 hover:text-surface-50'
             }`}
           >
             <t.icon size={16} />
@@ -686,7 +735,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
           {detailTab === 'analytics' && analytics && (
             <div className="space-y-6">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={Clock} label="Focus Time" value={formatHours(analytics.summary.totalTimeMs)} color="#0ea5e9" />
+                <StatCard icon={Clock} label="Focus Time" value={formatHours(analytics.summary.totalTimeMs)} color={theme?.accentColor || "#0ea5e9"} />
                 <StatCard icon={CheckCircle2} label="Tasks Done" value={String(analytics.summary.completedTasks)} color="#22c55e" />
                 <StatCard icon={BookMarked} label="Work Logs" value={String(analytics.summary.workLogCount)} color="#8b5cf6" />
                 <StatCard icon={BarChart3} label="Sessions" value={String(analytics.summary.sessionCount)} color="#f97316" />
@@ -694,7 +743,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 card p-6">
-                  <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-brand-400" /> Daily Focus</h2>
+                  <h2 className="text-lg font-bold text-surface-50 mb-6 flex items-center gap-2"><TrendingUp size={18} className="text-brand-400" /> Daily Focus</h2>
                   <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData}>
@@ -702,17 +751,17 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                         <XAxis dataKey="date" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
                         <YAxis tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
                         <Tooltip cursor={{ fill: '#27272a', radius: 8 }} contentStyle={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 8 }} />
-                        <Bar dataKey="hours" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="hours" fill={theme?.accentColor || "#0ea5e9"} radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
                 <div className="card p-6">
-                  <h2 className="text-lg font-bold text-white mb-4">Top Tasks</h2>
+                  <h2 className="text-lg font-bold text-surface-50 mb-4">Top Tasks</h2>
                   <div className="space-y-3">
                     {analytics.tasks.slice(0, 6).map((t: any) => (
                       <div key={t._id} className="p-3 bg-surface-900/50 rounded-xl border border-surface-800">
-                        <p className="text-white text-sm font-medium truncate">{t.title}</p>
+                        <p className="text-surface-50 text-sm font-medium truncate">{t.title}</p>
                         <p className="text-[10px] text-surface-500 uppercase mt-1">{t.category} · {formatHours(t.totalTime)}</p>
                       </div>
                     ))}
@@ -724,7 +773,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 
           {detailTab === 'worklogs' && analytics && (
             <div className="space-y-4">
-              <h2 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <h2 className="text-lg font-bold text-surface-50 mb-2 flex items-center gap-2">
                 <BookMarked className="text-brand-400" size={18} /> User Work Logs
               </h2>
               {analytics.workLogs && analytics.workLogs.length > 0 ? (
@@ -732,7 +781,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                   <div key={log._id} className="card p-5 border border-surface-800 flex flex-col gap-4">
                     <div className="flex items-center gap-3 flex-wrap justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-white text-base">{log.title}</span>
+                        <span className="font-semibold text-surface-50 text-base">{log.title}</span>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
                           {log.status}
                         </span>
@@ -753,13 +802,13 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                       {log.problem && (
                         <div className="bg-surface-900/30 p-3 rounded-xl border border-surface-800/40">
                           <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Problem</span>
-                          <p className="text-sm text-surface-200">{log.problem}</p>
+                          <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
                         </div>
                       )}
                       {log.currentWork && (
                         <div className="bg-surface-900/30 p-3 rounded-xl border border-surface-800/40">
                           <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">What was done</span>
-                          <p className="text-sm text-surface-200">{log.currentWork}</p>
+                          <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
                         </div>
                       )}
                     </div>
@@ -781,7 +830,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                     {log.blockers && (
                       <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl">
                         <span className="block text-[10px] text-red-400 uppercase tracking-wider mb-1 font-semibold">Blockers</span>
-                        <p className="text-sm text-surface-300">{log.blockers}</p>
+                        <div className="prose-editor text-sm text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
                       </div>
                     )}
 
@@ -789,13 +838,13 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                       {log.plan && (
                         <div>
                           <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Next Plan</span>
-                          <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.plan}</p>
+                          <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
                         </div>
                       )}
                       {log.designNotes && (
                         <div>
                           <span className="block text-[10px] text-surface-500 uppercase tracking-wider mb-1 font-semibold">Design & Arch Notes</span>
-                          <p className="text-xs text-surface-300 whitespace-pre-wrap">{log.designNotes}</p>
+                          <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
                         </div>
                       )}
                     </div>
@@ -829,7 +878,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                       <ArrowLeft size={16} />
                     </button>
                     <div>
-                      <h2 className="text-xl font-bold text-white">Daily Report - {selectedReportDate}</h2>
+                      <h2 className="text-xl font-bold text-surface-50">Daily Report - {selectedReportDate}</h2>
                       <p className="text-xs text-surface-400">Viewing work details for {user.name}</p>
                     </div>
                   </div>
@@ -860,7 +909,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 
                       {/* Work Logs */}
                       <div className="lg:col-span-3 space-y-4">
-                        <h3 className="font-semibold text-white flex items-center gap-2">
+                        <h3 className="font-semibold text-surface-50 flex items-center gap-2">
                           <BookMarked size={16} className="text-brand-400" /> Work Logs
                         </h3>
                         {dayReportDetail.workLogs?.length === 0 ? (
@@ -869,7 +918,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                           dayReportDetail.workLogs.map((log: any) => (
                             <div key={log._id} className="card p-4 border border-surface-800 flex flex-col gap-2">
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-white text-sm">{log.title}</span>
+                                <span className="font-medium text-surface-50 text-sm">{log.title}</span>
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>
                                   {log.status}
                                 </span>
@@ -895,7 +944,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 
                       {/* Tasks & Times */}
                       <div className="lg:col-span-2 space-y-4">
-                        <h3 className="font-semibold text-white flex items-center gap-2">
+                        <h3 className="font-semibold text-surface-50 flex items-center gap-2">
                           <Clock size={16} className="text-brand-400" /> Time by Task
                         </h3>
                         {dayReportDetail.tasks?.length === 0 ? (
@@ -906,7 +955,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                             return (
                               <div key={task.taskId} className="card p-3 flex flex-col gap-1.5">
                                 <div className="flex justify-between items-center">
-                                  <span className="text-xs font-medium text-white truncate">{task.title}</span>
+                                  <span className="text-xs font-medium text-surface-50 truncate">{task.title}</span>
                                   <span className="text-xs font-mono text-brand-400">{formatHours(task.totalMs)}</span>
                                 </div>
                                 <div className="h-1 bg-surface-800 rounded-full overflow-hidden">
@@ -926,7 +975,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                 <div className="space-y-6">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
-                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-surface-50 flex items-center gap-2">
                         <Calendar size={18} className="text-brand-400" /> Heatmap & Month Summary
                       </h2>
                       <p className="text-xs text-surface-400">Click any day to view detailed daily reports</p>
@@ -939,7 +988,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                       >
                         <ChevronLeft size={14} />
                       </button>
-                      <span className="text-sm font-semibold text-white min-w-[100px] text-center">
+                      <span className="text-sm font-semibold text-surface-50 min-w-[100px] text-center">
                         {format(reportMonth, 'MMMM yyyy')}
                       </span>
                       <button
@@ -984,6 +1033,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
 }
 
 function TeamDetailView({ team, analytics, loading, filter, setFilter, onBack }: any) {
+  const { theme } = useStore();
   const chartData = useMemo(() => {
     if (!analytics?.memberBreakdown) return [];
     return analytics.memberBreakdown
@@ -1000,7 +1050,7 @@ function TeamDetailView({ team, analytics, loading, filter, setFilter, onBack }:
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 transition-all"><ArrowLeft size={20} /></button>
           <div>
-            <h1 className="text-2xl font-display font-bold text-white">{team?.name || 'Team Analytics'}</h1>
+            <h1 className="text-2xl font-display font-bold text-surface-50">{team?.name || 'Team Analytics'}</h1>
             <p className="text-surface-400">{team?.members?.length || 0} active members</p>
           </div>
         </div>
@@ -1010,7 +1060,7 @@ function TeamDetailView({ team, analytics, loading, filter, setFilter, onBack }:
       {loading ? <LoadingPlaceholder /> : analytics && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Clock} label="Team Total Focus" value={formatHours(analytics.summary?.totalTimeMs || 0)} color="#0ea5e9" />
+            <StatCard icon={Clock} label="Team Total Focus" value={formatHours(analytics.summary?.totalTimeMs || 0)} color={theme?.accentColor || "#0ea5e9"} />
             <StatCard icon={CheckCircle2} label="Tasks Completed" value={String(analytics.summary?.completedTasks || 0)} color="#22c55e" />
             <StatCard icon={Users} label="Team Size" value={String(analytics.summary?.activeMembers || 0)} color="#8b5cf6" />
             <StatCard icon={Zap} label="Avg Time / User" value={formatHours((analytics.summary?.totalTimeMs || 0) / (analytics.summary?.activeMembers || 1))} color="#f97316" />
@@ -1018,7 +1068,7 @@ function TeamDetailView({ team, analytics, loading, filter, setFilter, onBack }:
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 card p-6">
-              <h2 className="text-lg font-bold text-white mb-6">Team Contribution (Hours)</h2>
+              <h2 className="text-lg font-bold text-surface-50 mb-6">Team Contribution (Hours)</h2>
               <div className="h-[300px]">
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -1036,18 +1086,18 @@ function TeamDetailView({ team, analytics, loading, filter, setFilter, onBack }:
               </div>
             </div>
             <div className="card p-6">
-              <h2 className="text-lg font-bold text-white mb-4">Member Activity</h2>
+              <h2 className="text-lg font-bold text-surface-50 mb-4">Member Activity</h2>
               <div className="space-y-4">
                 {(analytics.memberBreakdown || []).map((m: any) => (
                   <div key={m.userId} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-surface-800 flex items-center justify-center text-[10px] font-bold text-white">
+                      <div className="w-8 h-8 rounded-full bg-surface-800 flex items-center justify-center text-[10px] font-bold text-surface-50">
                         {(m.name || 'U').charAt(0).toUpperCase()}
                       </div>
                       <span className="text-sm text-surface-200">{m.name || 'Unknown User'}</span>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-white">{formatHours(m.totalTimeMs || 0)}</p>
+                      <p className="text-sm font-bold text-surface-50">{formatHours(m.totalTimeMs || 0)}</p>
                       <p className="text-[10px] text-surface-500 uppercase">{m.completedTasks || 0} tasks</p>
                     </div>
                   </div>
@@ -1068,7 +1118,7 @@ function StatCard({ icon: Icon, label, value, sub, color }: any) {
       <div className="flex items-center gap-3 text-surface-400 text-sm mb-3">
         <Icon size={16} style={{ color }} /> {label}
       </div>
-      <div className="text-2xl font-display font-bold text-white">{value}</div>
+      <div className="text-2xl font-display font-bold text-surface-50">{value}</div>
       {sub && <p className="text-[10px] text-surface-500 mt-1 uppercase tracking-wider">{sub}</p>}
     </div>
   );
@@ -1082,7 +1132,7 @@ function FilterSelector({ active, onChange }: any) {
           key={r}
           onClick={() => onChange(r)}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            active === r ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'
+            active === r ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-50'
           }`}
         >
           {r.charAt(0).toUpperCase() + r.slice(1)}
@@ -1095,8 +1145,11 @@ function FilterSelector({ active, onChange }: any) {
 function LoadingPlaceholder() {
   return (
     <div className="flex flex-col items-center justify-center h-64 gap-4">
-      <Loader2 size={32} className="animate-spin text-brand-400" />
-      <p className="text-surface-400">Loading data...</p>
+      <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonStatCard key={i} />
+        ))}
+      </div>
     </div>
   );
 }

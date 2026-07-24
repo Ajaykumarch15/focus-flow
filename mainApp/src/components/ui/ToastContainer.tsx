@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+﻿import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { useToastStore, Toast, ToastType } from '../../store/useToastStore';
 
@@ -62,7 +62,7 @@ function ToastCard({ toast }: { toast: Toast }) {
 
       {/* Text */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white leading-snug">{toast.title}</p>
+        <p className="text-sm font-medium text-surface-50 leading-snug">{toast.title}</p>
         {toast.message && (
           <p className="text-xs text-surface-400 mt-0.5 leading-relaxed">{toast.message}</p>
         )}
@@ -71,7 +71,7 @@ function ToastCard({ toast }: { toast: Toast }) {
       {/* Dismiss button */}
       <button
         onClick={() => removeToast(toast.id)}
-        className="flex-shrink-0 p-1 rounded-lg text-surface-500 hover:text-white hover:bg-surface-700 transition-all"
+        className="flex-shrink-0 p-1 rounded-lg text-surface-500 hover:text-surface-50 hover:bg-surface-700 transition-all"
         aria-label="Dismiss"
       >
         <X size={14} />

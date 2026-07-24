@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, Square, RotateCcw, Minimize2, Coffee, Zap, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDuration } from '../utils/time';
+import { getNotificationSettings } from '../hooks/useNotifications';
+import { toast } from '../store/useToastStore';
 
 const QUOTES = [
   "The secret of getting ahead is getting started.",
@@ -13,7 +15,7 @@ const QUOTES = [
 ];
 
 export function FocusMode() {
-  const { profile, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
+  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
   const [mode, setMode] = useState<'pomodoro' | 'break'>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(profile.pomodoroWork * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -37,6 +39,28 @@ export function FocusMode() {
         setTimeLeft(t => {
           if (t <= 1) {
             setIsRunning(false);
+            const prefs = getNotificationSettings();
+            if (prefs.pomodoroAlerts) {
+              if (mode === 'pomodoro') {
+                try {
+                  new Notification('Focus Session Complete', {
+                    body: 'Time for a break! Great work.',
+                    tag: 'pomodoro-break',
+                    icon: '/favicon.svg',
+                  });
+                } catch { /* ignore */ }
+                toast.success('Focus Session Complete', 'Time for a break! Great work.');
+              } else {
+                try {
+                  new Notification('Break Over', {
+                    body: 'Ready for the next focus session?',
+                    tag: 'pomodoro-work',
+                    icon: '/favicon.svg',
+                  });
+                } catch { /* ignore */ }
+                toast.info('Break Over', 'Ready for the next focus session?');
+              }
+            }
             if (mode === 'pomodoro') setMode('break');
             else setMode('pomodoro');
             return 0;
@@ -84,7 +108,7 @@ export function FocusMode() {
       <div className="absolute inset-0 overflow-hidden">
         <motion.div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-10"
-          style={{ background: mode === 'pomodoro' ? 'radial-gradient(circle, #0ea5e9, transparent)' : 'radial-gradient(circle, #22c55e, transparent)' }}
+          style={{ background: mode === 'pomodoro' ? `radial-gradient(circle, ${theme?.accentColor || '#0ea5e9'}, transparent)` : 'radial-gradient(circle, #22c55e, transparent)' }}
           animate={{ scale: isRunning ? [1, 1.1, 1] : 1 }}
           transition={{ duration: 4, repeat: Infinity }}
         />
@@ -92,74 +116,78 @@ export function FocusMode() {
 
       <div className="relative z-10 flex flex-col items-center max-w-xl w-full">
         {/* Mode Toggle */}
-        <div className="flex bg-surface-900 border border-surface-800 rounded-2xl p-1 mb-8">
+        <div className="flex bg-surface-900 border border-surface-800 rounded-[14px] p-1.5 mb-8 shadow-sm">
           {(['pomodoro', 'break'] as const).map(m => (
             <button
               key={m}
               onClick={() => setMode(m)}
-              className={`px-6 py-2 rounded-xl text-sm font-medium transition-all ${mode === m ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-white'}`}
+              className={`px-6 py-2.5 rounded-[10px] text-xs font-semibold transition-all ${mode === m ? 'bg-brand-500 text-white shadow-sm' : 'text-surface-400 hover:text-surface-50'}`}
             >
-              {m === 'pomodoro' ? <span className="flex items-center gap-1.5"><Zap size={14} /> Focus</span> : <span className="flex items-center gap-1.5"><Coffee size={14} /> Break</span>}
+              {m === 'pomodoro' ? <span className="flex items-center gap-1.5"><Zap size={14} /> Focus Session</span> : <span className="flex items-center gap-1.5"><Coffee size={14} /> Break Session</span>}
             </button>
           ))}
         </div>
 
-        {/* Timer Circle */}
-        <div className="relative mb-8">
-          <svg width="300" height="300" className="-rotate-90">
-            <circle cx="150" cy="150" r={r} fill="none" stroke="#27272a" strokeWidth="8" />
-            <motion.circle
-              cx="150" cy="150" r={r}
-              fill="none"
-              stroke={mode === 'pomodoro' ? '#0ea5e9' : '#22c55e'}
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              transition={{ duration: 0.5 }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <div className="timer-display text-6xl font-bold text-white mb-1">
-              {formatDuration(timeLeft * 1000)}
-            </div>
-            <div className={`text-sm font-medium ${mode === 'pomodoro' ? 'text-brand-400' : 'text-emerald-400'}`}>
-              {mode === 'pomodoro' ? 'Focus Time' : 'Break Time'}
+        {/* Timer Elevated Card */}
+        <div className="card p-8 rounded-[22px] shadow-sm border border-surface-800 flex flex-col items-center mb-8 w-full bg-[#FFFDF5] dark:bg-surface-900">
+          <div className="relative mb-6">
+            <svg width="280" height="280" className="-rotate-90">
+              <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-surface-800)" strokeWidth="8" />
+              <motion.circle
+                cx="140" cy="140" r={r}
+                fill="none"
+                stroke={mode === 'pomodoro' ? '#f59e0b' : '#22c55e'}
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                transition={{ duration: 0.5 }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <div className="timer-display text-5xl lg:text-6xl font-extrabold text-surface-50 mb-1">
+                {formatDuration(timeLeft * 1000)}
+              </div>
+              <div className={`text-xs font-bold uppercase tracking-wider ${mode === 'pomodoro' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                {mode === 'pomodoro' ? 'Focusing' : 'Break Time'}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={handleReset}
-            className="p-3 rounded-2xl bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white transition-all"
-          >
-            <RotateCcw size={20} />
-          </button>
-          <button
-            onClick={handleToggle}
-            className={`px-10 py-4 rounded-2xl font-semibold text-white text-lg transition-all active:scale-95 ${
-              isRunning ? 'bg-yellow-500/80 hover:bg-yellow-500' : 'bg-brand-500 hover:bg-brand-400'
-            }`}
-          >
-            {isRunning ? <span className="flex items-center gap-2"><Pause size={20} /> Pause</span>
-                       : <span className="flex items-center gap-2"><Play size={20} /> Start</span>}
-          </button>
-          {selectedTaskId && activeTaskId === selectedTaskId && (
+          {/* Controls */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => { stopTimer(selectedTaskId); setSelectedTaskId(''); }}
-              className="p-3 rounded-2xl bg-surface-800 hover:bg-red-500/20 text-surface-300 hover:text-red-400 transition-all"
+              onClick={handleReset}
+              className="btn-secondary px-4"
+              title="Reset Timer"
             >
-              <Square size={20} />
+              <RotateCcw size={18} />
             </button>
-          )}
+            <button
+              onClick={handleToggle}
+              className={`btn-primary px-8 text-base font-semibold ${
+                isRunning ? 'bg-amber-500 text-white' : ''
+              }`}
+            >
+              {isRunning ? <span className="flex items-center gap-2"><Pause size={18} /> Pause</span>
+                         : <span className="flex items-center gap-2"><Play size={18} fill="white" /> Start Focus</span>}
+            </button>
+            {selectedTaskId && activeTaskId === selectedTaskId && (
+              <button
+                onClick={() => { stopTimer(selectedTaskId); setSelectedTaskId(''); }}
+                className="btn-danger px-4"
+                title="Stop Timer"
+              >
+                <Square size={16} fill="currentColor" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Task selector */}
         <div className="w-full mb-6">
           <select
-            className="input text-center"
+            className="input h-12 rounded-[14px] text-center font-medium"
             value={selectedTaskId}
             onChange={e => setSelectedTaskId(e.target.value)}
           >
@@ -175,7 +203,7 @@ export function FocusMode() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="text-surface-400 text-center italic text-sm max-w-xs"
+            className="text-surface-400 text-center italic text-sm max-w-sm font-medium"
           >
             "{QUOTES[quoteIdx]}"
           </motion.p>
