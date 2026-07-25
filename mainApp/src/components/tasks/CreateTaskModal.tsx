@@ -53,7 +53,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ duration: 0.2 }}
-        className="bg-surface-900 border border-surface-800 rounded-[22px] p-6 w-full max-w-lg shadow-2xl"
+        className="bg-surface-900 border border-surface-800 rounded-[22px] p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto scrollbar-thin"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-6">
