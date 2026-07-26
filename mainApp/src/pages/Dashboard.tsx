@@ -7,8 +7,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { useWorkLogStore } from '../store/useWorkLogStore';
 import { api } from '../utils/api';
-import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue } from '../utils/time';
+import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, dayKey, startOfDay } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -94,39 +95,42 @@ function ChartTooltipContent({ active, payload, label }: any) {
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const { tasks, profile, theme, journals, activeTaskId, dataLoading } = useStore();
+  const { tasks, profile, theme, journals, activeTaskId, dataLoading, getTodayTime, activeTimerState } = useStore();
+  const { activeLogs } = useWorkLogStore();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     api.sessions.list().then(setSessions).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    if (activeTimerState === 'running') {
+      const id = setInterval(() => setTick(t => t + 1), 1000);
+      return () => clearInterval(id);
+    }
+  }, [activeTimerState]);
+
   const accent = theme?.accentColor || '#0ea5e9';
 
   // ── Time calculations ────────────────────────────────────────────────────
 
-  const { todayMs, weekMs } = useMemo(() => {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const ts = todayStart.getTime();
-    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-    const ws = weekStart.getTime();
-    let tMs = 0, wMs = 0;
+  const todayMs = getTodayTime();
+
+  const weekMs = useMemo(() => {
+    const ws = getWeekStart();
+    let wMs = 0;
     for (const s of sessions) {
-      if (s.startTime >= ts) tMs += (s.activeTime || 0);
       if (s.startTime >= ws) wMs += (s.activeTime || 0);
     }
     if (activeTaskId) {
       const activeTask = tasks.find(t => t.id === activeTaskId);
       const live = activeTask?.sessions.find(s => !s.endTime);
-      if (live) {
-        if (live.startTime >= ts) tMs += live.activeTime;
-        if (live.startTime >= ws) wMs += live.activeTime;
-      }
+      if (live && live.startTime >= ws) wMs += live.activeTime;
     }
-    return { todayMs: tMs, weekMs: wMs };
+    return wMs;
   }, [sessions, tasks, activeTaskId]);
 
   // ── Derived stats ────────────────────────────────────────────────────────
@@ -143,8 +147,8 @@ export function Dashboard() {
 
   const days = getWeekDays();
   const weekData = useMemo(() => days.map((day, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
-    const start = d.getTime(); const end = start + 86399999;
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const start = startOfDay(d); const end = start + 86399999;
     let hours = 0;
     for (const s of sessions) {
       if (s.startTime >= start && s.startTime <= end) hours += (s.activeTime || 0) / 3600000;
@@ -448,6 +452,51 @@ export function Dashboard() {
             )}
           </motion.div>
 
+          {/* Recent Work Logs */}
+          <motion.div variants={fadeUp}
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-surface-50 text-[15px]">Recent Work Logs</h3>
+              <button onClick={() => navigate('/worklog')}
+                className="text-[11px] font-semibold text-surface-400 hover:text-surface-200 transition-all">
+                View All
+              </button>
+            </div>
+            {activeLogs.length === 0 ? (
+              <div className="text-center py-4">
+                <Briefcase size={20} className="text-surface-600 mx-auto mb-2" />
+                <p className="text-xs text-surface-500">No active work logs</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeLogs.slice(0, 3).map(log => (
+                  <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                    className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-surface-200 truncate">{log.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            log.status === 'in-progress' ? 'bg-sky-500/10 text-sky-400' :
+                            log.status === 'blocked' ? 'bg-red-500/10 text-red-400' :
+                            log.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' :
+                            'bg-surface-700 text-surface-400'
+                          }`}>{log.status}</span>
+                          {log.totalActiveMs > 0 && (
+                            <span className="text-[10px] text-surface-500">
+                              {Math.floor(log.totalActiveMs / 3600000)}h {Math.floor((log.totalActiveMs % 3600000) / 60000)}m
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
           {/* Quick Actions */}
           <motion.div variants={fadeUp}
             className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -512,10 +561,10 @@ function SmartInsights({ weekMs, todayMs, completedToday, overdueCount, streak, 
     }
 
     // Find longest session today
+    const todayStartMs = startOfToday();
     let longestMs = 0;
     for (const s of sessions) {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-      if (s.startTime >= todayStart.getTime() && s.activeTime > longestMs) longestMs = s.activeTime;
+      if (s.startTime >= todayStartMs && s.activeTime > longestMs) longestMs = s.activeTime;
     }
     if (longestMs > 300000) {
       items.push({ icon: Sparkles, text: `Longest session: ${Math.round(longestMs / 60000)}min`, color: '#8b5cf6', bg: 'bg-purple-500/10' });

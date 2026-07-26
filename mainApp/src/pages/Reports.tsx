@@ -14,6 +14,7 @@ import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { renderMarkdown } from '../components/ui/proEditor';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
+import { useNavigate } from 'react-router-dom';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -235,8 +236,9 @@ function buildDayExport(data: DayDetail): string {
 }
 
 // ── Day detail panel ──────────────────────────────────────────────────────────
-function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) {
+function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: () => void; viewUserId?: string }) {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [data, setData]       = useState<DayDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -244,11 +246,14 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
 
   useEffect(() => {
     setLoading(true); setError('');
-    api.reports.day(date)
+    const fetcher = viewUserId
+      ? () => api.admin.getUserReportDay(viewUserId, date)
+      : () => api.reports.day(date);
+    fetcher()
       .then(d => setData(d))
       .catch((err) => { setError(err.message || 'Failed to load day report'); toast.error('Could not load report', err.message); })
       .finally(() => setLoading(false));
-  }, [date]);
+  }, [date, viewUserId]);
 
   const dateLabel = format(parseISO(date), 'EEEE, MMMM d, yyyy');
 
@@ -375,9 +380,10 @@ function DayDetailPanel({ date, onBack }: { date: string; onBack: () => void }) 
               <p className="text-sm text-surface-400">No work logs for this day</p>
             </div>
           ) : data.workLogs.map(log => (
-            <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-5 cursor-pointer hover:border-surface-700 transition-all"
+              onClick={() => navigate(`/worklog/${log._id}`)}>
               <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="font-semibold text-surface-50 text-[15px]">{log.title}</span>
+                <span className="font-semibold text-surface-50 text-[15px] hover:text-brand-400 transition-colors">{log.title}</span>
                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-800 border-surface-700'}`}>
                   {log.status}
                 </span>
@@ -553,41 +559,58 @@ function CalendarHeatmap({
 
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 export function ReportsPage() {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const isAdmin = user?.role === 'admin';
   const [month, setMonth]             = useState(new Date());
   const [summary, setSummary]         = useState<DaySummary[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const todayKey = format(new Date(), 'yyyy-MM-dd');
   const [dayInput, setDayInput] = useState(todayKey);
-  const [rangeFrom, setRangeFrom] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [rangeFrom, setRangeFrom] = useState(format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'));
   const [rangeTo, setRangeTo] = useState(todayKey);
   const [rangeSummary, setRangeSummary] = useState<DaySummary[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
   const [weekSummary, setWeekSummary] = useState<DaySummary[]>([]);
   const [monthSummary, setMonthSummary] = useState<DaySummary[]>([]);
+  const [adminUsers, setAdminUsers] = useState<{ _id: string; name: string; email: string }[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
+
+  useEffect(() => {
+    if (isAdmin) {
+      api.admin.listUsers().then(setAdminUsers).catch(() => {});
+    }
+  }, [isAdmin]);
 
   useEffect(() => {
     setLoadingSummary(true);
     const from = format(startOfMonth(month), 'yyyy-MM-dd');
     const to   = format(endOfMonth(month),   'yyyy-MM-dd');
-    api.reports.summary(from, to)
+    const fetcher = selectedUserId
+      ? () => api.admin.getUserReportsSummary(selectedUserId, from, to)
+      : () => api.reports.summary(from, to);
+    fetcher()
       .then(data => setSummary(data))
       .catch((err) => { setSummary([]); toast.error('Could not load report summary', err.message || 'Please try again.'); })
       .finally(() => setLoadingSummary(false));
-  }, [month]);
+  }, [month, selectedUserId]);
 
   useEffect(() => {
     setRangeLoading(true);
-    api.reports.summary(rangeFrom, rangeTo)
+    const fetcher = selectedUserId
+      ? () => api.admin.getUserReportsSummary(selectedUserId, rangeFrom, rangeTo)
+      : () => api.reports.summary(rangeFrom, rangeTo);
+    fetcher()
       .then(data => setRangeSummary(data))
       .catch((err) => { setRangeSummary([]); toast.error('Could not load range summary', err.message || 'Please try again.'); })
       .finally(() => setRangeLoading(false));
-  }, [rangeFrom, rangeTo]);
+  }, [rangeFrom, rangeTo, selectedUserId]);
 
   useEffect(() => {
     const now = new Date();
-    const weekFrom = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const weekTo = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekFrom = format(startOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+    const weekTo = format(endOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const monthFrom = format(startOfMonth(now), 'yyyy-MM-dd');
     const monthTo = format(endOfMonth(now), 'yyyy-MM-dd');
     Promise.all([api.reports.summary(weekFrom, weekTo), api.reports.summary(monthFrom, monthTo)])
@@ -628,10 +651,21 @@ export function ReportsPage() {
               Reports & Analytics
             </h1>
             <p className="text-surface-400 text-sm mt-1">
-              Your productivity intelligence center — click any day to drill in.
+              {selectedUserId
+                ? `Viewing reports for ${adminUsers.find(u => u._id === selectedUserId)?.name || 'user'}`
+                : 'Your productivity intelligence center — click any day to drill in.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isAdmin && adminUsers.length > 0 && (
+              <select value={selectedUserId} onChange={e => { setSelectedUserId(e.target.value); setSelectedDate(null); }}
+                className="text-xs font-semibold text-surface-300 bg-surface-800 px-3 py-1.5 rounded-lg border border-surface-700 focus:outline-none focus:ring-1 focus:ring-brand-500/50 cursor-pointer">
+                <option value="">My Reports</option>
+                {adminUsers.map(u => (
+                  <option key={u._id} value={u._id}>{u.name}</option>
+                ))}
+              </select>
+            )}
             <span className="text-xs font-semibold text-surface-400 bg-surface-800 px-3 py-1.5 rounded-lg border border-surface-700">
               {format(month, 'MMMM yyyy')}
             </span>
@@ -640,10 +674,68 @@ export function ReportsPage() {
       </motion.div>
 
       {selectedDate ? (
-        <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} />
+        <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} viewUserId={selectedUserId || undefined} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
-          {/* Main content */}
+        <div className="space-y-6">
+
+          {/* ═══ Overview + Peak Performance (top) ═══ */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Month Overview */}
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <h3 className="font-display font-bold text-surface-50 text-[15px] mb-4">{format(month, 'MMMM')} Overview</h3>
+              <div className="space-y-3">
+                {[
+                  { icon: Clock, label: 'Total Hours', value: `${monthHours.toFixed(1)}h`, color: 'text-brand-400', bg: 'bg-brand-500/10' },
+                  { icon: TrendingUp, label: 'Avg / Day', value: `${avgPerDay}h`, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+                  { icon: Calendar, label: 'Days Active', value: String(monthDays), color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
+                  { icon: CheckCircle2, label: 'Completed', value: String(monthDone), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  { icon: Flame, label: 'Sessions', value: String(summary.reduce((a, d) => a + d.sessionCount, 0)), color: 'text-orange-400', bg: 'bg-orange-500/10' },
+                ].map(({ icon: Icon, label, value, color, bg }) => (
+                  <div key={label} className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
+                      <Icon size={14} className={color} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] text-surface-400 font-medium">{label}</p>
+                      <p className="text-sm font-bold text-surface-100">{value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Peak Performance */}
+            {bestDay && (
+              <motion.div variants={fadeUp} initial="hidden" animate="show"
+                className="rounded-2xl border border-brand-500/20 bg-gradient-to-br from-brand-500/5 to-surface-900 p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <Target size={14} className="text-brand-400" />
+                  <span className="text-sm font-bold text-surface-100">Peak Performance</span>
+                </div>
+                <p className="text-3xl font-display font-extrabold text-brand-400">{bestDay.totalHours}h</p>
+                <p className="text-xs text-surface-400 mt-1">{format(parseISO(bestDay.date), 'EEEE, MMMM d')}</p>
+                <div className="flex items-center gap-2 mt-2 text-[11px] text-surface-400">
+                  <span>{bestDay.completedCount} completed</span>
+                  <span>·</span>
+                  <span>{bestDay.sessionCount} sessions</span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Quick Tips */}
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <h3 className="font-display font-bold text-surface-50 text-[13px] mb-3">Quick Tips</h3>
+              <div className="space-y-2.5 text-xs text-surface-400">
+                <p>• Click any calendar day to see the full report</p>
+                <p>• Use quick filters for rapid time range analysis</p>
+                <p>• Share daily reports with your lead — no login needed</p>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* ═══ Main content ═══ */}
           <div className="space-y-6 min-w-0">
 
             {/* ═══ Time Lookup ═══ */}
@@ -689,7 +781,7 @@ export function ReportsPage() {
                   <div className="flex gap-1.5 flex-wrap">
                     {[
                       { label: 'Today', from: new Date(), to: new Date() },
-                      { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 1 }), to: endOfWeek(new Date(), { weekStartsOn: 1 }) },
+                      { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 0 }), to: endOfWeek(new Date(), { weekStartsOn: 0 }) },
                       { label: 'This Month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
                     ].map(({ label, from, to }) => (
                       <button key={label} onClick={() => applyQuickRange(from, to)}
@@ -814,62 +906,6 @@ export function ReportsPage() {
               )}
             </motion.div>
           </div>
-
-          {/* ═══ Sidebar ═══ */}
-          <aside className="hidden lg:block">
-            <div className="sticky top-24 space-y-4">
-              {/* Month Overview */}
-              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                <h3 className="font-display font-bold text-surface-50 text-[15px] mb-4">{format(month, 'MMMM')} Overview</h3>
-                <div className="space-y-3">
-                  {[
-                    { icon: Clock, label: 'Total Hours', value: `${monthHours.toFixed(1)}h`, color: 'text-brand-400', bg: 'bg-brand-500/10' },
-                    { icon: TrendingUp, label: 'Avg / Day', value: `${avgPerDay}h`, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-                    { icon: Calendar, label: 'Days Active', value: String(monthDays), color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-                    { icon: CheckCircle2, label: 'Completed', value: String(monthDone), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                    { icon: Flame, label: 'Sessions', value: String(summary.reduce((a, d) => a + d.sessionCount, 0)), color: 'text-orange-400', bg: 'bg-orange-500/10' },
-                  ].map(({ icon: Icon, label, value, color, bg }) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
-                        <Icon size={14} className={color} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[11px] text-surface-400 font-medium">{label}</p>
-                        <p className="text-sm font-bold text-surface-100">{value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Best day card */}
-              {bestDay && (
-                <div className="rounded-2xl border border-brand-500/20 bg-gradient-to-br from-brand-500/5 to-surface-900 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Target size={14} className="text-brand-400" />
-                    <span className="text-sm font-bold text-surface-100">Peak Performance</span>
-                  </div>
-                  <p className="text-2xl font-display font-extrabold text-brand-400">{bestDay.totalHours}h</p>
-                  <p className="text-xs text-surface-400 mt-1">{format(parseISO(bestDay.date), 'EEEE, MMMM d')}</p>
-                  <div className="flex items-center gap-2 mt-2 text-[11px] text-surface-400">
-                    <span>{bestDay.completedCount} completed</span>
-                    <span>·</span>
-                    <span>{bestDay.sessionCount} sessions</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Quick tips */}
-              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                <h3 className="font-display font-bold text-surface-50 text-[13px] mb-3">Quick Tips</h3>
-                <div className="space-y-2.5 text-xs text-surface-400">
-                  <p>• Click any calendar day to see the full report</p>
-                  <p>• Use quick filters for rapid time range analysis</p>
-                  <p>• Share daily reports with your lead — no login needed</p>
-                </div>
-              </div>
-            </div>
-          </aside>
         </div>
       )}
     </div>

@@ -159,7 +159,29 @@ export const api = {
 
   admin: {
     getStats: () => request<any>('/admin/stats'),
-    listUsers: () => request<any[]>('/admin/users'),
+    listUsers: (includeDeleted?: boolean) => {
+      const qs = includeDeleted ? '?includeDeleted=true' : '';
+      return request<any[]>(`/admin/users${qs}`);
+    },
+    listDeletedUsers: () => request<any[]>('/admin/users/deleted'),
+    updateUser: (userId: string, data: { name?: string; email?: string; role?: string }) =>
+      request<any>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deleteUser: (userId: string) =>
+      request<any>(`/admin/users/${userId}`, { method: 'DELETE' }),
+    restoreUser: (userId: string) =>
+      request<any>(`/admin/users/${userId}/restore`, { method: 'POST' }),
+    getSystemAnalytics: (period?: string) => {
+      const qs = period ? `?period=${period}` : '';
+      return request<any>(`/admin/system-analytics${qs}`);
+    },
+    getActivity: (limit?: number, before?: string, action?: string) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', String(limit));
+      if (before) params.set('before', before);
+      if (action) params.set('action', action);
+      const qs = params.toString();
+      return request<any[]>(`/admin/activity${qs ? '?' + qs : ''}`);
+    },
     getUserAnalytics: (userId: string, from?: number, to?: number) => {
       const params = new URLSearchParams();
       if (from) params.set('from', String(from));

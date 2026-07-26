@@ -3,6 +3,7 @@ const Task = require('../models/Task');
 const Session = require('../models/Session');
 const Journal = require('../models/Journal');
 const WorkLog = require('../models/WorkLog');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
@@ -44,6 +45,7 @@ router.post('/', async (req, res) => {
 
     console.log(`✅ Task created: "${task.title}" (${task._id}) for user ${req.user._id}`);
     res.status(201).json(task);
+    Activity.create({ userId: req.user._id, action: 'task.created', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
   } catch (err) {
     console.error('POST /tasks error:', err);
     res.status(500).json({ message: err.message });
@@ -60,6 +62,9 @@ router.patch('/:id', async (req, res) => {
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);
+    if (req.body.status === 'completed') {
+      Activity.create({ userId: req.user._id, action: 'task.completed', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
+    }
   } catch (err) {
     console.error('PATCH /tasks/:id error:', err);
     res.status(500).json({ message: err.message });
@@ -81,6 +86,7 @@ router.delete('/:id', async (req, res) => {
     ]);
     console.log(`🗑 Task deleted: ${req.params.id}`);
     res.json({ message: 'Task deleted' });
+    Activity.create({ userId: req.user._id, action: 'task.deleted', details: { taskTitle: task.title } }).catch(() => {});
   } catch (err) {
     console.error('DELETE /tasks/:id error:', err);
     res.status(500).json({ message: err.message });

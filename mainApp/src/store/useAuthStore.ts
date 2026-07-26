@@ -12,17 +12,21 @@ interface AuthUser {
   googleConnected?: boolean;
 }
 
+export type Workspace = 'personal' | 'admin';
+
 interface AuthState {
   user:    AuthUser | null;
   token:   string | null;
   loading: boolean;
   error:   string | null;
+  workspace: Workspace | null;
 
   register:       (name: string, email: string, password: string) => Promise<void>;
   login:          (email: string, password: string) => Promise<void>;
   logout:         () => void;
   restoreSession: () => Promise<void>;
   clearError:     () => void;
+  setWorkspace:   (w: Workspace | null) => void;
 }
 
 // ── Key fix ────────────────────────────────────────────────────────────────────
@@ -32,10 +36,11 @@ interface AuthState {
 const existingToken = localStorage.getItem('ff_token');
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user:    null,
-  token:   existingToken,
-  loading: !!existingToken,   // ← THE FIX: true when token exists, false when not
-  error:   null,
+  user:      null,
+  token:     existingToken,
+  loading:   !!existingToken,
+  error:     null,
+  workspace: null,
 
   register: async (name, email, password) => {
     set({ loading: true, error: null });
@@ -71,29 +76,25 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_habit_timer');
     localStorage.removeItem('ff_today_ms');
     clearTimer();
-    set({ user: null, token: null, loading: false });
+    set({ user: null, token: null, loading: false, workspace: null });
   },
 
   restoreSession: async () => {
     const token = localStorage.getItem('ff_token');
-
-    // No token — nothing to restore, stay on loading: false
     if (!token) {
       set({ loading: false });
       return;
     }
-
-    // Token exists — loading was already set to true at initialization.
-    // Validate it with the server.
     try {
       const { user } = await api.auth.me();
       set({ user, token, loading: false });
     } catch {
-      // Token expired or invalid — clear everything
       localStorage.removeItem('ff_token');
-      set({ user: null, token: null, loading: false });
+      set({ user: null, token: null, loading: false, workspace: null });
     }
   },
 
   clearError: () => set({ error: null }),
+
+  setWorkspace: (w) => set({ workspace: w }),
 }));

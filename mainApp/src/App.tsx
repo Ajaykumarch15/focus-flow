@@ -2,10 +2,11 @@ import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
-import { clearTimer }      from './utils/timerPersist';   // clear after auth is known
+import { clearTimer }      from './utils/timerPersist';
 
 import { AppLayout }       from './components/layout/AppLayout';
-import { ProtectedRoute }  from './components/auth/ProtectedRoute';
+import { AdminLayout }     from './components/layout/AdminLayout';
+import { ProtectedRoute, AdminRoute } from './components/auth/ProtectedRoute';
 
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
@@ -19,10 +20,19 @@ const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
+const WorkLogDetailPage = lazy(() => import('./pages/WorkLogDetail').then(module => ({ default: module.WorkLogDetail })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
-const AdminPage       = lazy(() => import('./pages/Admin').then(module => ({ default: module.AdminDashboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
+const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+
+// Admin workspace pages
+const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
+const AdminPeople     = lazy(() => import('./pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
+const AdminTeams      = lazy(() => import('./pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
+const AdminAnalytics  = lazy(() => import('./pages/admin/AdminAnalytics').then(module => ({ default: module.AdminAnalytics })));
+const AdminActivity   = lazy(() => import('./pages/admin/AdminActivity').then(module => ({ default: module.AdminActivity })));
+const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
   return (
@@ -32,21 +42,30 @@ function RouteFallback() {
   );
 }
 
+function AdminWorkspaceRouter() {
+  const { workspace } = useAuthStore();
+  if (workspace !== 'admin') return <Navigate to="/workspace" replace />;
+  return <AdminLayout />;
+}
+
+function PersonalWorkspaceRouter() {
+  const { workspace, user } = useAuthStore();
+  if (user?.role === 'admin' && workspace !== 'personal') return <Navigate to="/workspace" replace />;
+  return <AppLayout />;
+}
+
 export default function App() {
   const { user, token, loading, restoreSession } = useAuthStore();
   const { loadAll }                              = useStore();
 
-  // Step 1: restore JWT session on mount
   useEffect(() => {
     restoreSession();
   }, []);
 
-  // Step 2: once user is confirmed, load all their data from Atlas
   useEffect(() => {
     if (user) {
       loadAll();
     } else if (!loading && !token) {
-      // Auth restore is finished and there is no signed-in user.
       clearTimer();
     }
   }, [user?._id, token, loading]);
@@ -61,10 +80,19 @@ export default function App() {
           <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
           <Route path="/reports/share/:userId/:date" element={<ShareReportPage />} />
 
+          {/* Workspace Selector (admin users only) */}
           <Route element={<ProtectedRoute />}>
-            <Route element={<AppLayout />}>
+            <Route path="/workspace" element={
+              user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/dashboard" replace />
+            } />
+          </Route>
+
+          {/* Personal Workspace */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<PersonalWorkspaceRouter />}>
               <Route path="/dashboard"  element={<Dashboard />} />
               <Route path="/worklog"    element={<WorkLogPage />} />
+              <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
               <Route path="/reports"    element={<ReportsPage />} />
               <Route path="/tasks"      element={<Tasks />} />
               <Route path="/tasks/:id"  element={<TaskDetail />} />
@@ -74,7 +102,19 @@ export default function App() {
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/focus"      element={<FocusMode />} />
               <Route path="/settings"   element={<Settings />} />
-              <Route path="/admin"      element={<AdminPage />} />
+            </Route>
+          </Route>
+
+          {/* Admin Workspace */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
+              <Route path="/admin/overview"  element={<AdminOverview />} />
+              <Route path="/admin/people"    element={<AdminPeople />} />
+              <Route path="/admin/teams"     element={<AdminTeams />} />
+              <Route path="/admin/analytics" element={<AdminAnalytics />} />
+              <Route path="/admin/activity"  element={<AdminActivity />} />
+              <Route path="/admin/settings"  element={<AdminSettings />} />
+              <Route path="/admin"           element={<Navigate to="/admin/overview" replace />} />
             </Route>
           </Route>
 
