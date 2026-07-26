@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { useWorkLogStore } from '../store/useWorkLogStore';
 import { api } from '../utils/api';
 import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
@@ -95,6 +96,7 @@ function ChartTooltipContent({ active, payload, label }: any) {
 
 export function Dashboard() {
   const { tasks, profile, theme, journals, activeTaskId, dataLoading } = useStore();
+  const { activeLogs } = useWorkLogStore();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -444,6 +446,51 @@ export function Dashboard() {
                     </button>
                   );
                 })}
+              </div>
+            )}
+          </motion.div>
+
+          {/* Recent Work Logs */}
+          <motion.div variants={fadeUp}
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display font-bold text-surface-50 text-[15px]">Recent Work Logs</h3>
+              <button onClick={() => navigate('/worklog')}
+                className="text-[11px] font-semibold text-surface-400 hover:text-surface-200 transition-all">
+                View All
+              </button>
+            </div>
+            {activeLogs.length === 0 ? (
+              <div className="text-center py-4">
+                <Briefcase size={20} className="text-surface-600 mx-auto mb-2" />
+                <p className="text-xs text-surface-500">No active work logs</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeLogs.slice(0, 3).map(log => (
+                  <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                    className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-surface-200 truncate">{log.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                            log.status === 'in-progress' ? 'bg-sky-500/10 text-sky-400' :
+                            log.status === 'blocked' ? 'bg-red-500/10 text-red-400' :
+                            log.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' :
+                            'bg-surface-700 text-surface-400'
+                          }`}>{log.status}</span>
+                          {log.totalActiveMs > 0 && (
+                            <span className="text-[10px] text-surface-500">
+                              {Math.floor(log.totalActiveMs / 3600000)}h {Math.floor((log.totalActiveMs % 3600000) / 60000)}m
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
               </div>
             )}
           </motion.div>

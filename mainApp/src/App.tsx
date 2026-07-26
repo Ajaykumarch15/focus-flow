@@ -19,6 +19,7 @@ const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
+const WorkLogDetailPage = lazy(() => import('./pages/WorkLogDetail').then(module => ({ default: module.WorkLogDetail })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const AdminPage       = lazy(() => import('./pages/Admin').then(module => ({ default: module.AdminDashboard })));
@@ -65,6 +66,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/dashboard"  element={<Dashboard />} />
               <Route path="/worklog"    element={<WorkLogPage />} />
+              <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
               <Route path="/reports"    element={<ReportsPage />} />
               <Route path="/tasks"      element={<Tasks />} />
               <Route path="/tasks/:id"  element={<TaskDetail />} />

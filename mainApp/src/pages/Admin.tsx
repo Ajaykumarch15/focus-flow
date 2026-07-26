@@ -18,6 +18,7 @@ import { toast } from '../store/useToastStore';
 import { renderMarkdown } from '../components/ui/proEditor';
 import { Skeleton, SkeletonStatCard, SkeletonCircle } from '../components/ui/Skeleton';
 import { useStore } from '../store/useStore';
+import { useNavigate } from 'react-router-dom';
 
 
 interface UserSummary {
@@ -635,6 +636,7 @@ function CalendarHeatmap({
 
 function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }: any) {
   const { theme } = useStore();
+  const navigate = useNavigate();
   const [detailTab, setDetailTab] = useState<'analytics' | 'worklogs' | 'reports'>('analytics');
   const [reportMonth, setReportMonth] = useState(new Date());
   const [reportSummary, setReportSummary] = useState<any[]>([]);
@@ -784,7 +786,8 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
               {analytics.workLogs && analytics.workLogs.length > 0 ? (
                 analytics.workLogs.map((log: any) => (
                   <motion.div key={log._id} variants={fadeUp}
-                    className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex flex-col gap-4">
+                    className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex flex-col gap-4 cursor-pointer hover:border-surface-700 transition-all"
+                    onClick={() => navigate(`/worklog/${log._id}`)}>
                     <div className="flex items-center gap-3 flex-wrap justify-between">
                       <div className="flex items-center gap-2.5">
                         <span className="font-semibold text-surface-50 text-sm">{log.title}</span>
@@ -900,7 +903,8 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack }:
                         {dayReportDetail.workLogs?.length === 0 ? (
                           <p className="text-xs text-surface-500 italic">No work logs for this day</p>
                         ) : dayReportDetail.workLogs.map((log: any) => (
-                          <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-4 flex flex-col gap-2">
+                          <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-4 flex flex-col gap-2 cursor-pointer hover:border-surface-700 transition-all"
+                            onClick={() => navigate(`/worklog/${log._id}`)}>
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-surface-50">{log.title}</span>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-700'}`}>{log.status}</span>

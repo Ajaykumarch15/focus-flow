@@ -11,6 +11,7 @@ import {
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { useStore } from '../store/useStore';
 import { useProjectStore } from '../store/useProjectStore';
+import { useNavigate } from 'react-router-dom';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -547,6 +548,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
   const [showLinkForm, setShowLinkForm]   = useState(false);
   const [closing, setClosing]             = useState(false);
   const [continuing, setContinuing]       = useState(false);
+  const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { activeTaskId, activeTimerState } = useStore();
@@ -583,7 +585,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 
       {/* Header */}
       <div className="flex items-center gap-3 p-5 cursor-pointer hover:bg-surface-850/30 transition-colors"
-        onClick={() => setExpanded(!expanded)}>
+        onClick={() => navigate(`/worklog/${log._id}`)}>
         {/* Status dot */}
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
           isRunning ? 'bg-brand-400 animate-pulse' :
@@ -1020,12 +1022,16 @@ function ProductivitySidebar({ activeLogs, closedLogs }: { activeLogs: WorkLog[]
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function WorkLogPage() {
   const { activeLogs, closedLogs, loading, loadAll } = useWorkLogStore();
+  const { profile, activeTaskId, activeTimerState } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<WorkLogStatus | 'all'>('all');
 
   useEffect(() => { loadAll(); }, []);
+
+  const totalActiveMs = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
+  const blockedCount = activeLogs.filter(l => l.status === 'blocked').length;
 
   const filteredActive = useMemo(() => {
     let logs = activeLogs;
@@ -1036,8 +1042,6 @@ export function WorkLogPage() {
     if (filterStatus !== 'all') logs = logs.filter(l => l.status === filterStatus);
     return logs;
   }, [activeLogs, search, filterStatus]);
-
-  const totalActiveMs = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
@@ -1089,11 +1093,54 @@ export function WorkLogPage() {
         </div>
       </motion.div>
 
-      {/* ═══ Main layout ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+      {/* ═══ Stats + Alerts (top) ═══ */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { icon: Clock, label: 'Active Logs', value: String(activeLogs.length), color: 'text-brand-400', bg: 'bg-brand-500/10' },
+          { icon: TrendingUp, label: 'Total Time', value: formatMs(totalActiveMs), color: 'text-purple-400', bg: 'bg-purple-500/10' },
+          { icon: CheckCircle2, label: 'Completed', value: String(closedLogs.length), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { icon: Flame, label: 'Streak', value: `${profile?.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+        ].map(({ icon: Icon, label, value, color, bg }) => (
+          <motion.div key={label} variants={fadeUp}
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
+              <Icon size={18} style={{ color }} />
+            </div>
+            <div>
+              <p className="text-[11px] text-surface-400 font-medium">{label}</p>
+              <p className="text-lg font-display font-bold text-surface-100">{value}</p>
+            </div>
+          </motion.div>
+        ))}
+      </motion.div>
 
-        {/* Content */}
-        <div className="space-y-4 min-w-0">
+      {/* Alerts row */}
+      {(blockedCount > 0 || activeTaskId) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          {blockedCount > 0 && (
+            <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 flex items-center gap-3">
+              <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
+              <div>
+                <span className="text-sm font-semibold text-red-400">{blockedCount} blocked</span>
+                <p className="text-xs text-red-400/70">Some work logs need attention</p>
+              </div>
+            </div>
+          )}
+          {activeTaskId && (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-center gap-3">
+              <motion.div className="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"
+                animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
+              <div>
+                <span className="text-sm font-semibold text-amber-400">Timer Active</span>
+                <p className="text-xs text-amber-400/70 capitalize">{activeTimerState}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══ Main content ═══ */}
+      <div className="space-y-4 min-w-0">
           {loading && activeLogs.length === 0 ? (
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -1154,12 +1201,6 @@ export function WorkLogPage() {
             </div>
           )}
         </div>
-
-        {/* Sidebar */}
-        <aside className="hidden lg:block">
-          <ProductivitySidebar activeLogs={activeLogs} closedLogs={closedLogs} />
-        </aside>
-      </div>
 
       <AnimatePresence>
         {showCreate && <CreateLogModal onClose={() => setShowCreate(false)} />}
