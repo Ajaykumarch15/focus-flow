@@ -5,6 +5,7 @@ import {
   Trash2, Plus, Zap, CheckCircle2, BookMarked, RefreshCw, ChevronDown, Loader2,
 } from 'lucide-react';
 import { api } from '../../utils/api';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const ACTION_LABELS: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   'login':              { label: 'Logged in',          color: 'text-blue-400',    bg: 'bg-blue-500/10',    icon: Globe },
@@ -91,7 +92,8 @@ export function AdminActivity() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
-      <div><h1 className="text-2xl font-display font-extrabold text-surface-50 mb-1">Activity</h1><p className="text-sm text-surface-400">Live organization activity feed</p></div>
+      <PageHeader title="Activity" description="Live organization activity feed"
+        icon={<Activity size={18} className="text-purple-400" />} />
 
       <div className="flex items-center gap-3">
         <div className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 overflow-x-auto">

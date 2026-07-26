@@ -10,6 +10,7 @@ import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Priority, TaskStatus } from '../types';
 import { CATEGORIES } from '../utils/colors';
 import { isOverdue, formatHours } from '../utils/time';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -72,19 +73,11 @@ export function Tasks() {
         <div className="absolute top-0 right-0 w-[400px] h-[200px] opacity-10 pointer-events-none"
           style={{ background: 'radial-gradient(ellipse at top right, var(--color-brand-500), transparent 70%)' }} />
         <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 tracking-tight">
-              Tasks
-            </h1>
-            <p className="text-surface-400 text-sm mt-1">
-              {totalActive} active · {totalCompleted} completed
-              {overdueCount > 0 && <span className="text-red-400 font-semibold"> · {overdueCount} overdue</span>}
-            </p>
-          </div>
-          <button onClick={() => setShowCreate(true)}
-            className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20">
-            <Plus size={16} /> New Task
-          </button>
+          <PageHeader title="Tasks" description={`${totalActive} active · ${totalCompleted} completed${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`}
+            actions={<button onClick={() => setShowCreate(true)}
+              className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20">
+              <Plus size={16} /> New Task
+            </button>} />
         </div>
 
         {/* Quick stats */}

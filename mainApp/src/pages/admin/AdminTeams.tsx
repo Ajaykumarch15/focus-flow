@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search, Loader2, Edit2, Trash2, Plus, X, Check, ArrowLeft,
-  TrendingUp, Clock, CheckCircle2,
+  TrendingUp, Clock, CheckCircle2, Globe,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -11,6 +11,7 @@ import {
 import { api } from '../../utils/api';
 import { toast } from '../../store/useToastStore';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -188,7 +189,9 @@ export function AdminTeams() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
-      <div><h1 className="text-2xl font-display font-extrabold text-surface-50 mb-1">Teams</h1><p className="text-sm text-surface-400">Manage organization teams and groups</p></div>
+      <PageHeader title="Teams" description="Manage organization teams and groups"
+        icon={<Globe size={18} className="text-purple-400" />}
+        actions={<button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"><Plus size={14} /> New Team</button>} />
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">

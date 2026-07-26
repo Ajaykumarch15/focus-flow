@@ -1,12 +1,14 @@
 ﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Target, User, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, UserPlus } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { useStore } from '../store/useStore';
 
 export function Register() {
   const navigate  = useNavigate();
   const { register, loading, error, clearError } = useAuthStore();
+  const { theme } = useStore();
   const [form, setForm]     = useState({ name: '', email: '', password: '', confirm: '' });
   const [showPass, setShowPass] = useState(false);
   const [localErr, setLocalErr] = useState('');
@@ -47,8 +49,8 @@ export function Register() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-brand-500 flex items-center justify-center mb-4 shadow-lg shadow-brand-500/25">
-            <Target size={22} className="text-white" />
+          <div className="w-12 h-12 rounded-2xl overflow-hidden mb-4 shadow-lg shadow-brand-500/25">
+            <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full" />
           </div>
           <h1 className="text-2xl font-display font-bold text-surface-50">Create account</h1>
           <p className="text-surface-400 mt-1 text-sm">Start tracking your focus with FocusFlow</p>

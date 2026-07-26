@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { Settings, Shield, Key, Database, Download, FileText, Flag, Globe } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -21,7 +22,8 @@ function SettingSection({ icon: Icon, title, description, children }: {
 export function AdminSettings() {
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-6">
-      <div><h1 className="text-2xl font-display font-extrabold text-surface-50 mb-1">Settings</h1><p className="text-sm text-surface-400">Organization configuration and administration</p></div>
+      <PageHeader title="Settings" description="Organization configuration and administration"
+        icon={<Settings size={18} className="text-purple-400" />} />
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
         <SettingSection icon={Globe} title="General" description="Basic organization settings">

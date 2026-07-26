@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { api } from '../../utils/api';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -46,15 +47,14 @@ export function AdminAnalytics() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-display font-extrabold text-surface-50 mb-1">Analytics</h1><p className="text-sm text-surface-400">Organization-wide metrics and trends</p></div>
-        <div className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800">
+      <PageHeader title="Analytics" description="Organization-wide metrics and trends"
+        icon={<BarChart3 size={18} className="text-purple-400" />}
+        actions={<div className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800">
           {(['week', 'month', 'quarter'] as const).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
               className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all capitalize ${period === p ? 'bg-surface-700/80 text-surface-50 shadow-sm border border-surface-600/30' : 'text-surface-400 hover:text-surface-200'}`}>{p}</button>
           ))}
-        </div>
-      </div>
+        </div>} />
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Users} label="Active Users" value={String(data?.activeUsers || 0)} color="#8b5cf6" />

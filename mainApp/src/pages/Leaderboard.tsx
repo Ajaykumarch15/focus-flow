@@ -4,6 +4,7 @@ import { Trophy, Medal, Flame, Star, Loader2, Users, ArrowUpRight } from 'lucide
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { Skeleton, SkeletonCircle } from '../components/ui/Skeleton';
+import { PageHeader } from '../components/ui/PageHeader';
 
 interface LeaderboardUser {
   _id: string;
@@ -87,19 +88,8 @@ export function Leaderboard() {
   return (
     <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
-      >
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
-            <span className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xl">🏆</span>
-            Focus Leaderboard
-          </h1>
-          <p className="text-surface-400 font-medium text-sm mt-1.5">The Most Dedicated Focusers This Season</p>
-        </div>
-      </motion.div>
+      <PageHeader title="Focus Leaderboard" description="The Most Dedicated Focusers This Season"
+        icon={<span className="text-xl">🏆</span>} iconColor="#f59e0b" />
 
       {/* Top 3 Podium */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
