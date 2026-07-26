@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Habit, HabitFeeling, getTodayHabitEntry, useHabitStore } from '../store/useHabitStore';
 import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
+import { PageHeader } from '../components/ui/PageHeader';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
 const FEELINGS: { value: HabitFeeling; label: string }[] = [
@@ -415,24 +416,9 @@ export function Habits() {
 
   return (
     <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8"
-      >
-        <div>
-          <h1 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
-            <span className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-xl">⚡</span>
-            Habits
-          </h1>
-          <p className="text-surface-400 font-medium text-sm mt-1.5">
-            {habits.length} Habits · {completedToday} Completed Today · {todayMinutes}m Logged
-          </p>
-        </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary">
-          <Plus size={18} /> New Habit
-        </button>
-      </motion.div>
+      <PageHeader title="Habits" description={`${habits.length} Habits · ${completedToday} Completed Today · ${todayMinutes}m Logged`}
+        icon={<span className="text-xl">⚡</span>} iconColor="#10b981"
+        actions={<button onClick={() => setShowCreate(true)} className="btn-primary"><Plus size={18} /> New Habit</button>} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
         <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">

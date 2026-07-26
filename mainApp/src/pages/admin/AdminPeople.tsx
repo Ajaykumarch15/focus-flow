@@ -15,6 +15,7 @@ import { api } from '../../utils/api';
 import { toast } from '../../store/useToastStore';
 import { renderMarkdown } from '../../components/ui/proEditor';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
+import { PageHeader } from '../../components/ui/PageHeader';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -245,10 +246,8 @@ export function AdminPeople() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
-      <div>
-        <h1 className="text-2xl font-display font-extrabold text-surface-50 mb-1">People</h1>
-        <p className="text-sm text-surface-400">Manage your organization's members</p>
-      </div>
+      <PageHeader title="People" description="Manage your organization's members"
+        icon={<Users size={18} className="text-purple-400" />} />
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">

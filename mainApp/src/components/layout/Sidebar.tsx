@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  Target, LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
+import { FocusFlowLogo } from '../ui/FocusFlowLogo';
+import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
@@ -26,6 +28,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout, setWorkspace }          = useAuthStore();
   const { activeTask, activeTimerState, display } = useActiveTimer();
+  const { theme } = useStore();
   const navigate = useNavigate();
 
   return (
@@ -35,15 +38,15 @@ export function Sidebar() {
       className="relative flex flex-col h-screen bg-surface-900 border-r border-surface-800 z-20 flex-shrink-0 shadow-sm"
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-surface-800">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-          <Target size={16} className="text-white" />
+      <div className="flex items-center gap-3 px-4 h-14 border-b border-surface-800">
+        <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0">
+          <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full" />
         </div>
         <AnimatePresence>
           {!collapsed && (
             <motion.span
               initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
-              className="font-display font-bold text-surface-50 text-lg whitespace-nowrap"
+              className="font-display font-bold text-surface-50 text-base whitespace-nowrap"
             >
               FocusFlow
             </motion.span>

@@ -2,11 +2,12 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, LayoutDashboard, Users, BarChart3, Activity,
-  Settings, ChevronLeft, ChevronRight, LogOut, Target,
-  Globe, ArrowLeft, Zap, TrendingUp,
+  Settings, ChevronLeft, ChevronRight, LogOut,
+  Globe, ArrowLeft,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useStore } from '../../store/useStore';
 
 const ADMIN_NAV = [
   { to: '/admin/overview', icon: LayoutDashboard, label: 'Overview' },
@@ -20,6 +21,7 @@ const ADMIN_NAV = [
 export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { user, logout, setWorkspace } = useAuthStore();
+  const { theme } = useStore();
   const navigate = useNavigate();
 
   return (
@@ -29,9 +31,9 @@ export function AdminSidebar() {
       className="relative flex flex-col h-screen bg-surface-900 border-r border-surface-800 z-20 flex-shrink-0 shadow-sm"
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-surface-800">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-          <ShieldCheck size={16} className="text-white" />
+      <div className="flex items-center gap-3 px-4 h-14 border-b border-surface-800">
+        <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0">
+          <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full" />
         </div>
         <AnimatePresence>
           {!collapsed && (
