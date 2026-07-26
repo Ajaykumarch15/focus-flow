@@ -3,6 +3,7 @@ const Team = require('../models/Team');
 const User = require('../models/User');
 const Session = require('../models/Session');
 const Task = require('../models/Task');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 
@@ -35,6 +36,7 @@ router.post('/', async (req, res) => {
     await team.save();
     const populated = await team.populate('members', 'name email avatar role');
     res.status(201).json(populated);
+    Activity.create({ userId: req.user._id, action: 'team.created', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -54,6 +56,7 @@ router.patch('/:id', async (req, res) => {
     
     if (!team) return res.status(404).json({ message: 'Team not found' });
     res.json(team);
+    Activity.create({ userId: req.user._id, action: 'team.updated', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -65,6 +68,7 @@ router.delete('/:id', async (req, res) => {
     const team = await Team.findByIdAndDelete(req.params.id);
     if (!team) return res.status(404).json({ message: 'Team not found' });
     res.json({ message: 'Team deleted' });
+    Activity.create({ userId: req.user._id, action: 'team.deleted', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

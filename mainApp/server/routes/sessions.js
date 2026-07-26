@@ -1,6 +1,7 @@
 const express = require('express');
 const Session = require('../models/Session');
 const Task    = require('../models/Task');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
@@ -68,6 +69,7 @@ router.post('/', async (req, res) => {
     await Task.findByIdAndUpdate(taskId, { status: 'active' });
 
     res.status(201).json(session);
+    Activity.create({ userId: req.user._id, action: 'session.started', details: { taskId, taskTitle: task.title } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -195,6 +197,7 @@ router.patch('/:id/stop', async (req, res) => {
     await Task.findByIdAndUpdate(session.taskId, { totalTime, status: 'todo' });
 
     res.json(session);
+    Activity.create({ userId: req.user._id, action: 'session.completed', details: { taskId: session.taskId, activeMs: session.activeTime } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

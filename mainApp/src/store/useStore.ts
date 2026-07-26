@@ -548,8 +548,8 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     deleteTask: async (id) => {
-      const { activeTaskId, stopTimer } = get();
-      if (activeTaskId === id) stopTimer(id);
+      const { activeTaskId } = get();
+      if (activeTaskId === id) await get().stopTimer(id);
       set(s => ({
         tasks: s.tasks.filter(t => t.id !== id),
         journals: s.journals.filter(j => j.taskId !== id),
@@ -558,8 +558,8 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     completeTask: async (id) => {
-      const { activeTaskId, stopTimer } = get();
-      if (activeTaskId === id) stopTimer(id);
+      const { activeTaskId } = get();
+      if (activeTaskId === id) await get().stopTimer(id);
       await get().updateTask(id, { status: 'completed' });
     },
 
@@ -567,9 +567,13 @@ export const useStore = create<StoreState>((set, get) => {
 
     // ── Timer ─────────────────────────────────────────────────────────────────
     startTimer: async (taskId) => {
-      const currentActiveTaskId = get().activeTaskId;
-      if (currentActiveTaskId && currentActiveTaskId !== taskId) {
-        await get().stopTimer(currentActiveTaskId);
+      const { activeTaskId } = get();
+
+      // If this exact task is already running, do nothing (prevent duplicate session)
+      if (activeTaskId === taskId && get().activeTimerState === 'running') return;
+
+      if (activeTaskId && activeTaskId !== taskId) {
+        await get().stopTimer(activeTaskId);
       }
 
       const now = Date.now();
@@ -877,8 +881,6 @@ export const useStore = create<StoreState>((set, get) => {
     getTask: (id) => get().tasks.find(t => t.id === id),
 
     getTodayTime: () => {
-      const now = Date.now();
-
       // Completed sessions today — from localStorage cache (set in stopTimer)
       const completedMs = loadTodayMs();
 
@@ -889,7 +891,16 @@ export const useStore = create<StoreState>((set, get) => {
         const activeTask = tasks.find(t => t.id === activeTaskId);
         const session = activeTask?.sessions[activeTask.sessions.length - 1];
         if (session && !session.endTime) {
-          liveMs = Math.max(0, now - session.startTime - session.totalPauseDuration);
+          const { activeTimerState } = get();
+          if (activeTimerState === 'running') {
+            // Running: calculate live elapsed time
+            const now = Date.now();
+            liveMs = Math.max(0, now - session.startTime - session.totalPauseDuration);
+          } else {
+            // Paused or idle (activeTaskId set but not running):
+            // use the last known activeTime to avoid drift
+            liveMs = Math.max(0, session.activeTime || 0);
+          }
         }
       }
 

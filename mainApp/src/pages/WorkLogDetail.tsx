@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle,
   ExternalLink, Link2, BookMarked, Timer, FolderOpen,
   ChevronRight, Loader2, Flame, TrendingUp, Calendar, Zap,
+  FileText, Download, FileCode2,
 } from 'lucide-react';
+
+const DocumentationPreview = lazy(() => import('../components/DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -39,6 +42,7 @@ export function WorkLogDetail() {
   const [log, setLog] = useState<WorkLog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showDocPreview, setShowDocPreview] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -267,8 +271,39 @@ export function WorkLogDetail() {
           )}
         </motion.div>
 
-        {/* Right — Sessions, Checklist, Links */}
+        {/* Right — Sessions, Checklist, Links, Export */}
         <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-4">
+          {/* Export Documentation */}
+          <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <FileText size={14} className="text-brand-400" />
+              <span className="text-[11px] text-surface-400 font-semibold uppercase tracking-wider">Export</span>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDocPreview(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all
+                  bg-brand-500 text-white hover:bg-brand-400"
+              >
+                <FileText size={12} /> Preview
+              </button>
+              <button
+                onClick={() => setShowDocPreview(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all
+                  bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
+              >
+                <Download size={12} /> PDF
+              </button>
+              <button
+                onClick={() => setShowDocPreview(true)}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all
+                  bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20"
+              >
+                <FileCode2 size={12} /> DOCX
+              </button>
+            </div>
+          </motion.div>
+
           {/* Completed Items */}
           {log.completedItems.length > 0 && (
             <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -346,6 +381,15 @@ export function WorkLogDetail() {
           </motion.div>
         </motion.div>
       </div>
+
+      {/* Documentation Preview Modal */}
+      <Suspense fallback={null}>
+        <DocumentationPreview
+          log={log}
+          open={showDocPreview}
+          onClose={() => setShowDocPreview(false)}
+        />
+      </Suspense>
     </div>
   );
 }

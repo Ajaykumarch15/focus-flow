@@ -33,6 +33,7 @@ const userSchema = new mongoose.Schema(
       refreshToken: { type: String },
       expiryDate:   { type: Number },
     },
+    deletedAt: { type: Date, default: null, index: true },
   },
   { timestamps: true }
 );

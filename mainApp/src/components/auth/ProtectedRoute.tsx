@@ -1,7 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { motion } from 'framer-motion';
-import { Target } from 'lucide-react';
 
 /**
  * Wraps all authenticated routes.
@@ -30,4 +29,17 @@ export function ProtectedRoute() {
   if (!user) return <Navigate to="/login" replace />;
 
   return <Outlet />;
+}
+
+/**
+ * Wraps admin-only routes.
+ * Redirects non-admin users to /dashboard.
+ */
+export function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuthStore();
+
+  if (loading) return null;
+  if (!user || user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+
+  return <>{children}</>;
 }

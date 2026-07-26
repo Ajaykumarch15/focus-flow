@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
   ExternalLink, Link2, Lightbulb, Pencil, BookMarked,
-  Zap, Loader2, ChevronDown, ChevronUp, Save,
+  Zap, Loader2, ChevronDown, ChevronUp, ChevronRight, Save,
   CheckCheck, RotateCcw, X, Sparkles, Clock,
   Calendar, TrendingUp, Play, Pause, Square, Timer, FolderOpen,
   Search, Filter, BarChart3, Flame, Target, ArrowUpRight,
+  FileText,
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { useStore } from '../store/useStore';
@@ -16,6 +17,7 @@ import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
+import { dayKey, isToday as isTodayCentral } from '../utils/time';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
@@ -57,9 +59,7 @@ function formatTime(epoch?: number) {
 }
 
 function isToday(dateStr: string): boolean {
-  const d = new Date(dateStr); d.setHours(0,0,0,0);
-  const t = new Date();        t.setHours(0,0,0,0);
-  return d.getTime() === t.getTime();
+  return isTodayCentral(dateStr);
 }
 
 function useDebounce<T>(value: T, ms: number): T {
@@ -526,12 +526,87 @@ function TaskLinkControl({ log }: { log: WorkLog }) {
   );
 }
 
-// ── Section label component ───────────────────────────────────────────────────
-function SectionLabel({ icon: Icon, color, label }: { icon: React.ElementType; color: string; label: string }) {
+// ── Tab bar ──────────────────────────────────────────────────────────────────
+function TabBar({ tabs, active, onChange }: {
+  tabs: { id: string; label: string; icon: React.ElementType; color: string; count?: number }[];
+  active: string;
+  onChange: (id: string) => void;
+}) {
   return (
-    <label className={`flex items-center gap-1.5 text-xs font-semibold mb-1.5 ${color}`}>
-      <Icon size={12} /> {label}
-    </label>
+    <div className="flex items-center gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800">
+      {tabs.map(tab => {
+        const isActive = active === tab.id;
+        return (
+          <button key={tab.id} onClick={() => onChange(tab.id)}
+            className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+              isActive ? 'text-surface-50' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/50'
+            }`}>
+            {isActive && (
+              <motion.div layoutId="activeTab"
+                className="absolute inset-0 bg-surface-700/80 rounded-lg border border-surface-600/30"
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.4 }} />
+            )}
+            <span className="relative flex items-center gap-1.5">
+              <tab.icon size={13} className={isActive ? tab.color : ''} />
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold ${
+                  isActive ? 'bg-surface-600 text-surface-200' : 'bg-surface-800 text-surface-500'
+                }`}>{tab.count}</span>
+              )}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Collapsible field card ───────────────────────────────────────────────────
+function FieldCard({ icon: Icon, color, bg, label, value, children, field, expandedFields, toggleField }: {
+  icon: React.ElementType; color: string; bg: string; label: string; value: string;
+  children: React.ReactNode; field: string; expandedFields: Set<string>; toggleField: (f: string) => void;
+}) {
+  const isOpen = expandedFields.has(field);
+  const preview = value ? value.replace(/[#*_`>\-[\]]/g, '').replace(/\n+/g, ' ').trim().slice(0, 90) : '';
+
+  return (
+    <motion.div layout
+      className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+        isOpen ? 'border-surface-700 bg-surface-900 shadow-lg shadow-black/10' : 'border-surface-800 bg-surface-850/40 hover:border-surface-700 hover:bg-surface-850/70'
+      }`}>
+      <button onClick={() => toggleField(field)}
+        className="w-full flex items-center gap-3 p-4 text-left transition-colors">
+        <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
+          <Icon size={14} className={color} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className="text-xs font-semibold text-surface-200">{label}</span>
+          {!isOpen && (
+            <p className={`text-[11px] mt-0.5 truncate ${preview ? 'text-surface-500' : 'text-surface-600 italic'}`}>
+              {preview || 'Click to start writing...'}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!isOpen && value && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Has content" />
+          )}
+          <motion.div animate={{ rotate: isOpen ? 90 : 0 }} transition={{ duration: 0.15 }}>
+            <ChevronRight size={14} className="text-surface-500" />
+          </motion.div>
+        </div>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-surface-800">
+            <div className="p-4">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }
 
@@ -543,6 +618,8 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
   } = useWorkLogStore();
 
   const [expanded, setExpanded]           = useState(defaultExpanded);
+  const [activeTab, setActiveTab]         = useState('context');
+  const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
   const [newItem, setNewItem]             = useState('');
   const [newLink, setNewLink]             = useState({ label: '', url: '' });
   const [showLinkForm, setShowLinkForm]   = useState(false);
@@ -558,6 +635,18 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
   const status        = STATUS_OPTIONS.find(s => s.value === log.status) || STATUS_OPTIONS[1];
   const age           = formatDistanceToNow(new Date(log.createdAt), { addSuffix: true });
   const doneCount     = log.completedItems.length;
+
+  const toggleField = (field: string) => {
+    setExpandedFields(prev => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field); else next.add(field);
+      return next;
+    });
+  };
+
+  const hasContext = !!(log.problem || log.currentWork || log.blockers);
+  const hasPlanning = !!(log.plan || log.designNotes || log.gitBranch);
+  const hasProgress = !!(log.completedItems.length || log.links.length);
 
   const handleAddCompleted = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -585,7 +674,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 
       {/* Header */}
       <div className="flex items-center gap-3 p-5 cursor-pointer hover:bg-surface-850/30 transition-colors"
-        onClick={() => navigate(`/worklog/${log._id}`)}>
+        onClick={() => setExpanded(e => !e)}>
         {/* Status dot */}
         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
           isRunning ? 'bg-brand-400 animate-pulse' :
@@ -650,6 +739,11 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
               <ExternalLink size={12} /> Doc
             </button>
           )}
+          <button onClick={e => { e.stopPropagation(); navigate(`/worklog/${log._id}`); }}
+            title="View worklog details"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-medium transition-all border border-brand-500/20 hover:border-brand-400/30">
+            <FileText size={12} /> Details
+          </button>
           {log.isActive ? (
             <button onClick={async () => { setClosing(true); try { await closeLog(log._id); } finally { setClosing(false); } }}
               disabled={closing}
@@ -725,126 +819,171 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
               {/* Work history */}
               <WorkHistorySection log={log} />
 
-              {/* Detail fields — two column */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <div className="space-y-4">
-                  <div>
-                    <SectionLabel icon={AlertCircle} color="text-red-400" label="Problem I'm Solving" />
-                    <AutoProEditor logId={log._id} field="problem" value={log.problem}
-                      placeholder="What ticket/feature/bug? What user pain?" minRows={3}
-                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
-                  </div>
-                  <div>
-                    <SectionLabel icon={GitBranch} color="text-emerald-400" label="Git Branch" />
-                    <AutoInput logId={log._id} field="gitBranch"
-                      placeholder="feature/branch-name" value={log.gitBranch} mono />
-                  </div>
-                  <div>
-                    <SectionLabel icon={Zap} color="text-brand-400" label="What I'm Working On" />
-                    <AutoProEditor logId={log._id} field="currentWork" value={log.currentWork}
-                      placeholder="Specific function, component, API…" minRows={3}
-                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
-                  </div>
-                  <div>
-                    <SectionLabel icon={AlertCircle} color="text-yellow-400" label="Blockers" />
-                    <AutoProEditor logId={log._id} field="blockers" value={log.blockers}
-                      placeholder="What's blocking you?" minRows={2}
-                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
-                  </div>
-                </div>
+              {/* Detail fields — tabbed card layout */}
+              <div>
+                <TabBar
+                  active={activeTab}
+                  onChange={setActiveTab}
+                  tabs={[
+                    { id: 'context', label: 'Context', icon: AlertCircle, color: 'text-red-400', count: hasContext ? undefined : 0 },
+                    { id: 'planning', label: 'Planning', icon: Lightbulb, color: 'text-amber-400', count: hasPlanning ? undefined : 0 },
+                    { id: 'progress', label: 'Progress', icon: CheckCircle2, color: 'text-emerald-400', count: doneCount },
+                  ]}
+                />
 
-                <div className="space-y-4">
-                  {/* Completed checklist */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <SectionLabel icon={CheckCircle2} color="text-emerald-400" label="Completed" />
-                      {doneCount > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                          {doneCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="space-y-1 mb-2">
-                      <AnimatePresence>
-                        {log.completedItems.length === 0 && (
-                          <p className="text-xs text-surface-600 italic py-1">Add things as you finish them…</p>
-                        )}
-                        {log.completedItems.map(item => (
-                          <motion.div key={item._id}
-                            initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}
-                            className="flex items-start gap-2 group p-2 rounded-lg hover:bg-surface-850 border border-transparent hover:border-surface-800 transition-all">
-                            <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
-                            <span className="flex-1 text-xs text-surface-200">{item.text}</span>
-                            <button onClick={() => deleteCompleted(log._id, item._id)}
-                              className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
-                              <X size={11} />
-                            </button>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
-                    </div>
-                    <form onSubmit={handleAddCompleted} className="flex gap-2">
-                      <input className="input flex-1 text-xs py-2 rounded-xl" placeholder="I just completed…"
-                        value={newItem} onChange={e => setNewItem(e.target.value)} />
-                      <button type="submit" disabled={!newItem.trim()}
-                        className="btn-primary px-3 py-2 rounded-xl">
-                        <Plus size={13} />
-                      </button>
-                    </form>
-                  </div>
+                <div className="mt-3">
+                  <AnimatePresence mode="wait">
+                    {/* ── Context Tab ─────────────────────────────────────── */}
+                    {activeTab === 'context' && (
+                      <motion.div key="context" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
+                        className="space-y-3">
+                        <FieldCard icon={AlertCircle} color="text-red-400" bg="bg-red-500/10"
+                          label="Problem I'm Solving" value={log.problem} field="problem"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoProEditor logId={log._id} field="problem" value={log.problem}
+                            placeholder="What ticket/feature/bug? What user pain?" minRows={3}
+                            updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
+                        </FieldCard>
 
-                  <div>
-                    <SectionLabel icon={Lightbulb} color="text-yellow-400" label="Plan" />
-                    <AutoProEditor logId={log._id} field="plan" value={log.plan}
-                      placeholder={"1. First…\n2. Then…"} minRows={4}
-                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
-                  </div>
+                        <FieldCard icon={Zap} color="text-brand-400" bg="bg-brand-500/10"
+                          label="What I'm Working On" value={log.currentWork} field="currentWork"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoProEditor logId={log._id} field="currentWork" value={log.currentWork}
+                            placeholder="Specific function, component, API..." minRows={3}
+                            updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
+                        </FieldCard>
 
-                  <div>
-                    <SectionLabel icon={Pencil} color="text-purple-400" label="Design / Architecture" />
-                    <AutoProEditor logId={log._id} field="designNotes" value={log.designNotes}
-                      placeholder="Schema, components, tradeoffs…" minRows={3}
-                      updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
-                  </div>
+                        <FieldCard icon={AlertCircle} color="text-yellow-400" bg="bg-yellow-500/10"
+                          label="Blockers" value={log.blockers} field="blockers"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoProEditor logId={log._id} field="blockers" value={log.blockers}
+                            placeholder="What's blocking you?" minRows={2}
+                            updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
+                        </FieldCard>
+                      </motion.div>
+                    )}
 
-                  {/* Links */}
-                  <div>
-                    <SectionLabel icon={Link2} color="text-cyan-400" label="Links" />
-                    <div className="space-y-1.5 mb-2">
-                      {log.links.map(link => (
-                        <div key={link._id}
-                          className="flex items-center gap-2 p-2 rounded-lg bg-surface-850 border border-surface-800 group hover:border-surface-700 transition-all">
-                          <ExternalLink size={11} className="text-cyan-400 flex-shrink-0" />
-                          <a href={link.url} target="_blank" rel="noreferrer"
-                            className="flex-1 text-xs text-cyan-300 hover:text-cyan-200 truncate font-medium">{link.label}</a>
-                          <button onClick={() => deleteLink(log._id, link._id)}
-                            className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
-                            <X size={11} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <AnimatePresence>
-                      {showLinkForm ? (
-                        <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                          onSubmit={handleAddLink} className="space-y-1.5">
-                          <input className="input text-xs py-2 rounded-xl" placeholder="Label (PR #42…)"
-                            value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} />
-                          <input className="input text-xs py-2 rounded-xl" type="url" placeholder="https://…"
-                            value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} />
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => setShowLinkForm(false)} className="btn-secondary flex-1 text-xs py-2 rounded-xl">Cancel</button>
-                            <button type="submit" className="btn-primary flex-1 text-xs py-2 rounded-xl">Add</button>
+                    {/* ── Planning Tab ────────────────────────────────────── */}
+                    {activeTab === 'planning' && (
+                      <motion.div key="planning" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
+                        className="space-y-3">
+                        <FieldCard icon={Lightbulb} color="text-amber-400" bg="bg-amber-500/10"
+                          label="Plan" value={log.plan} field="plan"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoProEditor logId={log._id} field="plan" value={log.plan}
+                            placeholder={"1. First...\n2. Then..."} minRows={4}
+                            updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
+                        </FieldCard>
+
+                        <FieldCard icon={Pencil} color="text-purple-400" bg="bg-purple-500/10"
+                          label="Design / Architecture" value={log.designNotes} field="designNotes"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoProEditor logId={log._id} field="designNotes" value={log.designNotes}
+                            placeholder="Schema, components, tradeoffs..." minRows={3}
+                            updateFn={(id, field, val) => useWorkLogStore.getState().updateField(id, field, val)} />
+                        </FieldCard>
+
+                        <FieldCard icon={GitBranch} color="text-emerald-400" bg="bg-emerald-500/10"
+                          label="Git Branch" value={log.gitBranch} field="gitBranch"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <AutoInput logId={log._id} field="gitBranch"
+                            placeholder="feature/branch-name" value={log.gitBranch} mono />
+                        </FieldCard>
+                      </motion.div>
+                    )}
+
+                    {/* ── Progress Tab ────────────────────────────────────── */}
+                    {activeTab === 'progress' && (
+                      <motion.div key="progress" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.15 }}
+                        className="space-y-3">
+
+                        {/* Completed checklist — always expanded */}
+                        <div className="rounded-xl border border-surface-800 bg-surface-900 p-4">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                              <CheckCircle2 size={14} className="text-emerald-400" />
+                            </div>
+                            <span className="text-xs font-semibold text-surface-200">Completed</span>
+                            {doneCount > 0 && (
+                              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                {doneCount}
+                              </span>
+                            )}
                           </div>
-                        </motion.form>
-                      ) : (
-                        <button onClick={() => setShowLinkForm(true)}
-                          className="text-xs text-surface-500 hover:text-surface-200 flex items-center gap-1 transition-colors font-medium py-1">
-                          <Plus size={12} /> Add link
-                        </button>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                          <div className="space-y-1 mb-3">
+                            <AnimatePresence>
+                              {log.completedItems.length === 0 && (
+                                <p className="text-xs text-surface-600 italic py-1">Add things as you finish them...</p>
+                              )}
+                              {log.completedItems.map(item => (
+                                <motion.div key={item._id}
+                                  initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}
+                                  className="flex items-start gap-2 group p-2 rounded-lg hover:bg-surface-850 border border-transparent hover:border-surface-800 transition-all">
+                                  <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                                  <span className="flex-1 text-xs text-surface-200">{item.text}</span>
+                                  <button onClick={() => deleteCompleted(log._id, item._id)}
+                                    className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
+                                    <X size={11} />
+                                  </button>
+                                </motion.div>
+                              ))}
+                            </AnimatePresence>
+                          </div>
+                          <form onSubmit={handleAddCompleted} className="flex gap-2">
+                            <input className="input flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..."
+                              value={newItem} onChange={e => setNewItem(e.target.value)} />
+                            <button type="submit" disabled={!newItem.trim()}
+                              className="btn-primary px-3 py-2 rounded-xl">
+                              <Plus size={13} />
+                            </button>
+                          </form>
+                        </div>
+
+                        {/* Links card */}
+                        <FieldCard icon={Link2} color="text-cyan-400" bg="bg-cyan-500/10"
+                          label="Links" value={log.links.map(l => l.label).join(', ')} field="links"
+                          expandedFields={expandedFields} toggleField={toggleField}>
+                          <div className="space-y-1.5 mb-2">
+                            {log.links.map(link => (
+                              <div key={link._id}
+                                className="flex items-center gap-2 p-2 rounded-lg bg-surface-850 border border-surface-800 group hover:border-surface-700 transition-all">
+                                <ExternalLink size={11} className="text-cyan-400 flex-shrink-0" />
+                                <a href={link.url} target="_blank" rel="noreferrer"
+                                  className="flex-1 text-xs text-cyan-300 hover:text-cyan-200 truncate font-medium">{link.label}</a>
+                                <button onClick={() => deleteLink(log._id, link._id)}
+                                  className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
+                                  <X size={11} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <AnimatePresence>
+                            {showLinkForm ? (
+                              <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                onSubmit={handleAddLink} className="space-y-1.5">
+                                <input className="input text-xs py-2 rounded-xl" placeholder="Label (PR #42...)"
+                                  value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} />
+                                <input className="input text-xs py-2 rounded-xl" type="url" placeholder="https://..."
+                                  value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} />
+                                <div className="flex gap-2">
+                                  <button type="button" onClick={() => setShowLinkForm(false)} className="btn-secondary flex-1 text-xs py-2 rounded-xl">Cancel</button>
+                                  <button type="submit" className="btn-primary flex-1 text-xs py-2 rounded-xl">Add</button>
+                                </div>
+                              </motion.form>
+                            ) : (
+                              <button onClick={() => setShowLinkForm(true)}
+                                className="text-xs text-surface-500 hover:text-surface-200 flex items-center gap-1 transition-colors font-medium py-1">
+                                <Plus size={12} /> Add link
+                              </button>
+                            )}
+                          </AnimatePresence>
+                        </FieldCard>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>

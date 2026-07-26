@@ -2,6 +2,7 @@ const express = require('express');
 const WorkLog = require('../models/WorkLog');
 const Session = require('../models/Session');
 const Task    = require('../models/Task');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
@@ -83,14 +84,29 @@ function localDateToUtc(dateKey, timeZone) {
   return new Date(utcGuess.getTime() - getOffsetMs(utcGuess, timeZone));
 }
 
-// Pull all completed session data for a task and upsert one workEntry per day.
+// Compute effective active ms for a session (works for both active and stopped)
+function sessionActiveMs(session) {
+  if (!session.isActive) return session.activeTime || 0;
+  // Running session — compute live
+  const now = Date.now();
+  const lastPause = session.pauseLog?.length
+    ? session.pauseLog[session.pauseLog.length - 1]
+    : null;
+  const isPaused = lastPause && !lastPause.resumeTime;
+  if (isPaused) {
+    return Math.max(0, lastPause.pauseStart - session.startTime - session.totalPauseDuration);
+  }
+  return Math.max(0, now - session.startTime - session.totalPauseDuration);
+}
+
+// Pull all session data for a task and upsert one workEntry per day.
 async function syncWorkEntries(log, userId, timeZone = 'UTC') {
-  if (!log.taskRef) return log;
+  const taskId = log.taskRef?._id || log.taskRef;
+  if (!taskId) return log;
 
   const sessions = await Session.find({
     userId,
-    taskId:    log.taskRef,
-    isActive:  false,
+    taskId,
   });
 
   if (sessions.length === 0) return log;
@@ -98,6 +114,8 @@ async function syncWorkEntries(log, userId, timeZone = 'UTC') {
   const grouped = new Map();
   for (const session of sessions) {
     const key = dayKey(session.startTime, timeZone);
+    const activeMs = sessionActiveMs(session);
+    if (activeMs <= 0) continue;
     const existing = grouped.get(key) || {
       date: localDateToUtc(key, timeZone),
       activeMs: 0,
@@ -105,9 +123,9 @@ async function syncWorkEntries(log, userId, timeZone = 'UTC') {
       endedAt: session.endTime || session.startTime,
       sessionIds: [],
     };
-    existing.activeMs += session.activeTime || 0;
+    existing.activeMs += activeMs;
     existing.startedAt = Math.min(existing.startedAt, session.startTime);
-    existing.endedAt = Math.max(existing.endedAt, session.endTime || session.startTime);
+    existing.endedAt = Math.max(existing.endedAt, session.endTime || Date.now());
     existing.sessionIds.push(session._id);
     grouped.set(key, existing);
   }
@@ -139,10 +157,13 @@ router.get('/', async (req, res) => {
     if (req.query.active === 'true')  filter.isActive = true;
     if (req.query.active === 'false') filter.isActive = false;
 
-    const logs = await WorkLog.find(filter)
+    let logs = await WorkLog.find(filter)
       .populate('taskRef', 'title color category totalTime')
       .populate('projectRef', 'name googleFolderId workLogsFolderId')
       .sort({ isActive: -1, updatedAt: -1 });
+
+    const timeZone = userTimezone(req);
+    logs = await Promise.all(logs.map(log => syncWorkEntries(log, req.user._id, timeZone)));
 
     res.json(logs);
   } catch (err) {
@@ -285,6 +306,7 @@ router.post('/', async (req, res) => {
 
     console.log(`✅ WorkLog created: "${log.title}" linked to project: ${projectId || 'none'}, task: ${taskRef || 'none'}`);
     res.status(201).json(populated);
+    Activity.create({ userId: req.user._id, action: 'worklog.created', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
     console.error('POST /worklogs error:', err);
     res.status(500).json({ message: err.message });
@@ -383,6 +405,7 @@ router.post('/:id/close', async (req, res) => {
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
+    Activity.create({ userId: req.user._id, action: 'worklog.closed', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -477,7 +500,8 @@ router.delete('/:id', async (req, res) => {
   try {
     const log = await WorkLog.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
-    res.json({ message: 'Deleted' });
+    res.json(log);
+    Activity.create({ userId: req.user._id, action: 'worklog.closed', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

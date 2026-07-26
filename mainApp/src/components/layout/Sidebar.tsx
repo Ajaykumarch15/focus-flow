@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  Target, LogOut, BookMarked, LineChart, Activity, ShieldCheck, Trophy
+  Target, LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -22,13 +22,9 @@ const NAV_ITEMS = [
   { to: '/settings',  icon: Settings,        label: 'Settings'   },
 ];
 
-const ADMIN_ITEMS = [
-  { to: '/admin',     icon: ShieldCheck,     label: 'Admin'      },
-];
-
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const { user, logout }          = useAuthStore();
+  const { user, logout, setWorkspace }          = useAuthStore();
   const { activeTask, activeTimerState, display } = useActiveTimer();
   const navigate = useNavigate();
 
@@ -104,31 +100,16 @@ export function Sidebar() {
         {user?.role === 'admin' && (
           <>
             <div className={`my-4 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            {ADMIN_ITEMS.map(({ to, icon: Icon, label }) => (
-              <NavLink key={to} to={to}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
-                  ${isActive ? 'bg-purple-500/10 text-purple-500 dark:text-purple-400 font-semibold border border-purple-500/15' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    {isActive && (
-                      <motion.div layoutId="activeNavAdminLeft" className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-purple-500" />
-                    )}
-                    <Icon size={18} className="flex-shrink-0" />
-                    <AnimatePresence>
-                      {!collapsed && (
-                        <motion.span
-                          initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
-                          className="text-sm font-medium whitespace-nowrap"
-                        >{label}</motion.span>
-                      )}
-                    </AnimatePresence>
-                  </>
+            <button onClick={() => { setWorkspace('admin'); navigate('/admin/overview'); }}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative text-surface-400 hover:text-purple-400 hover:bg-purple-500/5 w-full`}>
+              <ShieldCheck size={18} className="flex-shrink-0" />
+              <AnimatePresence>
+                {!collapsed && (
+                  <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+                    className="text-sm font-medium whitespace-nowrap">Admin Console</motion.span>
                 )}
-              </NavLink>
-            ))}
+              </AnimatePresence>
+            </button>
           </>
         )}
       </nav>

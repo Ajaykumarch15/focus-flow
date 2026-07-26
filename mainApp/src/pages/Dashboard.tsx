@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { api } from '../utils/api';
-import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue } from '../utils/time';
+import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, dayKey, startOfDay } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -95,40 +95,42 @@ function ChartTooltipContent({ active, payload, label }: any) {
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const { tasks, profile, theme, journals, activeTaskId, dataLoading } = useStore();
+  const { tasks, profile, theme, journals, activeTaskId, dataLoading, getTodayTime, activeTimerState } = useStore();
   const { activeLogs } = useWorkLogStore();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     api.sessions.list().then(setSessions).catch(console.error);
   }, []);
 
+  useEffect(() => {
+    if (activeTimerState === 'running') {
+      const id = setInterval(() => setTick(t => t + 1), 1000);
+      return () => clearInterval(id);
+    }
+  }, [activeTimerState]);
+
   const accent = theme?.accentColor || '#0ea5e9';
 
   // ── Time calculations ────────────────────────────────────────────────────
 
-  const { todayMs, weekMs } = useMemo(() => {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const ts = todayStart.getTime();
-    const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    weekStart.setHours(0, 0, 0, 0);
-    const ws = weekStart.getTime();
-    let tMs = 0, wMs = 0;
+  const todayMs = getTodayTime();
+
+  const weekMs = useMemo(() => {
+    const ws = getWeekStart();
+    let wMs = 0;
     for (const s of sessions) {
-      if (s.startTime >= ts) tMs += (s.activeTime || 0);
       if (s.startTime >= ws) wMs += (s.activeTime || 0);
     }
     if (activeTaskId) {
       const activeTask = tasks.find(t => t.id === activeTaskId);
       const live = activeTask?.sessions.find(s => !s.endTime);
-      if (live) {
-        if (live.startTime >= ts) tMs += live.activeTime;
-        if (live.startTime >= ws) wMs += live.activeTime;
-      }
+      if (live && live.startTime >= ws) wMs += live.activeTime;
     }
-    return { todayMs: tMs, weekMs: wMs };
+    return wMs;
   }, [sessions, tasks, activeTaskId]);
 
   // ── Derived stats ────────────────────────────────────────────────────────
@@ -145,8 +147,8 @@ export function Dashboard() {
 
   const days = getWeekDays();
   const weekData = useMemo(() => days.map((day, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0);
-    const start = d.getTime(); const end = start + 86399999;
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const start = startOfDay(d); const end = start + 86399999;
     let hours = 0;
     for (const s of sessions) {
       if (s.startTime >= start && s.startTime <= end) hours += (s.activeTime || 0) / 3600000;
@@ -559,10 +561,10 @@ function SmartInsights({ weekMs, todayMs, completedToday, overdueCount, streak, 
     }
 
     // Find longest session today
+    const todayStartMs = startOfToday();
     let longestMs = 0;
     for (const s of sessions) {
-      const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-      if (s.startTime >= todayStart.getTime() && s.activeTime > longestMs) longestMs = s.activeTime;
+      if (s.startTime >= todayStartMs && s.activeTime > longestMs) longestMs = s.activeTime;
     }
     if (longestMs > 300000) {
       items.push({ icon: Sparkles, text: `Longest session: ${Math.round(longestMs / 60000)}min`, color: '#8b5cf6', bg: 'bg-purple-500/10' });

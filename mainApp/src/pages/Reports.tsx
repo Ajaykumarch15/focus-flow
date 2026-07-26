@@ -568,7 +568,7 @@ export function ReportsPage() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const todayKey = format(new Date(), 'yyyy-MM-dd');
   const [dayInput, setDayInput] = useState(todayKey);
-  const [rangeFrom, setRangeFrom] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [rangeFrom, setRangeFrom] = useState(format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'));
   const [rangeTo, setRangeTo] = useState(todayKey);
   const [rangeSummary, setRangeSummary] = useState<DaySummary[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
@@ -609,8 +609,8 @@ export function ReportsPage() {
 
   useEffect(() => {
     const now = new Date();
-    const weekFrom = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-    const weekTo = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+    const weekFrom = format(startOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
+    const weekTo = format(endOfWeek(now, { weekStartsOn: 0 }), 'yyyy-MM-dd');
     const monthFrom = format(startOfMonth(now), 'yyyy-MM-dd');
     const monthTo = format(endOfMonth(now), 'yyyy-MM-dd');
     Promise.all([api.reports.summary(weekFrom, weekTo), api.reports.summary(monthFrom, monthTo)])
@@ -781,7 +781,7 @@ export function ReportsPage() {
                   <div className="flex gap-1.5 flex-wrap">
                     {[
                       { label: 'Today', from: new Date(), to: new Date() },
-                      { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 1 }), to: endOfWeek(new Date(), { weekStartsOn: 1 }) },
+                      { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 0 }), to: endOfWeek(new Date(), { weekStartsOn: 0 }) },
                       { label: 'This Month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
                     ].map(({ label, from, to }) => (
                       <button key={label} onClick={() => applyQuickRange(from, to)}

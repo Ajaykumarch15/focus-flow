@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Task = require('../models/Task');
 const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const reportsRouter = require('./reports');
@@ -43,8 +44,97 @@ router.get('/stats', async (req, res) => {
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find({}).sort({ createdAt: -1 });
+    const filter = req.query.includeDeleted ? {} : { deletedAt: null };
+    const users = await User.find(filter).sort({ createdAt: -1 });
     res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/admin/users/deleted ─────────────────────────────────────────────
+router.get('/users/deleted', async (req, res) => {
+  try {
+    const users = await User.find({ deletedAt: { $ne: null } }).sort({ deletedAt: -1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── PATCH /api/admin/users/:userId ──────────────────────────────────────────
+router.patch('/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { name, email, role, settings } = req.body;
+
+    const update = {};
+    if (name !== undefined)  update.name = name;
+    if (email !== undefined) update.email = email.toLowerCase().trim();
+    if (role !== undefined) {
+      if (!['user', 'admin'].includes(role)) {
+        return res.status(400).json({ message: 'Invalid role' });
+      }
+      update.role = role;
+    }
+    if (settings !== undefined) update.settings = settings;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: 'No fields to update' });
+    }
+
+    const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+    const details = { targetUserId: userId, targetName: user.name };
+    if (role !== undefined) {
+      const oldUser = await User.findById(userId).select('role');
+      details.oldRole = oldUser?.role;
+      details.newRole = role;
+      Activity.create({ userId: req.user._id, action: 'user.role_changed', details }).catch(() => {});
+    } else {
+      Activity.create({ userId: req.user._id, action: 'user.updated', details }).catch(() => {});
+    }
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Email already in use' });
+    }
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── DELETE /api/admin/users/:userId (soft delete) ───────────────────────────
+router.delete('/users/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Cannot delete your own account' });
+    }
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { deletedAt: new Date() } },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User soft-deleted', user });
+    Activity.create({ userId: req.user._id, action: 'user.deleted', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── POST /api/admin/users/:userId/restore ────────────────────────────────────
+router.post('/users/:userId/restore', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { deletedAt: null } },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+    Activity.create({ userId: req.user._id, action: 'user.restored', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -207,6 +297,115 @@ router.get('/users/:userId/reports/day', async (req, res) => {
   } catch (err) {
     console.error('GET /admin/users/:userId/reports/day error:', err);
     res.status(err.status || 500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/admin/system-analytics ─────────────────────────────────────────
+router.get('/system-analytics', async (req, res) => {
+  try {
+    const period = req.query.period || 'month';
+    const now = Date.now();
+    const periodMs = { week: 7 * 86400000, month: 30 * 86400000, quarter: 90 * 86400000 };
+    const fromMs = now - (periodMs[period] || periodMs.month);
+
+    const [totalUsers, newUsers, sessions, tasks, activeSessions] = await Promise.all([
+      User.countDocuments({ deletedAt: null }),
+      User.countDocuments({ deletedAt: null, createdAt: { $gte: new Date(fromMs) } }),
+      Session.find({ startTime: { $gte: fromMs }, isActive: false }).select('userId activeTime focusScore startTime'),
+      Task.find({ createdAt: { $gte: new Date(fromMs) } }).select('userId status category totalTime'),
+      Session.find({ isActive: true }).select('userId startTime totalPauseDuration'),
+    ]);
+
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const totalFocusMs = sessions.reduce((a, s) => a + (s.activeTime || 0), 0);
+    const avgFocusScore = sessions.length > 0
+      ? Math.round(sessions.reduce((a, s) => a + (s.focusScore || 0), 0) / sessions.length)
+      : 0;
+    const taskCompletionRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+    const uniqueActiveUsers = new Set(sessions.map(s => s.userId.toString())).size;
+
+    const now2 = Date.now();
+    activeSessions.forEach(s => {
+      const live = Math.max(0, now2 - s.startTime - (s.totalPauseDuration || 0));
+      sessions.push({ activeTime: live, focusScore: 0, userId: s.userId });
+    });
+
+    const dailyMap = {};
+    const thirtyDaysAgo = now - 30 * 86400000;
+    for (const s of sessions) {
+      if (!s.startTime || s.startTime < thirtyDaysAgo) continue;
+      const d = new Date(s.startTime);
+      if (isNaN(d.getTime())) continue;
+      const dk = d.toISOString().slice(0, 10);
+      if (!dailyMap[dk]) dailyMap[dk] = { date: dk, totalMs: 0, sessionCount: 0, activeUsers: new Set() };
+      dailyMap[dk].totalMs += s.activeTime || 0;
+      dailyMap[dk].sessionCount += 1;
+      dailyMap[dk].activeUsers.add(s.userId.toString());
+    }
+    const dailyFocus = Object.values(dailyMap)
+      .map(d => ({ ...d, activeUsers: d.activeUsers.size }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const categoryMap = {};
+    for (const t of tasks) {
+      const cat = t.category || 'Uncategorized';
+      if (!categoryMap[cat]) categoryMap[cat] = { category: cat, totalTimeMs: 0, taskCount: 0 };
+      categoryMap[cat].totalTimeMs += t.totalTime || 0;
+      categoryMap[cat].taskCount += 1;
+    }
+    const topCategories = Object.values(categoryMap).sort((a, b) => b.totalTimeMs - a.totalTimeMs).slice(0, 10);
+
+    const dailySignups = {};
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
+      dailySignups[d] = 0;
+    }
+    const allNewUsers = await User.find({ createdAt: { $gte: new Date(thirtyDaysAgo) } }).select('createdAt');
+    for (const u of allNewUsers) {
+      if (!u.createdAt) continue;
+      const d = u.createdAt.toISOString().slice(0, 10);
+      if (dailySignups[d] !== undefined) dailySignups[d]++;
+    }
+    const userGrowth = Object.entries(dailySignups).map(([date, count]) => ({ date, count }));
+
+    res.json({
+      period,
+      totalUsers,
+      newUsers,
+      activeUsers: uniqueActiveUsers,
+      totalFocusMs,
+      totalSessions: sessions.length,
+      avgFocusScore,
+      taskCompletionRate,
+      totalTasks: tasks.length,
+      completedTasks,
+      dailyFocus,
+      topCategories,
+      userGrowth,
+    });
+  } catch (err) {
+    console.error('GET /admin/system-analytics error:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/admin/activity ─────────────────────────────────────────────────
+router.get('/activity', async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const query = {};
+    if (req.query.before) query.createdAt = { $lt: new Date(req.query.before) };
+    if (req.query.action) query.action = req.query.action;
+
+    const activities = await Activity.find(query)
+      .populate('userId', 'name email avatar role')
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    res.json(activities);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
@@ -57,6 +58,7 @@ router.post('/login', async (req, res) => {
       token: signToken(user._id),
       user,   // passwordHash stripped by toJSON transform
     });
+    Activity.create({ userId: user._id, action: 'login', details: { email: user.email } }).catch(() => {});
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

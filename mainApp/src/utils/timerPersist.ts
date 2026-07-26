@@ -7,6 +7,8 @@
  *    never resets to 0 when a new task starts or the page refreshes.
  */
 
+import { getToday } from './time';
+
 // ── Active timer ──────────────────────────────────────────────────────────────
 const TIMER_KEY = 'ff_active_timer';
 const TODAY_KEY = 'ff_today_ms';
@@ -59,7 +61,7 @@ interface TodayCache {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  return getToday();
 }
 
 /** Load today's completed-session total (0 if none or a different day). */
