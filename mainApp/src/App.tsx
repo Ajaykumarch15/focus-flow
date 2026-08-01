@@ -25,6 +25,7 @@ const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ d
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
 
 // Admin workspace pages
 const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
@@ -91,6 +92,7 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<PersonalWorkspaceRouter />}>
               <Route path="/dashboard"  element={<Dashboard />} />
+              <Route path="/team"       element={<TeamWorkspace />} />
               <Route path="/worklog"    element={<WorkLogPage />} />
               <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
               <Route path="/reports"    element={<ReportsPage />} />

@@ -110,14 +110,36 @@ export const api = {
         body: JSON.stringify({ what }),
       }),
 
-    addCompleted: (id: string, text: string) =>
-      request<any>(`/worklogs/${id}/completed`, { method: 'POST', body: JSON.stringify({ text }) }),
+    addCompleted: (id: string, text: string, category?: string) =>
+      request<any>(`/worklogs/${id}/completed`, { method: 'POST', body: JSON.stringify({ text, category }) }),
     deleteCompleted: (id: string, itemId: string) =>
       request<any>(`/worklogs/${id}/completed/${itemId}`, { method: 'DELETE' }),
-    addLink: (id: string, label: string, url: string) =>
-      request<any>(`/worklogs/${id}/links`, { method: 'POST', body: JSON.stringify({ label, url }) }),
+    addLink: (id: string, label: string, url: string, category?: string) =>
+      request<any>(`/worklogs/${id}/links`, { method: 'POST', body: JSON.stringify({ label, url, category }) }),
     deleteLink: (id: string, linkId: string) =>
       request<any>(`/worklogs/${id}/links/${linkId}`, { method: 'DELETE' }),
+
+    // ── Phase X Sub-documents ──────────────────────────────────────────────
+    addTimeline: (id: string, entry: any) =>
+      request<any>(`/worklogs/${id}/timeline`, { method: 'POST', body: JSON.stringify(entry) }),
+    addDecision: (id: string, decision: any) =>
+      request<any>(`/worklogs/${id}/decisions`, { method: 'POST', body: JSON.stringify(decision) }),
+    deleteDecision: (id: string, decId: string) =>
+      request<any>(`/worklogs/${id}/decisions/${decId}`, { method: 'DELETE' }),
+    addBlocker: (id: string, blocker: any) =>
+      request<any>(`/worklogs/${id}/blockers`, { method: 'POST', body: JSON.stringify(blocker) }),
+    updateBlocker: (id: string, blkId: string, updates: any) =>
+      request<any>(`/worklogs/${id}/blockers/${blkId}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+    deleteBlocker: (id: string, blkId: string) =>
+      request<any>(`/worklogs/${id}/blockers/${blkId}`, { method: 'DELETE' }),
+    addSnapshot: (id: string, snapshot: any) =>
+      request<any>(`/worklogs/${id}/snapshots`, { method: 'POST', body: JSON.stringify(snapshot) }),
+    deleteSnapshot: (id: string, snapId: string) =>
+      request<any>(`/worklogs/${id}/snapshots/${snapId}`, { method: 'DELETE' }),
+    addAttachment: (id: string, attachment: any) =>
+      request<any>(`/worklogs/${id}/attachments`, { method: 'POST', body: JSON.stringify(attachment) }),
+    deleteAttachment: (id: string, attId: string) =>
+      request<any>(`/worklogs/${id}/attachments/${attId}`, { method: 'DELETE' }),
   },
 
   habits: {

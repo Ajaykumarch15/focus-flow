@@ -1,52 +1,41 @@
+/**
+ * useActiveTimer.ts — High-Performance Live Timer Hook
+ *
+ * Subscribes directly to the authoritative TimerEngine.
+ * Only re-renders the subscribing component (e.g. Sidebar / TaskCard),
+ * without causing entire app/Zustand store re-renders every second.
+ */
+
 import { useState, useEffect } from 'react';
+import { timerEngine, TimerFSMState } from '../utils/timerEngine';
 import { useStore } from '../store/useStore';
-import { formatDuration } from '../utils/time';
-import { loadTimer, calcElapsed } from '../utils/timerPersist';
 
 export function useActiveTimer() {
-  const { activeTaskId, activeTimerState, tasks } = useStore();
-
-  // Read correct initial value from store or localStorage immediately
-  // so sidebar shows the right time on first render after refresh
-  const getInitial = () => {
-    const state = useStore.getState();
-    const task = state.tasks.find(t => t.id === state.activeTaskId);
-    const session = task?.sessions[task.sessions.length - 1];
-    if (session?.activeTime) return formatDuration(session.activeTime);
-
-    // Tasks not loaded yet — use localStorage
-    const p = loadTimer();
-    if (p && p.taskId === state.activeTaskId) return formatDuration(calcElapsed(p));
-    return '00:00';
-  };
-
-  const [display, setDisplay] = useState(getInitial);
-
-  const activeTask = tasks.find(t => t.id === activeTaskId);
-  const lastSession = activeTask?.sessions[activeTask.sessions.length - 1];
+  const [snapshot, setSnapshot] = useState(() => timerEngine.getSnapshot());
+  const [elapsedMs, setElapsedMs] = useState(() => timerEngine.getElapsedMs());
 
   useEffect(() => {
-    const update = () => {
-      const state = useStore.getState();
-      const task = state.tasks.find(t => t.id === state.activeTaskId);
-      const session = task?.sessions[task.sessions.length - 1];
+    // Subscribe to timerEngine updates
+    const unsubscribe = timerEngine.subscribe((newSnapshot, newElapsed) => {
+      setSnapshot(newSnapshot);
+      setElapsedMs(newElapsed);
+    });
 
-      if (session?.activeTime) {
-        setDisplay(formatDuration(session.activeTime));
-      } else {
-        // Fallback while tasks are loading
-        const p = loadTimer();
-        if (p && p.taskId === state.activeTaskId) {
-          setDisplay(formatDuration(calcElapsed(p)));
-        }
-      }
-    };
+    return unsubscribe;
+  }, []);
 
-    update();
-    if (activeTimerState !== 'running') return;
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, [activeTimerState, activeTaskId, lastSession?.activeTime]);
+  const tasks = useStore(s => s.tasks);
+  const activeTask = tasks.find(t => t.id === snapshot.taskId);
+  const display = timerEngine.getFormattedDisplay();
 
-  return { activeTask, activeTimerState, display, activeTaskId };
+  return {
+    activeTaskId: snapshot.taskId,
+    activeSessionId: snapshot.sessionId,
+    activeTimerState: snapshot.timerState as TimerFSMState,
+    activeTask,
+    display,
+    elapsedMs,
+    sessionStartTime: snapshot.sessionStartTime,
+    totalPauseDuration: snapshot.totalPauseDuration,
+  };
 }

@@ -2,8 +2,9 @@ import { motion } from 'framer-motion';
 import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag, Clock } from 'lucide-react';
 import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
+import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { PRIORITY_CONFIG, STATUS_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
-import { formatHours, formatDuration, getDeadlineStatus } from '../../utils/time';
+import { formatHours, getDeadlineStatus } from '../../utils/time';
 import { useNavigate } from 'react-router-dom';
 
 interface TaskCardProps {
@@ -12,7 +13,8 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, compact = false }: TaskCardProps) {
-  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, deleteTask, activeTaskId, activeTimerState } = useStore();
+  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, deleteTask } = useStore();
+  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
   const navigate = useNavigate();
 
   const isActive = activeTaskId === task.id;
@@ -21,10 +23,7 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
   const priority = PRIORITY_CONFIG[task.priority];
   const status = STATUS_CONFIG[task.status];
 
-  const lastSession = task.sessions[task.sessions.length - 1];
-  const displayTime = isActive && lastSession
-    ? formatDuration(lastSession.activeTime)
-    : formatHours(task.totalTime);
+  const displayTime = isActive ? activeDisplay : formatHours(task.totalTime);
 
   const subtasksDone = task.subtasks.filter(s => s.completed).length;
   const subtasksTotal = task.subtasks.length;

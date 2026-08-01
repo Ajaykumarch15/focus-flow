@@ -5,21 +5,114 @@ const WORKLOG_CACHE_KEY = 'ff_worklog_cache';
 
 export type WorkLogStatus = 'planning' | 'in-progress' | 'reviewing' | 'blocked' | 'done';
 
+export interface TimelineEntry {
+  _id: string;
+  timestamp: number;
+  type: 'timer_start' | 'timer_pause' | 'timer_resume' | 'timer_stop' | 'note' | 'snapshot' | 'completed_item' | 'decision' | 'blocker';
+  title: string;
+  description: string;
+  category: string;
+  metadata?: Record<string, any>;
+}
+
+export interface DecisionItem {
+  _id: string;
+  title: string;
+  context: string;
+  decision: string;
+  alternatives: string;
+  rationale: string;
+  timestamp: number;
+}
+
+export interface StructuredBlocker {
+  _id: string;
+  title: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  status: 'open' | 'investigating' | 'blocked' | 'resolved';
+  notes: string;
+  resolvedAt?: number;
+  createdAt: number;
+}
+
+export interface ProgressSnapshot {
+  _id: string;
+  period: 'Morning' | 'Afternoon' | 'Evening' | 'Custom';
+  text: string;
+  timestamp: number;
+}
+
 export interface WorkEntry {
   _id: string;
-  date: string;       // ISO string
-  what: string;       // what was done this day
-  startedAt?: number;      // epoch ms
-  endedAt?: number;      // epoch ms
-  activeMs: number;      // focused ms this day
+  date: string;
+  what: string;
+  startedAt?: number;
+  endedAt?: number;
+  activeMs: number;
 }
 
 export interface CompletedItem {
-  _id: string; text: string; done: boolean; createdAt: number;
+  _id: string;
+  text: string;
+  category: 'feature' | 'bug' | 'refactor' | 'research' | 'documentation' | 'general';
+  done: boolean;
+  completedAt: number;
+  createdAt: number;
 }
 
 export interface WorkLink {
-  _id: string; label: string; url: string;
+  _id: string;
+  label: string;
+  url: string;
+  category: 'Figma' | 'GitHub' | 'Jira' | 'Linear' | 'Documentation' | 'API' | 'Database' | 'PR' | 'Meeting Notes' | 'General';
+}
+
+export interface WorkAttachment {
+  _id: string;
+  name: string;
+  type: string;
+  url: string;
+  sizeBytes: number;
+  uploadDate: number;
+  description: string;
+}
+
+export interface ProblemFlow {
+  problem: string;
+  investigation: string;
+  rootCause: string;
+  solution: string;
+  lessonsLearned: string;
+}
+
+export interface GitRef {
+  repository: string;
+  branch: string;
+  commitIds: string[];
+  prNumber: string;
+  issueNumber: string;
+}
+
+export interface TomorrowPlan {
+  topPriority: string;
+  unfinishedItems: string[];
+  attentionRequired: string;
+}
+
+export interface DailyReflection {
+  wentWell: string;
+  slowedDown: string;
+  learned: string;
+  improvement: string;
+  rating: number;
+}
+
+export interface MoodMetrics {
+  energy: number;
+  focus: number;
+  stress: number;
+  confidence: number;
+  motivation: number;
 }
 
 export interface LinkedTask {
@@ -44,32 +137,56 @@ export interface WorkLog {
   projectRef?: LinkedProject;
   googleDocId?: string;
   googleDocUrl?: string;
+
+  problemFlow: ProblemFlow;
   problem: string;
   gitBranch: string;
   currentWork: string;
   plan: string;
   designNotes: string;
   blockers: string;
-  workEntries: WorkEntry[];
-  totalActiveMs: number;
+
+  gitRef: GitRef;
+  timelineEntries: TimelineEntry[];
+  decisions: DecisionItem[];
+  blockerList: StructuredBlocker[];
+  progressSnapshots: ProgressSnapshot[];
   completedItems: CompletedItem[];
   links: WorkLink[];
+  attachments: WorkAttachment[];
+  workEntries: WorkEntry[];
+
+  tomorrowPlan: TomorrowPlan;
+  reflection: DailyReflection;
+  moodMetrics: MoodMetrics;
+
   status: WorkLogStatus;
   isActive: boolean;
   closedAt?: string;
   reopenedAt?: string;
   mood: number;
   tags: string[];
+  totalActiveMs: number;
   createdAt: string;
   updatedAt: string;
+}
 
+export interface WorkLogFilterOptions {
+  searchQuery: string;
+  status?: string;
+  tag?: string;
+  startDate?: string;
+  endDate?: string;
+  hasBlocker?: boolean;
 }
 
 interface WorkLogState {
   activeLogs: WorkLog[];
   closedLogs: WorkLog[];
   todayLog: WorkLog | null;
-  loadToday: () => Promise<void>;
+  selectedLogId: string | null;
+  filters: WorkLogFilterOptions;
+
   loading: boolean;
   creating: boolean;
   error: string | null;
@@ -77,10 +194,14 @@ interface WorkLogState {
   loadActive: () => Promise<void>;
   loadClosed: () => Promise<void>;
   loadAll: () => Promise<void>;
+  loadToday: () => Promise<void>;
   refreshLog: (id: string) => Promise<void>;
+  setSelectedLogId: (id: string | null) => void;
+  setFilters: (filters: Partial<WorkLogFilterOptions>) => void;
 
   createLog: (title: string, taskRefId?: string, projectId?: string) => Promise<WorkLog>;
   updateField: (id: string, field: string, value: any) => Promise<void>;
+  updateNestedField: (id: string, parentField: string, childField: string, value: any) => Promise<void>;
   linkTask: (id: string, taskRefId?: string) => Promise<void>;
   updateEntry: (id: string, entryId: string, what: string) => Promise<void>;
   syncTime: (id: string) => Promise<void>;
@@ -88,14 +209,31 @@ interface WorkLogState {
   closeLog: (id: string) => Promise<void>;
   continueLog: (id: string) => Promise<void>;
 
-  addCompleted: (id: string, text: string) => Promise<void>;
+  addCompleted: (id: string, text: string, category?: string) => Promise<void>;
   deleteCompleted: (id: string, itemId: string) => Promise<void>;
-  addLink: (id: string, label: string, url: string) => Promise<void>;
+  addLink: (id: string, label: string, url: string, category?: string) => Promise<void>;
   deleteLink: (id: string, linkId: string) => Promise<void>;
+
+  // Sub-document actions
+  addTimelineEntry: (id: string, entry: Omit<TimelineEntry, '_id'>) => Promise<void>;
+  addDecision: (id: string, decision: Omit<DecisionItem, '_id' | 'timestamp'>) => Promise<void>;
+  deleteDecision: (id: string, decId: string) => Promise<void>;
+  addBlocker: (id: string, blocker: Omit<StructuredBlocker, '_id' | 'createdAt'>) => Promise<void>;
+  updateBlocker: (id: string, blkId: string, updates: Partial<StructuredBlocker>) => Promise<void>;
+  deleteBlocker: (id: string, blkId: string) => Promise<void>;
+  addSnapshot: (id: string, period: ProgressSnapshot['period'], text: string) => Promise<void>;
+  deleteSnapshot: (id: string, snapId: string) => Promise<void>;
+  addAttachment: (id: string, attachment: Omit<WorkAttachment, '_id' | 'uploadDate'>) => Promise<void>;
+  deleteAttachment: (id: string, attId: string) => Promise<void>;
 }
 
-// ── Map raw MongoDB doc → typed WorkLog ───────────────────────────────────────
 function mapLog(doc: any): WorkLog {
+  const pFlow = doc.problemFlow || {};
+  const gRef = doc.gitRef || {};
+  const tPlan = doc.tomorrowPlan || {};
+  const ref = doc.reflection || {};
+  const mMets = doc.moodMetrics || {};
+
   return {
     _id: doc._id,
     title: doc.title || 'Untitled Work Item',
@@ -114,12 +252,92 @@ function mapLog(doc: any): WorkLog {
     } : undefined,
     googleDocId: doc.googleDocId || '',
     googleDocUrl: doc.googleDocUrl || '',
+
+    problemFlow: {
+      problem: pFlow.problem || doc.problem || '',
+      investigation: pFlow.investigation || '',
+      rootCause: pFlow.rootCause || '',
+      solution: pFlow.solution || '',
+      lessonsLearned: pFlow.lessonsLearned || '',
+    },
     problem: doc.problem || '',
-    gitBranch: doc.gitBranch || '',
+    gitBranch: doc.gitBranch || doc.gitRef?.branch || '',
     currentWork: doc.currentWork || '',
     plan: doc.plan || '',
     designNotes: doc.designNotes || '',
     blockers: doc.blockers || '',
+
+    gitRef: {
+      repository: gRef.repository || '',
+      branch: gRef.branch || doc.gitBranch || '',
+      commitIds: gRef.commitIds || [],
+      prNumber: gRef.prNumber || '',
+      issueNumber: gRef.issueNumber || '',
+    },
+
+    timelineEntries: (doc.timelineEntries || []).map((t: any) => ({
+      _id: t._id,
+      timestamp: t.timestamp || Date.now(),
+      type: t.type || 'note',
+      title: t.title || 'Event',
+      description: t.description || '',
+      category: t.category || 'General',
+      metadata: t.metadata,
+    })).sort((a: any, b: any) => b.timestamp - a.timestamp),
+
+    decisions: (doc.decisions || []).map((d: any) => ({
+      _id: d._id,
+      title: d.title || '',
+      context: d.context || '',
+      decision: d.decision || '',
+      alternatives: d.alternatives || '',
+      rationale: d.rationale || '',
+      timestamp: d.timestamp || Date.now(),
+    })),
+
+    blockerList: (doc.blockerList || []).map((b: any) => ({
+      _id: b._id,
+      title: b.title || '',
+      severity: b.severity || 'medium',
+      status: b.status || 'open',
+      notes: b.notes || '',
+      resolvedAt: b.resolvedAt,
+      createdAt: b.createdAt || Date.now(),
+    })),
+
+    progressSnapshots: (doc.progressSnapshots || []).map((ps: any) => ({
+      _id: ps._id,
+      period: ps.period || 'Morning',
+      text: ps.text || '',
+      timestamp: ps.timestamp || Date.now(),
+    })),
+
+    completedItems: (doc.completedItems || []).map((i: any) => ({
+      _id: i._id,
+      text: i.text,
+      category: i.category || 'feature',
+      done: i.done ?? true,
+      completedAt: new Date(i.completedAt || Date.now()).getTime(),
+      createdAt: new Date(i.createdAt || Date.now()).getTime(),
+    })),
+
+    links: (doc.links || []).map((l: any) => ({
+      _id: l._id,
+      label: l.label,
+      url: l.url,
+      category: l.category || 'General',
+    })),
+
+    attachments: (doc.attachments || []).map((a: any) => ({
+      _id: a._id,
+      name: a.name,
+      type: a.type || 'file',
+      url: a.url,
+      sizeBytes: a.sizeBytes || 0,
+      uploadDate: a.uploadDate || Date.now(),
+      description: a.description || '',
+    })),
+
     workEntries: (doc.workEntries || []).map((e: any): WorkEntry => ({
       _id: e._id,
       date: e.date,
@@ -130,12 +348,30 @@ function mapLog(doc: any): WorkLog {
     })).sort((a: WorkEntry, b: WorkEntry) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     ),
+
+    tomorrowPlan: {
+      topPriority: tPlan.topPriority || '',
+      unfinishedItems: tPlan.unfinishedItems || [],
+      attentionRequired: tPlan.attentionRequired || '',
+    },
+
+    reflection: {
+      wentWell: ref.wentWell || '',
+      slowedDown: ref.slowedDown || '',
+      learned: ref.learned || '',
+      improvement: ref.improvement || '',
+      rating: ref.rating || 4,
+    },
+
+    moodMetrics: {
+      energy: mMets.energy || 3,
+      focus: mMets.focus || 4,
+      stress: mMets.stress || 2,
+      confidence: mMets.confidence || 4,
+      motivation: mMets.motivation || 4,
+    },
+
     totalActiveMs: doc.totalActiveMs || 0,
-    completedItems: (doc.completedItems || []).map((i: any) => ({
-      _id: i._id, text: i.text, done: i.done,
-      createdAt: new Date(i.createdAt || Date.now()).getTime(),
-    })),
-    links: (doc.links || []).map((l: any) => ({ _id: l._id, label: l.label, url: l.url })),
     status: doc.status || 'in-progress',
     isActive: doc.isActive ?? true,
     closedAt: doc.closedAt,
@@ -187,9 +423,15 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   activeLogs: cachedLogs.activeLogs,
   closedLogs: cachedLogs.closedLogs,
   todayLog: cachedLogs.todayLog,
+  selectedLogId: cachedLogs.todayLog?._id || null,
+  filters: { searchQuery: '' },
+
   loading: false,
   creating: false,
   error: null,
+
+  setSelectedLogId: (id) => set({ selectedLogId: id }),
+  setFilters: (newFilters) => set(s => ({ filters: { ...s.filters, ...newFilters } })),
 
   // ── Load ─────────────────────────────────────────────────────────────────────
   loadActive: async () => {
@@ -226,7 +468,13 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       const closedLogs = all.filter(l => !l.isActive);
       const todayLog = getTodayLog(activeLogs);
       cacheLogs(activeLogs, closedLogs, todayLog);
-      set({ activeLogs, closedLogs, todayLog, loading: false });
+      set({
+        activeLogs,
+        closedLogs,
+        todayLog,
+        selectedLogId: get().selectedLogId || todayLog?._id || activeLogs[0]?._id || null,
+        loading: false
+      });
     } catch (err: any) {
       set({ error: err.message, loading: false });
     }
@@ -246,6 +494,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       set({
         activeLogs: logs,
         todayLog,
+        selectedLogId: get().selectedLogId || todayLog?._id || null,
         loading: false,
       });
     } catch (err: any) {
@@ -285,7 +534,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
         const activeLogs = [log, ...s.activeLogs];
         const todayLog = getTodayLog(activeLogs);
         cacheLogs(activeLogs, s.closedLogs, todayLog);
-        return { activeLogs, todayLog, creating: false };
+        return { activeLogs, todayLog, selectedLogId: log._id, creating: false };
       });
       return log;
     } catch (err: any) {
@@ -294,7 +543,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     }
   },
 
-  // ── Field update (auto-save) ──────────────────────────────────────────────────
+  // ── Field updates (auto-save) ──────────────────────────────────────────────────
   updateField: async (id, field, value) => {
     const patch = { [field]: value };
     set(s => {
@@ -305,6 +554,24 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       return { activeLogs, closedLogs, todayLog };
     });
     await api.workLogs.update(id, patch);
+  },
+
+  updateNestedField: async (id, parentField, childField, value) => {
+    set(s => {
+      const updateObj = (l: WorkLog) => {
+        if (l._id !== id) return l;
+        const parent = { ...((l as any)[parentField] || {}), [childField]: value };
+        return { ...l, [parentField]: parent };
+      };
+      const activeLogs = s.activeLogs.map(updateObj);
+      const closedLogs = s.closedLogs.map(updateObj);
+      const todayLog = s.todayLog?._id === id
+        ? activeLogs.find(l => l._id === id) ?? s.todayLog
+        : getTodayLog(activeLogs);
+      cacheLogs(activeLogs, closedLogs, todayLog);
+      return { activeLogs, closedLogs, todayLog };
+    });
+    await api.workLogs.update(id, { [`${parentField}.${childField}`]: value });
   },
 
   linkTask: async (id, taskRefId) => {
@@ -319,7 +586,6 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     });
   },
 
-  // ── Update "what I did" text on a specific day entry ─────────────────────────
   updateEntry: async (id, entryId, what) => {
     set(s => {
       const activeLogs = s.activeLogs.map(l =>
@@ -341,7 +607,6 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     await api.workLogs.updateEntry(id, entryId, what);
   },
 
-  // ── Sync session time into work entries ───────────────────────────────────────
   syncTime: async (id) => {
     const doc = await api.workLogs.syncTime(id);
     const updated = mapLog(doc);
@@ -354,19 +619,18 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     });
   },
 
-  // ── Delete ────────────────────────────────────────────────────────────────────
   deleteLog: async (id) => {
     set(s => {
       const activeLogs = s.activeLogs.filter(l => l._id !== id);
       const closedLogs = s.closedLogs.filter(l => l._id !== id);
       const todayLog = s.todayLog?._id === id ? getTodayLog(activeLogs) : s.todayLog;
+      const selectedLogId = s.selectedLogId === id ? (todayLog?._id || activeLogs[0]?._id || null) : s.selectedLogId;
       cacheLogs(activeLogs, closedLogs, todayLog);
-      return { activeLogs, closedLogs, todayLog };
+      return { activeLogs, closedLogs, todayLog, selectedLogId };
     });
     await api.workLogs.delete(id);
   },
 
-  // ── Close / Continue ──────────────────────────────────────────────────────────
   closeLog: async (id) => {
     const doc = await api.workLogs.close(id);
     const closed = mapLog(doc);
@@ -391,9 +655,8 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     });
   },
 
-  // ── Completed items ───────────────────────────────────────────────────────────
-  addCompleted: async (id, text) => {
-    const doc = await api.workLogs.addCompleted(id, text);
+  addCompleted: async (id, text, category = 'feature') => {
+    const doc = await api.workLogs.addCompleted(id, text, category);
     const updated = mapLog(doc);
     set(s => {
       const activeLogs = patchList(s.activeLogs, id, updated);
@@ -420,9 +683,8 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
     await api.workLogs.deleteCompleted(id, itemId);
   },
 
-  // ── Links ─────────────────────────────────────────────────────────────────────
-  addLink: async (id, label, url) => {
-    const doc = await api.workLogs.addLink(id, label, url);
+  addLink: async (id, label, url, category = 'General') => {
+    const doc = await api.workLogs.addLink(id, label, url, category);
     const updated = mapLog(doc);
     set(s => {
       const activeLogs = patchList(s.activeLogs, id, updated);
@@ -447,5 +709,107 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       return { activeLogs, closedLogs, todayLog };
     });
     await api.workLogs.deleteLink(id, linkId);
+  },
+
+  // ── Sub-Document Actions ─────────────────────────────────────────────────
+
+  addTimelineEntry: async (id, entry) => {
+    const doc = await api.workLogs.addTimeline(id, entry);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  addDecision: async (id, decision) => {
+    const doc = await api.workLogs.addDecision(id, decision);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  deleteDecision: async (id, decId) => {
+    const doc = await api.workLogs.deleteDecision(id, decId);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  addBlocker: async (id, blocker) => {
+    const doc = await api.workLogs.addBlocker(id, blocker);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  updateBlocker: async (id, blkId, updates) => {
+    const doc = await api.workLogs.updateBlocker(id, blkId, updates);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  deleteBlocker: async (id, blkId) => {
+    const doc = await api.workLogs.deleteBlocker(id, blkId);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  addSnapshot: async (id, period, text) => {
+    const doc = await api.workLogs.addSnapshot(id, { period, text });
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  deleteSnapshot: async (id, snapId) => {
+    const doc = await api.workLogs.deleteSnapshot(id, snapId);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  addAttachment: async (id, attachment) => {
+    const doc = await api.workLogs.addAttachment(id, attachment);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
+  },
+
+  deleteAttachment: async (id, attId) => {
+    const doc = await api.workLogs.deleteAttachment(id, attId);
+    const updated = mapLog(doc);
+    set(s => ({
+      activeLogs: patchList(s.activeLogs, id, updated),
+      closedLogs: patchList(s.closedLogs, id, updated),
+      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+    }));
   },
 }));

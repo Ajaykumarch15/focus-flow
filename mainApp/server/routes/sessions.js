@@ -1,11 +1,79 @@
 const express = require('express');
 const Session = require('../models/Session');
 const Task    = require('../models/Task');
+const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 
 const router = express.Router();
 router.use(protect);
+
+// Helper to auto-add timeline entries to active WorkLogs
+async function addTimelineEntryToWorkLogs(userId, taskId, type, title, description = '') {
+  try {
+    const logs = await WorkLog.find({
+      userId,
+      $or: [{ taskRef: taskId }, { isActive: true }]
+    });
+
+    for (const log of logs) {
+      log.timelineEntries.push({
+        timestamp: Date.now(),
+        type,
+        title,
+        description,
+        category: 'Focus Session'
+      });
+      await log.save();
+    }
+  } catch (err) {
+    console.error('Failed to add timeline entry to WorkLogs:', err);
+  }
+}
+
+// Helper to auto-sync session time to linked WorkLogs
+async function syncSessionToWorkLogs(userId, taskId, session) {
+  try {
+    if (!session || !session.activeTime) return;
+
+    const task = await Task.findById(taskId);
+    const taskTitle = task ? task.title : 'Task';
+
+    const logs = await WorkLog.find({
+      userId,
+      $or: [{ taskRef: taskId }, { isActive: true }]
+    });
+
+    if (!logs.length) return;
+
+    const sessionDateStr = new Date(session.startTime).toDateString();
+
+    for (const log of logs) {
+      let entry = log.workEntries.find(e => new Date(e.date).toDateString() === sessionDateStr);
+      if (!entry) {
+        log.workEntries.push({
+          date: new Date(session.startTime),
+          what: `Focus session on ${taskTitle}`,
+          startedAt: session.startTime,
+          endedAt: session.endTime,
+          activeMs: session.activeTime,
+          sessionIds: [session._id],
+        });
+      } else {
+        if (!entry.sessionIds.includes(session._id)) {
+          entry.sessionIds.push(session._id);
+          entry.activeMs += session.activeTime;
+          if (!entry.startedAt || session.startTime < entry.startedAt) entry.startedAt = session.startTime;
+          if (!entry.endedAt || session.endTime > entry.endedAt) entry.endedAt = session.endTime;
+        }
+      }
+      log.totalActiveMs = log.workEntries.reduce((sum, e) => sum + (e.activeMs || 0), 0);
+      await log.save();
+    }
+  } catch (err) {
+    console.error('WorkLog sync failed:', err);
+  }
+}
 
 // ── GET /api/sessions — fetch sessions (optional ?taskId=, ?active=true) ──────
 router.get('/', async (req, res) => {
@@ -25,30 +93,41 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { taskId, startTime } = req.body;
+    if (!taskId) return res.status(400).json({ message: 'taskId is required' });
 
-    // Verify task belongs to user
     const task = await Task.findOne({ _id: taskId, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // The UI supports one active timer per user. Finalize any orphaned active
-    // sessions before starting a new one so restore/reporting stays coherent.
-    const orphanEndTime = Date.now();
+    const now = startTime || Date.now();
+
+    const existingSameTaskSession = await Session.findOne({
+      userId: req.user._id,
+      taskId,
+      isActive: true,
+    });
+
+    if (existingSameTaskSession) {
+      return res.status(200).json(existingSameTaskSession);
+    }
+
     const orphanedSessions = await Session.find({ userId: req.user._id, isActive: true });
     const orphanedTaskIds = [...new Set(orphanedSessions.map(s => s.taskId.toString()))];
+
     await Promise.all(orphanedSessions.map(async (activeSession) => {
       const lastPause = [...activeSession.pauseLog].reverse().find(p => !p.resumeTime);
       if (lastPause) {
-        lastPause.resumeTime = orphanEndTime;
-        activeSession.totalPauseDuration += orphanEndTime - lastPause.pauseStart;
+        lastPause.resumeTime = now;
+        activeSession.totalPauseDuration += now - lastPause.pauseStart;
       }
-      activeSession.endTime = orphanEndTime;
+      activeSession.endTime = now;
       activeSession.isActive = false;
       activeSession.activeTime = Math.max(
         0,
-        orphanEndTime - activeSession.startTime - activeSession.totalPauseDuration
+        now - activeSession.startTime - activeSession.totalPauseDuration
       );
       await activeSession.save();
     }));
+
     await Promise.all(orphanedTaskIds.map(async (orphanedTaskId) => {
       const allSessions = await Session.find({ taskId: orphanedTaskId, userId: req.user._id, isActive: false });
       const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
@@ -61,12 +140,14 @@ router.post('/', async (req, res) => {
     const session = await Session.create({
       userId: req.user._id,
       taskId,
-      startTime: startTime || Date.now(),
+      startTime: now,
       isActive: true,
     });
 
-    // Mark task as active
     await Task.findByIdAndUpdate(taskId, { status: 'active' });
+
+    // Auto timeline entry
+    await addTimelineEntryToWorkLogs(req.user._id, taskId, 'timer_start', `▶ Started Focus Session`, `Task: ${task.title}`);
 
     res.status(201).json(session);
     Activity.create({ userId: req.user._id, action: 'session.started', details: { taskId, taskTitle: task.title } }).catch(() => {});
@@ -79,17 +160,23 @@ router.post('/', async (req, res) => {
 router.patch('/:id/pause', async (req, res) => {
   try {
     const { pauseTime } = req.body;
-    const session = await Session.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id, isActive: true },
-      { 
-        $push: { pauseLog: { pauseStart: pauseTime || Date.now() } },
-        $inc: { pauseCount: 1 }
-      },
-      { new: true }
-    );
+    const now = pauseTime || Date.now();
+
+    const session = await Session.findOne({ _id: req.params.id, userId: req.user._id, isActive: true });
     if (!session) return res.status(404).json({ message: 'Active session not found' });
 
+    const hasOpenPause = session.pauseLog.some(p => !p.resumeTime);
+    if (!hasOpenPause) {
+      session.pauseLog.push({ pauseStart: now });
+      session.pauseCount = (session.pauseCount || 0) + 1;
+      await session.save();
+    }
+
     await Task.findByIdAndUpdate(session.taskId, { status: 'paused' });
+
+    // Auto timeline entry
+    await addTimelineEntryToWorkLogs(req.user._id, session.taskId, 'timer_pause', `⏸ Paused Focus Session`);
+
     res.json(session);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -102,20 +189,22 @@ router.patch('/:id/resume', async (req, res) => {
     const { resumeTime } = req.body;
     const now = resumeTime || Date.now();
 
-    const session = await Session.findOne({ _id: req.params.id, userId: req.user._id });
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    const session = await Session.findOne({ _id: req.params.id, userId: req.user._id, isActive: true });
+    if (!session) return res.status(404).json({ message: 'Active session not found' });
 
-    // Close the last open pause entry
     const lastPause = [...session.pauseLog].reverse().find(p => !p.resumeTime);
     if (lastPause) {
       lastPause.resumeTime = now;
-      const pauseDuration = now - lastPause.pauseStart;
+      const pauseDuration = Math.max(0, now - lastPause.pauseStart);
       session.totalPauseDuration += pauseDuration;
+      await session.save();
     }
 
-    await session.save();
-
     await Task.findByIdAndUpdate(session.taskId, { status: 'active' });
+
+    // Auto timeline entry
+    await addTimelineEntryToWorkLogs(req.user._id, session.taskId, 'timer_resume', `▶ Resumed Focus Session`);
+
     res.json(session);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -131,35 +220,33 @@ router.patch('/:id/stop', async (req, res) => {
     const session = await Session.findOne({ _id: req.params.id, userId: req.user._id });
     if (!session) return res.status(404).json({ message: 'Session not found' });
 
-    // Close any open pause
+    if (!session.isActive) {
+      return res.json(session);
+    }
+
     const lastPause = [...session.pauseLog].reverse().find(p => !p.resumeTime);
     if (lastPause) {
       lastPause.resumeTime = now;
-      session.totalPauseDuration += now - lastPause.pauseStart;
+      session.totalPauseDuration += Math.max(0, now - lastPause.pauseStart);
     }
 
-    session.endTime  = now;
+    session.endTime = now;
     session.isActive = false;
     session.activeTime = Math.max(0, now - session.startTime - session.totalPauseDuration);
 
-    // ── Focus Score Algorithm ──────────────────────────────────────────────
-    // Base score is 100. Deduct 5 points per pause.
-    // Also deduct based on pause duration relative to active time.
     let score = 100;
     score -= (session.pauseCount || 0) * 5;
     if (session.activeTime > 0) {
       const pauseRatio = session.totalPauseDuration / session.activeTime;
-      score -= Math.min(50, pauseRatio * 20); // up to 50 point penalty for long pauses
+      score -= Math.min(50, pauseRatio * 20);
     }
     session.focusScore = Math.max(0, Math.round(score));
 
     await session.save();
 
-    // ── Update User Stats (Streaks & Points) ──────────────────────────────
     const user = req.user;
     const todayStr = new Date().toISOString().split('T')[0];
-    
-    // Calculate today's total time
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todaySessions = await Session.find({
@@ -170,7 +257,6 @@ router.patch('/:id/stop', async (req, res) => {
     const todayTotalMs = todaySessions.reduce((acc, s) => acc + s.activeTime, 0);
     const goalMs = (user.settings?.dailyGoal || 8) * 3600000;
 
-    // Award points: 1 point per minute of focused work, scaled by focus score
     const sessionPoints = Math.round((session.activeTime / 60000) * (session.focusScore / 100));
     user.totalPoints = (user.totalPoints || 0) + sessionPoints;
 
@@ -191,10 +277,14 @@ router.patch('/:id/stop', async (req, res) => {
     }
     await user.save();
 
-    // Roll up total time on the Task document
     const allSessions = await Session.find({ taskId: session.taskId, userId: req.user._id, isActive: false });
     const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
     await Task.findByIdAndUpdate(session.taskId, { totalTime, status: 'todo' });
+
+    // Sync to WorkLog automatically + auto timeline entry
+    await syncSessionToWorkLogs(req.user._id, session.taskId, session);
+    const mins = Math.round(session.activeTime / 60000);
+    await addTimelineEntryToWorkLogs(req.user._id, session.taskId, 'timer_stop', `■ Stopped Focus Session (${mins}m logged)`);
 
     res.json(session);
     Activity.create({ userId: req.user._id, action: 'session.completed', details: { taskId: session.taskId, activeMs: session.activeTime } }).catch(() => {});

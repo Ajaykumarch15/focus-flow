@@ -3,36 +3,36 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
   ExternalLink, Link2, Lightbulb, Pencil, BookMarked,
-  Zap, Loader2, ChevronDown, ChevronUp, ChevronRight, Save,
+  Zap, Loader2, ChevronDown, ChevronRight, Save,
   CheckCheck, RotateCcw, X, Sparkles, Clock,
   Calendar, TrendingUp, Play, Pause, Square, Timer, FolderOpen,
-  Search, Filter, BarChart3, Flame, Target, ArrowUpRight,
-  FileText,
+  Search, BarChart3, Flame, ArrowUpRight, AlertOctagon, Layers, Eye,
+  Download,
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
+import { WorkLogExporterModal } from '../components/worklog/WorkLogExporterModal';
 import { useStore } from '../store/useStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
-import { formatDistanceToNow, format } from 'date-fns';
-import { Skeleton, SkeletonCard } from '../components/ui/Skeleton';
-import { dayKey, isToday as isTodayCentral } from '../utils/time';
+import { formatDistanceToNow, format, subDays, isToday as dfIsToday } from 'date-fns';
+import { Skeleton } from '../components/ui/Skeleton';
+import { isToday as isTodayCentral } from '../utils/time';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
-  value: WorkLogStatus; label: string; chipClass: string; color: string; bg: string; border: string;
+  value: WorkLogStatus; label: string; color: string; bg: string; border: string; emoji: string;
 }[] = [
-  { value: 'planning',    label: 'Planning',    chipClass: 'chip-planning',    color: 'text-[#2563EB] dark:text-blue-400',    bg: 'bg-[#EEF5FF] dark:bg-blue-500/10', border: 'border-blue-200/50' },
-  { value: 'in-progress', label: 'In Progress', chipClass: 'chip-in-progress', color: 'text-[#0284C7] dark:text-sky-400',     bg: 'bg-[#E8F5FF] dark:bg-sky-500/10',  border: 'border-[#38BDF8]' },
-  { value: 'reviewing',   label: 'Reviewing',   chipClass: 'chip-review',      color: 'text-[#7C3AED] dark:text-purple-400',  bg: 'bg-[#F5F3FF] dark:bg-purple-500/10', border: 'border-purple-200/50' },
-  { value: 'blocked',     label: 'Blocked',     chipClass: 'chip-blocked',     color: 'text-[#DC2626] dark:text-red-400',     bg: 'bg-[#FFF1F2] dark:bg-red-500/10',    border: 'border-red-200/50' },
-  { value: 'done',        label: 'Done',         chipClass: 'chip-done',        color: 'text-[#059669] dark:text-emerald-400', bg: 'bg-[#ECFDF5] dark:bg-emerald-500/10',border: 'border-emerald-200/50'},
+  { value: 'planning',    label: 'Planning',    color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    emoji: '🗺️' },
+  { value: 'in-progress', label: 'In Progress', color: 'text-sky-400',     bg: 'bg-sky-500/10',     border: 'border-sky-500/20',     emoji: '⚡' },
+  { value: 'reviewing',   label: 'Reviewing',   color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  emoji: '👀' },
+  { value: 'blocked',     label: 'Blocked',     color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20',     emoji: '🚫' },
+  { value: 'done',        label: 'Done',        color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', emoji: '✅' },
 ];
-const STATUS_EMOJI: Record<WorkLogStatus, string> = {
-  'planning': '🗺️', 'in-progress': '⚡', 'reviewing': '👀', 'blocked': '🚫', 'done': '✅',
-};
+const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS.map(s => [s.value, s])) as Record<WorkLogStatus, typeof STATUS_OPTIONS[0]>;
 const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
+const MOOD_LABELS = ['Exhausted', 'Meh', 'Okay', 'Good', 'Fired up'];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatMs(ms: number): string {
@@ -610,6 +610,19 @@ function FieldCard({ icon: Icon, color, bg, label, value, children, field, expan
   );
 }
 
+// ── Metric pill ────────────────────────────────────────────────────────────────
+function MetricPill({ icon: Icon, value, label, color }: {
+  icon: React.ElementType; value: string | number; label: string; color: string;
+}) {
+  return (
+    <div className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-lg bg-surface-800/80 border border-surface-700/50 ${color}`}>
+      <Icon size={11} />
+      <span className="font-semibold">{value}</span>
+      <span className="text-surface-500 font-normal">{label}</span>
+    </div>
+  );
+}
+
 // ── Full work log card ────────────────────────────────────────────────────────
 function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultExpanded?: boolean }) {
   const {
@@ -627,14 +640,17 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
   const [continuing, setContinuing]       = useState(false);
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showExport, setShowExport]       = useState(false);
 
   const { activeTaskId, activeTimerState } = useStore();
   const linkedTaskId  = log.taskRef?._id;
   const isThisActive  = activeTaskId === linkedTaskId && !!linkedTaskId;
   const isRunning     = isThisActive && activeTimerState === 'running';
-  const status        = STATUS_OPTIONS.find(s => s.value === log.status) || STATUS_OPTIONS[1];
+  const status        = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
   const age           = formatDistanceToNow(new Date(log.createdAt), { addSuffix: true });
   const doneCount     = log.completedItems.length;
+  const blockerCount  = (log.blockerList || []).filter(b => b.status !== 'resolved').length;
+  const decisionsCount = (log.decisions || []).length;
 
   const toggleField = (field: string) => {
     setExpandedFields(prev => {
@@ -672,20 +688,37 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
         : 'border-surface-800 bg-surface-900/60 opacity-75'
       }`}>
 
+      {/* Running indicator strip */}
+      {isRunning && (
+        <div className="h-0.5 bg-gradient-to-r from-brand-500 via-sky-400 to-brand-500" />
+      )}
+
       {/* Header */}
-      <div className="flex items-center gap-3 p-5 cursor-pointer hover:bg-surface-850/30 transition-colors"
+      <div className="flex items-start gap-3 p-5 cursor-pointer hover:bg-surface-850/20 transition-colors"
         onClick={() => setExpanded(e => !e)}>
-        {/* Status dot */}
-        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-          isRunning ? 'bg-brand-400 animate-pulse' :
-          log.isActive ? 'bg-surface-500' : 'bg-surface-700'
-        }`} />
+
+        {/* Status emoji icon */}
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base mt-0.5 ${status.bg} border ${status.border}`}>
+          {status.emoji}
+        </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-surface-50 text-[15px]">{log.title}</span>
-            <span className={`inline-flex items-center gap-1 badge text-[11px] font-semibold ${status.bg} ${status.color} border ${status.border} px-2 py-0.5 rounded-lg`}>
-              {STATUS_EMOJI[log.status]} {status.label}
+          {/* Title + live badge */}
+          <div className="flex items-center gap-2 flex-wrap mb-1.5">
+            <span className="font-semibold text-surface-50 text-[15px] leading-tight">{log.title}</span>
+            {isRunning && (
+              <span className="flex items-center gap-1 text-[10px] text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full border border-brand-500/20 font-bold uppercase tracking-wide">
+                <motion.span className="w-1.5 h-1.5 rounded-full bg-brand-400 inline-block"
+                  animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
+                Live
+              </span>
+            )}
+          </div>
+
+          {/* Meta chips */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${status.color} ${status.bg} ${status.border}`}>
+              {status.label}
             </span>
             {log.gitBranch && (
               <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
@@ -699,62 +732,62 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
               </span>
             )}
             {log.projectRef && (
-              <span className="flex items-center gap-1 text-[11px] text-surface-400 bg-surface-800 px-2 py-0.5 rounded-lg">
+              <span className="flex items-center gap-1 text-[11px] text-surface-400 bg-surface-800 px-2 py-0.5 rounded-lg border border-surface-700/50">
                 <FolderOpen size={10} /> {log.projectRef.name}
               </span>
             )}
-            {isRunning && (
-              <span className="text-[11px] text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-lg border border-brand-500/20 font-semibold">
-                ● Timer running
-              </span>
-            )}
           </div>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
+
+          {/* At-a-glance metrics */}
+          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
             <span className="text-xs text-surface-500">{age}</span>
+            <span className="text-surface-700">·</span>
+            <span className="text-lg" title={MOOD_LABELS[(log.mood || 3) - 1]}>{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
             {log.totalActiveMs > 0 && (
-              <span className="flex items-center gap-1 text-xs text-brand-400 font-mono font-medium">
-                <Clock size={10} /> {formatMs(log.totalActiveMs)} logged
-              </span>
-            )}
-            {log.taskRef && log.taskRef.totalTime > 0 && (
-              <span className="flex items-center gap-1 text-xs text-purple-400 font-mono">
-                <TrendingUp size={10} /> {formatMs(log.taskRef.totalTime)} task total
-              </span>
+              <MetricPill icon={Clock} value={formatMs(log.totalActiveMs)} label="logged" color="text-brand-400" />
             )}
             {doneCount > 0 && (
-              <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                <CheckCircle2 size={10} /> {doneCount} done
-              </span>
+              <MetricPill icon={CheckCircle2} value={doneCount} label="done" color="text-emerald-400" />
+            )}
+            {blockerCount > 0 && (
+              <MetricPill icon={AlertOctagon} value={blockerCount} label={blockerCount === 1 ? 'blocker' : 'blockers'} color="text-red-400" />
+            )}
+            {decisionsCount > 0 && (
+              <MetricPill icon={Lightbulb} value={decisionsCount} label={decisionsCount === 1 ? 'decision' : 'decisions'} color="text-amber-400" />
             )}
           </div>
         </div>
 
         {/* Right actions */}
-        <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-          <span className="text-lg">{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
+        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2" onClick={e => e.stopPropagation()}>
           {log.googleDocUrl && (
-            <button onClick={e => { e.stopPropagation(); window.open(log.googleDocUrl, "_blank", "noopener,noreferrer"); }}
-              title="Open Google Document"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium transition-all border border-blue-500/20 hover:border-blue-400/30">
-              <ExternalLink size={12} /> Doc
+            <button onClick={() => window.open(log.googleDocUrl, '_blank', 'noopener,noreferrer')}
+              title="Open Google Doc"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium transition-all border border-blue-500/20">
+              <ExternalLink size={11} />
             </button>
           )}
-          <button onClick={e => { e.stopPropagation(); navigate(`/worklog/${log._id}`); }}
-            title="View worklog details"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-medium transition-all border border-brand-500/20 hover:border-brand-400/30">
-            <FileText size={12} /> Details
+          <button onClick={() => navigate(`/worklog/${log._id}`)}
+            title="View full details"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
+            <Eye size={12} /> Details
+          </button>
+          <button onClick={() => setShowExport(true)}
+            title="Export"
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-surface-800 hover:bg-surface-700 text-surface-400 rounded-lg text-xs transition-all border border-surface-700">
+            <Download size={12} />
           </button>
           {log.isActive ? (
             <button onClick={async () => { setClosing(true); try { await closeLog(log._id); } finally { setClosing(false); } }}
               disabled={closing}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold transition-all border border-emerald-500/20">
-              {closing ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} />} Done
+              {closing ? <Loader2 size={11} className="animate-spin" /> : <CheckCheck size={11} />} Done
             </button>
           ) : (
             <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
               disabled={continuing}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
-              {continuing ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Continue
+              {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
             </button>
           )}
           {confirmDelete ? (
@@ -764,11 +797,12 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
             </div>
           ) : (
             <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
-              <Trash2 size={14} />
+              <Trash2 size={13} />
             </button>
           )}
-          <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
-            <ChevronDown size={15} className="text-surface-500 ml-1" />
+          <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }} className="cursor-pointer"
+            onClick={() => setExpanded(e => !e)}>
+            <ChevronDown size={15} className="text-surface-500 ml-0.5" />
           </motion.div>
         </div>
       </div>
@@ -793,7 +827,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                             ? `${s.bg} ${s.color} ring-1 ring-current/30`
                             : 'bg-surface-800 text-surface-500 hover:text-surface-200 hover:bg-surface-700'
                         }`}>
-                        {s.label}
+                        {s.emoji} {s.label}
                       </button>
                     ))}
                   </div>
@@ -802,6 +836,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                   <span className="text-xs text-surface-400 font-medium">Energy</span>
                   {MOOD_EMOJIS.map((emoji, i) => (
                     <button key={i} onClick={() => updateField(log._id, 'mood', i + 1)}
+                      title={MOOD_LABELS[i]}
                       className={`text-base transition-all ${log.mood === i + 1 ? 'scale-125' : 'opacity-30 hover:opacity-60'}`}>
                       {emoji}
                     </button>
@@ -990,6 +1025,70 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Export modal */}
+      <WorkLogExporterModal
+        workLog={log}
+        isOpen={showExport}
+        onClose={() => setShowExport(false)}
+      />
+    </motion.div>
+  );
+}
+
+// ── Closed log mini card ───────────────────────────────────────────────────────
+function ClosedLogCard({ log }: { log: WorkLog }) {
+  const { continueLog, deleteLog } = useWorkLogStore();
+  const navigate = useNavigate();
+  const [continuing, setContinuing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const status = STATUS_MAP[log.status] || STATUS_MAP['done'];
+
+  return (
+    <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-surface-800/70 bg-surface-900/60 p-4 flex items-center gap-3 hover:border-surface-700/70 transition-all group">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${status.bg} border ${status.border}`}>
+        {status.emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-surface-300 truncate group-hover:text-surface-100 transition-colors">{log.title}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-surface-500">
+            {log.closedAt ? formatDistanceToNow(new Date(log.closedAt), { addSuffix: true }) : formatDistanceToNow(new Date(log.updatedAt), { addSuffix: true })}
+          </span>
+          {log.totalActiveMs > 0 && (
+            <span className="text-[11px] text-surface-500 font-mono flex items-center gap-1">
+              <Clock size={10} /> {formatMs(log.totalActiveMs)}
+            </span>
+          )}
+          {log.completedItems.length > 0 && (
+            <span className="text-[11px] text-emerald-500 flex items-center gap-1">
+              <CheckCircle2 size={10} /> {log.completedItems.length}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+        <button onClick={() => navigate(`/worklog/${log._id}`)}
+          className="p-1.5 text-surface-500 hover:text-brand-400 rounded-lg transition-colors" title="View details">
+          <Eye size={13} />
+        </button>
+        <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
+          disabled={continuing}
+          className="flex items-center gap-1 px-2.5 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
+          {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
+        </button>
+        {confirmDelete ? (
+          <div className="flex items-center gap-1">
+            <button onClick={() => deleteLog(log._id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold">Yes</button>
+            <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -1078,79 +1177,167 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-function ProductivitySidebar({ activeLogs, closedLogs }: { activeLogs: WorkLog[]; closedLogs: WorkLog[] }) {
-  const { profile, tasks, activeTaskId, activeTimerState } = useStore();
-  const accent = '#0ea5e9';
+// ── Activity Heatmap ───────────────────────────────────────────────────────────
+function ActivityHeatmap({ allLogs }: { allLogs: WorkLog[] }) {
+  const days = 35;
+  const cells = useMemo(() => {
+    const result: { date: Date; ms: number }[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const key  = format(date, 'yyyy-MM-dd');
+      let totalMs = 0;
+      for (const log of allLogs) {
+        for (const entry of log.workEntries) {
+          if (entry.date.startsWith(key)) totalMs += entry.activeMs;
+        }
+      }
+      result.push({ date, ms: totalMs });
+    }
+    return result;
+  }, [allLogs]);
 
-  const totalActiveMs = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
-  const blockedCount  = activeLogs.filter(l => l.status === 'blocked').length;
-  const completedToday = tasks.filter(t => t.status === 'completed').length;
+  const maxMs = Math.max(...cells.map(c => c.ms), 1);
+
+  const getColor = (ms: number) => {
+    if (ms === 0) return 'bg-surface-800';
+    const pct = ms / maxMs;
+    if (pct < 0.25) return 'bg-brand-900/80';
+    if (pct < 0.5)  return 'bg-brand-700/80';
+    if (pct < 0.75) return 'bg-brand-500/80';
+    return 'bg-brand-400';
+  };
+
+  return (
+    <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+          <Flame size={14} className="text-brand-400" />
+        </div>
+        <span className="text-sm font-bold text-surface-100">Activity</span>
+        <span className="text-xs text-surface-500 ml-auto">Last {days}d</span>
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell, i) => {
+          const isToday = dfIsToday(cell.date);
+          return (
+            <div key={i} className="relative group">
+              <div className={`aspect-square rounded-sm transition-all cursor-default ${getColor(cell.ms)} ${
+                isToday ? 'ring-1 ring-brand-400 ring-offset-1 ring-offset-surface-900' : ''
+              }`} />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-surface-800 border border-surface-700 rounded-lg px-2.5 py-1.5 text-xs text-surface-100 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 shadow-xl text-center">
+                <p className="font-semibold">{format(cell.date, 'MMM d')}</p>
+                <p className="text-surface-400">{cell.ms > 0 ? formatMs(cell.ms) : 'No activity'}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-1 mt-3 justify-end">
+        <span className="text-[10px] text-surface-600">Less</span>
+        {['bg-surface-800', 'bg-brand-900/80', 'bg-brand-700/80', 'bg-brand-500/80', 'bg-brand-400'].map((c, i) => (
+          <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+        ))}
+        <span className="text-[10px] text-surface-600">More</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
+  activeLogs: WorkLog[]; closedLogs: WorkLog[]; allLogs: WorkLog[];
+}) {
+  const { profile, activeTaskId, activeTimerState } = useStore();
+  const navigate = useNavigate();
+
+  const totalActiveMs  = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
+  const blockedLogs    = activeLogs.filter(l => l.status === 'blocked');
+  const totalDecisions = activeLogs.reduce((s, l) => s + (l.decisions?.length || 0), 0);
+  const totalCompleted = activeLogs.reduce((s, l) => s + l.completedItems.length, 0);
 
   return (
     <div className="space-y-4 sticky top-24">
-      {/* Quick stats */}
+      {/* Workspace stats grid */}
       <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-        <h3 className="font-display font-bold text-surface-50 text-[15px] mb-4">Workspace</h3>
-        <div className="space-y-3">
+        <h3 className="font-display font-bold text-surface-50 text-[14px] mb-4 flex items-center gap-2">
+          <Layers size={14} className="text-brand-400" /> Workspace
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: Clock, label: 'Active Logs', value: String(activeLogs.length), color: 'text-brand-400', bg: 'bg-brand-500/10' },
-            { icon: TrendingUp, label: 'Total Time', value: formatMs(totalActiveMs), color: 'text-purple-400', bg: 'bg-purple-500/10' },
-            { icon: CheckCircle2, label: 'Completed', value: String(closedLogs.length), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-            { icon: Flame, label: 'Streak', value: `${profile.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-          ].map(({ icon: Icon, label, value, color, bg }) => (
-            <div key={label} className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
-                <Icon size={14} style={{ color }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[11px] text-surface-400 font-medium">{label}</p>
-                <p className="text-sm font-bold text-surface-100">{value}</p>
-              </div>
+            { label: 'Active', value: String(activeLogs.length), color: 'text-brand-400', bg: 'bg-brand-500/10', icon: BookMarked },
+            { label: 'Time', value: formatMs(totalActiveMs), color: 'text-purple-400', bg: 'bg-purple-500/10', icon: Clock },
+            { label: 'Done', value: String(closedLogs.length), color: 'text-emerald-400', bg: 'bg-emerald-500/10', icon: CheckCircle2 },
+            { label: 'Streak', value: `${profile?.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: Flame },
+          ].map(({ label, value, color, bg, icon: Icon }) => (
+            <div key={label} className={`rounded-xl p-3 ${bg} border border-surface-700/30`}>
+              <p className={`text-base font-display font-bold ${color}`}>{value}</p>
+              <p className="text-[10px] text-surface-400 font-medium mt-0.5">{label}</p>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Blocked warning */}
-      {blockedCount > 0 && (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <AlertCircle size={14} className="text-red-400" />
-            <span className="text-sm font-semibold text-red-400">{blockedCount} blocked</span>
+        {(totalCompleted > 0 || totalDecisions > 0) && (
+          <div className="mt-3 pt-3 border-t border-surface-800 flex items-center gap-4 text-xs text-surface-400">
+            {totalCompleted > 0 && <span className="flex items-center gap-1"><CheckCircle2 size={11} className="text-emerald-400" /> {totalCompleted} items</span>}
+            {totalDecisions > 0 && <span className="flex items-center gap-1"><Lightbulb size={11} className="text-amber-400" /> {totalDecisions} decisions</span>}
           </div>
-          <p className="text-xs text-red-400/70">Some work logs need attention</p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Active timer */}
       {activeTaskId && (
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+          <div className="flex items-center gap-2 mb-1">
             <motion.div className="w-2 h-2 rounded-full bg-amber-400"
               animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
             <span className="text-sm font-semibold text-amber-400">Timer Active</span>
           </div>
-          <p className="text-xs text-amber-400/70 capitalize">{activeTimerState}</p>
+          <p className="text-xs text-amber-400/60 capitalize">{activeTimerState}</p>
         </div>
       )}
 
-      {/* Recent logs */}
+      {/* Blocked logs */}
+      {blockedLogs.length > 0 && (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertOctagon size={14} className="text-red-400" />
+            <span className="text-sm font-semibold text-red-400">{blockedLogs.length} blocked</span>
+          </div>
+          <div className="space-y-1.5">
+            {blockedLogs.slice(0, 3).map(log => (
+              <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                className="w-full text-left flex items-center gap-2 p-2 rounded-lg hover:bg-red-500/10 transition-colors">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
+                <span className="text-xs text-red-300/80 truncate">{log.title}</span>
+                <ArrowUpRight size={10} className="text-red-400/60 flex-shrink-0 ml-auto" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Activity heatmap */}
+      <ActivityHeatmap allLogs={allLogs} />
+
+      {/* Recent active logs */}
       {activeLogs.length > 0 && (
         <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <h3 className="font-display font-bold text-surface-50 text-[13px] mb-3">Recent Work</h3>
-          <div className="space-y-2">
-            {activeLogs.slice(0, 4).map(log => (
-              <div key={log._id} className="flex items-center gap-2 py-1.5">
-                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  log.status === 'blocked' ? 'bg-red-400' : log.status === 'in-progress' ? 'bg-brand-400' : 'bg-surface-600'
-                }`} />
-                <span className="text-xs text-surface-300 truncate flex-1">{log.title}</span>
-                {log.totalActiveMs > 0 && (
-                  <span className="text-[10px] text-surface-500 font-mono">{formatMs(log.totalActiveMs)}</span>
-                )}
-              </div>
-            ))}
+          <h3 className="font-display font-bold text-surface-50 text-[13px] mb-3 flex items-center gap-2">
+            <TrendingUp size={13} className="text-brand-400" /> Recent Work
+          </h3>
+          <div className="space-y-1">
+            {activeLogs.slice(0, 5).map(log => {
+              const s = STATUS_MAP[log.status];
+              return (
+                <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                  className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-surface-800 transition-colors text-left group">
+                  <span className="text-sm flex-shrink-0">{s?.emoji}</span>
+                  <span className="text-xs text-surface-300 truncate flex-1 group-hover:text-surface-100 transition-colors">{log.title}</span>
+                  {log.totalActiveMs > 0 && (
+                    <span className="text-[10px] text-surface-500 font-mono flex-shrink-0">{formatMs(log.totalActiveMs)}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1169,62 +1356,84 @@ export function WorkLogPage() {
 
   useEffect(() => { loadAll(); }, []);
 
-  const totalActiveMs = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
-  const blockedCount = activeLogs.filter(l => l.status === 'blocked').length;
+  const allLogs        = useMemo(() => [...activeLogs, ...closedLogs], [activeLogs, closedLogs]);
+  const totalActiveMs  = activeLogs.reduce((s, l) => s + l.totalActiveMs, 0);
+  const totalCompleted = activeLogs.reduce((s, l) => s + l.completedItems.length, 0);
 
   const filteredActive = useMemo(() => {
     let logs = activeLogs;
     if (search.trim()) {
       const q = search.toLowerCase();
-      logs = logs.filter(l => l.title.toLowerCase().includes(q) || l.taskRef?.title?.toLowerCase().includes(q) || l.gitBranch?.toLowerCase().includes(q));
+      logs = logs.filter(l =>
+        l.title.toLowerCase().includes(q) ||
+        l.taskRef?.title?.toLowerCase().includes(q) ||
+        l.gitBranch?.toLowerCase().includes(q) ||
+        l.problem?.toLowerCase().includes(q)
+      );
     }
     if (filterStatus !== 'all') logs = logs.filter(l => l.status === filterStatus);
     return logs;
   }, [activeLogs, search, filterStatus]);
 
-  return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+  const filteredClosed = useMemo(() => {
+    if (!search.trim()) return closedLogs;
+    const q = search.toLowerCase();
+    return closedLogs.filter(l =>
+      l.title.toLowerCase().includes(q) ||
+      l.taskRef?.title?.toLowerCase().includes(q)
+    );
+  }, [closedLogs, search]);
 
-      {/* ═══ Workspace Header ═══ */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="mb-6">
+  return (
+    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+
+      {/* ═══ Header ═══ */}
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
-              Work Logs
-              <span className="text-xs font-bold text-surface-400 bg-surface-800 px-2.5 py-1 rounded-lg">
-                {activeLogs.length} active
-              </span>
-            </h1>
+            <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 tracking-tight">Work Logs</h1>
             <p className="text-surface-400 text-sm mt-1">
-              {formatMs(totalActiveMs)} tracked today · {closedLogs.length} completed
+              {activeLogs.length} active · {formatMs(totalActiveMs)} tracked · {closedLogs.length} completed
             </p>
           </div>
           <button onClick={() => setShowCreate(true)}
-            className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20">
+            className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 self-start sm:self-auto">
             <Plus size={16} /> New Work Log
           </button>
         </div>
 
-        {/* Search + Filter bar */}
+        {/* Search + Filter */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-            <input className="input h-10 pl-9 pr-4 rounded-xl text-sm"
-              placeholder="Search work logs…" value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="input h-10 pl-9 pr-9 rounded-xl text-sm"
+              placeholder="Search logs, tasks, branches…" value={search} onChange={e => setSearch(e.target.value)} />
+            {search && (
+              <button onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-200 transition-colors">
+                <X size={13} />
+              </button>
+            )}
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {(['all', ...STATUS_OPTIONS.map(s => s.value)] as const).map(val => {
-              const label = val === 'all' ? 'All' : STATUS_OPTIONS.find(s => s.value === val)?.label;
+              const opt   = STATUS_OPTIONS.find(s => s.value === val);
+              const label = val === 'all' ? 'All' : opt?.label;
+              const count = val === 'all' ? activeLogs.length : activeLogs.filter(l => l.status === val).length;
               const isActive = filterStatus === val;
               return (
                 <button key={val} onClick={() => setFilterStatus(val)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
                     isActive
                       ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30'
                       : 'bg-surface-800 text-surface-400 border border-surface-800 hover:text-surface-200 hover:border-surface-700'
                   }`}>
-                  {label}
+                  {val !== 'all' && opt?.emoji} {label}
+                  {count > 0 && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                      isActive ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-700 text-surface-400'
+                    }`}>{count}</span>
+                  )}
                 </button>
               );
             })}
@@ -1232,62 +1441,43 @@ export function WorkLogPage() {
         </div>
       </motion.div>
 
-      {/* ═══ Stats + Alerts (top) ═══ */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* ═══ Stats bar ═══ */}
+      <motion.div variants={stagger} initial="hidden" animate="show"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {[
-          { icon: Clock, label: 'Active Logs', value: String(activeLogs.length), color: 'text-brand-400', bg: 'bg-brand-500/10' },
-          { icon: TrendingUp, label: 'Total Time', value: formatMs(totalActiveMs), color: 'text-purple-400', bg: 'bg-purple-500/10' },
-          { icon: CheckCircle2, label: 'Completed', value: String(closedLogs.length), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-          { icon: Flame, label: 'Streak', value: `${profile?.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-        ].map(({ icon: Icon, label, value, color, bg }) => (
+          { icon: BookMarked, label: 'Active Logs', display: String(activeLogs.length), color: 'text-brand-400', bg: 'from-brand-500/10 to-brand-500/5', border: 'border-brand-500/15', sub: `${filteredActive.length} shown` },
+          { icon: Clock,      label: 'Time Logged', display: formatMs(totalActiveMs),    color: 'text-purple-400', bg: 'from-purple-500/10 to-purple-500/5', border: 'border-purple-500/15', sub: `across ${activeLogs.length} logs` },
+          { icon: CheckCircle2, label: 'Items Done', display: String(totalCompleted),   color: 'text-emerald-400', bg: 'from-emerald-500/10 to-emerald-500/5', border: 'border-emerald-500/15', sub: 'in active logs' },
+          { icon: Flame,      label: 'Streak',       display: `${profile?.streak?.current || 0}d`, color: 'text-orange-400', bg: 'from-orange-500/10 to-orange-500/5', border: 'border-orange-500/15', sub: profile?.streak?.best ? `best ${profile.streak.best}d` : 'keep going!' },
+        ].map(({ icon: Icon, label, display, color, bg, border, sub }) => (
           <motion.div key={label} variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex items-center gap-4">
-            <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>
-              <Icon size={18} style={{ color }} />
+            className={`rounded-2xl border ${border} bg-gradient-to-br ${bg} p-5`}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-9 h-9 rounded-xl bg-surface-800/60 flex items-center justify-center">
+                <Icon size={16} className={color} />
+              </div>
+              <span className={`text-2xl font-display font-extrabold ${color}`}>{display}</span>
             </div>
-            <div>
-              <p className="text-[11px] text-surface-400 font-medium">{label}</p>
-              <p className="text-lg font-display font-bold text-surface-100">{value}</p>
-            </div>
+            <p className="text-xs font-semibold text-surface-300">{label}</p>
+            <p className="text-[10px] text-surface-500 mt-0.5">{sub}</p>
           </motion.div>
         ))}
       </motion.div>
 
-      {/* Alerts row */}
-      {(blockedCount > 0 || activeTaskId) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          {blockedCount > 0 && (
-            <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 flex items-center gap-3">
-              <AlertCircle size={16} className="text-red-400 flex-shrink-0" />
-              <div>
-                <span className="text-sm font-semibold text-red-400">{blockedCount} blocked</span>
-                <p className="text-xs text-red-400/70">Some work logs need attention</p>
-              </div>
-            </div>
-          )}
-          {activeTaskId && (
-            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-center gap-3">
-              <motion.div className="w-2.5 h-2.5 rounded-full bg-amber-400 flex-shrink-0"
-                animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
-              <div>
-                <span className="text-sm font-semibold text-amber-400">Timer Active</span>
-                <p className="text-xs text-amber-400/70 capitalize">{activeTimerState}</p>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ═══ Main 2-col layout ═══ */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-6 items-start">
 
-      {/* ═══ Main content ═══ */}
-      <div className="space-y-4 min-w-0">
+        {/* Left — log list */}
+        <div className="min-w-0 space-y-4">
           {loading && activeLogs.length === 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <Skeleton className="h-5 w-24 rounded-lg" />
-                      <Skeleton className="h-5 w-16 rounded-lg" />
+                  <div className="flex items-center gap-3 mb-3">
+                    <Skeleton className="h-9 w-9 rounded-xl" />
+                    <div className="flex-1">
+                      <Skeleton className="h-4 w-48 rounded mb-2" />
+                      <Skeleton className="h-3 w-32 rounded" />
                     </div>
                     <Skeleton className="h-8 w-20 rounded-lg" />
                   </div>
@@ -1295,20 +1485,27 @@ export function WorkLogPage() {
                 </div>
               ))}
             </div>
-          ) : filteredActive.length === 0 ? (
+          ) : filteredActive.length === 0 && !search ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 p-12 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
+              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 p-14 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4 border border-brand-500/20">
                 <BookMarked size={28} className="text-brand-400" />
               </div>
-              <h3 className="font-display font-bold text-surface-100 text-lg mb-2">No work logs found</h3>
-              <p className="text-sm text-surface-400 max-w-sm mx-auto mb-5">
-                Create a work log and link it to a task. You'll get timer controls and time tracking right inside the card.
+              <h3 className="font-display font-bold text-surface-100 text-lg mb-2">No work logs yet</h3>
+              <p className="text-sm text-surface-400 max-w-sm mx-auto mb-6">
+                Create a work log for any feature, bug, or task. Link it to a task to unlock timer controls and automatic time tracking.
               </p>
               <button onClick={() => setShowCreate(true)}
-                className="btn-primary mx-auto flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20">
+                className="btn-primary mx-auto flex items-center gap-2 px-6 py-3 rounded-xl shadow-lg shadow-brand-500/20">
                 <Plus size={15} /> Create First Work Log
               </button>
+            </motion.div>
+          ) : filteredActive.length === 0 && search ? (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 p-10 text-center">
+              <Search size={24} className="text-surface-600 mx-auto mb-3" />
+              <p className="text-sm text-surface-400">No logs matching <span className="text-surface-200 font-medium">"{search}"</span></p>
+              <button onClick={() => setSearch('')} className="text-xs text-brand-400 hover:text-brand-300 mt-2 transition-colors">Clear search</button>
             </motion.div>
           ) : (
             <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
@@ -1318,13 +1515,16 @@ export function WorkLogPage() {
             </motion.div>
           )}
 
-          {/* Closed logs */}
-          {closedLogs.length > 0 && (
+          {/* Closed logs section */}
+          {filteredClosed.length > 0 && (
             <div className="mt-6">
               <button onClick={() => setShowClosed(!showClosed)}
-                className="flex items-center gap-2 text-surface-400 hover:text-surface-50 text-sm font-semibold transition-colors mb-3">
+                className="flex items-center gap-2 text-surface-400 hover:text-surface-50 text-sm font-semibold transition-colors mb-3 group">
                 <CheckCheck size={15} className="text-emerald-400" />
-                Completed ({closedLogs.length})
+                Completed
+                <span className="text-xs text-surface-500 bg-surface-800 px-2 py-0.5 rounded-full font-normal group-hover:bg-surface-700 transition-colors">
+                  {filteredClosed.length}
+                </span>
                 <motion.div animate={{ rotate: showClosed ? 180 : 0 }} transition={{ duration: 0.2 }}>
                   <ChevronDown size={14} />
                 </motion.div>
@@ -1332,14 +1532,18 @@ export function WorkLogPage() {
               <AnimatePresence>
                 {showClosed && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden">
-                    {closedLogs.map(log => <WorkLogCard key={log._id} log={log} />)}
+                    exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden">
+                    {filteredClosed.map(log => <ClosedLogCard key={log._id} log={log} />)}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           )}
         </div>
+
+        {/* Right — Sidebar */}
+        <ProductivitySidebar activeLogs={activeLogs} closedLogs={closedLogs} allLogs={allLogs} />
+      </div>
 
       <AnimatePresence>
         {showCreate && <CreateLogModal onClose={() => setShowCreate(false)} />}

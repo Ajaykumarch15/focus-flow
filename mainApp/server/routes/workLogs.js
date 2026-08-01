@@ -27,7 +27,7 @@ function triggerGoogleDocSync(req, log) {
         log.title,
         log.projectRef ? log.projectRef.name : 'No Project',
         {
-          problem: log.problem,
+          problem: log.problemFlow?.problem || log.problem,
           plan: log.plan,
           designNotes: log.designNotes,
           currentWork: log.currentWork,
@@ -84,10 +84,8 @@ function localDateToUtc(dateKey, timeZone) {
   return new Date(utcGuess.getTime() - getOffsetMs(utcGuess, timeZone));
 }
 
-// Compute effective active ms for a session (works for both active and stopped)
 function sessionActiveMs(session) {
   if (!session.isActive) return session.activeTime || 0;
-  // Running session — compute live
   const now = Date.now();
   const lastPause = session.pauseLog?.length
     ? session.pauseLog[session.pauseLog.length - 1]
@@ -104,11 +102,7 @@ async function syncWorkEntries(log, userId, timeZone = 'UTC') {
   const taskId = log.taskRef?._id || log.taskRef;
   if (!taskId) return log;
 
-  const sessions = await Session.find({
-    userId,
-    taskId,
-  });
-
+  const sessions = await Session.find({ userId, taskId });
   if (sessions.length === 0) return log;
 
   const grouped = new Map();
@@ -181,7 +175,6 @@ router.get('/:id', async (req, res) => {
 
     if (!log) return res.status(404).json({ message: 'Not found' });
 
-    // Auto-sync today's time from linked task sessions
     log = await syncWorkEntries(log, req.user._id, userTimezone(req));
     res.json(log);
   } catch (err) {
@@ -194,7 +187,8 @@ router.post('/', async (req, res) => {
   try {
     const {
       title, problem, gitBranch, currentWork, plan,
-      designNotes, blockers, status, mood, tags, taskRef, projectId
+      designNotes, blockers, status, mood, tags, taskRef, projectId,
+      problemFlow, gitRef, tomorrowPlan, reflection, moodMetrics
     } = req.body;
 
     const Project = require('../models/Project');
@@ -202,7 +196,6 @@ router.post('/', async (req, res) => {
     let googleDocId = '';
     let googleDocUrl = '';
 
-    // Auto-create folders if Google Drive is connected
     if (req.user.googleConnected && req.user.googleTokens && req.user.googleTokens.refreshToken) {
       try {
         const { getAuthorizedClient, createProjectFolders, createWorkLogDoc } = require('../utils/googleDrive');
@@ -216,7 +209,6 @@ router.post('/', async (req, res) => {
             projectRef = project._id;
             pName = project.name;
             if (!project.workLogsFolderId) {
-              console.log(`📁 Project folders missing in Drive for "${project.name}", creating them...`);
               const folderIds = await createProjectFolders(oauth2Client, project.name);
               project.googleFolderId = folderIds.googleFolderId;
               project.workLogsFolderId = folderIds.workLogsFolderId;
@@ -230,11 +222,8 @@ router.post('/', async (req, res) => {
         }
 
         if (!targetFolderId) {
-          // Fallback: use or create a default "FocusFlow WorkLogs" folder
           const { google } = require('googleapis');
           const drive = google.drive({ version: 'v3', auth: oauth2Client });
-          console.log('📁 No project specified. Looking for default "FocusFlow WorkLogs" folder...');
-          
           const searchRes = await drive.files.list({
             q: "name = 'FocusFlow WorkLogs' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
             fields: 'files(id)',
@@ -243,19 +232,12 @@ router.post('/', async (req, res) => {
 
           if (searchRes.data.files && searchRes.data.files.length > 0) {
             targetFolderId = searchRes.data.files[0].id;
-            console.log(`✅ Found existing default folder: ${targetFolderId}`);
           } else {
-            console.log('📁 Default folder not found, creating one...');
-            const defaultFolderMetadata = {
-              name: 'FocusFlow WorkLogs',
-              mimeType: 'application/vnd.google-apps.folder',
-            };
             const defaultFolderRes = await drive.files.create({
-              requestBody: defaultFolderMetadata,
+              requestBody: { name: 'FocusFlow WorkLogs', mimeType: 'application/vnd.google-apps.folder' },
               fields: 'id',
             });
             targetFolderId = defaultFolderRes.data.id;
-            console.log(`✅ Created default folder: ${targetFolderId}`);
           }
         }
 
@@ -265,7 +247,7 @@ router.post('/', async (req, res) => {
             targetFolderId,
             title || 'Untitled Work Item',
             pName,
-            { problem, plan, designNotes, currentWork, blockers }
+            { problem: problemFlow?.problem || problem, plan, designNotes, currentWork, blockers }
           );
           googleDocId = docRes.googleDocId;
           googleDocUrl = docRes.googleDocUrl;
@@ -274,17 +256,29 @@ router.post('/', async (req, res) => {
         console.error('⚠️ Google Drive doc creation failed:', driveErr.message);
       }
     } else if (projectId) {
-      // If Drive is not connected but project is passed, we still link the project in DB
       const project = await Project.findOne({ _id: projectId, userId: req.user._id });
-      if (project) {
-        projectRef = project._id;
-      }
+      if (project) projectRef = project._id;
     }
+
+    const initialTimeline = [
+      {
+        timestamp: Date.now(),
+        type: 'note',
+        title: 'Work Journal Initialized',
+        description: `Started developer journal "${title || 'Untitled Work Item'}"`,
+        category: 'Setup'
+      }
+    ];
 
     const log = await WorkLog.create({
       userId:      req.user._id,
       title:       title     || 'Untitled Work Item',
-      problem, gitBranch, currentWork, plan, designNotes, blockers,
+      problem:     problem   || problemFlow?.problem || '',
+      gitBranch:   gitBranch || gitRef?.branch || '',
+      currentWork: currentWork || '',
+      plan:        plan      || '',
+      designNotes: designNotes || '',
+      blockers:    blockers  || '',
       status:      status    || 'in-progress',
       isActive:    true,
       mood:        mood      || 3,
@@ -293,18 +287,22 @@ router.post('/', async (req, res) => {
       projectRef,
       googleDocId,
       googleDocUrl,
+      problemFlow: problemFlow || { problem: problem || '' },
+      gitRef:      gitRef || { branch: gitBranch || '' },
+      tomorrowPlan: tomorrowPlan || {},
+      reflection:  reflection || {},
+      moodMetrics: moodMetrics || { energy: 3, focus: 4, stress: 2, confidence: 4, motivation: 4 },
+      timelineEntries: initialTimeline,
       workEntries: [],
       totalActiveMs: 0,
     });
 
-    // Seed today's entry immediately if task linked
     let populated = await log.populate([
       { path: 'taskRef', select: 'title color category totalTime' },
       { path: 'projectRef', select: 'name googleFolderId workLogsFolderId' }
     ]);
     populated = await syncWorkEntries(populated, req.user._id, userTimezone(req));
 
-    console.log(`✅ WorkLog created: "${log.title}" linked to project: ${projectId || 'none'}, task: ${taskRef || 'none'}`);
     res.status(201).json(populated);
     Activity.create({ userId: req.user._id, action: 'worklog.created', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
@@ -331,7 +329,270 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// ── POST /api/worklogs/:id/sync-time ─────────────────────────────────────────
+// ── Sub-Document Specific Endpoints ─────────────────────────────────────────
+
+// POST /api/worklogs/:id/timeline — Add timeline entry
+router.post('/:id/timeline', async (req, res) => {
+  try {
+    const { title, description, type, category, metadata, timestamp } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $push: { timelineEntries: { title, description, type: type || 'note', category: category || 'General', metadata, timestamp: timestamp || Date.now() } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/decisions — Add decision
+router.post('/:id/decisions', async (req, res) => {
+  try {
+    const { title, context, decision, alternatives, rationale } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { 
+        $push: { 
+          decisions: { title, context, decision, alternatives, rationale, timestamp: Date.now() },
+          timelineEntries: { title: `Decision: ${title}`, description: decision, type: 'decision', category: 'Architecture' }
+        } 
+      },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/decisions/:decId
+router.delete('/:id/decisions/:decId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { decisions: { _id: req.params.decId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/blockers — Add blocker
+router.post('/:id/blockers', async (req, res) => {
+  try {
+    const { title, severity, notes } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { 
+        $push: { 
+          blockerList: { title, severity: severity || 'medium', status: 'open', notes, createdAt: Date.now() },
+          timelineEntries: { title: `Blocker Added: ${title}`, description: notes, type: 'blocker', category: 'Blocker' }
+        } 
+      },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH /api/worklogs/:id/blockers/:blkId — Update blocker status
+router.patch('/:id/blockers/:blkId', async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    const patch = {};
+    if (status) patch['blockerList.$.status'] = status;
+    if (notes) patch['blockerList.$.notes'] = notes;
+    if (status === 'resolved') patch['blockerList.$.resolvedAt'] = Date.now();
+
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id, 'blockerList._id': req.params.blkId },
+      { $set: patch },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/blockers/:blkId
+router.delete('/:id/blockers/:blkId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { blockerList: { _id: req.params.blkId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/snapshots — Add progress snapshot
+router.post('/:id/snapshots', async (req, res) => {
+  try {
+    const { period, text } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { 
+        $push: { 
+          progressSnapshots: { period: period || 'Morning', text, timestamp: Date.now() },
+          timelineEntries: { title: `${period} Snapshot`, description: text, type: 'snapshot', category: 'Progress' }
+        } 
+      },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/snapshots/:snapId
+router.delete('/:id/snapshots/:snapId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { progressSnapshots: { _id: req.params.snapId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/attachments — Add attachment
+router.post('/:id/attachments', async (req, res) => {
+  try {
+    const { name, type, url, sizeBytes, description } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $push: { attachments: { name, type: type || 'file', url, sizeBytes: sizeBytes || 0, description: description || '', uploadDate: Date.now() } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/attachments/:attId
+router.delete('/:id/attachments/:attId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { attachments: { _id: req.params.attId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/completed — Add completed item with category
+router.post('/:id/completed', async (req, res) => {
+  try {
+    const { text, category } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { 
+        $push: { 
+          completedItems: { text, category: category || 'feature', done: true, completedAt: Date.now(), createdAt: Date.now() },
+          timelineEntries: { title: `Completed: ${text}`, description: `Category: ${category || 'feature'}`, type: 'completed_item', category: 'Done' }
+        } 
+      },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    triggerGoogleDocSync(req, log);
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/completed/:itemId
+router.delete('/:id/completed/:itemId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { completedItems: { _id: req.params.itemId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    triggerGoogleDocSync(req, log);
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/links — Add link with category
+router.post('/:id/links', async (req, res) => {
+  try {
+    const { label, url, category } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $push: { links: { label, url, category: category || 'General' } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    triggerGoogleDocSync(req, log);
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/worklogs/:id/links/:linkId
+router.delete('/:id/links/:linkId', async (req, res) => {
+  try {
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      { $pull: { links: { _id: req.params.linkId } } },
+      { new: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    triggerGoogleDocSync(req, log);
+    res.json(log);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/worklogs/:id/sync-time
 router.post('/:id/sync-time', async (req, res) => {
   try {
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id });
@@ -344,12 +605,11 @@ router.post('/:id/sync-time', async (req, res) => {
     ]);
     res.json(log);
   } catch (err) {
-    console.error('sync-time error:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// PATCH /api/worklogs/:id/task - link, change, or unlink the backing task
+// PATCH /api/worklogs/:id/task
 router.patch('/:id/task', async (req, res) => {
   try {
     const { taskRef } = req.body;
@@ -377,24 +637,7 @@ router.patch('/:id/task', async (req, res) => {
   }
 });
 
-// ── PATCH /api/worklogs/:id/entries/:entryId ─────────────────────────────────
-router.patch('/:id/entries/:entryId', async (req, res) => {
-  try {
-    const log = await WorkLog.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id, 'workEntries._id': req.params.entryId },
-      { $set: { 'workEntries.$.what': req.body.what } },
-      { new: true }
-    ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId');
-
-    if (!log) return res.status(404).json({ message: 'Not found' });
-    res.json(log);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── POST /api/worklogs/:id/close ─────────────────────────────────────────────
+// POST /api/worklogs/:id/close
 router.post('/:id/close', async (req, res) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
@@ -411,7 +654,7 @@ router.post('/:id/close', async (req, res) => {
   }
 });
 
-// ── POST /api/worklogs/:id/continue ──────────────────────────────────────────
+// POST /api/worklogs/:id/continue
 router.post('/:id/continue', async (req, res) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
@@ -427,75 +670,7 @@ router.post('/:id/continue', async (req, res) => {
   }
 });
 
-// ── POST /api/worklogs/:id/completed ─────────────────────────────────────────
-router.post('/:id/completed', async (req, res) => {
-  try {
-    const log = await WorkLog.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      { $push: { completedItems: { text: req.body.text, done: true } } },
-      { new: true }
-    ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId');
-    if (!log) return res.status(404).json({ message: 'Not found' });
-    triggerGoogleDocSync(req, log);
-    res.json(log);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── DELETE /api/worklogs/:id/completed/:itemId ────────────────────────────────
-router.delete('/:id/completed/:itemId', async (req, res) => {
-  try {
-    const log = await WorkLog.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      { $pull: { completedItems: { _id: req.params.itemId } } },
-      { new: true }
-    ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId');
-    if (!log) return res.status(404).json({ message: 'Not found' });
-    triggerGoogleDocSync(req, log);
-    res.json(log);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── POST /api/worklogs/:id/links ──────────────────────────────────────────────
-router.post('/:id/links', async (req, res) => {
-  try {
-    const log = await WorkLog.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      { $push: { links: { label: req.body.label, url: req.body.url } } },
-      { new: true }
-    ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId');
-    if (!log) return res.status(404).json({ message: 'Not found' });
-    triggerGoogleDocSync(req, log);
-    res.json(log);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── DELETE /api/worklogs/:id/links/:linkId ────────────────────────────────────
-router.delete('/:id/links/:linkId', async (req, res) => {
-  try {
-    const log = await WorkLog.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
-      { $pull: { links: { _id: req.params.linkId } } },
-      { new: true }
-    ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId');
-    if (!log) return res.status(404).json({ message: 'Not found' });
-    triggerGoogleDocSync(req, log);
-    res.json(log);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── DELETE /api/worklogs/:id ──────────────────────────────────────────────────
+// DELETE /api/worklogs/:id
 router.delete('/:id', async (req, res) => {
   try {
     const log = await WorkLog.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
