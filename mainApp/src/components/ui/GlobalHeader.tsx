@@ -7,9 +7,10 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
 import { WorkspaceBadge } from './WorkspaceBadge';
 import { FocusFlowLogo } from './FocusFlowLogo';
+import { NotificationCenter } from '../collaboration/NotificationCenter';
 
 export function GlobalHeader() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, workspace } = useAuthStore();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -27,7 +28,10 @@ export function GlobalHeader() {
     <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
       {/* Left: Logo + Workspace Badge */}
       <div className="flex items-center gap-3 flex-shrink-0">
-        <FocusFlowLogo size="sm" showText={false} />
+        <button onClick={() => navigate(workspace === 'admin' ? '/admin/overview' : '/dashboard')}
+          className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
+          <FocusFlowLogo size="sm" showText={false} />
+        </button>
         <WorkspaceBadge />
       </div>
 
@@ -54,15 +58,10 @@ export function GlobalHeader() {
             </kbd>
           )}
         </div>
-
         <ThemeToggle />
 
         {/* Notifications */}
-        <button className="relative w-9 h-9 rounded-xl flex items-center justify-center text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-all"
-          aria-label="Notifications">
-          <Bell size={16} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand-500" />
-        </button>
+        <NotificationCenter />
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>

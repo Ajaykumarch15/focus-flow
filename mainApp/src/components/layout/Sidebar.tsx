@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -13,6 +13,7 @@ import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
+  { to: '/team',      icon: Users,           label: 'Team Workspace' },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },

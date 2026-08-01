@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import { clearTimer } from '../utils/timerPersist';
+import { timerEngine } from '../utils/timerEngine';
 
 interface AuthUser {
   _id:      string;
@@ -29,10 +30,6 @@ interface AuthState {
   setWorkspace:   (w: Workspace | null) => void;
 }
 
-// ── Key fix ────────────────────────────────────────────────────────────────────
-// If a token already exists in localStorage, start with loading: true.
-// This makes ProtectedRoute show the spinner instead of redirecting to /login
-// while restoreSession() is still running the async /auth/me call.
 const existingToken = localStorage.getItem('ff_token');
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -76,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_habit_timer');
     localStorage.removeItem('ff_today_ms');
     clearTimer();
+    timerEngine.hydrate(null);
     set({ user: null, token: null, loading: false, workspace: null });
   },
 
@@ -90,6 +88,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ user, token, loading: false });
     } catch {
       localStorage.removeItem('ff_token');
+      clearTimer();
+      timerEngine.hydrate(null);
       set({ user: null, token: null, loading: false, workspace: null });
     }
   },
