@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
@@ -17,14 +17,14 @@ export function Login() {
     clearError();
     try {
       await login(form.email, form.password);
-      navigate('/dashboard');
+      navigate('/hub');
     } catch {
       // error is already set in the store
     }
   };
 
   return (
-    <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4 py-8 overflow-y-auto">
       {/* Ambient glow */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-brand-500/8 rounded-full blur-3xl pointer-events-none" />
 

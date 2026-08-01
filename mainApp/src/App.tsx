@@ -11,6 +11,11 @@ import { ProtectedRoute, AdminRoute } from './components/auth/ProtectedRoute';
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
 const Register        = lazy(() => import('./pages/Register').then(module => ({ default: module.Register })));
+const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
+const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
+const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
+
+// Personal Workspace Pages
 const Dashboard       = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
@@ -25,7 +30,15 @@ const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ d
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+
+// Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
+const FeaturesPage      = lazy(() => import('./pages/collaboration/FeaturesPage').then(module => ({ default: module.FeaturesPage })));
+const QADashboardPage    = lazy(() => import('./pages/collaboration/QADashboardPage').then(module => ({ default: module.QADashboardPage })));
+const ActivityFeedPage  = lazy(() => import('./pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
+const ReportsAnalyticsPage = lazy(() => import('./pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
+const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
+const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
 
 // Admin workspace pages
 const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
@@ -81,29 +94,62 @@ export default function App() {
           <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
           <Route path="/reports/share/:userId/:date" element={<ShareReportPage />} />
 
+          {/* Post-Login Workspace Hub */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/hub" element={<WorkspaceHub />} />
+            <Route path="/team" element={<TeamProjects />} />
+          </Route>
+
+          {/* Dedicated Engineering Workspace Architecture */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
+              <Route path="overview hover" element={<TeamWorkspace />} />
+              <Route path="overview" element={<TeamWorkspace />} />
+              <Route path="projects" element={<TeamWorkspace />} />
+              <Route path="sprints" element={<TeamWorkspace />} />
+              <Route path="teams" element={<TeamWorkspace />} />
+              <Route path="members" element={<MemberProfilePage />} />
+              <Route path="members/:memberId" element={<MemberProfilePage />} />
+              <Route path="features" element={<FeaturesPage />} />
+              <Route path="qa" element={<QADashboardPage />} />
+              <Route path="activity" element={<ActivityFeedPage />} />
+              <Route path="reports" element={<ReportsAnalyticsPage />} />
+              <Route path="analytics" element={<ReportsAnalyticsPage />} />
+              <Route path="knowledge" element={<TeamWorkspace />} />
+              <Route path="calendar" element={<TeamWorkspace />} />
+              <Route path="settings" element={<WorkspaceSettingsPage />} />
+              <Route path="" element={<Navigate to="overview" replace />} />
+            </Route>
+          </Route>
+
           {/* Workspace Selector (admin users only) */}
           <Route element={<ProtectedRoute />}>
             <Route path="/workspace" element={
-              user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/dashboard" replace />
+              user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/hub" replace />
             } />
           </Route>
 
           {/* Personal Workspace */}
           <Route element={<ProtectedRoute />}>
             <Route element={<PersonalWorkspaceRouter />}>
-              <Route path="/dashboard"  element={<Dashboard />} />
-              <Route path="/team"       element={<TeamWorkspace />} />
-              <Route path="/worklog"    element={<WorkLogPage />} />
+              <Route path="/dashboard"   element={<Dashboard />} />
+              <Route path="/team text"   element={<TeamWorkspace />} />
+              <Route path="/team"        element={<TeamWorkspace />} />
+              <Route path="/worklog text" element={<WorkLogPage />} />
+              <Route path="/worklog"     element={<WorkLogPage />} />
               <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
-              <Route path="/reports"    element={<ReportsPage />} />
-              <Route path="/tasks"      element={<Tasks />} />
-              <Route path="/tasks/:id"  element={<TaskDetail />} />
-              <Route path="/analytics"  element={<Analytics />} />
-              <Route path="/journal"    element={<Journal />} />
-              <Route path="/habits"     element={<Habits />} />
+              <Route path="/reports"     element={<ReportsPage />} />
+              <Route path="/tasks"       element={<Tasks />} />
+              <Route path="/tasks/:id"   element={<TaskDetail />} />
+              <Route path="/analytics text" element={<Analytics />} />
+              <Route path="/analytics font" element={<Analytics />} />
+              <Route path="/analytics"   element={<Analytics />} />
+              <Route path="/journal"     element={<Journal />} />
+              <Route path="/habits"      element={<Habits />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
-              <Route path="/focus"      element={<FocusMode />} />
-              <Route path="/settings"   element={<Settings />} />
+              <Route path="/focus"       element={<FocusMode />} />
+              <Route path="/settings text" element={<Settings />} />
+              <Route path="/settings"    element={<Settings />} />
             </Route>
           </Route>
 

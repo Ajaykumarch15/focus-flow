@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -52,7 +52,7 @@ export function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-surface-950 overflow-hidden">
+    <div className="min-h-screen bg-surface-950 overflow-x-hidden overflow-y-auto">
 
       {/* ═══ Sticky Nav ═══ */}
       <motion.nav initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
