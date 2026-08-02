@@ -14,6 +14,13 @@ const adminRouter = require('../routes/admin');
 const SECRET = 'p0-08-test-secret-at-least-32-chars-long';
 const CLIENT_URL = 'http://localhost:5173';
 
+// IES-P0-12: the JWT is delivered via the httpOnly ff_session cookie, not the body.
+const tokenFromSetCookie = (res) => {
+  const setCookie = res.headers.get('set-cookie') || '';
+  const match = setCookie.match(/ff_session=([^;]+)/);
+  return match ? match[1] : null;
+};
+
 const ADMIN_ID = '5f0000000000000000000a1';
 const TARGET_ID = '5f0000000000000000000a2';
 
@@ -121,8 +128,8 @@ describe('IES-P0-08 · login rejects soft-deleted users', () => {
     });
 
     expect(res.status).toBe(200);
-    const { token } = await res.json();
-    const decoded = jwt.verify(token, SECRET);
+    expect(res.headers.get('set-cookie')).toContain('ff_session=');
+    const decoded = jwt.verify(tokenFromSetCookie(res), SECRET);
     expect(decoded.id).toBe(authUser._id);
     expect(decoded.tv).toBe(7);
   });
@@ -290,8 +297,13 @@ describe('IES-P0-08 · register tokens carry tokenVersion 0', () => {
     });
 
     expect(res.status).toBe(201);
-    const { token } = await res.json();
-    expect(jwt.verify(token, SECRET).tv).toBe(0);
+    const body = await res.json();
+    expect(body.token).toBeUndefined();
+    const setCookie = res.headers.get('set-cookie');
+    expect(setCookie).toContain('ff_session=');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(jwt.verify(tokenFromSetCookie(res), SECRET).tv).toBe(0);
   });
 });
 

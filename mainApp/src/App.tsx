@@ -69,7 +69,7 @@ function PersonalWorkspaceRouter() {
 }
 
 export default function App() {
-  const { user, token, loading, restoreSession } = useAuthStore();
+  const { user, loading, restoreSession } = useAuthStore();
   const { loadAll }                              = useStore();
 
   useEffect(() => {
@@ -79,10 +79,10 @@ export default function App() {
   useEffect(() => {
     if (user) {
       loadAll();
-    } else if (!loading && !token) {
+    } else if (!loading) {
       clearTimer();
     }
-  }, [user?._id, token, loading]);
+  }, [user?._id, loading]);
 
   return (
     <BrowserRouter>

@@ -75,6 +75,7 @@ const teamRoutes  = require('./routes/teams');     // ← NEW
 const projectRoutes = require('./routes/projects');
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
+const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
 
 const app = express();
 
@@ -87,9 +88,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
+app.use(require('cookie-parser')()); // IES-P0-12: read the httpOnly session cookie
 // IES-P0-09: lenient per-IP safety net on every /api route (reports, admin, …).
 // Auth routes add their own stricter limiter on top.
 app.use('/api', createApiLimiter());
+// IES-P0-12: reject cross-site state-changing requests (Origin/Referer check).
+app.use('/api', csrfProtect);
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();

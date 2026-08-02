@@ -17,7 +17,6 @@ export type Workspace = 'personal' | 'admin';
 
 interface AuthState {
   user:    AuthUser | null;
-  token:   string | null;
   loading: boolean;
   error:   string | null;
   workspace: Workspace | null;
@@ -30,21 +29,20 @@ interface AuthState {
   setWorkspace:   (w: Workspace | null) => void;
 }
 
-const existingToken = localStorage.getItem('ff_token');
-
+// IES-P0-12: the session JWT is held in an httpOnly cookie — the browser
+// attaches it automatically. There is no token in JS or localStorage, so the
+// initial state is "unknown" until /auth/me resolves on boot.
 export const useAuthStore = create<AuthState>((set) => ({
   user:      null,
-  token:     existingToken,
-  loading:   !!existingToken,
+  loading:   true,
   error:     null,
   workspace: null,
 
   register: async (name, email, password) => {
     set({ loading: true, error: null });
     try {
-      const { token, user } = await api.auth.register(name, email, password);
-      localStorage.setItem('ff_token', token);
-      set({ token, user, loading: false });
+      const { user } = await api.auth.register(name, email, password);
+      set({ user, loading: false });
     } catch (err: any) {
       set({ error: err.message, loading: false });
       throw err;
@@ -54,9 +52,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (email, password) => {
     set({ loading: true, error: null });
     try {
-      const { token, user } = await api.auth.login(email, password);
-      localStorage.setItem('ff_token', token);
-      set({ token, user, loading: false });
+      const { user } = await api.auth.login(email, password);
+      set({ user, loading: false });
     } catch (err: any) {
       set({ error: err.message, loading: false });
       throw err;
@@ -64,7 +61,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('ff_token');
+    // Best-effort server-side revocation; the local session is cleared regardless.
+    void api.auth.logout().catch(() => {});
     localStorage.removeItem('focusflow-storage');
     localStorage.removeItem('ff_profile_cache');
     localStorage.removeItem('ff_theme_cache');
@@ -74,23 +72,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_today_ms');
     clearTimer();
     timerEngine.hydrate(null);
-    set({ user: null, token: null, loading: false, workspace: null });
+    set({ user: null, loading: false, workspace: null });
   },
 
   restoreSession: async () => {
-    const token = localStorage.getItem('ff_token');
-    if (!token) {
-      set({ loading: false });
-      return;
-    }
     try {
       const { user } = await api.auth.me();
-      set({ user, token, loading: false });
+      set({ user, loading: false });
     } catch {
-      localStorage.removeItem('ff_token');
       clearTimer();
       timerEngine.hydrate(null);
-      set({ user: null, token: null, loading: false, workspace: null });
+      set({ user: null, loading: false, workspace: null });
     }
   },
 

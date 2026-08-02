@@ -9,17 +9,14 @@ type ApiUser = {
   settings: Record<string, any>;
 };
 
-function getToken(): string | null {
-  return localStorage.getItem('ff_token');
-}
-
+// IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
+// makes the browser attach it to every request (cross-origin in dev).
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -35,10 +32,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   auth: {
     register: (name: string, email: string, password: string) =>
-      request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
+      request<{ user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
     login: (email: string, password: string) =>
-      request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+      request<{ user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     me: () => request<{ user: ApiUser }>('/auth/me'),
+    logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
   },
 
   tasks: {
