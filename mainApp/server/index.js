@@ -74,9 +74,12 @@ const adminRoutes = require('./routes/admin');     // ← NEW
 const teamRoutes  = require('./routes/teams');     // ← NEW
 const projectRoutes = require('./routes/projects');
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
+const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 
 const app = express();
 
+// IES-P0-11: CSP + X-Frame-Options + nosniff + HSTS + Referrer-Policy.
+app.use(createSecurityHeaders());
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true,
