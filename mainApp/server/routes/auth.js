@@ -45,8 +45,8 @@ router.post('/login', async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: 'Email and password are required' });
 
-    // Need passwordHash for comparison — select it explicitly
-    const user = await User.findOne({ email }).select('+passwordHash');
+    // Need passwordHash for comparison — select it explicitly; googleTokens stays off the response
+    const user = await User.findOne({ email }).select('+passwordHash -googleTokens');
     if (!user)
       return res.status(401).json({ message: 'Invalid email or password' });
 

@@ -38,9 +38,15 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Strip passwordHash from all JSON responses
+// Strip passwordHash and Google OAuth tokens from all JSON responses.
+// googleTokens (incl. long-lived refreshToken) must never reach the client;
+// server-side Drive sync reads them from the loaded doc, not serialized output.
 userSchema.set('toJSON', {
-  transform: (_doc, ret) => { delete ret.passwordHash; return ret; },
+  transform: (_doc, ret) => {
+    delete ret.passwordHash;
+    delete ret.googleTokens;
+    return ret;
+  },
 });
 
 // Compare plaintext password during login

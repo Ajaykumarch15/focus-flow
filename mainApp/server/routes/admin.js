@@ -45,7 +45,7 @@ router.get('/stats', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const filter = req.query.includeDeleted ? {} : { deletedAt: null };
-    const users = await User.find(filter).sort({ createdAt: -1 });
+    const users = await User.find(filter).select('-googleTokens').sort({ createdAt: -1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -55,7 +55,7 @@ router.get('/users', async (req, res) => {
 // ── GET /api/admin/users/deleted ─────────────────────────────────────────────
 router.get('/users/deleted', async (req, res) => {
   try {
-    const users = await User.find({ deletedAt: { $ne: null } }).sort({ deletedAt: -1 });
+    const users = await User.find({ deletedAt: { $ne: null } }).select('-googleTokens').sort({ deletedAt: -1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -83,7 +83,7 @@ router.patch('/users/:userId', async (req, res) => {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
-    const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
+    const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true }).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     const details = { targetUserId: userId, targetName: user.name };
@@ -114,7 +114,7 @@ router.delete('/users/:userId', async (req, res) => {
       userId,
       { $set: { deletedAt: new Date() } },
       { new: true }
-    );
+    ).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User soft-deleted', user });
     Activity.create({ userId: req.user._id, action: 'user.deleted', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
@@ -131,7 +131,7 @@ router.post('/users/:userId/restore', async (req, res) => {
       userId,
       { $set: { deletedAt: null } },
       { new: true }
-    );
+    ).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     Activity.create({ userId: req.user._id, action: 'user.restored', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});

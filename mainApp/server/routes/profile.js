@@ -18,7 +18,7 @@ router.patch('/', async (req, res) => {
     if (leaderboardOptIn !== undefined) updates.leaderboardOptIn = leaderboardOptIn;
     if (settings) updates.settings = { ...req.user.settings.toObject(), ...settings };
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-googleTokens');
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
