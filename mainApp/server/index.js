@@ -73,6 +73,7 @@ const reportRoutes = require('./routes/reports');   // ← NEW
 const adminRoutes = require('./routes/admin');     // ← NEW
 const teamRoutes  = require('./routes/teams');     // ← NEW
 const projectRoutes = require('./routes/projects');
+const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 
 const app = express();
 
@@ -83,6 +84,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
+// IES-P0-09: lenient per-IP safety net on every /api route (reports, admin, …).
+// Auth routes add their own stricter limiter on top.
+app.use('/api', createApiLimiter());
 app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();

@@ -3,8 +3,15 @@ const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
+const { createAuthLoginLimiter, createAuthRegisterLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// IES-P0-09: strict, per-IP+per-account limits on credential endpoints.
+// Login counts only failed attempts (successful logins don't consume quota);
+// register counts every attempt to throttle account-creation spam.
+const loginLimiter = createAuthLoginLimiter();
+const registerLimiter = createAuthRegisterLimiter();
 
 // ── Helper: sign a JWT ────────────────────────────────────────────────────────
 // Embeds the user's tokenVersion (`tv`); protect rejects tokens whose `tv` no
@@ -13,7 +20,7 @@ const signToken = (user) =>
   jwt.sign({ id: user._id, tv: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
-router.post('/register', async (req, res) => {
+router.post('/register', registerLimiter, async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
@@ -40,7 +47,7 @@ router.post('/register', async (req, res) => {
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 
