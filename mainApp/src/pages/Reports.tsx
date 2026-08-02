@@ -12,7 +12,7 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInte
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
-import { renderMarkdown } from '../components/ui/proEditor';
+import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
 import { useNavigate } from 'react-router-dom';
 
@@ -400,13 +400,13 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                 {log.problem && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-red-400 font-semibold mb-1 uppercase tracking-wider">Problem</p>
-                    <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
+                    <div className="prose-editor text-sm text-surface-200"><Markdown source={log.problem} /></div>
                   </div>
                 )}
                 {log.currentWork && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-brand-400 font-semibold mb-1 uppercase tracking-wider">What I Did</p>
-                    <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
+                    <div className="prose-editor text-sm text-surface-200"><Markdown source={log.currentWork} /></div>
                   </div>
                 )}
                 {log.completedItems.length > 0 && (
@@ -426,19 +426,19 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                     <p className="text-[11px] text-yellow-400 mb-1 flex items-center gap-1 font-semibold uppercase tracking-wider">
                       <AlertTriangle size={10} /> Blockers
                     </p>
-                    <div className="prose-editor text-xs text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
+                    <div className="prose-editor text-xs text-surface-200"><Markdown source={log.blockers} /></div>
                   </div>
                 )}
                 {log.plan && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-amber-400 font-semibold mb-1 uppercase tracking-wider">Plan</p>
-                    <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
+                    <div className="prose-editor text-xs text-surface-300"><Markdown source={log.plan} /></div>
                   </div>
                 )}
                 {log.designNotes && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-purple-400 font-semibold mb-1 uppercase tracking-wider">Design / Architecture</p>
-                    <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
+                    <div className="prose-editor text-xs text-surface-300"><Markdown source={log.designNotes} /></div>
                   </div>
                 )}
               </div>

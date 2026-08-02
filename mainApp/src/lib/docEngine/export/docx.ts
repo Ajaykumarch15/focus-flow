@@ -6,7 +6,7 @@ import {
 } from 'docx';
 import { saveAs } from 'file-saver';
 import type { DocumentModel } from '../types';
-import { renderMarkdown } from '../../../components/ui/proEditor';
+import { renderMarkdown } from '../../markdown';
 
 function mdToDocxParagraphs(md: string): Paragraph[] {
   if (!md.trim()) return [new Paragraph({ children: [new TextRun({ text: '', size: 22 })] })];

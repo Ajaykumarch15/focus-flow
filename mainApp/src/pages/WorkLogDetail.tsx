@@ -13,7 +13,7 @@ const DocumentationPreview = lazy(() => import('../components/DocumentationPrevi
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { renderMarkdown } from '../components/ui/proEditor';
+import { Markdown } from '../lib';
 import { Skeleton } from '../components/ui/Skeleton';
 import type { WorkLog, WorkLogStatus } from '../store/useWorkLogStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
@@ -377,7 +377,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-red-400 font-semibold uppercase tracking-wider">Problem I'm Solving</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
+                  <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.problem} /></div>
                 </motion.div>
               )}
 
@@ -389,7 +389,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I Did</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
+                  <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.currentWork} /></div>
                 </motion.div>
               )}
 
@@ -401,7 +401,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-yellow-400 font-semibold uppercase tracking-wider">Blockers</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
+                  <div className="prose-editor text-sm text-surface-200"><Markdown source={log.blockers} /></div>
                 </motion.div>
               )}
 
@@ -413,7 +413,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider">Plan</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
+                  <div className="prose-editor text-sm text-surface-300"><Markdown source={log.plan} /></div>
                 </motion.div>
               )}
 
@@ -425,7 +425,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">Design & Architecture</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
+                  <div className="prose-editor text-sm text-surface-300"><Markdown source={log.designNotes} /></div>
                 </motion.div>
               )}
 
@@ -529,8 +529,9 @@ export function WorkLogDetail() {
                             )}
                           </div>
                           {entry.what && (
-                            <div className="text-xs text-surface-400 leading-relaxed line-clamp-3"
-                              dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.what) }} />
+                            <div className="text-xs text-surface-400 leading-relaxed line-clamp-3">
+                              <Markdown source={entry.what} />
+                            </div>
                           )}
                         </div>
                       </div>

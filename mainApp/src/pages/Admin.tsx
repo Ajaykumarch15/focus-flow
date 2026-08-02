@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
-import { renderMarkdown } from '../components/ui/proEditor';
+import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
 import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
@@ -931,7 +931,7 @@ function UserDetailView({ user, analytics, loading, filter, setFilter, onBack, a
                   log.status === 'done' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-brand-500/15 text-brand-400'
                 }`}>{log.status}</span>
               </div>
-              {log.problem && <p className="text-xs text-surface-400 line-clamp-2 mb-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />}
+              {log.problem && <div className="text-xs text-surface-400 line-clamp-2 mb-2"><Markdown source={log.problem} /></div>}
               <div className="flex items-center gap-3 text-[11px] text-surface-500">
                 {log.gitBranch && <span className="flex items-center gap-1"><GitBranch size={10} /> {log.gitBranch}</span>}
                 <span>{log.completedItems?.length || 0} completed</span>

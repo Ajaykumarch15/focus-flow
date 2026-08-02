@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen, Trash2, Search, Bold, Italic } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
+import { Markdown } from '../lib';
 import { useStore } from '../store/useStore';
 import { MOOD_LABELS } from '../utils/colors';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -299,9 +299,7 @@ export function Journal() {
 
                   {/* Markdown Render */}
                   <div className="prose prose-invert max-w-none text-surface-200 leading-7 text-[15px]">
-                    <ReactMarkdown>
-                      {entry.content}
-                    </ReactMarkdown>
+                    <Markdown source={entry.content} />
                   </div>
                 </motion.div>
               );

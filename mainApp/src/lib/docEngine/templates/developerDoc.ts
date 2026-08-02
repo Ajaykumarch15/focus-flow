@@ -1,4 +1,4 @@
-import { renderMarkdown } from '../../../components/ui/proEditor';
+import { renderMarkdown } from '../../markdown';
 import type { DocumentModel } from '../types';
 
 function escapeHtml(s: string): string {
