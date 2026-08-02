@@ -92,7 +92,6 @@ export default function App() {
           <Route path="/login"                       element={<Login />} />
           <Route path="/register"                    element={<Register />} />
           <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
-          <Route path="/reports/share/:userId/:date" element={<ShareReportPage />} />
 
           {/* Post-Login Workspace Hub */}
           <Route element={<ProtectedRoute />}>

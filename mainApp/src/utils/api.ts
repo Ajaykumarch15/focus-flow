@@ -168,8 +168,6 @@ export const api = {
       const params = new URLSearchParams({ date });
       return request<any>(`/reports/day?${params}`);
     },
-    share: (userId: string, date: string) =>
-      request<any>(`/reports/share/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`),
     createShare: (date: string, expiresInDays = 30) =>
       request<any>('/reports/share', { method: 'POST', body: JSON.stringify({ date, expiresInDays }) }),
     revokeShare: (token: string) =>

@@ -22,25 +22,21 @@ function formatMs(ms: number): string {
 }
 
 export function ShareReportPage() {
-  const { userId, date, token } = useParams<{ userId?: string; date?: string; token?: string }>();
+  const { token } = useParams<{ token?: string }>();
   const [data, setData]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
   useEffect(() => {
-    if (token) {
-      api.reports.shareToken(token)
-        .then(d => { if (d.message) throw new Error(d.message); setData(d); })
-        .catch(e => setError(e.message))
-        .finally(() => setLoading(false));
+    if (!token) {
+      setLoading(false);
       return;
     }
-    if (!userId || !date) return;
-    api.reports.share(userId, date)
+    api.reports.shareToken(token)
       .then(d => { if (d.message) throw new Error(d.message); setData(d); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [userId, date, token]);
+  }, [token]);
 
   if (loading) return (
     <div className="min-h-screen bg-surface-950 py-10 px-4">
@@ -94,7 +90,7 @@ export function ShareReportPage() {
     </div>
   );
 
-  const reportDate = data?.date || date || '';
+  const reportDate = data?.date || '';
   const dateLabel = reportDate ? format(parseISO(reportDate), 'EEEE, MMMM d, yyyy') : '';
 
   return (

@@ -122,14 +122,12 @@ function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: numb
 }
 
 // ── Share link button ─────────────────────────────────────────────────────────
-function ShareButton({ userId, date }: { userId: string; date: string }) {
+function ShareButton({ date }: { date: string }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
-  const url = token
-    ? `${window.location.origin}/reports/share/token/${token}`
-    : `${window.location.origin}/reports/share/${userId}/${date}`;
+  const url = token ? `${window.location.origin}/reports/share/token/${token}` : '';
 
   const generate = async () => {
     setLoading(true);
@@ -329,7 +327,7 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
             <p className="text-xs text-brand-300 mb-3 flex items-center gap-1.5 font-medium">
               <Link2 size={12} /> Share this link with your lead — no login required
             </p>
-            <ShareButton userId={user._id} date={date} />
+            <ShareButton date={date} />
           </motion.div>
         )}
       </AnimatePresence>

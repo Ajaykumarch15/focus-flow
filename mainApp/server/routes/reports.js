@@ -1,5 +1,4 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const crypto = require('crypto');
 const WorkLog = require('../models/WorkLog');
 const Session = require('../models/Session');
@@ -306,31 +305,6 @@ router.get('/share/token/:token', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /reports/share/token error:', err);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-router.get('/share/:userId/:date', async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
-      return res.status(400).json({ message: 'Invalid share link' });
-    }
-    if (!isValidDateKey(req.params.date)) {
-      return res.status(400).json({ message: 'Invalid report date' });
-    }
-
-    const userId = mongoose.Types.ObjectId.createFromHexString(req.params.userId);
-    const user = await User.findById(userId).select('name settings');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const report = await buildDayReport(userId, req.params.date, userTimezone(user), false);
-    res.json({
-      intern: user.name,
-      legacyShare: true,
-      ...report,
-    });
-  } catch (err) {
-    console.error('GET /reports/share error:', err);
     res.status(500).json({ message: err.message });
   }
 });
