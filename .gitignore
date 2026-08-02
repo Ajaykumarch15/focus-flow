@@ -1,10 +1,18 @@
 # Dependencies
 node_modules/
 
-# Environment files (never commit secrets; keep .env.example as the tracked template)
+# Environment files (never commit secrets; keep .env.example / .env.sample as tracked templates)
 .env
 .env.*
 !.env.example
+!.env.sample
+
+# Credential / service-account files (Google OAuth client_secret, SA keys, etc.)
+*client_secret*.json
+*client_secret*.p12
+*service-account*.json
+*credentials*.json
+*secret-key*.json
 
 # Build folders
 dist/

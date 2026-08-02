@@ -1,0 +1,10 @@
+#!/bin/sh
+# IES-P0-21: pre-commit secret scan.
+# Installed by running:  scripts/install-hooks.sh
+# (or: git config core.hooksPath scripts/hooks)
+ROOT="$(git rev-parse --show-toplevel)"
+if [ -z "$ROOT" ]; then
+  echo "secret-scan: not in a git work tree" >&2
+  exit 1
+fi
+node "$ROOT/scripts/secret-scan.js" --staged
