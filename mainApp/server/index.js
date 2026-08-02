@@ -1,7 +1,66 @@
 require('dotenv').config();
+const fs = require('fs');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+
+// ── Fail-fast environment validation ─────────────────────────────────────────
+// Refuses to boot on missing/weak/placeholder config so a compromised or
+// misconfigured deployment fails loudly instead of running insecurely.
+const PLACEHOLDER_JWT_SECRET = 'your_super_secret_jwt_key_change_this_in_production_min_32_chars';
+
+function validateEnvironment() {
+  const errors = [];
+  const jwtSecret = process.env.JWT_SECRET || '';
+
+  if (!jwtSecret) {
+    errors.push('JWT_SECRET is required');
+  } else if (jwtSecret === PLACEHOLDER_JWT_SECRET) {
+    errors.push('JWT_SECRET must not be the known placeholder value — generate a new one');
+  } else if (jwtSecret.length < 32) {
+    errors.push('JWT_SECRET must be at least 32 characters long');
+  }
+
+  if (!process.env.MONGODB_URI) {
+    errors.push('MONGODB_URI is required');
+  } else if (!/^mongodb(\+srv)?:\/\//.test(process.env.MONGODB_URI)) {
+    errors.push('MONGODB_URI must start with mongodb:// or mongodb+srv://');
+  }
+
+  for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REDIRECT_URI', 'CLIENT_URL']) {
+    if (!process.env[key]) errors.push(`${key} is required`);
+  }
+  for (const key of ['GOOGLE_REDIRECT_URI', 'CLIENT_URL']) {
+    if (process.env[key]) {
+      try {
+        new URL(process.env[key]);
+      } catch {
+        errors.push(`${key} must be a valid URL`);
+      }
+    }
+  }
+
+  if (!process.env.PORT) {
+    errors.push('PORT is required');
+  } else {
+    const port = Number(process.env.PORT);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      errors.push('PORT must be an integer between 1 and 65535');
+    }
+  }
+
+  if (errors.length > 0) {
+    const banner = [
+      '❌  Invalid environment configuration — refusing to boot:',
+      ...errors.map(error => `   - ${error}`),
+      '',
+    ].join('\n');
+    fs.writeSync(2, banner);
+    process.exit(1);
+  }
+}
+
+validateEnvironment();
 
 const authRoutes = require('./routes/auth');
 const taskRoutes = require('./routes/tasks');

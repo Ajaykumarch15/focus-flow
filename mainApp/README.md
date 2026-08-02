@@ -38,14 +38,7 @@ cd server
 npm install
 ```
 
-Create `server/.env`:
-
-```env
-MONGODB_URI=your-mongodb-uri
-JWT_SECRET=your-jwt-secret
-CLIENT_URL=http://localhost:5173
-PORT=5001
-```
+Copy `server/.env.example` to `server/.env` and fill in the required values (see the template for how to generate a `JWT_SECRET`).
 
 Run the backend:
 

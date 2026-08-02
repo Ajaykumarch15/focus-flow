@@ -11,7 +11,7 @@ Edit `server/.env` and replace the placeholders:
 
 ```
 MONGODB_URI=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@cluster0.7iotm.mongodb.net/focusflow?appName=Cluster0
-JWT_SECRET=any_long_random_string_at_least_32_chars
+JWT_SECRET=<random 32+ char secret — generate per server/.env.example>
 PORT=5000
 CLIENT_URL=http://localhost:5173
 ```
