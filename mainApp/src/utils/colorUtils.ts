@@ -50,7 +50,7 @@ const LIGHT_MODE_LIGHTNESS: Record<string, number> = {
 function buildShades(
   h: number,
   s: number,
-  baseL: number,
+  _baseL: number,
   levels: Record<string, number>,
 ): Record<string, string> {
   const shades: Record<string, string> = {};

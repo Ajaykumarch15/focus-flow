@@ -1,19 +1,16 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  User, Shield, Flame, Clock, CheckCircle2, AlertOctagon, GitBranch,
-  Calendar, Award, Activity, LineChart, FileText, ArrowLeft, Edit3, Save
+  Shield, Flame, CheckCircle2, GitBranch,
+  Activity, ArrowLeft, Edit3, Save
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { useWorkLogStore } from '../../store/useWorkLogStore';
 import { MemberRole } from '../../types/collaboration';
 
 export function MemberProfilePage() {
   const { workspaceId, memberId } = useParams<{ workspaceId: string; memberId: string }>();
   const navigate = useNavigate();
-  const { members, tasks, activities, updateMemberRole, updateMemberStatus } = useCollaborationStore();
-  const { activeLogs } = useWorkLogStore();
+  const { members, tasks, activities, updateMemberRole } = useCollaborationStore();
 
   const selectedMember = useMemo(
     () => members.find((m) => m.id === memberId) || members[0],
@@ -87,7 +84,7 @@ export function MemberProfilePage() {
           <div className="flex items-center gap-3">
             {isEditing ? (
               <div className="flex items-center gap-2">
-                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as MemberRole)}
+                <select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as MemberRole)}
                   className="bg-surface-850 border border-surface-700 text-xs text-surface-50 rounded-xl px-3 py-2 outline-none">
                   <option value="Owner">Owner</option>
                   <option value="Admin">Admin</option>
@@ -104,7 +101,7 @@ export function MemberProfilePage() {
                 <div className="px-4 py-2 rounded-xl bg-surface-850 border border-surface-750 text-xs font-bold text-surface-200 flex items-center gap-1.5">
                   <Shield size={14} className="text-brand-400" /> Role: {selectedMember.role}
                 </div>
-                <button onClick={() => setIsEditing(true)} className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-400 hover:text-white transition-colors">
+                <button onClick={() => setIsEditing(true)} aria-label="Edit role" className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-400 hover:text-white transition-colors">
                   <Edit3 size={14} />
                 </button>
               </div>

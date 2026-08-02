@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, FolderOpen, CheckSquare, Users, BookOpen, AlertOctagon, ArrowRight, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, FolderOpen, CheckSquare, BookOpen, AlertOctagon, ArrowRight, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useNavigate } from 'react-router-dom';
 

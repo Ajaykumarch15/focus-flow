@@ -1,4 +1,7 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+// IES-P0-22: VITE_API_URL is required — no silent localhost fallback.
+// The build fails loudly when it is missing (see vite.config.ts requireApiUrl)
+// and its type is declared in src/vite-env.d.ts.
+const BASE = import.meta.env.VITE_API_URL;
 
 type ApiUser = {
   _id: string;
@@ -54,7 +57,14 @@ export const api = {
 
   sessions: {
     list: (params?: { taskId?: string; active?: boolean }) => {
-      const qs = new URLSearchParams(params as any).toString();
+      const qs = params
+        ? new URLSearchParams(
+            Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            }, {}),
+          ).toString()
+        : '';
       return request<any[]>(`/sessions${qs ? '?' + qs : ''}`);
     },
     start: (taskId: string, startTime: number) =>

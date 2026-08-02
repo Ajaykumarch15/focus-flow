@@ -102,7 +102,7 @@ export function AdminActivity() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${filter === f.id ? 'bg-surface-700/80 text-surface-50 shadow-sm' : 'text-surface-400 hover:text-surface-200'}`}>{f.label}</button>
           ))}
         </div>
-        <button onClick={() => load(true)} className="p-2 rounded-lg bg-surface-800 text-surface-400 hover:text-surface-200 transition-all">
+        <button onClick={() => load(true)} aria-label="Refresh activity" className="p-2 rounded-lg bg-surface-800 text-surface-400 hover:text-surface-200 transition-all">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -112,7 +112,7 @@ export function AdminActivity() {
           <div className="p-12 text-center"><Activity size={28} className="text-surface-600 mx-auto mb-3" /><p className="text-sm text-surface-400">No activity recorded yet</p></div>
         ) : activities.map((a: any) => <ActivityItem key={a._id} activity={a} />)}
         {loading && activities.length === 0 && (
-          <div className="p-8 text-center"><Loader2 size={20} className="text-purple-400 animate-spin mx-auto" /></div>
+          <div role="status" className="p-8 text-center"><Loader2 size={20} className="text-purple-400 animate-spin mx-auto" /></div>
         )}
       </div>
       {activities.length > 0 && (

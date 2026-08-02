@@ -1,25 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Users, Clock, Zap, Activity, ShieldCheck, Target, TrendingUp,
-  BookMarked, ChevronRight, ArrowRight, Globe,
+  Users, Clock, Zap, Activity, Target, TrendingUp, ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
-import { formatHours } from '../../utils/time';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
-
-function formatMs(ms: number): string {
-  if (!ms || ms < 0) return '0h';
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
 
 function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: React.ElementType; label: string; value: string; sub?: string; color: string;
@@ -73,7 +63,7 @@ export function AdminOverview() {
     })();
   }, []);
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 

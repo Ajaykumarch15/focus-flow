@@ -22,7 +22,7 @@ interface ProjectState {
   syncDrive: (id: string) => Promise<void>;
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
+export const useProjectStore = create<ProjectState>((set, _get) => ({
   projects: [],
   loading:  false,
   error:    null,

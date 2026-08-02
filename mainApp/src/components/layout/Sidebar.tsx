@@ -8,7 +8,6 @@ import {
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
-import { FocusFlowLogo } from '../ui/FocusFlowLogo';
 import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [

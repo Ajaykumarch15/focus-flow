@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lightbulb, Plus, Trash2, ChevronRight, Scale, BookOpen } from 'lucide-react';
+import { Lightbulb, Plus, Trash2, Scale, BookOpen } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
 
 interface TechnicalDecisionsViewProps {

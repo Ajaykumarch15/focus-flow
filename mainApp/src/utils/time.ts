@@ -225,7 +225,6 @@ export function splitSessionAcrossMidnight(
     const segmentWallMs = segmentEnd - cursor;
 
     // Proportion of active time in this segment
-    const proportion = segmentWallMs / totalWallMs;
     const segmentActiveMs = Math.round(remainingActive * (segmentWallMs / (endMs - cursor)));
 
     buckets.push({

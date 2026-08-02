@@ -1,7 +1,6 @@
-import React from 'react';
 import { WorkLog } from '../../store/useWorkLogStore';
 import { calculateWorkLogMetrics } from '../../utils/workLogMetrics';
-import { Clock, CheckCircle2, AlertTriangle, Lightbulb, Target, Sparkles, BookOpen, GitBranch, ExternalLink } from 'lucide-react';
+import { Clock, CheckCircle2, Lightbulb, Target, BookOpen, GitBranch } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface ReadingModeViewProps {

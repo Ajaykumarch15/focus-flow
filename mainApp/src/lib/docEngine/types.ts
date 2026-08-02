@@ -1,4 +1,4 @@
-import type { WorkLog, WorkLogStatus } from '../../store/useWorkLogStore';
+import type { WorkLogStatus } from '../../store/useWorkLogStore';
 
 export interface DocMeta {
   title: string;

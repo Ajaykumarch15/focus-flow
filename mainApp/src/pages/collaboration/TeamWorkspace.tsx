@@ -2,12 +2,12 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
-  ShieldCheck, Plus, Search, Filter, GitBranch, GitPullRequest, Timer, Clock,
-  CheckCircle2, Sparkles, ChevronDown, MessageSquare, Play, Flame, ExternalLink,
-  Zap, ArrowRight, Eye, Edit3, Trash2, CheckCheck, RefreshCw, UserCheck, Shield
+  ShieldCheck, Plus, Search, GitBranch, Clock,
+  CheckCircle2, ChevronDown, MessageSquare, Flame,
+  Zap, Edit3, UserCheck
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { WorkspaceMember, CollaborativeTask, SprintStatus, BlockerSeverity, MemberRole } from '../../types/collaboration';
+import { SprintStatus, MemberRole } from '../../types/collaboration';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { CreateBlockerModal } from '../../components/collaboration/CreateBlockerModal';
@@ -16,12 +16,13 @@ import { GlobalCommandPalette } from '../../components/collaboration/GlobalComma
 
 // ── Motion Variants ────────────────────────────────────────────────────────────
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
-const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
+
+type TeamTab = 'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin';
 
 export function TeamWorkspace() {
   const {
-    workspaces, activeWorkspaceId, setActiveWorkspace, createWorkspace,
-    members, teams, projects, sprints, tasks, activities,
+    workspaces, activeWorkspaceId, setActiveWorkspace,
+    members, projects, sprints, tasks, activities,
     docs, blockers, events, updateTaskStatus, updateMemberRole, resolveBlocker
   } = useCollaborationStore();
 
@@ -31,13 +32,11 @@ export function TeamWorkspace() {
   );
 
   // Tabs
-  const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin'
-  >('dashboard');
+  const [activeTab, setActiveTab] = useState<TeamTab>('dashboard');
 
   // Modals & States
   const [showWsMenu, setShowWsMenu] = useState(false);
-  const [showNewWsModal, setShowNewWsModal] = useState(false);
+  const [, setShowNewWsModal] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateBlocker, setShowCreateBlocker] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
@@ -48,11 +47,6 @@ export function TeamWorkspace() {
   const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
     open: false, targetType: 'task', targetId: '', title: ''
   });
-
-  // New Workspace form state
-  const [newWsName, setNewWsName] = useState('');
-  const [newWsType, setNewWsType] = useState('Startup');
-  const [newWsDesc, setNewWsDesc] = useState('');
 
   // ── Helper computations ──────────────────────────────────────────────────────
   const wsTasks = useMemo(() => tasks.filter((t) => t.workspaceId === activeWs.id), [tasks, activeWs.id]);
@@ -73,7 +67,7 @@ export function TeamWorkspace() {
 
       {/* ═══ Top Workspace Switcher Header ═══ */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-800 pb-5">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
 
           {/* Workspace Dropdown */}
           <div className="relative">
@@ -99,7 +93,7 @@ export function TeamWorkspace() {
               {showWsMenu && (
                 <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }}
-                  className="absolute left-0 top-full mt-2 w-80 rounded-2xl border border-surface-800 bg-surface-900 shadow-2xl overflow-hidden z-40 p-2 space-y-1">
+                  className="absolute left-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-surface-800 bg-surface-900 shadow-2xl overflow-hidden z-40 p-2 space-y-1">
                   <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500">
                     Workspaces ({workspaces.length})
                   </div>
@@ -161,7 +155,7 @@ export function TeamWorkspace() {
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as TeamTab)}
               className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 isActive ? 'text-surface-50 bg-surface-900 border border-surface-700/80 shadow-md' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-850/50'
               }`}>
@@ -368,7 +362,7 @@ export function TeamWorkspace() {
                           </button>
 
                           {/* Quick Status Move */}
-                          <select className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
+                          <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
                             value={task.sprintStatus} onChange={(e) => updateTaskStatus(task.id, e.target.value as SprintStatus)}>
                             <option value="backlog">Backlog</option>
                             <option value="ready">Ready</option>
@@ -493,7 +487,7 @@ export function TeamWorkspace() {
                     {doc.category} · v{doc.version}
                   </span>
                   <button onClick={() => { setEditingDoc(doc); setShowCreateDoc(true); }}
-                    className="p-1 text-surface-500 hover:text-surface-200">
+                    aria-label={`Edit document ${doc.title}`} className="p-1 text-surface-500 hover:text-surface-200">
                     <Edit3 size={14} />
                   </button>
                 </div>
@@ -568,7 +562,7 @@ export function TeamWorkspace() {
                       <p className="text-[11px] text-surface-500">{m.email}</p>
                     </div>
                   </div>
-                  <select className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
+                  <select aria-label="Member role" className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
                     value={m.role} onChange={(e) => updateMemberRole(m.id, e.target.value as MemberRole)}>
                     <option value="Owner">Owner</option>
                     <option value="Admin">Admin</option>

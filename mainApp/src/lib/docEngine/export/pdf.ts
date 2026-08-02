@@ -35,7 +35,7 @@ export async function exportToPdf(html: string, filename: string, sourceElement?
           format: 'a4',
           orientation: 'portrait',
         },
-      } as any)
+      })
       .from(container)
       .save();
   } finally {

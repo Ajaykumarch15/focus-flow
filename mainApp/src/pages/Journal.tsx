@@ -4,15 +4,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, BookOpen, Trash2, Search, Bold, Italic } from 'lucide-react';
 import { Markdown } from '../lib';
 import { useStore } from '../store/useStore';
-import { MOOD_LABELS } from '../utils/colors';
+import { MOOD_EMOJIS } from '../lib/config';
 import { PageHeader } from '../components/ui/PageHeader';
+import type { Mood } from '../types';
 
 export function Journal() {
   const { journals, tasks, addJournal, deleteJournal } = useStore();
 
   const [showAdd, setShowAdd] = useState(false);
   const [content, setContent] = useState('');
-  const [mood, setMood] = useState(3);
+  const [mood, setMood] = useState<Mood>(3);
   const [taskId, setTaskId] = useState('');
   const [search, setSearch] = useState('');
 
@@ -60,7 +61,7 @@ export function Journal() {
     addJournal({
       taskId: taskId || (activeTasks[0]?.id ?? ''),
       content,
-      mood: mood as any,
+      mood,
       focusRating: mood,
     });
 
@@ -185,7 +186,7 @@ export function Journal() {
                 How are you feeling?
               </span>
 
-              {[1, 2, 3, 4, 5].map(m => (
+              {([1, 2, 3, 4, 5] as const).map(m => (
                 <button
                   key={m}
                   onClick={() => setMood(m)}
@@ -195,7 +196,7 @@ export function Journal() {
                       : 'opacity-40 hover:opacity-80 hover:scale-105'
                   }`}
                 >
-                  {['😔', '😐', '🙂', '😊', '🔥'][m - 1]}
+                  {MOOD_EMOJIS[m - 1]}
                 </button>
               ))}
             </div>
@@ -271,7 +272,7 @@ export function Journal() {
                         )}
 
                         <span className="text-2xl">
-                          {['😔', '😐', '🙂', '😊', '🔥'][entry.mood - 1]}
+                          {MOOD_EMOJIS[entry.mood - 1]}
                         </span>
                       </div>
 

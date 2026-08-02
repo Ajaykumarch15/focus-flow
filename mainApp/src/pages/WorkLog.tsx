@@ -76,8 +76,8 @@ const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 // ── Auto-saving input ─────────────────────────────────────────────────────────
-function AutoInput({ logId, field, placeholder, value: initial, mono = false }: {
-  logId: string; field: string; placeholder: string; value: string; mono?: boolean;
+function AutoInput({ logId, field, placeholder, value: initial, mono = false, ariaLabel }: {
+  logId: string; field: string; placeholder: string; value: string; mono?: boolean; ariaLabel?: string;
 }) {
   const { updateField } = useWorkLogStore();
   const [val, setVal]     = useState(initial);
@@ -92,63 +92,13 @@ function AutoInput({ logId, field, placeholder, value: initial, mono = false }: 
   return (
     <div className="relative group">
       <input className={`input text-sm w-full pr-8 rounded-xl ${mono ? 'font-mono' : ''}`}
-        placeholder={placeholder} value={val}
+        placeholder={placeholder} value={val} aria-label={ariaLabel}
         onChange={e => { setVal(e.target.value); setSaved(false); }} />
       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
         {saved ? <Save size={11} className="text-surface-600" /> : <Loader2 size={11} className="text-brand-400 animate-spin" />}
       </div>
     </div>
   );
-}
-
-// ── Auto-saving textarea ──────────────────────────────────────────────────────
-function AutoTextarea({ logId, field, placeholder, value: initial, rows = 3 }: {
-  logId: string; field: string; placeholder: string; value: string; rows?: number;
-}) {
-  const { updateField } = useWorkLogStore();
-  const [val, setVal]     = useState(initial);
-  const [saved, setSaved] = useState(true);
-  const debounced         = useDebounce(val, 700);
-  useEffect(() => { setVal(initial); }, [initial]);
-  useEffect(() => {
-    if (debounced === initial) return;
-    setSaved(false);
-    updateField(logId, field, debounced).then(() => setSaved(true)).catch(() => setSaved(false));
-  }, [debounced]);
-  return (
-    <div className="relative group">
-      <textarea rows={rows} className="input resize-none text-sm w-full pr-8 rounded-xl"
-        placeholder={placeholder} value={val}
-        onChange={e => { setVal(e.target.value); setSaved(false); }} />
-      <div className="absolute right-2.5 bottom-2.5">
-        {saved ? <Save size={11} className="text-surface-600" /> : <Loader2 size={11} className="text-brand-400 animate-spin" />}
-      </div>
-    </div>
-  );
-}
-
-// ── Animated counter ──────────────────────────────────────────────────────────
-function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: number }) {
-  const [display, setDisplay] = useState('0');
-  const frameRef = useRef<number | null>(null);
-  const fromRef = useRef(0);
-  useEffect(() => {
-    const from = fromRef.current;
-    const to = value;
-    if (from === to) { setDisplay(to.toFixed(decimals)); return; }
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / 700, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay((from + (to - from) * eased).toFixed(decimals));
-      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
-      else fromRef.current = to;
-    };
-    frameRef.current = requestAnimationFrame(tick);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [value, decimals]);
-  return <>{display}</>;
 }
 
 // ── Timer Panel ───────────────────────────────────────────────────────────────
@@ -322,7 +272,7 @@ function TimerPanel({ log }: { log: WorkLog }) {
 function WorkEntryRow({ logId, entry }: { logId: string; entry: WorkEntry }) {
   const { updateEntry } = useWorkLogStore();
   const [what, setWhat]   = useState(entry.what);
-  const [saved, setSaved] = useState(true);
+  const [, setSaved]      = useState(true);
   const debounced         = useDebounce(what, 700);
   useEffect(() => { setWhat(entry.what); }, [entry.what]);
   useEffect(() => {
@@ -505,10 +455,10 @@ function TaskLinkControl({ log }: { log: WorkLog }) {
     <div className="rounded-xl border border-surface-800 bg-surface-850/50 p-4 mb-4">
       <div className="flex items-end gap-3 flex-wrap">
         <div className="flex-1 min-w-[220px]">
-          <label className="flex items-center gap-1.5 text-xs text-surface-300 font-semibold mb-1.5">
+          <label htmlFor="worklog-linked-task" className="flex items-center gap-1.5 text-xs text-surface-300 font-semibold mb-1.5">
             <Timer size={12} className="text-brand-400" /> Linked Task
           </label>
-          <select className="input text-sm rounded-xl" value={selected} onChange={e => setSelected(e.target.value)}>
+          <select id="worklog-linked-task" className="input text-sm rounded-xl" value={selected} onChange={e => setSelected(e.target.value)}>
             <option value="">No task link</option>
             {activeTasks.map(task => (
               <option key={task.id} value={task.id}>{task.title}</option>
@@ -517,6 +467,7 @@ function TaskLinkControl({ log }: { log: WorkLog }) {
         </div>
         <button type="button" onClick={save}
           disabled={saving || selected === (log.taskRef?._id || '')}
+          role="status"
           className="btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl">
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Link
         </button>
@@ -533,7 +484,7 @@ function TabBar({ tabs, active, onChange }: {
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="flex items-center gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800">
+    <div className="flex items-center gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 overflow-x-auto flex-nowrap">
       {tabs.map(tab => {
         const isActive = active === tab.id;
         return (
@@ -662,7 +613,6 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
 
   const hasContext = !!(log.problem || log.currentWork || log.blockers);
   const hasPlanning = !!(log.plan || log.designNotes || log.gitBranch);
-  const hasProgress = !!(log.completedItems.length || log.links.length);
 
   const handleAddCompleted = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -694,8 +644,12 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
       )}
 
       {/* Header */}
-      <div className="flex items-start gap-3 p-5 cursor-pointer hover:bg-surface-850/20 transition-colors"
-        onClick={() => setExpanded(e => !e)}>
+      <div className="flex items-start gap-3 flex-wrap p-5 cursor-pointer hover:bg-surface-850/20 transition-colors"
+        role="button" tabIndex={0} aria-expanded={expanded}
+        onClick={() => setExpanded(e => !e)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(x => !x); }
+        }}>
 
         {/* Status emoji icon */}
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base mt-0.5 ${status.bg} border ${status.border}`}>
@@ -705,7 +659,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
         <div className="flex-1 min-w-0">
           {/* Title + live badge */}
           <div className="flex items-center gap-2 flex-wrap mb-1.5">
-            <span className="font-semibold text-surface-50 text-[15px] leading-tight">{log.title}</span>
+            <span className="font-semibold text-surface-50 text-[15px] leading-tight truncate">{log.title}</span>
             {isRunning && (
               <span className="flex items-center gap-1 text-[10px] text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded-full border border-brand-500/20 font-bold uppercase tracking-wide">
                 <motion.span className="w-1.5 h-1.5 rounded-full bg-brand-400 inline-block"
@@ -759,10 +713,10 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
         </div>
 
         {/* Right actions */}
-        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1.5 flex-wrap ml-2" onClick={e => e.stopPropagation()}>
           {log.googleDocUrl && (
             <button onClick={() => window.open(log.googleDocUrl, '_blank', 'noopener,noreferrer')}
-              title="Open Google Doc"
+              title="Open Google Doc" aria-label="Open Google Doc"
               className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium transition-all border border-blue-500/20">
               <ExternalLink size={11} />
             </button>
@@ -773,19 +727,21 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
             <Eye size={12} /> Details
           </button>
           <button onClick={() => setShowExport(true)}
-            title="Export"
+            title="Export" aria-label="Export work log"
             className="flex items-center gap-1 px-2.5 py-1.5 bg-surface-800 hover:bg-surface-700 text-surface-400 rounded-lg text-xs transition-all border border-surface-700">
             <Download size={12} />
           </button>
           {log.isActive ? (
             <button onClick={async () => { setClosing(true); try { await closeLog(log._id); } finally { setClosing(false); } }}
               disabled={closing}
+              role="status"
               className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold transition-all border border-emerald-500/20">
               {closing ? <Loader2 size={11} className="animate-spin" /> : <CheckCheck size={11} />} Done
             </button>
           ) : (
             <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
               disabled={continuing}
+              role="status"
               className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
               {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
             </button>
@@ -796,12 +752,16 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
               <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
             </div>
           ) : (
-            <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
+            <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors" aria-label="Delete work log">
               <Trash2 size={13} />
             </button>
           )}
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }} className="cursor-pointer"
-            onClick={() => setExpanded(e => !e)}>
+            role="button" tabIndex={0} aria-expanded={expanded}
+            onClick={() => setExpanded(e => !e)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(x => !x); }
+            }}>
             <ChevronDown size={15} className="text-surface-500 ml-0.5" />
           </motion.div>
         </div>
@@ -924,7 +884,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                           label="Git Branch" value={log.gitBranch} field="gitBranch"
                           expandedFields={expandedFields} toggleField={toggleField}>
                           <AutoInput logId={log._id} field="gitBranch"
-                            placeholder="feature/branch-name" value={log.gitBranch} mono />
+                            placeholder="feature/branch-name" value={log.gitBranch} mono ariaLabel="Git branch" />
                         </FieldCard>
                       </motion.div>
                     )}
@@ -960,7 +920,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                                   <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
                                   <span className="flex-1 text-xs text-surface-200">{item.text}</span>
                                   <button onClick={() => deleteCompleted(log._id, item._id)}
-                                    className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
+                                    className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all" aria-label="Remove completed item">
                                     <X size={11} />
                                   </button>
                                 </motion.div>
@@ -968,10 +928,10 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                             </AnimatePresence>
                           </div>
                           <form onSubmit={handleAddCompleted} className="flex gap-2">
-                            <input className="input flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..."
+                            <input className="input flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..." aria-label="New completed item"
                               value={newItem} onChange={e => setNewItem(e.target.value)} />
                             <button type="submit" disabled={!newItem.trim()}
-                              className="btn-primary px-3 py-2 rounded-xl">
+                              className="btn-primary px-3 py-2 rounded-xl" aria-label="Add completed item">
                               <Plus size={13} />
                             </button>
                           </form>
@@ -989,7 +949,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                                 <a href={link.url} target="_blank" rel="noreferrer"
                                   className="flex-1 text-xs text-cyan-300 hover:text-cyan-200 truncate font-medium">{link.label}</a>
                                 <button onClick={() => deleteLink(log._id, link._id)}
-                                  className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all">
+                                  className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all" aria-label="Remove link">
                                   <X size={11} />
                                 </button>
                               </div>
@@ -999,9 +959,9 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                             {showLinkForm ? (
                               <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 onSubmit={handleAddLink} className="space-y-1.5">
-                                <input className="input text-xs py-2 rounded-xl" placeholder="Label (PR #42...)"
+                                <input className="input text-xs py-2 rounded-xl" placeholder="Label (PR #42...)" aria-label="Link label"
                                   value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} />
-                                <input className="input text-xs py-2 rounded-xl" type="url" placeholder="https://..."
+                                <input className="input text-xs py-2 rounded-xl" type="url" placeholder="https://..." aria-label="Link URL"
                                   value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} />
                                 <div className="flex gap-2">
                                   <button type="button" onClick={() => setShowLinkForm(false)} className="btn-secondary flex-1 text-xs py-2 rounded-xl">Cancel</button>
@@ -1070,11 +1030,12 @@ function ClosedLogCard({ log }: { log: WorkLog }) {
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
         <button onClick={() => navigate(`/worklog/${log._id}`)}
-          className="p-1.5 text-surface-500 hover:text-brand-400 rounded-lg transition-colors" title="View details">
+          className="p-1.5 text-surface-500 hover:text-brand-400 rounded-lg transition-colors" title="View details" aria-label="View details">
           <Eye size={13} />
         </button>
         <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
           disabled={continuing}
+          role="status"
           className="flex items-center gap-1 px-2.5 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
           {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
         </button>
@@ -1084,7 +1045,7 @@ function ClosedLogCard({ log }: { log: WorkLog }) {
             <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
           </div>
         ) : (
-          <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors">
+          <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors" aria-label="Delete closed log">
             <Trash2 size={12} />
           </button>
         )}
@@ -1139,22 +1100,22 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
         {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">{error}</div>}
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-sm text-surface-300 font-medium mb-1.5">Work Item Title *</label>
-            <input className="input rounded-xl" placeholder="e.g. Fix login bug, Build profile page…"
+            <label htmlFor="create-log-title" className="block text-sm text-surface-300 font-medium mb-1.5">Work Item Title *</label>
+            <input id="create-log-title" className="input rounded-xl" placeholder="e.g. Fix login bug, Build profile page…"
               value={title} onChange={e => setTitle(e.target.value)} autoFocus />
           </div>
           <div>
-            <label className="block text-sm text-surface-300 font-medium mb-1.5">Link to Project</label>
-            <select className="input rounded-xl" value={projectId} onChange={e => setProjectId(e.target.value)}>
+            <label htmlFor="create-log-project" className="block text-sm text-surface-300 font-medium mb-1.5">Link to Project</label>
+            <select id="create-log-project" className="input rounded-xl" value={projectId} onChange={e => setProjectId(e.target.value)}>
               <option value="">— Standalone (No project) —</option>
               {projects.map(p => (<option key={p._id} value={p._id}>{p.name}</option>))}
             </select>
           </div>
           <div>
-            <label className="block text-sm text-surface-300 font-medium mb-1.5">
+            <label htmlFor="create-log-task" className="block text-sm text-surface-300 font-medium mb-1.5">
               Link to Task <span className="text-surface-500 text-xs">(enables timer controls)</span>
             </label>
-            <select className="input rounded-xl" value={taskRefId} onChange={e => handleTaskChange(e.target.value)}>
+            <select id="create-log-task" className="input rounded-xl" value={taskRefId} onChange={e => handleTaskChange(e.target.value)}>
               <option value="">— No task link —</option>
               {activeTasks.map(t => (<option key={t.id} value={t.id}>{t.title}</option>))}
             </select>
@@ -1270,7 +1231,10 @@ function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
             { label: 'Streak', value: `${profile?.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10', icon: Flame },
           ].map(({ label, value, color, bg, icon: Icon }) => (
             <div key={label} className={`rounded-xl p-3 ${bg} border border-surface-700/30`}>
-              <p className={`text-base font-display font-bold ${color}`}>{value}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className={`text-base font-display font-bold ${color}`}>{value}</p>
+                <Icon size={14} className={`${color} opacity-70 flex-shrink-0`} />
+              </div>
               <p className="text-[10px] text-surface-400 font-medium mt-0.5">{label}</p>
             </div>
           ))}
@@ -1348,7 +1312,7 @@ function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function WorkLogPage() {
   const { activeLogs, closedLogs, loading, loadAll } = useWorkLogStore();
-  const { profile, activeTaskId, activeTimerState } = useStore();
+  const { profile } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState('');
@@ -1407,10 +1371,10 @@ export function WorkLogPage() {
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
             <input className="input h-10 pl-9 pr-9 rounded-xl text-sm"
-              placeholder="Search logs, tasks, branches…" value={search} onChange={e => setSearch(e.target.value)} />
+              placeholder="Search logs, tasks, branches…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search work logs" />
             {search && (
               <button onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-200 transition-colors">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-200 transition-colors" aria-label="Clear search">
                 <X size={13} />
               </button>
             )}
@@ -1470,7 +1434,7 @@ export function WorkLogPage() {
         {/* Left — log list */}
         <div className="min-w-0 space-y-4">
           {loading && activeLogs.length === 0 ? (
-            <div className="space-y-3">
+            <div role="status" aria-live="polite" className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
                   <div className="flex items-center gap-3 mb-3">

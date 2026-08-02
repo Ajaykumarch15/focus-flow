@@ -1,14 +1,10 @@
 import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  ShieldCheck, AlertOctagon, CheckCircle2, Clock, Bug, GitPullRequest,
-  Check, XCircle, ArrowRight, ShieldAlert, Zap
+  ShieldCheck, AlertOctagon, Check, GitPullRequest
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 
 export function QADashboardPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
   const { tasks, blockers, updateTaskStatus } = useCollaborationStore();
 
   const qaReadyFeatures = useMemo(() => tasks.filter((t) => t.sprintStatus === 'review'), [tasks]);

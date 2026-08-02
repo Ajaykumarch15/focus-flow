@@ -1,33 +1,48 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Bell, LogOut, Settings, User, ChevronDown } from 'lucide-react';
+import { Search, LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useStore } from '../../store/useStore';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
 import { WorkspaceBadge } from './WorkspaceBadge';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '../collaboration/NotificationCenter';
+import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 
 export function GlobalHeader() {
   const { user, logout, workspace } = useAuthStore();
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, []);
 
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
-      {/* Left: Logo + Workspace Badge */}
+      {/* Left: Hamburger (mobile only) + Logo + Workspace Badge */}
       <div className="flex items-center gap-3 flex-shrink-0">
+        <button onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          className="lg:hidden p-2 -ml-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
+          aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
+          <Menu size={18} />
+        </button>
         <button onClick={() => navigate(workspace === 'admin' ? '/admin/overview' : '/dashboard')}
           className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
           <FocusFlowLogo size="sm" showText={false} />
@@ -42,22 +57,21 @@ export function GlobalHeader() {
 
       {/* Right: Search + Theme + Notifications + User */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        {/* Search */}
-        <div className={`relative transition-all duration-200 ${searchFocused ? 'w-56' : 'w-9'}`}>
-          <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search..."
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            className="w-full h-9 pl-8 pr-3 rounded-xl bg-surface-800/60 border border-surface-800 text-xs text-surface-200 placeholder-surface-500 focus:outline-none focus:border-surface-600 focus:bg-surface-800 transition-all"
-          />
-          {!searchFocused && (
-            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-surface-500 bg-surface-800 border border-surface-700 px-1.5 py-0.5 rounded font-mono pointer-events-none">
-              /
-            </kbd>
-          )}
-        </div>
+        {/* Search — opens the global command palette (Ctrl/Cmd+K) */}
+        <button
+          type="button"
+          onClick={() => setSearchOpen(true)}
+          aria-label="Search workspace (Ctrl+K)"
+          title="Search workspace (Ctrl+K)"
+          className="h-9 px-3 rounded-xl bg-surface-800/60 border border-surface-800 text-xs text-surface-400 hover:text-surface-200 hover:border-surface-600 transition-all flex items-center gap-2"
+        >
+          <Search size={15} />
+          <span className="hidden lg:inline">Search</span>
+          <kbd className="hidden lg:inline text-[10px] text-surface-500 bg-surface-800 border border-surface-700 px-1.5 py-0.5 rounded font-mono">
+            Ctrl K
+          </kbd>
+        </button>
+        <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
         <ThemeToggle />
 
         {/* Notifications */}
@@ -66,6 +80,8 @@ export function GlobalHeader() {
         {/* User Menu */}
         <div className="relative" ref={menuRef}>
           <button onClick={() => setMenuOpen(!menuOpen)}
+            aria-expanded={menuOpen}
+            aria-haspopup="menu"
             className="flex items-center gap-2 h-9 pl-1 pr-2 rounded-xl hover:bg-surface-800 transition-all">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-cyan-400 flex items-center justify-center text-[11px] font-bold text-white">
               {user?.name?.charAt(0)?.toUpperCase() || 'U'}

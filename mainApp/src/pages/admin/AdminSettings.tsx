@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Settings, Shield, Key, Database, Download, FileText, Flag, Globe } from 'lucide-react';
+import { Settings, Shield, Database, Download, FileText, Flag, Globe } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -57,7 +57,10 @@ export function AdminSettings() {
             {['Leaderboard', 'Work Logs', 'Journal', 'Habits', 'Focus Mode'].map(f => (
               <div key={f} className="flex items-center justify-between p-3 rounded-xl bg-surface-850">
                 <span className="text-sm text-surface-200">{f}</span>
-                <div className="w-10 h-6 rounded-full bg-brand-500 relative cursor-pointer"><div className="absolute right-0.5 top-0.5 w-5 h-5 rounded-full bg-white shadow-sm" /></div>
+                <div aria-disabled="true" aria-label={`${f} feature flag is enabled and not editable`}
+                  className="w-10 h-6 rounded-full bg-brand-500/70 relative cursor-not-allowed opacity-70">
+                  <div className="absolute right-0.5 top-0.5 w-5 h-5 rounded-full bg-white/90 shadow-sm" />
+                </div>
               </div>
             ))}
           </div>
@@ -70,7 +73,8 @@ export function AdminSettings() {
               { icon: FileText, label: 'Audit Logs', desc: 'View system audit trail (coming soon)' },
               { icon: Database, label: 'Backup', desc: 'Schedule automated backups (coming soon)' },
             ].map(({ icon: Ic, label, desc }) => (
-              <button key={label} className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-850 hover:bg-surface-800 transition-colors text-left">
+              <button key={label} disabled
+                className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-850 text-left cursor-not-allowed opacity-60 transition-colors">
                 <Ic size={16} className="text-surface-400" />
                 <div><p className="text-sm text-surface-200 font-medium">{label}</p><p className="text-[11px] text-surface-500">{desc}</p></div>
               </button>

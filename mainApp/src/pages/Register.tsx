@@ -29,7 +29,7 @@ export function Register() {
 
     try {
       await register(form.name, form.email, form.password);
-      navigate('/dashboard');
+      navigate('/hub');
     } catch {
       // error shown from store
     }
@@ -73,6 +73,8 @@ export function Register() {
               <div className="relative">
                 <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
+                  name="name"
+                  autoComplete="name"
                   className="input pl-10"
                   placeholder="Alex Johnson"
                   value={form.name}
@@ -89,6 +91,8 @@ export function Register() {
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   className="input pl-10"
                   placeholder="you@example.com"
                   value={form.email}
@@ -104,6 +108,8 @@ export function Register() {
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
                   type={showPass ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="new-password"
                   className="input pl-10 pr-10"
                   placeholder="Min 6 characters"
                   value={form.password}
@@ -113,6 +119,7 @@ export function Register() {
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
                 >
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -126,6 +133,8 @@ export function Register() {
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
                   type={showPass ? 'text' : 'password'}
+                  name="confirmPassword"
+                  autoComplete="new-password"
                   className="input pl-10"
                   placeholder="Repeat password"
                   value={form.confirm}
@@ -138,6 +147,7 @@ export function Register() {
             <motion.button
               type="submit"
               disabled={loading}
+              aria-label={loading ? 'Creating account' : 'Create Account'}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 mt-2"
               whileTap={{ scale: 0.97 }}
             >

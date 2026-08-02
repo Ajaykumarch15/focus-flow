@@ -2,7 +2,6 @@ import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   AlignmentType, TableRow, TableCell, Table, WidthType,
   BorderStyle, ShadingType, PageBreak, Footer, PageNumber,
-  NumberFormat, TabStopType, TabStopPosition,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import type { DocumentModel } from '../types';
@@ -212,7 +211,7 @@ export async function exportToDocx(doc: DocumentModel, filename: string): Promis
       spacing: { before: 240, after: 120 },
       children: [new TextRun({ text: 'Implementation Roadmap', bold: true, size: 32, font: 'Calibri' })],
     }));
-    milestones.forEach((m, i) => {
+    milestones.forEach((m, _i) => {
       children.push(new Paragraph({
         bullet: { level: 0 },
         spacing: { before: 60, after: 60 },

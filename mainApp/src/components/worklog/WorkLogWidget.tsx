@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BookMarked, GitBranch, CheckCircle2, ArrowRight, Plus, Zap } from 'lucide-react';
+import { BookMarked, GitBranch, CheckCircle2, ArrowRight, Plus } from 'lucide-react';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
 import { STATUS_OPTIONS } from './statusConfig';
 
@@ -11,7 +11,7 @@ export function WorkLogWidget() {
 
   useEffect(() => {
     if (!todayLog) loadToday();
-  }, []);
+  }, [todayLog, loadToday]);
 
   const log      = todayLog;
   const status   = STATUS_OPTIONS.find(s => s.value === log?.status) || STATUS_OPTIONS[1];

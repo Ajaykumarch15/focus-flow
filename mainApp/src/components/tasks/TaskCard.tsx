@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { Play, Pause, Square, Trash2, CheckCircle, Circle, ChevronRight, Tag, Clock } from 'lucide-react';
+import { Play, Pause, Square, Trash2, CheckCircle, ChevronRight, Clock } from 'lucide-react';
 import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
-import { PRIORITY_CONFIG, STATUS_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
+import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
 import { formatHours, getDeadlineStatus } from '../../utils/time';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,7 +21,6 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
   const isPaused = isActive && activeTimerState === 'paused';
   const isRunning = isActive && activeTimerState === 'running';
   const priority = PRIORITY_CONFIG[task.priority];
-  const status = STATUS_CONFIG[task.status];
 
   const displayTime = isActive ? activeDisplay : formatHours(task.totalTime);
 

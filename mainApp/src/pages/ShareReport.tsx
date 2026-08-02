@@ -2,18 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Clock, CheckCircle2, GitBranch, ExternalLink,
-  AlertTriangle, BookMarked, BarChart3, Target, Loader2,
+  Clock, CheckCircle2, GitBranch,
+  BookMarked, BarChart3, Target,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { api } from '../utils/api';
 import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
-
-const MOOD_EMOJIS   = ['😔', '😐', '🙂', '😊', '🔥'];
-const STATUS_LABELS: Record<string, string> = {
-  planning: '🗺️ Planning', 'in-progress': '⚡ In Progress',
-  reviewing: '👀 Reviewing', blocked: '🚫 Blocked', done: '✅ Done',
-};
+import { STATUS_LABELS, MOOD_EMOJIS } from '../lib/config';
 
 function formatMs(ms: number): string {
   const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);

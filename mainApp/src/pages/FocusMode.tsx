@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Square, RotateCcw, Minimize2, Coffee, Zap, X } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Coffee, Zap } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDuration } from '../utils/time';
 import { getNotificationSettings } from '../hooks/useNotifications';
@@ -15,7 +15,7 @@ const QUOTES = [
 ];
 
 export function FocusMode() {
-  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
+  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId } = useStore();
   const [mode, setMode] = useState<'pomodoro' | 'break'>('pomodoro');
   const [timeLeft, setTimeLeft] = useState(profile.pomodoroWork * 60);
   const [isRunning, setIsRunning] = useState(false);
@@ -26,7 +26,6 @@ export function FocusMode() {
   const totalTime = mode === 'pomodoro' ? profile.pomodoroWork * 60 : profile.pomodoroBreak * 60;
   const progress = ((totalTime - timeLeft) / totalTime) * 100;
   const activeTasks = tasks.filter(t => t.status !== 'completed');
-  const selectedTask = tasks.find(t => t.id === selectedTaskId);
 
   useEffect(() => {
     setTimeLeft(mode === 'pomodoro' ? profile.pomodoroWork * 60 : profile.pomodoroBreak * 60);
@@ -131,7 +130,7 @@ export function FocusMode() {
         {/* Timer Elevated Card */}
         <div className="card p-8 rounded-[22px] shadow-sm border border-surface-800 flex flex-col items-center mb-8 w-full bg-[#FFFDF5] dark:bg-surface-900">
           <div className="relative mb-6">
-            <svg width="280" height="280" className="-rotate-90">
+            <svg viewBox="0 0 280 280" width="100%" style={{ maxWidth: 280 }} className="-rotate-90">
               <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-surface-800)" strokeWidth="8" />
               <motion.circle
                 cx="140" cy="140" r={r}

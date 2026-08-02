@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Medal, Flame, Star, Loader2, Users, ArrowUpRight } from 'lucide-react';
+import { Flame, Users } from 'lucide-react';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { Skeleton, SkeletonCircle } from '../components/ui/Skeleton';

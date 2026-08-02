@@ -57,8 +57,10 @@ function ToolBtn({
 }) {
   return (
     <button type="button"
-      onMouseDown={e => { e.preventDefault(); onClick(); }}
+      onClick={onClick}
+      onMouseDown={e => e.preventDefault()}
       title={shortcut ? `${label}  (${shortcut})` : label}
+      aria-label={shortcut ? `${label}  (${shortcut})` : label}
       className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
         active ? 'bg-brand-500/20 text-brand-400' : 'text-surface-400 hover:text-surface-50 hover:bg-surface-700/60'
       }`}>
@@ -256,19 +258,20 @@ function FloatingToolbar({ onAction, position }: {
       style={{ top: position.top, left: position.left }}
     >
       {tools.map(t => (
-        <button key={t.cmd} type="button" title={t.label}
-          onMouseDown={e => { e.preventDefault(); onAction(t.cmd); }}
+        <button key={t.cmd} type="button" title={t.label} aria-label={t.label}
+          onClick={() => onAction(t.cmd)}
+          onMouseDown={e => e.preventDefault()}
           className="p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-700/60 transition-all">
           <t.icon size={13} />
         </button>
       ))}
       <span className="w-px h-4 bg-surface-700 mx-0.5" />
-      <button type="button" title="Link"
-        onMouseDown={e => {
-          e.preventDefault();
+      <button type="button" title="Link" aria-label="Link"
+        onClick={() => {
           const url = prompt('Enter URL:');
           if (url) onAction('createLink', url);
         }}
+        onMouseDown={e => e.preventDefault()}
         className="p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-700/60 transition-all">
         <Link2 size={13} />
       </button>
@@ -550,7 +553,9 @@ export function ProEditor({
                 <div className="flex items-center gap-1.5 mx-1.5">
                   {[{ color: '#ffffff', title: 'White' }, { color: '#0ea5e9', title: 'Blue' }, { color: '#22c55e', title: 'Green' }, { color: '#8b5cf6', title: 'Purple' }, { color: '#f97316', title: 'Orange' }, { color: '#ef4444', title: 'Red' }].map(s => (
                     <button key={s.color} type="button" title={`Text color: ${s.title}`}
-                      onMouseDown={e => { e.preventDefault(); execCmd('foreColor', s.color); }}
+                      aria-label={`Text color: ${s.title}`}
+                      onClick={() => execCmd('foreColor', s.color)}
+                      onMouseDown={e => e.preventDefault()}
                       className="w-3.5 h-3.5 rounded-full border border-surface-700 transition-all hover:scale-125 hover:border-white"
                       style={{ backgroundColor: s.color }} />
                   ))}
@@ -619,6 +624,7 @@ export function ProEditor({
           ) : (
             <>
               <textarea ref={taRef} value={value} placeholder={placeholder}
+                aria-label={label || 'Editor'}
                 onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
                 onChange={handleInput}
                 onKeyDown={handleKeyDown}
@@ -701,6 +707,54 @@ export function ProEditor({
   return <div className={className}>{editorContent}</div>;
 }
 
+// ── AutoSaveEditor — debounced auto-save wrapper (single source) ─────────────
+export const AUTOSAVE_DEBOUNCE_MS = 750;
+
+interface AutoSaveEditorProps {
+  value: string;
+  onSave: (value: string) => Promise<void>;
+  debounceMs?: number;
+  children: (props: {
+    value: string;
+    onChange: (v: string) => void;
+    saving: boolean;
+    saved: boolean;
+  }) => React.ReactNode;
+}
+
+export function AutoSaveEditor({
+  value,
+  onSave,
+  debounceMs = AUTOSAVE_DEBOUNCE_MS,
+  children,
+}: AutoSaveEditorProps) {
+  const [val, setVal] = useState(value);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(true);
+
+  useEffect(() => { setVal(value); }, [value]);
+
+  useEffect(() => {
+    if (val === value) return;
+    setSaved(false);
+    const t = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await onSave(val);
+        setSaved(true);
+      } catch (e) {
+        console.error(e);
+        setSaved(false);
+      } finally {
+        setSaving(false);
+      }
+    }, debounceMs);
+    return () => clearTimeout(t);
+  }, [val, value, onSave, debounceMs]);
+
+  return <>{children({ value: val, onChange: v => { setVal(v); setSaved(false); }, saving, saved })}</>;
+}
+
 // ── AutoProEditor — drop-in wrapper with debounced auto-save ─────────────────
 interface AutoProEditorProps {
   logId: string;
@@ -714,34 +768,21 @@ interface AutoProEditorProps {
 }
 
 export function AutoProEditor({
-  logId, field, value: initial, placeholder, minRows, updateFn,
+  logId, field, value, placeholder, minRows, updateFn,
 }: AutoProEditorProps) {
-  const [val, setVal] = useState(initial);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(true);
-
-  useEffect(() => { setVal(initial); }, [initial]);
-
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      if (val === initial) return;
-      setSaving(true);
-      try { await updateFn(logId, field, val); setSaved(true); }
-      catch (e) { console.error(e); }
-      finally { setSaving(false); }
-    }, 750);
-    return () => clearTimeout(t);
-  }, [val]);
-
   return (
-    <ProEditor
-      value={val}
-      onChange={v => { setVal(v); setSaved(false); }}
-      placeholder={placeholder}
-      minRows={minRows}
-      saving={saving}
-      saved={saved}
-    />
+    <AutoSaveEditor value={value} onSave={v => updateFn(logId, field, v)}>
+      {({ value: val, onChange, saving, saved }) => (
+        <ProEditor
+          value={val}
+          onChange={onChange}
+          placeholder={placeholder}
+          minRows={minRows}
+          saving={saving}
+          saved={saved}
+        />
+      )}
+    </AutoSaveEditor>
   );
 }
 

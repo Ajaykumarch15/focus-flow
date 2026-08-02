@@ -11,11 +11,10 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import {
-  saveTimer, loadTimer, clearTimer,
-  addCompletedSession,
+  loadTimer,
   loadTodayMs,
 } from '../utils/timerPersist';
-import { timerEngine, TimerFSMState } from '../utils/timerEngine';
+import { timerEngine } from '../utils/timerEngine';
 import { offlineQueue } from '../utils/offlineQueue';
 import type {
   Task, JournalEntry, TimerState, Priority,
@@ -189,7 +188,9 @@ interface StoreState {
   currentPauseStart?: number;
   dataLoading: boolean;
   dataError: string | null;
+  mobileSidebarOpen: boolean;
 
+  setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
@@ -246,6 +247,8 @@ export const useStore = create<StoreState>((set, get) => {
     theme: cachedTheme,
     dataLoading: false,
     dataError: null,
+    mobileSidebarOpen: false,
+    setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
     activeTaskId: snapshot.taskId,
     activeSessionId: snapshot.sessionId,
     activeTimerState: snapshot.timerState as TimerState,

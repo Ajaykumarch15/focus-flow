@@ -296,7 +296,7 @@ export function TeamProjects() {
                   <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-1.5">
                     Workspace Type
                   </label>
-                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as any)}
+                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as typeof newWsType)}
                     className="w-full bg-surface-850 border border-surface-700 focus:border-brand-500 rounded-xl px-4 py-2.5 text-sm text-surface-50 outline-none transition-colors">
                     <option value="Startup">Startup</option>
                     <option value="Personal">Personal Sandbox</option>

@@ -31,7 +31,7 @@ export function calculateWorkLogMetrics(log: WorkLog): CalculatedWorkMetrics {
   // Extract sessions count across all daily workEntries
   let sessionCount = 0;
   workEntries.forEach(entry => {
-    sessionCount += (entry as any).sessionIds?.length || (entry.activeMs > 0 ? 1 : 0);
+    sessionCount += entry.sessionIds?.length || (entry.activeMs > 0 ? 1 : 0);
   });
 
   const averageSessionMs = sessionCount > 0 ? Math.round(totalFocusMs / sessionCount) : 0;

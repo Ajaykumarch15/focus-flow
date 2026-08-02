@@ -43,7 +43,7 @@ export function AdminAnalytics() {
 
   useEffect(() => { load(period); }, [period, load]);
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-6">

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Target, Zap, BarChart3, BookOpen, Play, CheckCircle, Clock, ArrowRight,
-  Timer, Flame, Trophy, Star, Users, TrendingUp, ChevronRight,
-  LayoutDashboard, CheckSquare, LineChart, Sparkles, Shield, Globe,
+  Timer, Flame, Trophy, Star, TrendingUp, ChevronRight,
+  LayoutDashboard, CheckSquare, LineChart, Sparkles,
 } from 'lucide-react';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -227,7 +227,7 @@ export function Landing() {
 
         <motion.div initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
           variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map(({ icon: Icon, title, desc, color, bg }, i) => (
+          {features.map(({ icon: Icon, title, desc, color, bg }) => (
             <motion.div key={title} variants={fadeUp}
               whileHover={{ y: -4, borderColor: 'rgba(255,255,255,0.1)' }}
               className="rounded-2xl border border-surface-800/60 bg-surface-900 p-6 transition-all duration-200 group cursor-default">
@@ -361,7 +361,7 @@ export function Landing() {
 
           <motion.div initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
             variants={stagger} className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {testimonials.map(({ name, role, text, rating }, i) => (
+            {testimonials.map(({ name, role, text, rating }) => (
               <motion.div key={name} variants={fadeUp}
                 className="rounded-2xl border border-surface-800/60 bg-surface-900 p-6 flex flex-col">
                 <div className="flex gap-0.5 mb-4">

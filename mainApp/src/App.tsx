@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
 import { clearTimer }      from './utils/timerPersist';
+import { ErrorBoundary }  from './components/ui/ErrorBoundary';
 
 import { AppLayout }       from './components/layout/AppLayout';
 import { AdminLayout }     from './components/layout/AdminLayout';
@@ -56,6 +57,21 @@ function RouteFallback() {
   );
 }
 
+// IES-P0-24: dedicated fallback when a lazy chunk fails to load.
+function ChunkLoadFallback() {
+  return (
+    <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center p-6">
+      <div className="card max-w-md w-full p-8 text-center">
+        <h1 className="text-lg font-semibold mb-2">This page failed to load</h1>
+        <p className="text-sm text-surface-400 mb-6">A chunk failed to download. Try reloading.</p>
+        <button className="btn-primary" onClick={() => window.location.reload()} type="button">
+          Reload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AdminWorkspaceRouter() {
   const { workspace } = useAuthStore();
   if (workspace !== 'admin') return <Navigate to="/workspace" replace />;
@@ -87,7 +103,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Suspense fallback={<RouteFallback />}>
-        <Routes>
+        <ErrorBoundary fallback={<ChunkLoadFallback />}>
+          <Routes>
           <Route path="/"                            element={<Landing />} />
           <Route path="/login"                       element={<Login />} />
           <Route path="/register"                    element={<Register />} />
@@ -102,7 +119,6 @@ export default function App() {
           {/* Dedicated Engineering Workspace Architecture */}
           <Route element={<ProtectedRoute />}>
             <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
-              <Route path="overview hover" element={<TeamWorkspace />} />
               <Route path="overview" element={<TeamWorkspace />} />
               <Route path="projects" element={<TeamWorkspace />} />
               <Route path="sprints" element={<TeamWorkspace />} />
@@ -132,22 +148,17 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<PersonalWorkspaceRouter />}>
               <Route path="/dashboard"   element={<Dashboard />} />
-              <Route path="/team text"   element={<TeamWorkspace />} />
               <Route path="/team"        element={<TeamWorkspace />} />
-              <Route path="/worklog text" element={<WorkLogPage />} />
               <Route path="/worklog"     element={<WorkLogPage />} />
               <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
               <Route path="/reports"     element={<ReportsPage />} />
               <Route path="/tasks"       element={<Tasks />} />
               <Route path="/tasks/:id"   element={<TaskDetail />} />
-              <Route path="/analytics text" element={<Analytics />} />
-              <Route path="/analytics font" element={<Analytics />} />
               <Route path="/analytics"   element={<Analytics />} />
               <Route path="/journal"     element={<Journal />} />
               <Route path="/habits"      element={<Habits />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/focus"       element={<FocusMode />} />
-              <Route path="/settings text" element={<Settings />} />
               <Route path="/settings"    element={<Settings />} />
             </Route>
           </Route>
@@ -166,7 +177,8 @@ export default function App() {
           </Route>
 
           <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+          </Routes>
+        </ErrorBoundary>
       </Suspense>
     </BrowserRouter>
   );

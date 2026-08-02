@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon,
   Clock, LineChart, BarChart3, BookOpen, Calendar, Settings, ShieldCheck,
-  ChevronDown, Search, Plus, ArrowLeft, Home, Bell, CheckSquare, GitBranch
+  ChevronDown, Search, Plus, ArrowLeft, Bell, Menu
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useStore } from '../../store/useStore';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 import { CreateProjectModal } from '../collaboration/CreateProjectModal';
 import { CreateBlockerModal } from '../collaboration/CreateBlockerModal';
@@ -22,8 +23,14 @@ export function WorkspaceLayout() {
     workspaces, activeWorkspaceId, setActiveWorkspace,
     tasks, blockers, docs, projects, notifications, markAllNotificationsRead
   } = useCollaborationStore();
+  const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
+  const location = useLocation();
 
   const activeWs = workspaces.find((w) => w.id === (workspaceId || activeWorkspaceId)) || workspaces[0];
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname, setMobileSidebarOpen]);
 
   const [showWsDropdown, setShowWsDropdown] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -53,11 +60,8 @@ export function WorkspaceLayout() {
     { to: `/w/${activeWs.id}/settings`, label: 'Settings', icon: Settings, color: 'text-surface-400' },
   ];
 
-  return (
-    <div className="flex h-screen bg-surface-950 text-surface-50 overflow-hidden">
-      
-      {/* ═══ WORKSPACE DEDICATED SIDEBAR ═══ */}
-      <aside className="w-64 bg-surface-900 border-r border-surface-800 flex flex-col flex-shrink-0 z-20">
+  const renderWorkspaceSidebar = () => (
+      <aside className="w-64 bg-surface-900 border-r border-surface-800 flex flex-col flex-shrink-0 z-20 h-full">
         
         {/* Workspace Brand / Hub Return */}
         <div className="p-4 border-b border-surface-800 flex items-center justify-between">
@@ -159,13 +163,47 @@ export function WorkspaceLayout() {
           </div>
         </div>
       </aside>
+  );
+
+  return (
+    <div className="flex h-screen bg-surface-950 text-surface-50 overflow-hidden">
+
+      {/* ═══ WORKSPACE DEDICATED SIDEBAR (desktop) ═══ */}
+      <div className="hidden lg:flex flex-shrink-0">
+        {renderWorkspaceSidebar()}
+      </div>
+
+      {/* ═══ WORKSPACE SIDEBAR MOBILE DRAWER ═══ */}
+      <AnimatePresence>
+        {mobileSidebarOpen && (
+          <>
+            <div key="sidebar-backdrop" className="lg:hidden fixed inset-0 z-40 bg-black/50"
+              onClick={() => setMobileSidebarOpen(false)} />
+            <motion.aside
+              key="sidebar-drawer"
+              initial={{ x: -260 }}
+              animate={{ x: 0 }}
+              exit={{ x: -260 }}
+              transition={{ type: 'tween', duration: 0.25 }}
+              className="lg:hidden fixed inset-y-0 left-0 z-50 w-64"
+            >
+              {renderWorkspaceSidebar()}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ═══ MAIN WORKSPACE VIEW CONTAINER ═══ */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         
         {/* Top Header Bar */}
-        <header className="h-14 border-b border-surface-800 px-6 flex items-center justify-between bg-surface-900/60 backdrop-blur-md z-10">
+        <header className="min-h-14 py-2 border-b border-surface-800 px-3 sm:px-6 flex items-center justify-between gap-2 flex-wrap bg-surface-900/60 backdrop-blur-md z-10">
           <div className="flex items-center gap-3">
+            <button onClick={() => setMobileSidebarOpen(true)}
+              className="lg:hidden p-2 rounded-xl bg-surface-850 border border-surface-700/60 text-surface-400 hover:text-surface-200 transition-all"
+              aria-label="Open sidebar">
+              <Menu size={18} />
+            </button>
             <button onClick={() => setShowSearch(true)}
               className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-surface-850 border border-surface-700/70 text-xs text-surface-400 hover:text-surface-200 transition-all">
               <Search size={14} />
@@ -198,6 +236,7 @@ export function WorkspaceLayout() {
             {/* Notifications Button */}
             <div className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)}
+                aria-label="Notifications"
                 className="p-2 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-700/60 text-surface-300 relative transition-colors">
                 <Bell size={16} />
                 {unreadNotifications.length > 0 && (

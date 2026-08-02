@@ -1,20 +1,21 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
   Share2, Copy, Check, ChevronLeft, ChevronRight,
-  BarChart3, Zap, BookMarked, AlertTriangle, Link2,
+  BarChart3, BookMarked, AlertTriangle, Link2,
   Loader2, TrendingUp, ArrowLeft, Download, RotateCcw,
-  Search, Flame, Target, ArrowUpRight,
+  Flame, Target,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
-         isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns';
+         isToday, subMonths, addMonths, parseISO } from 'date-fns';
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
 import { useNavigate } from 'react-router-dom';
+import { MOOD_EMOJIS } from '../lib/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -68,8 +69,6 @@ function formatMs(ms: number): string {
   return `${m}m`;
 }
 
-const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
-
 const STATUS_COLOR: Record<string, string> = {
   planning:    'text-purple-400 bg-purple-400/10 border-purple-400/20',
   'in-progress':'text-brand-400 bg-brand-400/10 border-brand-400/20',
@@ -98,29 +97,6 @@ const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 // ── Animated counter ──────────────────────────────────────────────────────────
-function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: number }) {
-  const [display, setDisplay] = useState('0');
-  const frameRef = useRef<number | null>(null);
-  const fromRef = useRef(0);
-  useEffect(() => {
-    const from = fromRef.current;
-    const to = value;
-    if (from === to) { setDisplay(to.toFixed(decimals)); return; }
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / 700, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay((from + (to - from) * eased).toFixed(decimals));
-      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
-      else fromRef.current = to;
-    };
-    frameRef.current = requestAnimationFrame(tick);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [value, decimals]);
-  return <>{display}</>;
-}
-
 // ── Share link button ─────────────────────────────────────────────────────────
 function ShareButton({ date }: { date: string }) {
   const [copied, setCopied] = useState(false);
@@ -558,7 +534,6 @@ function CalendarHeatmap({
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 export function ReportsPage() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
   const [month, setMonth]             = useState(new Date());
   const [summary, setSummary]         = useState<DaySummary[]>([]);

@@ -1,23 +1,39 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
-  BarChart3, LineChart, TrendingUp, Flame, Clock, Users, ShieldCheck,
-  Calendar, Download, Filter, Sparkles, AlertOctagon
+  BarChart3, LineChart, TrendingUp, Flame, ShieldCheck,
+  Download
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { saveAs } from 'file-saver';
+
+type ReportType = 'sprint' | 'developer' | 'productivity' | 'engineering';
 
 export function ReportsAnalyticsPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
   const { tasks, members, sprints, blockers } = useCollaborationStore();
 
-  const [activeReportType, setActiveReportType] = useState<'sprint' | 'developer' | 'productivity' | 'engineering'>('sprint');
+  const [activeReportType, setActiveReportType] = useState<ReportType>('sprint');
 
   const completedTasks = useMemo(() => tasks.filter((t) => t.sprintStatus === 'done'), [tasks]);
   const featureCompletionRate = useMemo(() => {
     if (tasks.length === 0) return 100;
     return Math.round((completedTasks.length / tasks.length) * 100);
   }, [tasks, completedTasks]);
+
+  const handleExport = () => {
+    const report = {
+      reportType: activeReportType,
+      exportedAt: new Date().toISOString(),
+      featureCompletionRate,
+      completedFeatures: completedTasks.length,
+      totalFeatures: tasks.length,
+      resolvedBlockers: blockers.filter((b) => b.status === 'resolved').length,
+      openBlockers: blockers.filter((b) => b.status !== 'resolved').length,
+      activeSprints: sprints.filter((s) => s.status === 'active').length,
+      members: members.map((m) => ({ name: m.name, role: m.role, status: m.status })),
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
+    saveAs(blob, `workspace-analytics-${activeReportType}.json`);
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -34,8 +50,9 @@ export function ReportsAnalyticsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="px-4 py-2.5 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-750 text-xs font-bold text-surface-200 flex items-center gap-1.5 transition-colors">
-            <Download size={14} /> Export Report (PDF/JSON)
+          <button onClick={handleExport} type="button"
+            className="px-4 py-2.5 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-750 text-xs font-bold text-surface-200 flex items-center gap-1.5 transition-colors">
+            <Download size={14} /> Export Report (JSON)
           </button>
         </div>
       </div>
@@ -70,12 +87,12 @@ export function ReportsAnalyticsPage() {
       {/* Report Type Switcher Tabs */}
       <div className="flex items-center gap-2 border-b border-surface-800 pb-3 overflow-x-auto no-scrollbar">
         {[
-          { id: 'sprint', label: 'Sprint & Velocity Report', icon: LineChart },
-          { id: 'developer', label: 'Developer Focus Hours', icon: Flame },
-          { id: 'productivity', label: 'Productivity & Cycle Time', icon: TrendingUp },
-          { id: 'engineering', label: 'Engineering Health & Blockers', icon: ShieldCheck },
+          { id: 'sprint' as ReportType, label: 'Sprint & Velocity Report', icon: LineChart },
+          { id: 'developer' as ReportType, label: 'Developer Focus Hours', icon: Flame },
+          { id: 'productivity' as ReportType, label: 'Productivity & Cycle Time', icon: TrendingUp },
+          { id: 'engineering' as ReportType, label: 'Engineering Health & Blockers', icon: ShieldCheck },
         ].map((tab) => (
-          <button key={tab.id} onClick={() => setActiveReportType(tab.id as any)}
+          <button key={tab.id} onClick={() => setActiveReportType(tab.id)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
               activeReportType === tab.id ? 'bg-surface-850 text-surface-50 border border-surface-700 shadow' : 'text-surface-400 hover:text-surface-200'
             }`}>

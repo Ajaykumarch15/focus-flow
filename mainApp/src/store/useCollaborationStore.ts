@@ -7,8 +7,6 @@ import {
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 
-const WORKSPACE_CACHE_KEY = 'ff_collaborative_workspaces_v1';
-
 // ── Default Initial Mock Data ──────────────────────────────────────────────────
 const INITIAL_WORKSPACES: Workspace[] = [
   {
@@ -399,6 +397,7 @@ interface CollaborationStore {
 
   // Actions
   setActiveWorkspace: (id: string) => void;
+  updateWorkspaceSettings: (workspaceId: string, settings: Partial<Workspace['settings']>) => void;
   createWorkspace: (name: string, type: any, description: string) => Workspace;
   createTeam: (name: string, description: string, color: string, memberIds: string[]) => void;
   updateMemberRole: (memberId: string, role: MemberRole) => void;
@@ -456,6 +455,15 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     set({ activeWorkspaceId: id });
     const ws = get().workspaces.find(w => w.id === id);
     if (ws) toast.info(`Switched to workspace: ${ws.name}`);
+  },
+
+  updateWorkspaceSettings: (workspaceId, settings) => {
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === workspaceId ? { ...w, settings: { ...w.settings, ...settings } } : w
+      ),
+    }));
+    toast.success('Settings saved', 'Workspace configuration updated.');
   },
 
   createWorkspace: (name, type, description) => {

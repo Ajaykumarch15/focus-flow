@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Paperclip, Link2, Plus, Trash2, ExternalLink, FileText, Image as ImageIcon, Folder } from 'lucide-react';
-import { WorkLog, WorkLink, WorkAttachment, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Paperclip, Link2, Plus, Trash2, ExternalLink, Folder } from 'lucide-react';
+import { WorkLog, WorkLink, useWorkLogStore } from '../../store/useWorkLogStore';
 
 interface AttachmentsViewProps {
   workLog: WorkLog;
@@ -95,7 +95,7 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
                 />
                 <select
                   className="input text-sm rounded-lg"
-                  value={linkCat} onChange={e => setLinkCat(e.target.value as any)}
+                  value={linkCat} onChange={e => setLinkCat(e.target.value as WorkLink['category'])}
                 >
                   {LINK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>

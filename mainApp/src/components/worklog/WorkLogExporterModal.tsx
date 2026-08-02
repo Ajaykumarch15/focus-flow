@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, FileText, Code, Sparkles, Copy, Check, X } from 'lucide-react';
 import { WorkLog } from '../../store/useWorkLogStore';

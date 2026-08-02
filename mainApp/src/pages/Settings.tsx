@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import {
   Moon, Sun, Palette, User, Clock, Bell, Users, Cloud, Check, BellRing,
-  Shield, Database, ChevronRight, Zap, PanelLeftClose, Eye, Save,
+  Shield, Database, Zap, Eye,
 } from 'lucide-react';
 import { ACCENT_PRESETS } from '../utils/colors';
 import { getNotificationSettings, saveNotificationSettings, NotificationSettings, requestNotificationPermission } from '../hooks/useNotifications';
@@ -259,17 +259,17 @@ export function Settings() {
                 {/* Toggles */}
                 <div className="space-y-0.5">
                   {[
-                    { key: 'glassmorphism', label: 'Glassmorphism', desc: 'Frosted glass effects on panels' },
-                    { key: 'animatedBackground', label: 'Animated Background', desc: 'Subtle gradient animation' },
-                    { key: 'reducedMotion', label: 'Reduce Motion', desc: 'Minimize animations for accessibility' },
+                    { key: 'glassmorphism' as const, label: 'Glassmorphism', desc: 'Frosted glass effects on panels' },
+                    { key: 'animatedBackground' as const, label: 'Animated Background', desc: 'Subtle gradient animation' },
+                    { key: 'reducedMotion' as const, label: 'Reduce Motion', desc: 'Minimize animations for accessibility' },
                   ].map(({ key, label, desc }) => (
                     <div key={key} className="flex items-center justify-between py-2.5">
                       <div>
                         <p className="text-sm font-medium text-surface-200">{label}</p>
                         <p className="text-xs text-surface-500 mt-0.5">{desc}</p>
                       </div>
-                      <Toggle enabled={!!theme[key as keyof typeof theme]}
-                        onToggle={() => { updateTheme({ [key]: !theme[key as keyof typeof theme] } as any); flashSaved(); }} />
+                      <Toggle enabled={!!theme[key]}
+                        onToggle={() => { updateTheme({ [key]: !theme[key] }); flashSaved(); }} />
                     </div>
                   ))}
                 </div>

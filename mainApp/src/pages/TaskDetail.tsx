@@ -8,13 +8,14 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
-import { PRIORITY_CONFIG, MOOD_LABELS, DEADLINE_CONFIG } from '../utils/colors';
+import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
+import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 // ── Animated Timer Display ────────────────────────────────────────────────────
-function LiveTimer({ isRunning, isPaused, liveTime, totalTime, isActive }: {
+function LiveTimer({ isRunning, isPaused, liveTime, totalTime, isActive: _isActive }: {
   isRunning: boolean; isPaused: boolean; liveTime: number; totalTime: number; isActive: boolean;
 }) {
   const [elapsed, setElapsed] = useState(liveTime);
@@ -54,7 +55,7 @@ export function TaskDetail() {
   const task = getTask(id!);
   const [newSubtask, setNewSubtask] = useState('');
   const [journalText, setJournalText] = useState('');
-  const [mood, setMood] = useState(3);
+  const [mood, setMood] = useState<Mood>(3);
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
   const [showSessions, setShowSessions] = useState(true);
@@ -98,7 +99,7 @@ export function TaskDetail() {
 
   const handleAddJournal = () => {
     if (!journalText.trim()) return;
-    addJournal({ taskId: task.id, content: journalText, mood: mood as any, focusRating: mood });
+    addJournal({ taskId: task.id, content: journalText, mood, focusRating: mood });
     setJournalText('');
     setMood(3);
   };
@@ -429,7 +430,7 @@ export function TaskDetail() {
             <div className="flex items-center gap-4 mb-4">
               <span className="text-xs text-surface-400 font-medium">Mood</span>
               <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map(m => (
+                {([1, 2, 3, 4, 5] as const).map(m => (
                   <button key={m} onClick={() => setMood(m)}
                     className={`text-xl transition-all p-1 rounded-lg ${
                       mood >= m ? 'scale-110' : 'opacity-30 hover:opacity-60'

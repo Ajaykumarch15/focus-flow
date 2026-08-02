@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, CheckCheck, User, MessageSquare, AlertOctagon, GitPullRequest, Zap, CheckCircle2, X } from 'lucide-react';
+import { Bell, CheckCheck, MessageSquare, AlertOctagon, GitPullRequest, Zap, CheckCircle2, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 
 export function NotificationCenter() {
