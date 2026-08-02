@@ -7,17 +7,17 @@ const router = express.Router();
 router.use(protect);
 
 // ── GET /api/projects ──────────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const projects = await Project.find({ userId: req.user._id }).sort({ name: 1 });
     res.json(projects);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/projects ─────────────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -54,13 +54,13 @@ router.post('/', async (req, res) => {
     console.log(`✅ Project created: "${project.name}" (Google Folder: ${project.googleFolderId || 'not connected'})`);
     res.status(201).json(project);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/projects/:id/sync-drive ──────────────────────────────────────────
 // Manual trigger to create folders if Google Drive was connected AFTER project creation
-router.post('/:id/sync-drive', async (req, res) => {
+router.post('/:id/sync-drive', async (req, res, next) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, userId: req.user._id });
     if (!project) {
@@ -89,7 +89,7 @@ router.post('/:id/sync-drive', async (req, res) => {
     console.log(`✅ Manually synced Drive folders for project "${project.name}"`);
     res.json(project);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

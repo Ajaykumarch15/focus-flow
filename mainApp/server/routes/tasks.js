@@ -23,19 +23,19 @@ const TASK_PATCH_FIELDS = {
 };
 
 // GET /api/tasks
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
     console.log(`📋 Fetched ${tasks.length} tasks for user ${req.user._id}`);
     res.json(tasks);
   } catch (err) {
     console.error('GET /tasks error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/tasks
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { title, description, priority, status, category, deadline, color, tags, subtasks } = req.body;
 
@@ -61,12 +61,12 @@ router.post('/', async (req, res) => {
     Activity.create({ userId: req.user._id, action: 'task.created', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
   } catch (err) {
     console.error('POST /tasks error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // PATCH /api/tasks/:id
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, TASK_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -85,12 +85,12 @@ router.patch('/:id', async (req, res) => {
     }
   } catch (err) {
     console.error('PATCH /tasks/:id error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/tasks/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
@@ -107,12 +107,12 @@ router.delete('/:id', async (req, res) => {
     Activity.create({ userId: req.user._id, action: 'task.deleted', details: { taskTitle: task.title } }).catch(() => {});
   } catch (err) {
     console.error('DELETE /tasks/:id error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/tasks/:id/subtasks
-router.post('/:id/subtasks', async (req, res) => {
+router.post('/:id/subtasks', async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -122,12 +122,12 @@ router.post('/:id/subtasks', async (req, res) => {
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // PATCH /api/tasks/:id/subtasks/:subId
-router.patch('/:id/subtasks/:subId', async (req, res) => {
+router.patch('/:id/subtasks/:subId', async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id, 'subtasks._id': req.params.subId },
@@ -137,12 +137,12 @@ router.patch('/:id/subtasks/:subId', async (req, res) => {
     if (!task) return res.status(404).json({ message: 'Task or subtask not found' });
     res.json(task);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/tasks/:id/subtasks/:subId
-router.delete('/:id/subtasks/:subId', async (req, res) => {
+router.delete('/:id/subtasks/:subId', async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -152,7 +152,7 @@ router.delete('/:id/subtasks/:subId', async (req, res) => {
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

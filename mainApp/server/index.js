@@ -76,6 +76,7 @@ const projectRoutes = require('./routes/projects');
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
+const errorHandler = require('./middleware/errorHandler'); // IES-P0-14
 
 const app = express();
 
@@ -115,10 +116,9 @@ app.use('/api/projects', projectRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
 
-app.use((err, _req, res, _next) => {
-  console.error('Server error:', err);
-  res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
-});
+// IES-P0-14: JSON 404 catch-all, then the single sanitized error handler.
+app.use(errorHandler.notFoundHandler);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5001;
 mongoose

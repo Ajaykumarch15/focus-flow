@@ -14,17 +14,17 @@ router.use(protect);
 router.use(admin);
 
 // ── GET /api/teams ────────────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const teams = await Team.find({}).populate('members', 'name email avatar role');
     res.json(teams);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/teams ───────────────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { name, description, members } = req.body;
     const team = new Team({
@@ -38,12 +38,12 @@ router.post('/', async (req, res) => {
     res.status(201).json(populated);
     Activity.create({ userId: req.user._id, action: 'team.created', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/teams/:id ──────────────────────────────────────────────────────
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res, next) => {
   try {
     const { name, description, members } = req.body;
     const updates = {};
@@ -58,24 +58,24 @@ router.patch('/:id', async (req, res) => {
     res.json(team);
     Activity.create({ userId: req.user._id, action: 'team.updated', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── DELETE /api/teams/:id ─────────────────────────────────────────────────────
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const team = await Team.findByIdAndDelete(req.params.id);
     if (!team) return res.status(404).json({ message: 'Team not found' });
     res.json({ message: 'Team deleted' });
     Activity.create({ userId: req.user._id, action: 'team.deleted', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/teams/:id/analytics ──────────────────────────────────────────────
-router.get('/:id/analytics', async (req, res) => {
+router.get('/:id/analytics', async (req, res, next) => {
   try {
     const team = await Team.findById(req.params.id).populate('members', 'name email');
     if (!team) return res.status(404).json({ message: 'Team not found' });
@@ -148,7 +148,7 @@ router.get('/:id/analytics', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

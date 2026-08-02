@@ -9,7 +9,7 @@ router.use(protect);
 router.get('/', (req, res) => res.json(req.user));
 
 // ── PATCH /api/profile ────────────────────────────────────────────────────────
-router.patch('/', async (req, res) => {
+router.patch('/', async (req, res, next) => {
   try {
     const { name, avatar, settings, leaderboardOptIn } = req.body;
     const updates = {};
@@ -21,7 +21,7 @@ router.patch('/', async (req, res) => {
     const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true }).select('-googleTokens');
     res.json(user);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

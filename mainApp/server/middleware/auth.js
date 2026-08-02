@@ -52,7 +52,13 @@ module.exports = async (req, res, next) => {
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ message: 'Token invalid or expired' });
+    // IES-P0-14: JWT verification failures are auth failures (401); anything
+    // else (e.g. a DB outage in findById) is a server error and goes to the
+    // global handler as a sanitized 500 instead of a misleading 401.
+    if (err && ['JsonWebTokenError', 'TokenExpiredError', 'NotBeforeError'].includes(err.name)) {
+      return res.status(401).json({ message: 'Token invalid or expired' });
+    }
+    return next(err);
   }
 };
 

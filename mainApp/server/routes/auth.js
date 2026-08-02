@@ -45,7 +45,7 @@ const clearSessionCookie = (res) =>
   res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(), maxAge: undefined });
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
-router.post('/register', registerLimiter, async (req, res) => {
+router.post('/register', registerLimiter, async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
@@ -65,12 +65,12 @@ router.post('/register', registerLimiter, async (req, res) => {
     setSessionCookie(res, signToken(user));
     res.status(201).json({ user });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', loginLimiter, async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -92,7 +92,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     res.json({ user });   // passwordHash stripped by toJSON transform
     Activity.create({ userId: user._id, action: 'login', details: { email: user.email } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
@@ -100,14 +100,14 @@ router.post('/login', loginLimiter, async (req, res) => {
 // Clears the session cookie and bumps the user's tokenVersion so the issued
 // JWT is revoked server-side and can never be replayed. (Trade-off: also signs
 // out that user's other sessions — a single global session version.)
-router.post('/logout', protect, async (req, res) => {
+router.post('/logout', protect, async (req, res, next) => {
   try {
     req.user.tokenVersion = (req.user.tokenVersion || 0) + 1;
     await req.user.save();
     clearSessionCookie(res);
     res.json({ message: 'Logged out' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
@@ -121,7 +121,7 @@ router.get('/me', protect, (req, res) => {
 // IES-P0-10: no JWT/bearer token in the URL. Issues an opaque single-use nonce
 // (stored hashed with an expiry) plus a PKCE code_challenge; the callback redeems
 // the code only with the matching code_verifier, proving possession of the flow.
-router.get('/google/url', protect, async (req, res) => {
+router.get('/google/url', protect, async (req, res, next) => {
   try {
     const { getOAuth2Client } = require('../utils/googleDrive');
     const oauth2Client = getOAuth2Client();
@@ -153,12 +153,12 @@ router.get('/google/url', protect, async (req, res) => {
 
     res.json({ url });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── Google OAuth Disconnect ───────────────────────────────────────────────────
-router.post('/google/disconnect', protect, async (req, res) => {
+router.post('/google/disconnect', protect, async (req, res, next) => {
   try {
     const user = req.user;
     user.googleConnected = false;
@@ -166,12 +166,12 @@ router.post('/google/disconnect', protect, async (req, res) => {
     await user.save();
     res.json({ message: 'Disconnected Google Drive successfully', user });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── Google Callback Route Handler ─────────────────────────────────────────────
-const handleGoogleCallback = async (req, res) => {
+const handleGoogleCallback = async (req, res, next) => {
   const { code, state } = req.query;
   const base = process.env.CLIENT_URL || 'http://localhost:5173';
   if (!code || !state) {

@@ -15,7 +15,7 @@ const JOURNAL_PATCH_FIELDS = {
 };
 
 // GET /api/journals
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const filter = { userId: req.user._id };
     if (req.query.taskId) filter.taskId = req.query.taskId;
@@ -24,12 +24,12 @@ router.get('/', async (req, res) => {
     res.json(journals);
   } catch (err) {
     console.error('GET /journals error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/journals
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { taskId, content, mood, focusRating } = req.body;
 
@@ -49,12 +49,12 @@ router.post('/', async (req, res) => {
     res.status(201).json(journal);
   } catch (err) {
     console.error('POST /journals error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // PATCH /api/journals/:id
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, JOURNAL_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -69,18 +69,18 @@ router.patch('/:id', async (req, res) => {
     if (!journal) return res.status(404).json({ message: 'Journal not found' });
     res.json(journal);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/journals/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const journal = await Journal.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!journal) return res.status(404).json({ message: 'Journal not found' });
     res.json({ message: 'deleted' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

@@ -20,16 +20,16 @@ function findTodayEntry(habit) {
   });
 }
 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const habits = await Habit.find({ userId: req.user._id, archived: false }).sort({ updatedAt: -1 });
     res.json(habits);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { title, description, color, targetMinutes, checklist } = req.body;
     if (!title?.trim()) return res.status(400).json({ message: 'Title is required' });
@@ -48,11 +48,11 @@ router.post('/', async (req, res) => {
 
     res.status(201).json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res, next) => {
   try {
     const allowed = ['title', 'description', 'color', 'targetMinutes', 'archived'];
     const patch = {};
@@ -68,21 +68,21 @@ router.patch('/:id', async (req, res) => {
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
     res.json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const habit = await Habit.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
     res.json({ message: 'Deleted' });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.post('/:id/checklist', async (req, res) => {
+router.post('/:id/checklist', async (req, res, next) => {
   try {
     if (!req.body.text?.trim()) return res.status(400).json({ message: 'Checklist text is required' });
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
@@ -92,11 +92,11 @@ router.post('/:id/checklist', async (req, res) => {
     await habit.save();
     res.json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.patch('/:id/checklist/:itemId', async (req, res) => {
+router.patch('/:id/checklist/:itemId', async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -109,11 +109,11 @@ router.patch('/:id/checklist/:itemId', async (req, res) => {
     await habit.save();
     res.json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.delete('/:id/checklist/:itemId', async (req, res) => {
+router.delete('/:id/checklist/:itemId', async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -125,11 +125,11 @@ router.delete('/:id/checklist/:itemId', async (req, res) => {
     await habit.save();
     res.json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.patch('/:id/today', async (req, res) => {
+router.patch('/:id/today', async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -148,7 +148,7 @@ router.patch('/:id/today', async (req, res) => {
     await habit.save();
     res.json(habit);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

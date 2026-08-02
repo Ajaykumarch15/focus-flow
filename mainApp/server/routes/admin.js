@@ -16,7 +16,7 @@ router.use(protect);
 router.use(admin);
 
 // ── GET /api/admin/stats ──────────────────────────────────────────────────────
-router.get('/stats', async (req, res) => {
+router.get('/stats', async (req, res, next) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -37,33 +37,33 @@ router.get('/stats', async (req, res) => {
       todaySessionCount: todaySessions.length
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
-router.get('/users', async (req, res) => {
+router.get('/users', async (req, res, next) => {
   try {
     const filter = req.query.includeDeleted ? {} : { deletedAt: null };
     const users = await User.find(filter).select('-googleTokens').sort({ createdAt: -1 });
     res.json(users);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/deleted ─────────────────────────────────────────────
-router.get('/users/deleted', async (req, res) => {
+router.get('/users/deleted', async (req, res, next) => {
   try {
     const users = await User.find({ deletedAt: { $ne: null } }).select('-googleTokens').sort({ deletedAt: -1 });
     res.json(users);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/admin/users/:userId ──────────────────────────────────────────
-router.patch('/users/:userId', async (req, res) => {
+router.patch('/users/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { name, email, role, settings } = req.body;
@@ -103,12 +103,12 @@ router.patch('/users/:userId', async (req, res) => {
     if (err.code === 11000) {
       return res.status(409).json({ message: 'Email already in use' });
     }
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── DELETE /api/admin/users/:userId (soft delete) ───────────────────────────
-router.delete('/users/:userId', async (req, res) => {
+router.delete('/users/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (userId === req.user._id.toString()) {
@@ -124,12 +124,12 @@ router.delete('/users/:userId', async (req, res) => {
     res.json({ message: 'User soft-deleted', user });
     Activity.create({ userId: req.user._id, action: 'user.deleted', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/admin/users/:userId/restore ────────────────────────────────────
-router.post('/users/:userId/restore', async (req, res) => {
+router.post('/users/:userId/restore', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findByIdAndUpdate(
@@ -141,12 +141,12 @@ router.post('/users/:userId/restore', async (req, res) => {
     res.json(user);
     Activity.create({ userId: req.user._id, action: 'user.restored', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/analytics ──────────────────────────────────
-router.get('/users/:userId/analytics', async (req, res) => {
+router.get('/users/:userId/analytics', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { from, to } = req.query;
@@ -206,12 +206,12 @@ router.get('/users/:userId/analytics', async (req, res) => {
       workLogs
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/reports/summary ──────────────────────────────────
-router.get('/users/:userId/reports/summary', async (req, res) => {
+router.get('/users/:userId/reports/summary', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
@@ -283,12 +283,12 @@ router.get('/users/:userId/reports/summary', async (req, res) => {
     })));
   } catch (err) {
     console.error('GET /admin/users/:userId/reports/summary error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/reports/day ──────────────────────────────────────
-router.get('/users/:userId/reports/day', async (req, res) => {
+router.get('/users/:userId/reports/day', async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
@@ -301,12 +301,12 @@ router.get('/users/:userId/reports/day', async (req, res) => {
     res.json(await buildDayReport(userId, requestedDate, userTimezone(user)));
   } catch (err) {
     console.error('GET /admin/users/:userId/reports/day error:', err);
-    res.status(err.status || 500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/system-analytics ─────────────────────────────────────────
-router.get('/system-analytics', async (req, res) => {
+router.get('/system-analytics', async (req, res, next) => {
   try {
     const period = req.query.period || 'month';
     const now = Date.now();
@@ -391,12 +391,12 @@ router.get('/system-analytics', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /admin/system-analytics error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/activity ─────────────────────────────────────────────────
-router.get('/activity', async (req, res) => {
+router.get('/activity', async (req, res, next) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const query = {};
@@ -410,7 +410,7 @@ router.get('/activity', async (req, res) => {
 
     res.json(activities);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

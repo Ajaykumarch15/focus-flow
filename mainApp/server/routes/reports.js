@@ -158,7 +158,7 @@ async function buildDayReport(userId, date, timeZone, includeSessionDetails = tr
   };
 }
 
-router.get('/summary', protect, async (req, res) => {
+router.get('/summary', protect, async (req, res, next) => {
   try {
     const timeZone = userTimezone(req.user);
     const today = dayKey(Date.now(), timeZone);
@@ -226,11 +226,11 @@ router.get('/summary', protect, async (req, res) => {
     })));
   } catch (err) {
     console.error('GET /reports/summary error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.get('/day', protect, async (req, res) => {
+router.get('/day', protect, async (req, res, next) => {
   try {
     const requestedDate = req.query.date || dayKey(Date.now(), userTimezone(req.user));
     if (!isValidDateKey(requestedDate)) {
@@ -239,11 +239,11 @@ router.get('/day', protect, async (req, res) => {
     res.json(await buildDayReport(req.user._id, requestedDate, userTimezone(req.user)));
   } catch (err) {
     console.error('GET /reports/day error:', err);
-    res.status(err.status || 500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.post('/share', protect, async (req, res) => {
+router.post('/share', protect, async (req, res, next) => {
   try {
     const { date } = req.body;
     if (!isValidDateKey(date)) {
@@ -268,11 +268,11 @@ router.post('/share', protect, async (req, res) => {
     });
   } catch (err) {
     console.error('POST /reports/share error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.post('/share/:token/revoke', protect, async (req, res) => {
+router.post('/share/:token/revoke', protect, async (req, res, next) => {
   try {
     const share = await ReportShare.findOneAndUpdate(
       { token: req.params.token, userId: req.user._id, revokedAt: null },
@@ -283,11 +283,11 @@ router.post('/share/:token/revoke', protect, async (req, res) => {
     res.json({ message: 'Share link revoked' });
   } catch (err) {
     console.error('POST /reports/share/:token/revoke error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
-router.get('/share/token/:token', async (req, res) => {
+router.get('/share/token/:token', async (req, res, next) => {
   try {
     const share = await ReportShare.findOne({ token: req.params.token });
     if (!share || share.revokedAt || (share.expiresAt && share.expiresAt.getTime() < Date.now())) {
@@ -305,12 +305,12 @@ router.get('/share/token/:token', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /reports/share/token error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/reports/leaderboard ───────────────────────────────────────────
-router.get('/leaderboard', protect, async (req, res) => {
+router.get('/leaderboard', protect, async (req, res, next) => {
   try {
     const topUsers = await User.find({ leaderboardOptIn: true })
       .select('name avatar totalPoints streak')
@@ -318,7 +318,7 @@ router.get('/leaderboard', protect, async (req, res) => {
       .limit(10);
     res.json(topUsers);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

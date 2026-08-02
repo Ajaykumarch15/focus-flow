@@ -187,7 +187,7 @@ async function syncWorkEntries(log, userId, timeZone = 'UTC') {
 }
 
 // ── GET /api/worklogs ─────────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const filter = { userId: req.user._id };
     if (req.query.active === 'true')  filter.isActive = true;
@@ -204,12 +204,12 @@ router.get('/', async (req, res) => {
     res.json(logs);
   } catch (err) {
     console.error('GET /worklogs error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/worklogs/:id ─────────────────────────────────────────────────────
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
   try {
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id })
       .populate('taskRef', 'title color category totalTime')
@@ -220,12 +220,12 @@ router.get('/:id', async (req, res) => {
     log = await syncWorkEntries(log, req.user._id, userTimezone(req));
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/worklogs ────────────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const {
       title, problem, gitBranch, currentWork, plan,
@@ -349,12 +349,12 @@ router.post('/', async (req, res) => {
     Activity.create({ userId: req.user._id, action: 'worklog.created', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
     console.error('POST /worklogs error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/worklogs/:id ───────────────────────────────────────────────────
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, WORKLOG_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -372,14 +372,14 @@ router.patch('/:id', async (req, res) => {
     triggerGoogleDocSync(req, log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── Sub-Document Specific Endpoints ─────────────────────────────────────────
 
 // POST /api/worklogs/:id/timeline — Add timeline entry
-router.post('/:id/timeline', async (req, res) => {
+router.post('/:id/timeline', async (req, res, next) => {
   try {
     const { title, description, type, category, metadata, timestamp } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -391,12 +391,12 @@ router.post('/:id/timeline', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/decisions — Add decision
-router.post('/:id/decisions', async (req, res) => {
+router.post('/:id/decisions', async (req, res, next) => {
   try {
     const { title, context, decision, alternatives, rationale } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -413,12 +413,12 @@ router.post('/:id/decisions', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/decisions/:decId
-router.delete('/:id/decisions/:decId', async (req, res) => {
+router.delete('/:id/decisions/:decId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -429,12 +429,12 @@ router.delete('/:id/decisions/:decId', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/blockers — Add blocker
-router.post('/:id/blockers', async (req, res) => {
+router.post('/:id/blockers', async (req, res, next) => {
   try {
     const { title, severity, notes } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -451,12 +451,12 @@ router.post('/:id/blockers', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // PATCH /api/worklogs/:id/blockers/:blkId — Update blocker status
-router.patch('/:id/blockers/:blkId', async (req, res) => {
+router.patch('/:id/blockers/:blkId', async (req, res, next) => {
   try {
     const { status, notes } = req.body;
     const patch = {};
@@ -473,12 +473,12 @@ router.patch('/:id/blockers/:blkId', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/blockers/:blkId
-router.delete('/:id/blockers/:blkId', async (req, res) => {
+router.delete('/:id/blockers/:blkId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -489,12 +489,12 @@ router.delete('/:id/blockers/:blkId', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/snapshots — Add progress snapshot
-router.post('/:id/snapshots', async (req, res) => {
+router.post('/:id/snapshots', async (req, res, next) => {
   try {
     const { period, text } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -511,12 +511,12 @@ router.post('/:id/snapshots', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/snapshots/:snapId
-router.delete('/:id/snapshots/:snapId', async (req, res) => {
+router.delete('/:id/snapshots/:snapId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -527,12 +527,12 @@ router.delete('/:id/snapshots/:snapId', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/attachments — Add attachment
-router.post('/:id/attachments', async (req, res) => {
+router.post('/:id/attachments', async (req, res, next) => {
   try {
     const { name, type, url, sizeBytes, description } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -544,12 +544,12 @@ router.post('/:id/attachments', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/attachments/:attId
-router.delete('/:id/attachments/:attId', async (req, res) => {
+router.delete('/:id/attachments/:attId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -560,12 +560,12 @@ router.delete('/:id/attachments/:attId', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/completed — Add completed item with category
-router.post('/:id/completed', async (req, res) => {
+router.post('/:id/completed', async (req, res, next) => {
   try {
     const { text, category } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -583,12 +583,12 @@ router.post('/:id/completed', async (req, res) => {
     triggerGoogleDocSync(req, log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/completed/:itemId
-router.delete('/:id/completed/:itemId', async (req, res) => {
+router.delete('/:id/completed/:itemId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -600,12 +600,12 @@ router.delete('/:id/completed/:itemId', async (req, res) => {
     triggerGoogleDocSync(req, log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/links — Add link with category
-router.post('/:id/links', async (req, res) => {
+router.post('/:id/links', async (req, res, next) => {
   try {
     const { label, url, category } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -618,12 +618,12 @@ router.post('/:id/links', async (req, res) => {
     triggerGoogleDocSync(req, log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id/links/:linkId
-router.delete('/:id/links/:linkId', async (req, res) => {
+router.delete('/:id/links/:linkId', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -635,12 +635,12 @@ router.delete('/:id/links/:linkId', async (req, res) => {
     triggerGoogleDocSync(req, log);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/sync-time
-router.post('/:id/sync-time', async (req, res) => {
+router.post('/:id/sync-time', async (req, res, next) => {
   try {
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -652,12 +652,12 @@ router.post('/:id/sync-time', async (req, res) => {
     ]);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // PATCH /api/worklogs/:id/task
-router.patch('/:id/task', async (req, res) => {
+router.patch('/:id/task', async (req, res, next) => {
   try {
     const { taskRef } = req.body;
     if (taskRef) {
@@ -680,12 +680,12 @@ router.patch('/:id/task', async (req, res) => {
     ]);
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/close
-router.post('/:id/close', async (req, res) => {
+router.post('/:id/close', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -697,12 +697,12 @@ router.post('/:id/close', async (req, res) => {
     res.json(log);
     Activity.create({ userId: req.user._id, action: 'worklog.closed', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // POST /api/worklogs/:id/continue
-router.post('/:id/continue', async (req, res) => {
+router.post('/:id/continue', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -713,19 +713,19 @@ router.post('/:id/continue', async (req, res) => {
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // DELETE /api/worklogs/:id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
     Activity.create({ userId: req.user._id, action: 'worklog.closed', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

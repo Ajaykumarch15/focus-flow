@@ -77,7 +77,7 @@ async function syncSessionToWorkLogs(userId, taskId, session) {
 }
 
 // ── GET /api/sessions — fetch sessions (optional ?taskId=, ?active=true) ──────
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
   try {
     const filter = { userId: req.user._id };
     if (req.query.taskId) filter.taskId = req.query.taskId;
@@ -86,12 +86,12 @@ router.get('/', async (req, res) => {
     const sessions = await Session.find(filter).sort({ startTime: -1 });
     res.json(sessions);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/sessions — start a new session ──────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', async (req, res, next) => {
   try {
     const { taskId, startTime } = req.body;
     if (!taskId) return res.status(400).json({ message: 'taskId is required' });
@@ -153,12 +153,12 @@ router.post('/', async (req, res) => {
     res.status(201).json(session);
     Activity.create({ userId: req.user._id, action: 'session.started', details: { taskId, taskTitle: task.title } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/sessions/:id/pause — log a pause start ───────────────────────
-router.patch('/:id/pause', async (req, res) => {
+router.patch('/:id/pause', async (req, res, next) => {
   try {
     const { pauseTime } = req.body;
 
@@ -181,12 +181,12 @@ router.patch('/:id/pause', async (req, res) => {
 
     res.json(session);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/sessions/:id/resume — close the last pause entry ──────────────
-router.patch('/:id/resume', async (req, res) => {
+router.patch('/:id/resume', async (req, res, next) => {
   try {
     const { resumeTime } = req.body;
 
@@ -210,12 +210,12 @@ router.patch('/:id/resume', async (req, res) => {
 
     res.json(session);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/sessions/:id/stop — finalise the session ─────────────────────
-router.patch('/:id/stop', async (req, res) => {
+router.patch('/:id/stop', async (req, res, next) => {
   try {
     const { endTime } = req.body;
 
@@ -293,7 +293,7 @@ router.patch('/:id/stop', async (req, res) => {
     res.json(session);
     Activity.create({ userId: req.user._id, action: 'session.completed', details: { taskId: session.taskId, activeMs: session.activeTime } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
