@@ -17,6 +17,8 @@ const { serverTime, FUTURE_SKEW_MS, MAX_SESSION_AGE_MS } = require('../utils/ses
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
+const SESSION_ID = '507f1f77bcf86cd799439011';
+const TASK_ID = '507f1f77bcf86cd799439012';
 
 describe('serverTime · IES-P0-07 timestamp validation', () => {
   it('falls back to server now for absent / non-finite values', () => {
@@ -76,9 +78,9 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
 
   function makeActiveSession(overrides = {}) {
     return {
-      _id: 'sess-1',
+      _id: SESSION_ID,
       userId: mockUser._id,
-      taskId: 'task-1',
+      taskId: TASK_ID,
       startTime: Date.now() - 5 * 60_000,
       pauseLog: [],
       totalPauseDuration: 0,
@@ -123,7 +125,7 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
 
   it('POST start ignores a future startTime and records ~now', async () => {
     const future = Date.now() + 365 * DAY;
-    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: 'task-1', title: 'T' });
+    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: TASK_ID, title: 'T' });
     vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(null);
     vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]);
     vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
@@ -132,19 +134,19 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: 'task-1', startTime: future }),
+      body: JSON.stringify({ taskId: TASK_ID, startTime: future }),
     });
 
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.startTime).toBeLessThanOrEqual(Date.now() + FUTURE_SKEW_MS);
     expect(body.startTime).toBeGreaterThan(Date.now() - 30_000);
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ taskId: 'task-1', isActive: true }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ taskId: TASK_ID, isActive: true }));
   });
 
   it('POST start ignores an ancient startTime and records ~now', async () => {
     const ancient = Date.now() - 100 * DAY;
-    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: 'task-1', title: 'T' });
+    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: TASK_ID, title: 'T' });
     vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(null);
     vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]);
     vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
@@ -153,7 +155,7 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: 'task-1', startTime: ancient }),
+      body: JSON.stringify({ taskId: TASK_ID, startTime: ancient }),
     });
 
     expect(res.status).toBe(201);
@@ -170,7 +172,7 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
     vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
 
-    const res = await fetch(`${baseUrl}/api/sessions/sess-1/stop`, {
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ endTime: Date.now() + 365 * DAY }),
@@ -191,7 +193,7 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
     vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
 
-    const res = await fetch(`${baseUrl}/api/sessions/sess-1/stop`, {
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ endTime: session.startTime - HOUR }),
@@ -207,7 +209,7 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
     vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
 
-    const res = await fetch(`${baseUrl}/api/sessions/sess-1/resume`, {
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/resume`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ resumeTime: Date.now() + 365 * DAY }), // future

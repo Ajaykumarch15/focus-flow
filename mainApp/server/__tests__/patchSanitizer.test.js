@@ -40,6 +40,10 @@ const TASK_FIELDS = {
 
 const JOURNAL_FIELDS = { taskId: true, content: true, mood: true, focusRating: true };
 
+const TASK_ID = '507f1f77bcf86cd799439013';
+const JOURNAL_ID = '507f1f77bcf86cd799439014';
+const WORKLOG_ID = '507f1f77bcf86cd799439015';
+
 describe('buildPatch · IES-P0-06 update field allowlisting', () => {
   it('copies only allowlisted top-level fields', () => {
     const patch = buildPatch({ title: 'Ship it', description: 'fix', status: 'completed', userId: '5f0000000000000000000001' }, TASK_FIELDS);
@@ -146,7 +150,7 @@ describe('PATCH routes sanitize request bodies', () => {
       _id: 'task-1', title: 'Ship it', status: 'todo',
     });
 
-    const res = await fetch(`${baseUrl}/api/tasks/task-1`, {
+    const res = await fetch(`${baseUrl}/api/tasks/${TASK_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Ship it', userId: '5f00000000000000000000cd', totalTime: 999, $set: { status: 'completed' } }),
@@ -161,7 +165,7 @@ describe('PATCH routes sanitize request bodies', () => {
 
   it('PATCH /api/tasks/:id rejects a body with no updatable fields', async () => {
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate').mockClear();
-    const res = await fetch(`${baseUrl}/api/tasks/task-1`, {
+    const res = await fetch(`${baseUrl}/api/tasks/${TASK_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: '5f00000000000000000000cd', totalTime: 999 }),
@@ -177,7 +181,7 @@ describe('PATCH routes sanitize request bodies', () => {
       }),
     }));
 
-    const res = await fetch(`${baseUrl}/api/worklogs/log-1`, {
+    const res = await fetch(`${baseUrl}/api/worklogs/${WORKLOG_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -197,7 +201,7 @@ describe('PATCH routes sanitize request bodies', () => {
 
   it('PATCH /api/worklogs/:id rejects a body with no updatable fields', async () => {
     const findOneAndUpdate = vi.spyOn(WorkLog, 'findOneAndUpdate').mockClear();
-    const res = await fetch(`${baseUrl}/api/worklogs/log-1`, {
+    const res = await fetch(`${baseUrl}/api/worklogs/${WORKLOG_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: '5f00000000000000000000cd', workEntries: [] }),
@@ -211,7 +215,7 @@ describe('PATCH routes sanitize request bodies', () => {
       _id: 'journal-1', content: 'note', mood: 4,
     });
 
-    const res = await fetch(`${baseUrl}/api/journals/journal-1`, {
+    const res = await fetch(`${baseUrl}/api/journals/${JOURNAL_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: 'note', mood: 4, userId: '5f00000000000000000000cd' }),
@@ -224,7 +228,7 @@ describe('PATCH routes sanitize request bodies', () => {
 
   it('PATCH /api/journals/:id rejects a body with no updatable fields', async () => {
     const findOneAndUpdate = vi.spyOn(Journal, 'findOneAndUpdate').mockClear();
-    const res = await fetch(`${baseUrl}/api/journals/journal-1`, {
+    const res = await fetch(`${baseUrl}/api/journals/${JOURNAL_ID}`, {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId: '5f00000000000000000000cd' }),

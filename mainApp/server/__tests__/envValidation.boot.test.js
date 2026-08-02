@@ -60,9 +60,12 @@ describe('IES-P0-03 · server boot-time env validation', () => {
       const { code, stderr } = await runServer({
         JWT_SECRET: 'z'.repeat(64),
         MONGODB_URI: FAST_FAIL_MONGODB_URI,
+        BOOT_MAX_RETRIES: '2',
+        BOOT_RETRY_BASE_DELAY_MS: '0',
       });
       expect(code).toBe(1);
       expect(stderr).toContain('MongoDB connection failed');
+      expect(stderr).toContain('retries exhausted');
       expect(stderr).not.toContain('Invalid environment');
     },
     15000

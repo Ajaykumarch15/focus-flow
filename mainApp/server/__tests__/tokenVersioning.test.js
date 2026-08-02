@@ -11,6 +11,12 @@ const Activity = require('../models/Activity');
 const authRouter = require('../routes/auth');
 const adminRouter = require('../routes/admin');
 
+// IES-P0-10: the google callback lazily `require`s utils/googleDrive, which pulls
+// in googleapis (~4s cold load under node). Pre-warm Node's CJS cache here — the
+// load happens during file import (not counted against the 5s test timeout), so
+// the handler's later require is an instant cache hit.
+require('../utils/googleDrive');
+
 const SECRET = 'p0-08-test-secret-at-least-32-chars-long';
 const CLIENT_URL = 'http://localhost:5173';
 
@@ -21,8 +27,8 @@ const tokenFromSetCookie = (res) => {
   return match ? match[1] : null;
 };
 
-const ADMIN_ID = '5f0000000000000000000a1';
-const TARGET_ID = '5f0000000000000000000a2';
+const ADMIN_ID = '5f0000000000000000000a12';
+const TARGET_ID = '5f0000000000000000000a22';
 
 function signToken(userId, tv) {
   return jwt.sign({ id: userId, tv }, SECRET, { expiresIn: '1h' });
@@ -51,7 +57,7 @@ beforeAll(async () => {
     tokenVersion: 0,
   };
   authUser = {
-    _id: '5f0000000000000000000a3',
+    _id: '5f0000000000000000000a32',
     name: 'Auth User',
     email: 'auth@example.com',
     role: 'user',
@@ -284,7 +290,7 @@ describe('IES-P0-08 · register tokens carry tokenVersion 0', () => {
     vi.spyOn(User, 'findOne').mockResolvedValue(null);
     vi.spyOn(User, 'hashPassword').mockResolvedValue('hashed');
     vi.spyOn(User, 'create').mockResolvedValue({
-      _id: '5f0000000000000000000a4',
+      _id: '5f0000000000000000000a42',
       name: 'New',
       email: 'new@example.com',
       tokenVersion: 0,
