@@ -4,6 +4,7 @@ const Task    = require('../models/Task');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
+const { serverTime } = require('../utils/sessionTime');
 
 const router = express.Router();
 router.use(protect);
@@ -98,7 +99,7 @@ router.post('/', async (req, res) => {
     const task = await Task.findOne({ _id: taskId, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    const now = startTime || Date.now();
+    const now = serverTime(startTime);
 
     const existingSameTaskSession = await Session.findOne({
       userId: req.user._id,
@@ -160,10 +161,11 @@ router.post('/', async (req, res) => {
 router.patch('/:id/pause', async (req, res) => {
   try {
     const { pauseTime } = req.body;
-    const now = pauseTime || Date.now();
 
     const session = await Session.findOne({ _id: req.params.id, userId: req.user._id, isActive: true });
     if (!session) return res.status(404).json({ message: 'Active session not found' });
+
+    const now = serverTime(pauseTime, { min: session.startTime });
 
     const hasOpenPause = session.pauseLog.some(p => !p.resumeTime);
     if (!hasOpenPause) {
@@ -187,10 +189,11 @@ router.patch('/:id/pause', async (req, res) => {
 router.patch('/:id/resume', async (req, res) => {
   try {
     const { resumeTime } = req.body;
-    const now = resumeTime || Date.now();
 
     const session = await Session.findOne({ _id: req.params.id, userId: req.user._id, isActive: true });
     if (!session) return res.status(404).json({ message: 'Active session not found' });
+
+    const now = serverTime(resumeTime, { min: session.startTime });
 
     const lastPause = [...session.pauseLog].reverse().find(p => !p.resumeTime);
     if (lastPause) {
@@ -215,7 +218,6 @@ router.patch('/:id/resume', async (req, res) => {
 router.patch('/:id/stop', async (req, res) => {
   try {
     const { endTime } = req.body;
-    const now = endTime || Date.now();
 
     const session = await Session.findOne({ _id: req.params.id, userId: req.user._id });
     if (!session) return res.status(404).json({ message: 'Session not found' });
@@ -223,6 +225,8 @@ router.patch('/:id/stop', async (req, res) => {
     if (!session.isActive) {
       return res.json(session);
     }
+
+    const now = serverTime(endTime, { min: session.startTime });
 
     const lastPause = [...session.pauseLog].reverse().find(p => !p.resumeTime);
     if (lastPause) {
