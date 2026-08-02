@@ -1,0 +1,64 @@
+# ── FocusFlow deployment ─────────────────────────────────────────────────────
+# Default: client (nginx SPA + /api proxy) + server (node) + mongo, all wired.
+#   docker compose up --build
+#   open http://localhost:8080
+#
+# Optional mongo: to use an external MongoDB instead, set MONGODB_URI and run
+# only the app services:
+#   MONGODB_URI=mongodb://host:27017/focusflow docker compose up client server
+#
+# Google OAuth is optional at runtime: replace the GOOGLE_* placeholders with
+# real credentials to enable Google sign-in. JWT_SECRET must be ≥32 chars and
+# unique per deployment — the default is a local-demo value only.
+#
+# Behind TLS: set NODE_ENV=production on the server so the session cookie is
+# Secure, and terminate HTTPS in front of the client (see nginx.conf).
+
+name: focusflow
+
+services:
+  client:
+    build:
+      context: .
+      dockerfile: mainApp/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api}
+    ports:
+      - "${CLIENT_PORT:-8080}:80"
+    environment:
+      SERVER_UPSTREAM: server
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: mainApp/server/Dockerfile
+    environment:
+      PORT: "5001"
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/focusflow}
+      JWT_SECRET: ${JWT_SECRET:-changeme-placeholder-32-chars-min-local-demo}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:8080}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-disabled}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-disabled}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-disabled}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7.0
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

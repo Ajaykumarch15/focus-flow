@@ -1,0 +1,73 @@
+# IES-P0-38 · CI pipeline for FocusFlow.
+# Gates every PR/push to `main` and `feature/updates` on:
+#   client: install → typecheck → unit tests → production build → audit
+#   server: install → unit tests → audit
+# A high-severity `npm audit` finding fails the job (merge gate).
+# The client gate runs `npm run audit:gate`, which blocks all high/critical
+# findings except the documented false positive GHSA-qwww-vcr4-c8h2 (patched
+# in the installed react-router 7.18.2; npm advisory range is stale).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main, feature/updates]
+  push:
+    branches: [main, feature/updates]
+
+jobs:
+  client:
+    name: Client (typecheck · test · build · audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mainApp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mainApp/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'http://localhost:5001/api' }}
+
+      - name: Dependency audit (high+ gate)
+        run: npm run audit:gate
+
+  server:
+    name: Server (test · audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mainApp/server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mainApp/server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Dependency audit (high+ gate)
+        run: npm audit --audit-level=high
