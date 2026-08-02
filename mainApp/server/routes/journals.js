@@ -1,9 +1,18 @@
 const express = require('express');
 const Journal = require('../models/Journal');
 const protect = require('../middleware/auth');
+const { buildPatch } = require('../utils/patchSanitizer');
 
 const router = express.Router();
 router.use(protect);
+
+// Fields a client may update on a Journal via PATCH. Everything else is rejected.
+const JOURNAL_PATCH_FIELDS = {
+  taskId: true,
+  content: true,
+  mood: true,
+  focusRating: true,
+};
 
 // GET /api/journals
 router.get('/', async (req, res) => {
@@ -47,9 +56,14 @@ router.post('/', async (req, res) => {
 // PATCH /api/journals/:id
 router.patch('/:id', async (req, res) => {
   try {
+    const patch = buildPatch(req.body, JOURNAL_PATCH_FIELDS);
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ message: 'No updatable fields provided' });
+    }
+
     const journal = await Journal.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $set: req.body },
+      { $set: patch },
       { new: true }
     );
     if (!journal) return res.status(404).json({ message: 'Journal not found' });

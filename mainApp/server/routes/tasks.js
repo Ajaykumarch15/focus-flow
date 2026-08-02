@@ -5,9 +5,22 @@ const Journal = require('../models/Journal');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
+const { buildPatch } = require('../utils/patchSanitizer');
 
 const router = express.Router();
 router.use(protect);
+
+// Fields a client may update on a Task via PATCH. Everything else is rejected.
+const TASK_PATCH_FIELDS = {
+  title: true,
+  description: true,
+  priority: true,
+  status: true,
+  category: true,
+  deadline: true,
+  color: true,
+  tags: true,
+};
 
 // GET /api/tasks
 router.get('/', async (req, res) => {
@@ -55,9 +68,14 @@ router.post('/', async (req, res) => {
 // PATCH /api/tasks/:id
 router.patch('/:id', async (req, res) => {
   try {
+    const patch = buildPatch(req.body, TASK_PATCH_FIELDS);
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ message: 'No updatable fields provided' });
+    }
+
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $set: req.body },
+      { $set: patch },
       { new: true, runValidators: true }
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });

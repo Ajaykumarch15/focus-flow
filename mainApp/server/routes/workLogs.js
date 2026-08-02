@@ -4,9 +4,51 @@ const Session = require('../models/Session');
 const Task    = require('../models/Task');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
+const { buildPatch } = require('../utils/patchSanitizer');
 
 const router = express.Router();
 router.use(protect);
+
+// Fields a client may update on a WorkLog via PATCH. Nested sub-document fields
+// are matched on their dotted paths. Everything else is rejected.
+const WORKLOG_PATCH_FIELDS = {
+  title: true,
+  problem: true,
+  gitBranch: true,
+  currentWork: true,
+  plan: true,
+  designNotes: true,
+  blockers: true,
+  status: true,
+  mood: true,
+  tags: true,
+  problemFlow: {
+    problem: true,
+    investigation: true,
+    rootCause: true,
+    solution: true,
+    lessonsLearned: true,
+  },
+  reflection: {
+    wentWell: true,
+    slowedDown: true,
+    learned: true,
+    improvement: true,
+    rating: true,
+  },
+  moodMetrics: {
+    energy: true,
+    focus: true,
+    stress: true,
+    confidence: true,
+    motivation: true,
+  },
+  tomorrowPlan: {
+    topPriority: true,
+    attentionRequired: true,
+    unfinishedItems: true,
+  },
+};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function sumMs(entries) {
@@ -314,9 +356,14 @@ router.post('/', async (req, res) => {
 // ── PATCH /api/worklogs/:id ───────────────────────────────────────────────────
 router.patch('/:id', async (req, res) => {
   try {
+    const patch = buildPatch(req.body, WORKLOG_PATCH_FIELDS);
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ message: 'No updatable fields provided' });
+    }
+
     let log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $set: req.body },
+      { $set: patch },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
