@@ -83,7 +83,11 @@ router.patch('/users/:userId', async (req, res) => {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
-    const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true }).select('-googleTokens');
+    const ops = { $set: update };
+    // Role change invalidates any previously-issued tokens (IES-P0-08).
+    if (role !== undefined) ops.$inc = { tokenVersion: 1 };
+
+    const user = await User.findByIdAndUpdate(userId, ops, { new: true, runValidators: true }).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     const details = { targetUserId: userId, targetName: user.name };
@@ -112,7 +116,8 @@ router.delete('/users/:userId', async (req, res) => {
     }
     const user = await User.findByIdAndUpdate(
       userId,
-      { $set: { deletedAt: new Date() } },
+      // Soft-delete also bumps tokenVersion so the deleted user's sessions die immediately.
+      { $set: { deletedAt: new Date() }, $inc: { tokenVersion: 1 } },
       { new: true }
     ).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });

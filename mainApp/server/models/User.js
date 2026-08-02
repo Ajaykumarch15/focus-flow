@@ -34,9 +34,16 @@ const userSchema = new mongoose.Schema(
       expiryDate:   { type: Number },
     },
     deletedAt: { type: Date, default: null, index: true },
+    // Bumped on soft-delete / role change to invalidate previously-issued JWTs.
+    tokenVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
+
+// Helps the login query `findOne({ email, deletedAt: null })`.
+// The `{ _id, deletedAt }` pair needs no extra index — the `_id` unique index
+// already serves `findById` in `protect`.
+userSchema.index({ email: 1, deletedAt: 1 });
 
 // Strip passwordHash and Google OAuth tokens from all JSON responses.
 // googleTokens (incl. long-lived refreshToken) must never reach the client;

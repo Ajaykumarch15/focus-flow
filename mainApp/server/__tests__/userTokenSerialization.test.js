@@ -30,8 +30,9 @@ function buildUser(overrides = {}) {
   });
 }
 
-function signToken(userId) {
-  return jwt.sign({ id: userId.toString() }, process.env.JWT_SECRET, { expiresIn: '1h' });
+function signToken(userId, opts = {}) {
+  const { tv = 0, ...rest } = opts;
+  return jwt.sign({ id: userId.toString(), tv, ...rest }, process.env.JWT_SECRET, { expiresIn: '1h' });
 }
 
 let server;

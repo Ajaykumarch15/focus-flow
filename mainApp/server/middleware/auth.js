@@ -19,7 +19,14 @@ module.exports = async (req, res, next) => {
     // server-side Drive sync reads it from this doc (googleDrive.js, projects.js,
     // workLogs.js). It is stripped from every response by User's toJSON transform.
     const user = await User.findById(decoded.id).select('-passwordHash');
-    if (!user) return res.status(401).json({ message: 'User not found' });
+
+    // IES-P0-08: soft-deleted users are blocked per-request...
+    if (!user || user.deletedAt) return res.status(401).json({ message: 'Token invalid or expired' });
+
+    // ...and tokens carry the user's tokenVersion, bumped on delete/role change,
+    // so a previously-issued token is rejected immediately. Legacy tokens
+    // without `tv` fail against a versioned user (forces a clean re-login).
+    if (decoded.tv !== user.tokenVersion) return res.status(401).json({ message: 'Token invalid or expired' });
 
     req.user = user;
     next();

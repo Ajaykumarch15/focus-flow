@@ -7,8 +7,10 @@ const protect = require('../middleware/auth');
 const router = express.Router();
 
 // ── Helper: sign a JWT ────────────────────────────────────────────────────────
-const signToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+// Embeds the user's tokenVersion (`tv`); protect rejects tokens whose `tv` no
+// longer matches the user (invalidated on soft-delete / role change).
+const signToken = (user) =>
+  jwt.sign({ id: user._id, tv: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
@@ -29,7 +31,7 @@ router.post('/register', async (req, res) => {
     const user = await User.create({ name, email, passwordHash });
 
     res.status(201).json({
-      token: signToken(user._id),
+      token: signToken(user),
       user,
     });
   } catch (err) {
@@ -45,9 +47,11 @@ router.post('/login', async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ message: 'Email and password are required' });
 
-    // Need passwordHash for comparison — select it explicitly; googleTokens stays off the response
-    const user = await User.findOne({ email }).select('+passwordHash -googleTokens');
-    if (!user)
+    // Need passwordHash for comparison — select it explicitly; googleTokens stays off the response.
+    // Soft-deleted users (deletedAt set) are rejected at login.
+    const user = await User.findOne({ email, deletedAt: null }).select('+passwordHash -googleTokens');
+    // Defensive: the query already filters deletedAt, but never trust a stale doc.
+    if (!user || user.deletedAt)
       return res.status(401).json({ message: 'Invalid email or password' });
 
     const valid = await user.comparePassword(password);
@@ -55,7 +59,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
 
     res.json({
-      token: signToken(user._id),
+      token: signToken(user),
       user,   // passwordHash stripped by toJSON transform
     });
     Activity.create({ userId: user._id, action: 'login', details: { email: user.email } }).catch(() => {});
@@ -125,7 +129,7 @@ const handleGoogleCallback = async (req, res) => {
     const decoded = jwt.verify(state, process.env.JWT_SECRET);
     const userId = decoded.id;
     const user = await User.findById(userId);
-    if (!user) {
+    if (!user || user.deletedAt) {
       return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=user_not_found`);
     }
 
