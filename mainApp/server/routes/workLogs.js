@@ -5,9 +5,140 @@ const Task    = require('../models/Task');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
+const { logger } = require('../utils/logger');
+const { z, objectId, timestamp, intInRange, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas — size caps keep documents well under the
+// Mongo 16 MB limit, enums match the model, numbers are NaN-safe.
+const WORKLOG_STATUS = ['planning', 'in-progress', 'reviewing', 'blocked', 'done'];
+const TIMELINE_TYPES = ['timer_start', 'timer_pause', 'timer_resume', 'timer_stop', 'note', 'snapshot', 'completed_item', 'decision', 'blocker'];
+const BLOCKER_SEVERITY = ['low', 'medium', 'high', 'critical'];
+const BLOCKER_STATUS = ['open', 'investigating', 'blocked', 'resolved'];
+const SNAPSHOT_PERIODS = ['Morning', 'Afternoon', 'Evening', 'Custom'];
+const COMPLETED_CATEGORIES = ['feature', 'bug', 'refactor', 'research', 'documentation', 'general'];
+const LINK_CATEGORIES = ['Figma', 'GitHub', 'Jira', 'Linear', 'Documentation', 'API', 'Database', 'PR', 'Meeting Notes', 'General'];
+
+const text = (max, label) => z.string().trim().max(max, `${label} too long (max ${max})`);
+const requiredText = (max, label) =>
+  z.string({ error: `${label} is required` }).trim().min(1, `${label} is required`).max(max, `${label} too long (max ${max})`);
+
+const problemFlowSchema = z.object({
+  problem: text(10000, 'problem').optional(),
+  investigation: text(10000, 'investigation').optional(),
+  rootCause: text(10000, 'rootCause').optional(),
+  solution: text(10000, 'solution').optional(),
+  lessonsLearned: text(10000, 'lessonsLearned').optional(),
+}).passthrough();
+
+const gitRefSchema = z.object({
+  repository: text(200, 'repository').optional(),
+  branch: text(200, 'branch').optional(),
+  commitIds: z.array(z.string().max(200)).max(100, 'Too many commit ids').optional(),
+  prNumber: text(20, 'prNumber').optional(),
+  issueNumber: text(20, 'issueNumber').optional(),
+}).passthrough();
+
+const tomorrowPlanSchema = z.object({
+  topPriority: text(2000, 'topPriority').optional(),
+  unfinishedItems: z.array(z.string().max(200)).max(100, 'Too many items').optional(),
+  attentionRequired: text(2000, 'attentionRequired').optional(),
+}).passthrough();
+
+const reflectionSchema = z.object({
+  wentWell: text(5000, 'wentWell').optional(),
+  slowedDown: text(5000, 'slowedDown').optional(),
+  learned: text(5000, 'learned').optional(),
+  improvement: text(5000, 'improvement').optional(),
+  rating: intInRange(1, 5, 'rating').optional(),
+}).passthrough();
+
+const moodMetricsSchema = z.object({
+  energy: intInRange(1, 5, 'energy').optional(),
+  focus: intInRange(1, 5, 'focus').optional(),
+  stress: intInRange(1, 5, 'stress').optional(),
+  confidence: intInRange(1, 5, 'confidence').optional(),
+  motivation: intInRange(1, 5, 'motivation').optional(),
+}).passthrough();
+
+const workLogBase = {
+  title: text(200, 'title'),
+  problem: text(10000, 'problem'),
+  gitBranch: text(200, 'gitBranch'),
+  currentWork: text(10000, 'currentWork'),
+  plan: text(10000, 'plan'),
+  designNotes: text(10000, 'designNotes'),
+  blockers: text(10000, 'blockers'),
+  status: z.enum(WORKLOG_STATUS),
+  mood: intInRange(1, 5, 'mood'),
+  tags: z.array(text(50, 'tag')).max(100, 'Too many tags'),
+  problemFlow: problemFlowSchema,
+  gitRef: gitRefSchema,
+  tomorrowPlan: tomorrowPlanSchema,
+  reflection: reflectionSchema,
+  moodMetrics: moodMetricsSchema,
+};
+
+const workLogCreateSchema = z.object({ ...workLogBase, taskRef: objectId, projectId: objectId }).partial().passthrough();
+const workLogPatchSchema = z.object(workLogBase).partial().passthrough();
+
+const workLogParamsSchema = z.object({ id: objectId });
+const itemParams = (key) => z.object({ id: objectId, [key]: objectId });
+
+const timelineEntrySchema = z.object({
+  title: requiredText(300, 'Title'),
+  description: text(2000, 'description').optional(),
+  type: z.enum(TIMELINE_TYPES).optional(),
+  category: text(100, 'category').optional(),
+  metadata: z.unknown().optional(),
+  timestamp: timestamp.optional(),
+});
+
+const decisionSchema = z.object({
+  title: requiredText(300, 'Title'),
+  context: text(5000, 'context').optional(),
+  decision: text(5000, 'decision').optional(),
+  alternatives: text(5000, 'alternatives').optional(),
+  rationale: text(5000, 'rationale').optional(),
+});
+
+const blockerCreateSchema = z.object({
+  title: requiredText(300, 'Title'),
+  severity: z.enum(BLOCKER_SEVERITY).optional(),
+  notes: text(2000, 'notes').optional(),
+});
+const blockerPatchSchema = z.object({
+  status: z.enum(BLOCKER_STATUS).optional(),
+  notes: text(2000, 'notes').optional(),
+});
+
+const snapshotCreateSchema = z.object({
+  period: z.enum(SNAPSHOT_PERIODS).optional(),
+  text: requiredText(5000, 'text'),
+});
+
+const attachmentCreateSchema = z.object({
+  name: requiredText(200, 'name'),
+  type: text(50, 'type').optional(),
+  url: requiredText(2000, 'url'),
+  sizeBytes: z.coerce.number().finite('sizeBytes must be a number').min(0, 'sizeBytes must be at least 0').optional(),
+  description: text(2000, 'description').optional(),
+});
+
+const completedItemCreateSchema = z.object({
+  text: requiredText(300, 'text'),
+  category: z.enum(COMPLETED_CATEGORIES).optional(),
+});
+
+const linkCreateSchema = z.object({
+  label: requiredText(300, 'label'),
+  url: requiredText(2000, 'url'),
+  category: z.enum(LINK_CATEGORIES).optional(),
+});
+
+const workLogTaskPatchSchema = z.object({ taskRef: objectId.nullable() });
 
 // Fields a client may update on a WorkLog via PATCH. Nested sub-document fields
 // are matched on their dotted paths. Everything else is rejected.
@@ -79,7 +210,7 @@ function triggerGoogleDocSync(req, log) {
         }
       );
     }).catch(driveErr => {
-      console.error('⚠️ Failed to sync updated WorkLog to Google Docs:', driveErr.message);
+      logger.warn('Failed to sync updated WorkLog to Google Docs');
     });
   }
 }
@@ -203,7 +334,6 @@ router.get('/', async (req, res, next) => {
 
     res.json(logs);
   } catch (err) {
-    console.error('GET /worklogs error:', err);
     next(err);
   }
 });
@@ -225,7 +355,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // ── POST /api/worklogs ────────────────────────────────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
   try {
     const {
       title, problem, gitBranch, currentWork, plan,
@@ -295,7 +425,7 @@ router.post('/', async (req, res, next) => {
           googleDocUrl = docRes.googleDocUrl;
         }
       } catch (driveErr) {
-        console.error('⚠️ Google Drive doc creation failed:', driveErr.message);
+        logger.warn('Google Drive doc creation failed');
       }
     } else if (projectId) {
       const project = await Project.findOne({ _id: projectId, userId: req.user._id });
@@ -348,13 +478,12 @@ router.post('/', async (req, res, next) => {
     res.status(201).json(populated);
     Activity.create({ userId: req.user._id, action: 'worklog.created', details: { worklogTitle: log.title } }).catch(() => {});
   } catch (err) {
-    console.error('POST /worklogs error:', err);
     next(err);
   }
 });
 
 // ── PATCH /api/worklogs/:id ───────────────────────────────────────────────────
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', validate(workLogPatchSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, WORKLOG_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -379,7 +508,7 @@ router.patch('/:id', async (req, res, next) => {
 // ── Sub-Document Specific Endpoints ─────────────────────────────────────────
 
 // POST /api/worklogs/:id/timeline — Add timeline entry
-router.post('/:id/timeline', async (req, res, next) => {
+router.post('/:id/timeline', validate(timelineEntrySchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { title, description, type, category, metadata, timestamp } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -396,7 +525,7 @@ router.post('/:id/timeline', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/decisions — Add decision
-router.post('/:id/decisions', async (req, res, next) => {
+router.post('/:id/decisions', validate(decisionSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { title, context, decision, alternatives, rationale } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -418,7 +547,7 @@ router.post('/:id/decisions', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/decisions/:decId
-router.delete('/:id/decisions/:decId', async (req, res, next) => {
+router.delete('/:id/decisions/:decId', validate(null, { params: itemParams('decId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -434,7 +563,7 @@ router.delete('/:id/decisions/:decId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/blockers — Add blocker
-router.post('/:id/blockers', async (req, res, next) => {
+router.post('/:id/blockers', validate(blockerCreateSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { title, severity, notes } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -456,7 +585,7 @@ router.post('/:id/blockers', async (req, res, next) => {
 });
 
 // PATCH /api/worklogs/:id/blockers/:blkId — Update blocker status
-router.patch('/:id/blockers/:blkId', async (req, res, next) => {
+router.patch('/:id/blockers/:blkId', validate(blockerPatchSchema, { params: itemParams('blkId') }), async (req, res, next) => {
   try {
     const { status, notes } = req.body;
     const patch = {};
@@ -478,7 +607,7 @@ router.patch('/:id/blockers/:blkId', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/blockers/:blkId
-router.delete('/:id/blockers/:blkId', async (req, res, next) => {
+router.delete('/:id/blockers/:blkId', validate(null, { params: itemParams('blkId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -494,7 +623,7 @@ router.delete('/:id/blockers/:blkId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/snapshots — Add progress snapshot
-router.post('/:id/snapshots', async (req, res, next) => {
+router.post('/:id/snapshots', validate(snapshotCreateSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { period, text } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -516,7 +645,7 @@ router.post('/:id/snapshots', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/snapshots/:snapId
-router.delete('/:id/snapshots/:snapId', async (req, res, next) => {
+router.delete('/:id/snapshots/:snapId', validate(null, { params: itemParams('snapId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -532,7 +661,7 @@ router.delete('/:id/snapshots/:snapId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/attachments — Add attachment
-router.post('/:id/attachments', async (req, res, next) => {
+router.post('/:id/attachments', validate(attachmentCreateSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { name, type, url, sizeBytes, description } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -549,7 +678,7 @@ router.post('/:id/attachments', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/attachments/:attId
-router.delete('/:id/attachments/:attId', async (req, res, next) => {
+router.delete('/:id/attachments/:attId', validate(null, { params: itemParams('attId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -565,7 +694,7 @@ router.delete('/:id/attachments/:attId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/completed — Add completed item with category
-router.post('/:id/completed', async (req, res, next) => {
+router.post('/:id/completed', validate(completedItemCreateSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { text, category } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -588,7 +717,7 @@ router.post('/:id/completed', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/completed/:itemId
-router.delete('/:id/completed/:itemId', async (req, res, next) => {
+router.delete('/:id/completed/:itemId', validate(null, { params: itemParams('itemId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -605,7 +734,7 @@ router.delete('/:id/completed/:itemId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/links — Add link with category
-router.post('/:id/links', async (req, res, next) => {
+router.post('/:id/links', validate(linkCreateSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { label, url, category } = req.body;
     const log = await WorkLog.findOneAndUpdate(
@@ -623,7 +752,7 @@ router.post('/:id/links', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id/links/:linkId
-router.delete('/:id/links/:linkId', async (req, res, next) => {
+router.delete('/:id/links/:linkId', validate(null, { params: itemParams('linkId') }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -640,7 +769,7 @@ router.delete('/:id/links/:linkId', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/sync-time
-router.post('/:id/sync-time', async (req, res, next) => {
+router.post('/:id/sync-time', validate(null, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -657,7 +786,7 @@ router.post('/:id/sync-time', async (req, res, next) => {
 });
 
 // PATCH /api/worklogs/:id/task
-router.patch('/:id/task', async (req, res, next) => {
+router.patch('/:id/task', validate(workLogTaskPatchSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { taskRef } = req.body;
     if (taskRef) {
@@ -685,7 +814,7 @@ router.patch('/:id/task', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/close
-router.post('/:id/close', async (req, res, next) => {
+router.post('/:id/close', validate(null, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -702,7 +831,7 @@ router.post('/:id/close', async (req, res, next) => {
 });
 
 // POST /api/worklogs/:id/continue
-router.post('/:id/continue', async (req, res, next) => {
+router.post('/:id/continue', validate(null, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -718,7 +847,7 @@ router.post('/:id/continue', async (req, res, next) => {
 });
 
 // DELETE /api/worklogs/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validate(null, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const log = await WorkLog.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });

@@ -6,9 +6,47 @@ const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
+const { logger } = require('../utils/logger');
+const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas.
+const TASK_PRIORITY = ['low', 'medium', 'high', 'urgent'];
+const TASK_STATUS = ['todo', 'active', 'paused', 'completed'];
+
+const taskBase = {
+  title: requiredString(200, 'title', 'Title is required'),
+  description: z.string().max(5000, 'Description too long'),
+  priority: z.enum(TASK_PRIORITY),
+  status: z.enum(TASK_STATUS),
+  category: z.string().trim().max(50, 'Category too long'),
+  deadline: dateInput,
+  color: z.string().trim().max(20, 'Color too long'),
+  tags: z.array(z.string().trim().max(50, 'Tag too long')).max(50, 'Too many tags'),
+};
+
+const subtaskItem = z.object({
+  title: requiredString(200, 'Subtask title', 'Subtask title required'),
+});
+
+const taskCreateSchema = z.object({
+  ...taskBase,
+  subtasks: z.array(subtaskItem).max(100, 'Too many subtasks'),
+}).passthrough();
+
+const taskPatchSchema = z.object({
+  ...taskBase,
+  deadline: dateInput.nullable(),
+}).partial().passthrough();
+
+const taskParamsSchema = z.object({ id: objectId });
+const subtaskParamsSchema = z.object({ id: objectId, subId: objectId });
+const subtaskCreateSchema = z.object({
+  title: requiredString(200, 'Subtask title', 'Subtask title required'),
+});
+const subtaskPatchSchema = z.object({ completed: z.boolean('completed must be a boolean') });
 
 // Fields a client may update on a Task via PATCH. Everything else is rejected.
 const TASK_PATCH_FIELDS = {
@@ -26,16 +64,15 @@ const TASK_PATCH_FIELDS = {
 router.get('/', async (req, res, next) => {
   try {
     const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
-    console.log(`📋 Fetched ${tasks.length} tasks for user ${req.user._id}`);
+    logger.debug({ count: tasks.length }, 'tasks fetched');
     res.json(tasks);
   } catch (err) {
-    console.error('GET /tasks error:', err);
     next(err);
   }
 });
 
 // POST /api/tasks
-router.post('/', async (req, res, next) => {
+router.post('/', validate(taskCreateSchema), async (req, res, next) => {
   try {
     const { title, description, priority, status, category, deadline, color, tags, subtasks } = req.body;
 
@@ -56,17 +93,16 @@ router.post('/', async (req, res, next) => {
       deadline: deadline ? new Date(deadline) : undefined,
     });
 
-    console.log(`✅ Task created: "${task.title}" (${task._id}) for user ${req.user._id}`);
+    logger.debug('task created');
     res.status(201).json(task);
     Activity.create({ userId: req.user._id, action: 'task.created', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
   } catch (err) {
-    console.error('POST /tasks error:', err);
     next(err);
   }
 });
 
 // PATCH /api/tasks/:id
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, TASK_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -84,13 +120,12 @@ router.patch('/:id', async (req, res, next) => {
       Activity.create({ userId: req.user._id, action: 'task.completed', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
     }
   } catch (err) {
-    console.error('PATCH /tasks/:id error:', err);
     next(err);
   }
 });
 
 // DELETE /api/tasks/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, res, next) => {
   try {
     const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
@@ -102,17 +137,16 @@ router.delete('/:id', async (req, res, next) => {
         { $unset: { taskRef: '' } }
       ),
     ]);
-    console.log(`🗑 Task deleted: ${req.params.id}`);
+    logger.debug('task deleted');
     res.json({ message: 'Task deleted' });
     Activity.create({ userId: req.user._id, action: 'task.deleted', details: { taskTitle: task.title } }).catch(() => {});
   } catch (err) {
-    console.error('DELETE /tasks/:id error:', err);
     next(err);
   }
 });
 
 // POST /api/tasks/:id/subtasks
-router.post('/:id/subtasks', async (req, res, next) => {
+router.post('/:id/subtasks', validate(subtaskCreateSchema, { params: taskParamsSchema }), async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
@@ -127,7 +161,7 @@ router.post('/:id/subtasks', async (req, res, next) => {
 });
 
 // PATCH /api/tasks/:id/subtasks/:subId
-router.patch('/:id/subtasks/:subId', async (req, res, next) => {
+router.patch('/:id/subtasks/:subId', validate(subtaskPatchSchema, { params: subtaskParamsSchema }), async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id, 'subtasks._id': req.params.subId },
@@ -142,7 +176,7 @@ router.patch('/:id/subtasks/:subId', async (req, res, next) => {
 });
 
 // DELETE /api/tasks/:id/subtasks/:subId
-router.delete('/:id/subtasks/:subId', async (req, res, next) => {
+router.delete('/:id/subtasks/:subId', validate(null, { params: subtaskParamsSchema }), async (req, res, next) => {
   try {
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },

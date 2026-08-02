@@ -5,8 +5,15 @@ const Session = require('../models/Session');
 const User = require('../models/User');
 const ReportShare = require('../models/ReportShare');
 const protect = require('../middleware/auth');
+const { z, dateKey, intInRange, validate } = require('../utils/validation');const router = express.Router();
 
-const router = express.Router();
+// IES-P0-16: body/param/query schemas.
+const shareCreateSchema = z.object({
+  date: dateKey,
+  expiresInDays: intInRange(1, 365, 'expiresInDays').optional(),
+});
+const shareTokenParamsSchema = z.object({ token: z.string().min(1, 'Token is required').max(200, 'Token too long') });
+const dayQuerySchema = z.object({ date: dateKey.optional() });
 
 function getOffsetMs(date, timeZone) {
   try {
@@ -225,12 +232,11 @@ router.get('/summary', protect, async (req, res, next) => {
       completedCount: day.completedCount,
     })));
   } catch (err) {
-    console.error('GET /reports/summary error:', err);
     next(err);
   }
 });
 
-router.get('/day', protect, async (req, res, next) => {
+router.get('/day', protect, validate(null, { query: dayQuerySchema }), async (req, res, next) => {
   try {
     const requestedDate = req.query.date || dayKey(Date.now(), userTimezone(req.user));
     if (!isValidDateKey(requestedDate)) {
@@ -238,12 +244,11 @@ router.get('/day', protect, async (req, res, next) => {
     }
     res.json(await buildDayReport(req.user._id, requestedDate, userTimezone(req.user)));
   } catch (err) {
-    console.error('GET /reports/day error:', err);
     next(err);
   }
 });
 
-router.post('/share', protect, async (req, res, next) => {
+router.post('/share', protect, validate(shareCreateSchema), async (req, res, next) => {
   try {
     const { date } = req.body;
     if (!isValidDateKey(date)) {
@@ -267,12 +272,11 @@ router.post('/share', protect, async (req, res, next) => {
       expiresAt: share.expiresAt,
     });
   } catch (err) {
-    console.error('POST /reports/share error:', err);
     next(err);
   }
 });
 
-router.post('/share/:token/revoke', protect, async (req, res, next) => {
+router.post('/share/:token/revoke', protect, validate(null, { params: shareTokenParamsSchema }), async (req, res, next) => {
   try {
     const share = await ReportShare.findOneAndUpdate(
       { token: req.params.token, userId: req.user._id, revokedAt: null },
@@ -282,12 +286,11 @@ router.post('/share/:token/revoke', protect, async (req, res, next) => {
     if (!share) return res.status(404).json({ message: 'Share link not found' });
     res.json({ message: 'Share link revoked' });
   } catch (err) {
-    console.error('POST /reports/share/:token/revoke error:', err);
     next(err);
   }
 });
 
-router.get('/share/token/:token', async (req, res, next) => {
+router.get('/share/token/:token', validate(null, { params: shareTokenParamsSchema }), async (req, res, next) => {
   try {
     const share = await ReportShare.findOne({ token: req.params.token });
     if (!share || share.revokedAt || (share.expiresAt && share.expiresAt.getTime() < Date.now())) {
@@ -304,7 +307,6 @@ router.get('/share/token/:token', async (req, res, next) => {
       ...report,
     });
   } catch (err) {
-    console.error('GET /reports/share/token error:', err);
     next(err);
   }
 });

@@ -2,9 +2,17 @@ const express = require('express');
 const Project = require('../models/Project');
 const protect = require('../middleware/auth');
 const { getAuthorizedClient, createProjectFolders } = require('../utils/googleDrive');
+const { logger } = require('../utils/logger');
+const { z, objectId, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas.
+const projectCreateSchema = z.object({
+  name: requiredString(100, 'name', 'Project name is required'),
+});
+const projectParamsSchema = z.object({ id: objectId });
 
 // ── GET /api/projects ──────────────────────────────────────────────────────────
 router.get('/', async (req, res, next) => {
@@ -17,7 +25,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── POST /api/projects ─────────────────────────────────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', validate(projectCreateSchema), async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) {
@@ -40,8 +48,7 @@ router.post('/', async (req, res, next) => {
         const oauth2Client = await getAuthorizedClient(req.user);
         folderIds = await createProjectFolders(oauth2Client, trimmedName);
       } catch (driveErr) {
-        console.error('⚠️ Google Drive folder creation failed during project setup:', driveErr.message);
-        // Continue creating project in DB even if Drive fails, so user experience isn't blocked completely
+        logger.warn('Google Drive folder creation failed during project setup');
       }
     }
 
@@ -51,7 +58,7 @@ router.post('/', async (req, res, next) => {
       ...folderIds,
     });
 
-    console.log(`✅ Project created: "${project.name}" (Google Folder: ${project.googleFolderId || 'not connected'})`);
+    logger.debug('project created');
     res.status(201).json(project);
   } catch (err) {
     next(err);
@@ -60,7 +67,7 @@ router.post('/', async (req, res, next) => {
 
 // ── POST /api/projects/:id/sync-drive ──────────────────────────────────────────
 // Manual trigger to create folders if Google Drive was connected AFTER project creation
-router.post('/:id/sync-drive', async (req, res, next) => {
+router.post('/:id/sync-drive', validate(null, { params: projectParamsSchema }), async (req, res, next) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, userId: req.user._id });
     if (!project) {
@@ -86,7 +93,7 @@ router.post('/:id/sync-drive', async (req, res, next) => {
 
     await project.save();
 
-    console.log(`✅ Manually synced Drive folders for project "${project.name}"`);
+    logger.debug('project drive folders synced');
     res.json(project);
   } catch (err) {
     next(err);

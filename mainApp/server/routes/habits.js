@@ -1,9 +1,46 @@
 const express = require('express');
 const Habit = require('../models/Habit');
 const protect = require('../middleware/auth');
+const { z, objectId, intInRange, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas.
+const HABIT_FEELINGS = ['rough', 'okay', 'good', 'great', 'energized'];
+
+const habitBase = {
+  title: requiredString(100, 'title', 'Title is required'),
+  description: z.string().max(2000, 'Description too long').optional(),
+  color: z.string().trim().max(20, 'Color too long').optional(),
+  targetMinutes: intInRange(0, 1440, 'targetMinutes').optional(),
+};
+
+const habitCreateSchema = z.object({
+  ...habitBase,
+  checklist: z.array(
+    z.object({ text: requiredString(100, 'checklist item', 'Checklist item text is required') })
+  ).max(50, 'Too many checklist items').optional(),
+}).passthrough();
+
+const habitPatchSchema = z.object({ ...habitBase, archived: z.boolean() }).partial().passthrough();
+
+const habitParamsSchema = z.object({ id: objectId });
+const habitItemParamsSchema = z.object({ id: objectId, itemId: objectId });
+
+const checklistCreateSchema = z.object({
+  text: requiredString(100, 'checklist item', 'Checklist text is required'),
+});
+const checklistPatchSchema = z.object({
+  text: requiredString(100, 'checklist item', 'Checklist item text is required').optional(),
+  order: intInRange(0, 1000, 'order').optional(),
+});
+const habitTodaySchema = z.object({
+  completedItems: z.array(objectId).max(100, 'Too many completed items'),
+  minutes: z.coerce.number().finite('minutes must be a number').min(0, 'minutes must be at least 0').max(1440, 'minutes too large'),
+  feeling: z.enum(HABIT_FEELINGS),
+  note: z.string().max(2000, 'Note too long'),
+}).partial().passthrough();
 
 function todayMidnight() {
   const d = new Date();
@@ -29,7 +66,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', validate(habitCreateSchema), async (req, res, next) => {
   try {
     const { title, description, color, targetMinutes, checklist } = req.body;
     if (!title?.trim()) return res.status(400).json({ message: 'Title is required' });
@@ -52,7 +89,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', validate(habitPatchSchema, { params: habitParamsSchema }), async (req, res, next) => {
   try {
     const allowed = ['title', 'description', 'color', 'targetMinutes', 'archived'];
     const patch = {};
@@ -72,7 +109,7 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validate(null, { params: habitParamsSchema }), async (req, res, next) => {
   try {
     const habit = await Habit.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -82,7 +119,7 @@ router.delete('/:id', async (req, res, next) => {
   }
 });
 
-router.post('/:id/checklist', async (req, res, next) => {
+router.post('/:id/checklist', validate(checklistCreateSchema, { params: habitParamsSchema }), async (req, res, next) => {
   try {
     if (!req.body.text?.trim()) return res.status(400).json({ message: 'Checklist text is required' });
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
@@ -96,7 +133,7 @@ router.post('/:id/checklist', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/checklist/:itemId', async (req, res, next) => {
+router.patch('/:id/checklist/:itemId', validate(checklistPatchSchema, { params: habitItemParamsSchema }), async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -113,7 +150,7 @@ router.patch('/:id/checklist/:itemId', async (req, res, next) => {
   }
 });
 
-router.delete('/:id/checklist/:itemId', async (req, res, next) => {
+router.delete('/:id/checklist/:itemId', validate(null, { params: habitItemParamsSchema }), async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
@@ -129,7 +166,7 @@ router.delete('/:id/checklist/:itemId', async (req, res, next) => {
   }
 });
 
-router.patch('/:id/today', async (req, res, next) => {
+router.patch('/:id/today', validate(habitTodaySchema, { params: habitParamsSchema }), async (req, res, next) => {
   try {
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });

@@ -1,4 +1,5 @@
 const { google } = require('googleapis');
+const { logger } = require('./logger');
 
 function getOAuth2Client() {
   return new google.auth.OAuth2(
@@ -27,7 +28,7 @@ async function getAuthorizedClient(user) {
   // Check if token is expired or close to it (1 minute margin)
   if (user.googleTokens.expiryDate && Date.now() >= user.googleTokens.expiryDate - 60000) {
     try {
-      console.log(`🔄 Refreshing Google access token for user ${user.email}...`);
+      logger.debug('Refreshing Google access token');
       const { credentials } = await oauth2Client.refreshAccessToken();
       
       user.googleTokens.accessToken = credentials.access_token;
@@ -52,9 +53,9 @@ async function getAuthorizedClient(user) {
         refresh_token: user.googleTokens.refreshToken,
         expiry_date: user.googleTokens.expiryDate,
       });
-      console.log('✅ Access token successfully refreshed and stored.');
+      logger.debug('Google access token refreshed and stored');
     } catch (err) {
-      console.error('❌ Failed to refresh Google access token:', err);
+      logger.warn('Failed to refresh Google access token');
       // Automatically disconnect Google Drive to prevent repeat errors and loops
       user.googleConnected = false;
       user.googleTokens = undefined;
@@ -78,7 +79,7 @@ async function getAuthorizedClient(user) {
 async function createProjectFolders(oauth2Client, projectName) {
   const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-  console.log(`📁 Creating Google Drive folder structure for project: "${projectName}"`);
+  logger.debug('Creating Google Drive folder structure');
 
   // 1. Create main project folder
   const projectMetadata = {
@@ -111,7 +112,7 @@ async function createProjectFolders(oauth2Client, projectName) {
     folderIds[key] = subFolderRes.data.id;
   }
 
-  console.log('✅ Google Drive folder structure created successfully:', folderIds);
+  logger.debug('Google Drive folder structure created');
   return folderIds;
 }
 
@@ -192,7 +193,7 @@ ${fields.blockers || 'None listed.'}
 async function createWorkLogDoc(oauth2Client, folderId, title, projectName, initialFields = {}) {
   const drive = google.drive({ version: 'v3', auth: oauth2Client });
 
-  console.log(`📄 Creating Google Document: "${title}" inside folder: ${folderId}`);
+  logger.debug('Creating Google Document');
 
   // 1. Create file inside parent folder
   const fileMetadata = {
@@ -227,9 +228,9 @@ async function createWorkLogDoc(oauth2Client, folderId, title, projectName, init
         ],
       },
     });
-    console.log('✅ Google Document populated with starter template.');
+    logger.debug('Google Document populated with starter template');
   } catch (err) {
-    console.error('⚠️ Failed to populate doc starter text:', err);
+    logger.warn('Failed to populate doc starter text');
     // Document is still created, so we don't crash, just log and continue
   }
 
@@ -274,9 +275,9 @@ async function updateWorkLogDoc(oauth2Client, googleDocId, title, projectName, f
       documentId: googleDocId,
       requestBody: { requests },
     });
-    console.log(`✅ Google Document ${googleDocId} updated successfully.`);
+    logger.debug('Google Document updated');
   } catch (err) {
-    console.error(`⚠️ Failed to update Google Document ${googleDocId}:`, err.message);
+    logger.warn('Failed to update Google Document');
   }
 }
 

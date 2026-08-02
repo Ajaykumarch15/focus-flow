@@ -10,6 +10,8 @@
 //
 // Mount order (index.js): routes → notFoundHandler → errorHandler.
 
+const { logger, redactUrl } = require('../utils/logger');
+
 function normalizeError(err) {
   if (err.status && err.status >= 400 && err.status < 500) {
     return {
@@ -48,7 +50,14 @@ module.exports = (err, req, res, next) => {
   if (res.headersSent) return next(err);
 
   const { status, body } = normalizeError(err);
-  console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} — ${status}`, err);
+  logger.error(
+    {
+      err,
+      req: { method: req.method, url: redactUrl(req.originalUrl), id: req.id },
+      res: { statusCode: status },
+    },
+    'request failed'
+  );
   res.status(status).json(body);
 };
 

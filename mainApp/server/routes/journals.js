@@ -2,9 +2,23 @@ const express = require('express');
 const Journal = require('../models/Journal');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
+const { logger } = require('../utils/logger');
+const { z, objectId, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas.
+const journalFields = {
+  taskId: objectId,
+  content: requiredString(20000, 'content', 'Content is required'),
+  mood: z.coerce.number().int('mood must be an integer').min(1, 'mood must be between 1 and 5').max(5, 'mood must be between 1 and 5'),
+  focusRating: z.coerce.number().int('focusRating must be an integer').min(1, 'focusRating must be between 1 and 5').max(5, 'focusRating must be between 1 and 5'),
+};
+
+const journalCreateSchema = z.object({ ...journalFields, taskId: objectId.optional() }).passthrough();
+const journalPatchSchema = z.object(journalFields).partial().passthrough();
+const journalParamsSchema = z.object({ id: objectId });
 
 // Fields a client may update on a Journal via PATCH. Everything else is rejected.
 const JOURNAL_PATCH_FIELDS = {
@@ -20,16 +34,15 @@ router.get('/', async (req, res, next) => {
     const filter = { userId: req.user._id };
     if (req.query.taskId) filter.taskId = req.query.taskId;
     const journals = await Journal.find(filter).sort({ createdAt: -1 });
-    console.log(`📔 Fetched ${journals.length} journals for user ${req.user._id}`);
+    logger.debug({ count: journals.length }, 'journals fetched');
     res.json(journals);
   } catch (err) {
-    console.error('GET /journals error:', err);
     next(err);
   }
 });
 
 // POST /api/journals
-router.post('/', async (req, res, next) => {
+router.post('/', validate(journalCreateSchema), async (req, res, next) => {
   try {
     const { taskId, content, mood, focusRating } = req.body;
 
@@ -45,16 +58,15 @@ router.post('/', async (req, res, next) => {
       focusRating: focusRating || 3,
     });
 
-    console.log(`✅ Journal saved (${journal._id}) for user ${req.user._id}`);
+    logger.debug('journal saved');
     res.status(201).json(journal);
   } catch (err) {
-    console.error('POST /journals error:', err);
     next(err);
   }
 });
 
 // PATCH /api/journals/:id
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', validate(journalPatchSchema, { params: journalParamsSchema }), async (req, res, next) => {
   try {
     const patch = buildPatch(req.body, JOURNAL_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
@@ -74,7 +86,7 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // DELETE /api/journals/:id
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validate(null, { params: journalParamsSchema }), async (req, res, next) => {
   try {
     const journal = await Journal.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!journal) return res.status(404).json({ message: 'Journal not found' });

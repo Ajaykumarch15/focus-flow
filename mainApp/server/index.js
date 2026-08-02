@@ -3,6 +3,9 @@ const fs = require('fs');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { logger, requestLogger } = require('./utils/logger');
+const { connectWithRetry, startServer, createShutdownHandler } = require('./utils/serverLifecycle');
+const { healthRoutes, metricsMiddleware } = require('./middleware/health');
 
 // ── Fail-fast environment validation ─────────────────────────────────────────
 // Refuses to boot on missing/weak/placeholder config so a compromised or
@@ -95,10 +98,10 @@ app.use(require('cookie-parser')()); // IES-P0-12: read the httpOnly session coo
 app.use('/api', createApiLimiter());
 // IES-P0-12: reject cross-site state-changing requests (Origin/Referer check).
 app.use('/api', csrfProtect);
-app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
+// IES-P0-19: count requests for /api/metrics.
+app.use('/api', metricsMiddleware);
+// IES-P0-20: structured JSON request log (request id, status, duration, redacted URL).
+app.use(requestLogger);
 
 app.get('/auth/google/callback', authRoutes.handleGoogleCallback);
 
@@ -114,20 +117,23 @@ app.use('/api/admin', adminRoutes);              // ← NEW
 app.use('/api/teams', teamRoutes);              // ← NEW
 app.use('/api/projects', projectRoutes);
 
-app.get('/api/health', (_req, res) => res.json({ status: 'ok', time: new Date() }));
+// IES-P0-19: liveness, readiness, metrics.
+app.use('/api', healthRoutes());
 
 // IES-P0-14: JSON 404 catch-all, then the single sanitized error handler.
 app.use(errorHandler.notFoundHandler);
 app.use(errorHandler);
 
+// IES-P0-18: bounded boot retry, then graceful shutdown on SIGINT/SIGTERM.
 const PORT = process.env.PORT || 5001;
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('✅  MongoDB Atlas connected');
-    app.listen(PORT, () => console.log(`🚀  Server on http://localhost:${PORT}`));
-  })
-  .catch(err => { console.error('❌  MongoDB connection failed:', err.message); process.exit(1); });
-
-
-
+(async () => {
+  await connectWithRetry(process.env.MONGODB_URI);
+  const server = await startServer(app, PORT);
+  const shutdown = createShutdownHandler({ server });
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  logger.info('Server booted');
+})().catch((err) => {
+  logger.error({ err }, 'Server failed to boot');
+  process.exit(1);
+});

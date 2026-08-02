@@ -6,8 +6,23 @@ const Task = require('../models/Task');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
+const { z, objectId, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
+
+// IES-P0-16: body/param/query schemas.
+const teamFields = {
+  name: requiredString(100, 'name', 'Team name is required'),
+  description: z.string().max(2000, 'Description too long'),
+  members: z.array(objectId).max(100, 'Too many members'),
+};
+const teamCreateSchema = z.object({ ...teamFields }).passthrough();
+const teamPatchSchema = z.object(teamFields).partial().passthrough();
+const teamParamsSchema = z.object({ id: objectId });
+const teamAnalyticsQuerySchema = z.object({
+  from: z.coerce.number().finite('from must be a valid timestamp'),
+  to: z.coerce.number().finite('to must be a valid timestamp'),
+}).partial();
 
 // All team routes require admin privileges
 router.use(protect);
@@ -24,7 +39,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── POST /api/teams ───────────────────────────────────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', validate(teamCreateSchema), async (req, res, next) => {
   try {
     const { name, description, members } = req.body;
     const team = new Team({
@@ -43,7 +58,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // ── PATCH /api/teams/:id ──────────────────────────────────────────────────────
-router.patch('/:id', async (req, res, next) => {
+router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), async (req, res, next) => {
   try {
     const { name, description, members } = req.body;
     const updates = {};
@@ -63,7 +78,7 @@ router.patch('/:id', async (req, res, next) => {
 });
 
 // ── DELETE /api/teams/:id ─────────────────────────────────────────────────────
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', validate(null, { params: teamParamsSchema }), async (req, res, next) => {
   try {
     const team = await Team.findByIdAndDelete(req.params.id);
     if (!team) return res.status(404).json({ message: 'Team not found' });
@@ -75,7 +90,7 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 // ── GET /api/teams/:id/analytics ──────────────────────────────────────────────
-router.get('/:id/analytics', async (req, res, next) => {
+router.get('/:id/analytics', validate(null, { params: teamParamsSchema, query: teamAnalyticsQuerySchema }), async (req, res, next) => {
   try {
     const team = await Team.findById(req.params.id).populate('members', 'name email');
     if (!team) return res.status(404).json({ message: 'Team not found' });

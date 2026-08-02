@@ -8,8 +8,24 @@ const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const reportsRouter = require('./reports');
 const { buildDayReport, userTimezone, dayKey, isValidDateKey, localDateToUtc, dayRange } = reportsRouter.helpers;
+const { logger } = require('../utils/logger');
+const { z, objectId, email, validate } = require('../utils/validation');
 
 const router = express.Router();
+
+// IES-P0-16: body/param/query schemas.
+const adminUserPatchSchema = z.object({
+  name: z.string().trim().min(1, 'Name cannot be empty').max(100, 'Name too long'),
+  email,
+  role: z.enum(['user', 'admin']),
+  settings: z.record(z.string(), z.unknown()),
+}).partial().passthrough();
+
+const userParamsSchema = z.object({ userId: objectId });
+const analyticsQuerySchema = z.object({
+  from: z.coerce.number().finite('from must be a valid timestamp'),
+  to: z.coerce.number().finite('to must be a valid timestamp'),
+}).partial();
 
 // Apply protect and admin middleware to all routes in this router
 router.use(protect);
@@ -63,7 +79,7 @@ router.get('/users/deleted', async (req, res, next) => {
 });
 
 // ── PATCH /api/admin/users/:userId ──────────────────────────────────────────
-router.patch('/users/:userId', async (req, res, next) => {
+router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { name, email, role, settings } = req.body;
@@ -108,7 +124,7 @@ router.patch('/users/:userId', async (req, res, next) => {
 });
 
 // ── DELETE /api/admin/users/:userId (soft delete) ───────────────────────────
-router.delete('/users/:userId', async (req, res, next) => {
+router.delete('/users/:userId', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (userId === req.user._id.toString()) {
@@ -129,7 +145,7 @@ router.delete('/users/:userId', async (req, res, next) => {
 });
 
 // ── POST /api/admin/users/:userId/restore ────────────────────────────────────
-router.post('/users/:userId/restore', async (req, res, next) => {
+router.post('/users/:userId/restore', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findByIdAndUpdate(
@@ -146,7 +162,7 @@ router.post('/users/:userId/restore', async (req, res, next) => {
 });
 
 // ── GET /api/admin/users/:userId/analytics ──────────────────────────────────
-router.get('/users/:userId/analytics', async (req, res, next) => {
+router.get('/users/:userId/analytics', validate(null, { params: userParamsSchema, query: analyticsQuerySchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { from, to } = req.query;
@@ -211,7 +227,7 @@ router.get('/users/:userId/analytics', async (req, res, next) => {
 });
 
 // ── GET /api/admin/users/:userId/reports/summary ──────────────────────────────────
-router.get('/users/:userId/reports/summary', async (req, res, next) => {
+router.get('/users/:userId/reports/summary', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
@@ -282,13 +298,12 @@ router.get('/users/:userId/reports/summary', async (req, res, next) => {
       completedCount: day.completedCount,
     })));
   } catch (err) {
-    console.error('GET /admin/users/:userId/reports/summary error:', err);
     next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/reports/day ──────────────────────────────────────
-router.get('/users/:userId/reports/day', async (req, res, next) => {
+router.get('/users/:userId/reports/day', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
@@ -300,7 +315,6 @@ router.get('/users/:userId/reports/day', async (req, res, next) => {
     }
     res.json(await buildDayReport(userId, requestedDate, userTimezone(user)));
   } catch (err) {
-    console.error('GET /admin/users/:userId/reports/day error:', err);
     next(err);
   }
 });
@@ -390,7 +404,6 @@ router.get('/system-analytics', async (req, res, next) => {
       userGrowth,
     });
   } catch (err) {
-    console.error('GET /admin/system-analytics error:', err);
     next(err);
   }
 });

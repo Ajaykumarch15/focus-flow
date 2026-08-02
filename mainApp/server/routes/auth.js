@@ -5,8 +5,22 @@ const User    = require('../models/User');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { createAuthLoginLimiter, createAuthRegisterLimiter } = require('../middleware/rateLimit');
+const { logger } = require('../utils/logger');
+const { z, email, validate } = require('../utils/validation');
 
 const router = express.Router();
+
+// IES-P0-16: body schemas.
+const registerSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
+  email,
+  password: z.string().min(6, 'Password must be at least 6 characters').max(200, 'Password too long'),
+});
+
+const loginSchema = z.object({
+  email: z.string().trim().min(1, 'Email and password are required').max(255),
+  password: z.string().min(1, 'Email and password are required').max(200),
+});
 
 // IES-P0-10: OAuth state TTL — a nonce that expires before it is consumed is
 // treated as invalid, forcing the user to start a fresh connect flow.
@@ -45,7 +59,7 @@ const clearSessionCookie = (res) =>
   res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(), maxAge: undefined });
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
-router.post('/register', registerLimiter, async (req, res, next) => {
+router.post('/register', registerLimiter, validate(registerSchema), async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
@@ -70,7 +84,7 @@ router.post('/register', registerLimiter, async (req, res, next) => {
 });
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', loginLimiter, async (req, res, next) => {
+router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
@@ -214,7 +228,7 @@ const handleGoogleCallback = async (req, res, next) => {
 
     res.redirect(`${base}/settings?google_connected=true`);
   } catch (err) {
-    console.error('Google OAuth callback error:', err);
+    logger.warn('Google OAuth callback failed');
     res.redirect(`${base}/settings?error=oauth_failed`);
   }
 };

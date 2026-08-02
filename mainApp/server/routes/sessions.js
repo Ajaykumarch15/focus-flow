@@ -5,9 +5,18 @@ const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { serverTime } = require('../utils/sessionTime');
+const { logger } = require('../utils/logger');
+const { z, objectId, timestamp, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P0-16: body/param schemas — timestamps are coerced finite numbers (NaN never passes).
+const sessionParamsSchema = z.object({ id: objectId });
+const sessionCreateSchema = z.object({ taskId: objectId, startTime: timestamp.optional() });
+const sessionPauseSchema = z.object({ pauseTime: timestamp.optional() });
+const sessionResumeSchema = z.object({ resumeTime: timestamp.optional() });
+const sessionStopSchema = z.object({ endTime: timestamp.optional() });
 
 // Helper to auto-add timeline entries to active WorkLogs
 async function addTimelineEntryToWorkLogs(userId, taskId, type, title, description = '') {
@@ -28,7 +37,7 @@ async function addTimelineEntryToWorkLogs(userId, taskId, type, title, descripti
       await log.save();
     }
   } catch (err) {
-    console.error('Failed to add timeline entry to WorkLogs:', err);
+    logger.warn('Failed to add timeline entry to WorkLogs');
   }
 }
 
@@ -72,7 +81,7 @@ async function syncSessionToWorkLogs(userId, taskId, session) {
       await log.save();
     }
   } catch (err) {
-    console.error('WorkLog sync failed:', err);
+    logger.warn('WorkLog sync failed');
   }
 }
 
@@ -91,7 +100,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // ── POST /api/sessions — start a new session ──────────────────────────────────
-router.post('/', async (req, res, next) => {
+router.post('/', validate(sessionCreateSchema), async (req, res, next) => {
   try {
     const { taskId, startTime } = req.body;
     if (!taskId) return res.status(400).json({ message: 'taskId is required' });
@@ -158,7 +167,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // ── PATCH /api/sessions/:id/pause — log a pause start ───────────────────────
-router.patch('/:id/pause', async (req, res, next) => {
+router.patch('/:id/pause', validate(sessionPauseSchema, { params: sessionParamsSchema }), async (req, res, next) => {
   try {
     const { pauseTime } = req.body;
 
@@ -186,7 +195,7 @@ router.patch('/:id/pause', async (req, res, next) => {
 });
 
 // ── PATCH /api/sessions/:id/resume — close the last pause entry ──────────────
-router.patch('/:id/resume', async (req, res, next) => {
+router.patch('/:id/resume', validate(sessionResumeSchema, { params: sessionParamsSchema }), async (req, res, next) => {
   try {
     const { resumeTime } = req.body;
 
@@ -215,7 +224,7 @@ router.patch('/:id/resume', async (req, res, next) => {
 });
 
 // ── PATCH /api/sessions/:id/stop — finalise the session ─────────────────────
-router.patch('/:id/stop', async (req, res, next) => {
+router.patch('/:id/stop', validate(sessionStopSchema, { params: sessionParamsSchema }), async (req, res, next) => {
   try {
     const { endTime } = req.body;
 
