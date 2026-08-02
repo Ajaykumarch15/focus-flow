@@ -31,6 +31,11 @@ async function getAuthorizedClient(user) {
       const { credentials } = await oauth2Client.refreshAccessToken();
       
       user.googleTokens.accessToken = credentials.access_token;
+      // IES-P0-10: refresh-token rotation — Google issues a NEW refresh token on
+      // each refresh; persist it so an old (revoked) one is never reused.
+      if (credentials.refresh_token) {
+        user.googleTokens.refreshToken = credentials.refresh_token;
+      }
       if (credentials.expiry_date) {
         user.googleTokens.expiryDate = credentials.expiry_date;
       } else if (credentials.expires_in) {

@@ -33,6 +33,13 @@ const userSchema = new mongoose.Schema(
       refreshToken: { type: String },
       expiryDate:   { type: Number },
     },
+    // In-progress Google OAuth flow (IES-P0-10): opaque single-use nonce stored
+    // hashed, with expiry, plus the PKCE code_verifier needed to redeem the code.
+    googleOAuth: {
+      stateHash:    { type: String },
+      stateExpiry:  { type: Date },
+      codeVerifier: { type: String },
+    },
     deletedAt: { type: Date, default: null, index: true },
     // Bumped on soft-delete / role change to invalidate previously-issued JWTs.
     tokenVersion: { type: Number, default: 0 },
@@ -46,12 +53,14 @@ const userSchema = new mongoose.Schema(
 userSchema.index({ email: 1, deletedAt: 1 });
 
 // Strip passwordHash and Google OAuth tokens from all JSON responses.
-// googleTokens (incl. long-lived refreshToken) must never reach the client;
-// server-side Drive sync reads them from the loaded doc, not serialized output.
+// googleTokens (incl. long-lived refreshToken) and the in-flight googleOAuth
+// flow (PKCE verifier) must never reach the client; server-side Drive sync reads
+// them from the loaded doc, not serialized output.
 userSchema.set('toJSON', {
   transform: (_doc, ret) => {
     delete ret.passwordHash;
     delete ret.googleTokens;
+    delete ret.googleOAuth;
     return ret;
   },
 });

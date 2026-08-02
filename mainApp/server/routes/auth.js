@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto  = require('crypto');
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
 const Activity = require('../models/Activity');
@@ -6,6 +7,15 @@ const protect = require('../middleware/auth');
 const { createAuthLoginLimiter, createAuthRegisterLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// IES-P0-10: OAuth state TTL — a nonce that expires before it is consumed is
+// treated as invalid, forcing the user to start a fresh connect flow.
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+const sha256hex = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const pkceChallenge = (verifier) =>
+  crypto.createHash('sha256').update(verifier).digest('base64url');
+const randomToken = () => crypto.randomBytes(32).toString('hex');
 
 // IES-P0-09: strict, per-IP+per-account limits on credential endpoints.
 // Login counts only failed attempts (successful logins don't consume quota);
@@ -82,17 +92,25 @@ router.get('/me', protect, (req, res) => {
 });
 
 // ── Google OAuth URL Generator ────────────────────────────────────────────────
-router.get('/google/url', protect, (req, res) => {
+// IES-P0-10: no JWT/bearer token in the URL. Issues an opaque single-use nonce
+// (stored hashed with an expiry) plus a PKCE code_challenge; the callback redeems
+// the code only with the matching code_verifier, proving possession of the flow.
+router.get('/google/url', protect, async (req, res) => {
   try {
     const { getOAuth2Client } = require('../utils/googleDrive');
     const oauth2Client = getOAuth2Client();
-    
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ message: 'No authorization token provided' });
-    }
+
+    const state = randomToken();
+    const codeVerifier = randomToken();
+    const codeChallenge = pkceChallenge(codeVerifier);
+
+    req.user.googleOAuth = {
+      stateHash: sha256hex(state),
+      stateExpiry: new Date(Date.now() + OAUTH_STATE_TTL_MS),
+      codeVerifier,
+    };
+    req.user.markModified('googleOAuth');
+    await req.user.save();
 
     const url = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -102,7 +120,9 @@ router.get('/google/url', protect, (req, res) => {
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile'
       ],
-      state: token
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
     });
 
     res.json({ url });
@@ -127,21 +147,34 @@ router.post('/google/disconnect', protect, async (req, res) => {
 // ── Google Callback Route Handler ─────────────────────────────────────────────
 const handleGoogleCallback = async (req, res) => {
   const { code, state } = req.query;
+  const base = process.env.CLIENT_URL || 'http://localhost:5173';
   if (!code || !state) {
-    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=missing_params`);
+    return res.redirect(`${base}/settings?error=missing_params`);
   }
 
   try {
     const { getOAuth2Client } = require('../utils/googleDrive');
-    const decoded = jwt.verify(state, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    const user = await User.findById(userId);
+
+    // The callback carries an opaque nonce, not a JWT. Find the user by the
+    // stored hash — a nonce we never issued simply doesn't match.
+    const user = await User.findOne({ 'googleOAuth.stateHash': sha256hex(state) });
     if (!user || user.deletedAt) {
-      return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=user_not_found`);
+      return res.redirect(`${base}/settings?error=user_not_found`);
+    }
+    if (!user.googleOAuth.stateExpiry || new Date(user.googleOAuth.stateExpiry) < new Date()) {
+      return res.redirect(`${base}/settings?error=state_expired`);
     }
 
+    const codeVerifier = user.googleOAuth.codeVerifier;
+
+    // Single-use: consume the nonce BEFORE redeeming the code, so a replayed
+    // callback can never redeem the same authorization code twice.
+    user.googleOAuth = undefined;
+    user.markModified('googleOAuth');
+    await user.save();
+
     const oauth2Client = getOAuth2Client();
-    const { tokens } = await oauth2Client.getToken(code);
+    const { tokens } = await oauth2Client.getToken(code, { code_verifier: codeVerifier });
 
     user.googleConnected = true;
     user.googleTokens = {
@@ -153,10 +186,10 @@ const handleGoogleCallback = async (req, res) => {
     user.markModified('googleTokens');
     await user.save();
 
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?google_connected=true`);
+    res.redirect(`${base}/settings?google_connected=true`);
   } catch (err) {
     console.error('Google OAuth callback error:', err);
-    res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/settings?error=oauth_failed`);
+    res.redirect(`${base}/settings?error=oauth_failed`);
   }
 };
 

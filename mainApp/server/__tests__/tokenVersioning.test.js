@@ -296,10 +296,11 @@ describe('IES-P0-08 · register tokens carry tokenVersion 0', () => {
 });
 
 describe('IES-P0-08 · google callback rejects soft-deleted users', () => {
-  it('redirects with user_not_found for a deleted account', async () => {
-    vi.spyOn(User, 'findById').mockResolvedValue({ _id: authUser._id, deletedAt: new Date() });
+  it('redirects with user_not_found for an unknown/consumed state', async () => {
+    // IES-P0-10: callback resolves the user by hashed OAuth nonce, never a JWT.
+    vi.spyOn(User, 'findOne').mockResolvedValue(null);
     const res = { redirect: vi.fn() };
-    const state = jwt.sign({ id: authUser._id }, SECRET);
+    const state = 'some-opaque-nonce';
 
     await authRouter.handleGoogleCallback(
       { query: { code: 'some-code', state } },
