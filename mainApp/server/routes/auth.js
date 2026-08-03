@@ -11,11 +11,23 @@ const { z, email, validate } = require('../utils/validation');
 const router = express.Router();
 
 // IES-P0-16: body schemas.
+// IES-P1-25: password policy is "at least 12 characters" (no complexity
+// requirements) — enforced at the schema, the route, and the client UI so a
+// weak password can never slip through any single layer.
 const registerSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
   email,
-  password: z.string().min(6, 'Password must be at least 6 characters').max(200, 'Password too long'),
+  password: z.string().min(12, 'Password must be at least 12 characters').max(200, 'Password too long'),
 });
+
+// Password reset flow — DOCUMENTED ONLY (out of scope unless the PRD requires it):
+//   1. POST /api/auth/forgot  → issue an opaque single-use reset token (hashed in
+//      the user doc with a short TTL, mirroring the googleOAuth nonce pattern),
+//      emailed to the address. Never leaks whether the email exists.
+//   2. GET  /api/auth/reset?token=…  → validate token + expiry, render the form.
+//   3. POST /api/auth/reset   → hash the new password (min 12), consume the token,
+//      and bump tokenVersion so any in-flight JWTs are revoked.
+//   4. Rate-limit every step with the same strict per-IP limiter as register.
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, 'Email and password are required').max(255),
@@ -66,15 +78,26 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req, 
     if (!name || !email || !password)
       return res.status(400).json({ message: 'Name, email and password are required' });
 
-    if (password.length < 6)
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (password.length < 12)
+      return res.status(400).json({ message: 'Password must be at least 12 characters' });
 
     const exists = await User.findOne({ email });
     if (exists)
       return res.status(409).json({ message: 'An account with this email already exists' });
 
     const passwordHash = await User.hashPassword(password);
-    const user = await User.create({ name, email, passwordHash });
+    let user;
+    try {
+      user = await User.create({ name, email, passwordHash });
+    } catch (err) {
+      // IES-P1-25: two concurrent registers can both pass the findOne pre-check,
+      // then one create loses the race on the unique email index (E11000). Map
+      // that to the same friendly 409 instead of leaking the raw Mongo error.
+      if (err && err.code === 11000) {
+        return res.status(409).json({ message: 'An account with this email already exists' });
+      }
+      throw err;
+    }
 
     setSessionCookie(res, signToken(user));
     res.status(201).json({ user });
@@ -177,6 +200,7 @@ router.post('/google/disconnect', protect, async (req, res, next) => {
     const user = req.user;
     user.googleConnected = false;
     user.googleTokens = undefined;
+    user.driveSyncError = ''; // IES-P1-24: disconnecting resets any prior failure.
     await user.save();
     res.json({ message: 'Disconnected Google Drive successfully', user });
   } catch (err) {
@@ -222,6 +246,7 @@ const handleGoogleCallback = async (req, res, next) => {
       refreshToken: tokens.refresh_token || user.googleTokens?.refreshToken,
       expiryDate: tokens.expiry_date,
     };
+    user.driveSyncError = ''; // IES-P1-24: a fresh connection clears prior failures.
 
     user.markModified('googleTokens');
     await user.save();

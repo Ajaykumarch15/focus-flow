@@ -22,8 +22,8 @@ export function Register() {
       setLocalErr('Passwords do not match');
       return;
     }
-    if (form.password.length < 6) {
-      setLocalErr('Password must be at least 6 characters');
+    if (form.password.length < 12) {
+      setLocalErr('Password must be at least 12 characters');
       return;
     }
 
@@ -111,7 +111,7 @@ export function Register() {
                   name="password"
                   autoComplete="new-password"
                   className="input pl-10 pr-10"
-                  placeholder="Min 6 characters"
+                  placeholder="Min 12 characters"
                   value={form.password}
                   onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
                   required

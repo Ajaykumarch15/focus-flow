@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const subtaskSchema = new mongoose.Schema({
-  title: { type: String, required: true },
+  title: { type: String, required: true, trim: true, minlength: 1, maxlength: 200 },
   completed: { type: Boolean, default: false },
 }, { timestamps: true });
 
@@ -23,5 +23,9 @@ const taskSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// IES-P1-04: user-scoped lists and admin analytics aggregations.
+taskSchema.index({ userId: 1, status: 1 });
+taskSchema.index({ userId: 1, createdAt: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

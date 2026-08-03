@@ -28,11 +28,32 @@ const teamAnalyticsQuerySchema = z.object({
 router.use(protect);
 router.use(admin);
 
+// ── IES-P1-23: membership only ever references active users ──────────────────
+// Populate `members` with a `deletedAt: null` match so soft-deleted users are
+// never rendered as team members. On write, the members array is filtered to
+// active users up front; on soft-delete the admin cascade `$pull`s the user out
+// of every team. `keepActiveMembers` also drops the `null`s that mongoose's
+// populate-match leaves in place of excluded members.
+const ACTIVE_MEMBERS_POPULATE = { path: 'members', select: 'name email avatar role', match: { deletedAt: null } };
+
+function keepActiveMembers(team) {
+  if (team && Array.isArray(team.members)) {
+    team.members = team.members.filter((m) => m && m._id);
+  }
+  return team;
+}
+
+async function activeMemberIds(members) {
+  if (!members || members.length === 0) return [];
+  const active = await User.find({ _id: { $in: members }, deletedAt: null }).select('_id');
+  return active.map((m) => m._id);
+}
+
 // ── GET /api/teams ────────────────────────────────────────────────────────────
 router.get('/', async (req, res, next) => {
   try {
-    const teams = await Team.find({}).populate('members', 'name email avatar role');
-    res.json(teams);
+    const teams = await Team.find({}).populate(ACTIVE_MEMBERS_POPULATE);
+    res.json(teams.map(keepActiveMembers));
   } catch (err) {
     next(err);
   }
@@ -45,11 +66,11 @@ router.post('/', validate(teamCreateSchema), async (req, res, next) => {
     const team = new Team({
       name,
       description,
-      members: members || [],
+      members: await activeMemberIds(members || []),
       createdBy: req.user._id
     });
     await team.save();
-    const populated = await team.populate('members', 'name email avatar role');
+    const populated = keepActiveMembers(await team.populate(ACTIVE_MEMBERS_POPULATE));
     res.status(201).json(populated);
     Activity.create({ userId: req.user._id, action: 'team.created', details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
@@ -64,10 +85,10 @@ router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), as
     const updates = {};
     if (name) updates.name = name;
     if (description !== undefined) updates.description = description;
-    if (members) updates.members = members;
+    if (members) updates.members = await activeMemberIds(members);
 
-    const team = await Team.findByIdAndUpdate(req.params.id, updates, { new: true })
-      .populate('members', 'name email avatar role');
+    const team = keepActiveMembers(await Team.findByIdAndUpdate(req.params.id, updates, { new: true })
+      .populate(ACTIVE_MEMBERS_POPULATE));
     
     if (!team) return res.status(404).json({ message: 'Team not found' });
     res.json(team);
@@ -92,7 +113,7 @@ router.delete('/:id', validate(null, { params: teamParamsSchema }), async (req, 
 // ── GET /api/teams/:id/analytics ──────────────────────────────────────────────
 router.get('/:id/analytics', validate(null, { params: teamParamsSchema, query: teamAnalyticsQuerySchema }), async (req, res, next) => {
   try {
-    const team = await Team.findById(req.params.id).populate('members', 'name email');
+    const team = keepActiveMembers(await Team.findById(req.params.id).populate({ path: 'members', select: 'name email', match: { deletedAt: null } }));
     if (!team) return res.status(404).json({ message: 'Team not found' });
 
     const memberIds = team.members.map(m => m._id);

@@ -6,11 +6,35 @@ const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
+const { syncWorkLog } = require('../utils/worklogSync');
+const { localDateToUtc, userTimezone } = require('../utils/dates');
 const { logger } = require('../utils/logger');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
+
+// IES-P1-06: deadlines are calendar dates ("YYYY-MM-DD") in the user's timezone,
+// stored as that day's tz-midnight instant so `dayKey(deadline, tz)` always
+// round-trips to the picked date. A raw "YYYY-MM-DD" from a date input is used
+// verbatim; anything else (epoch ms / ISO) represents a picked UTC calendar date
+// from the legacy client, so it is decoded via the instant's UTC day to avoid
+// drifting a day early in negative-offset timezones.
+function encodeDeadline(value, timeZone) {
+  if (value === null || value === '') return null;
+  if (value === undefined) return undefined;
+  const raw = String(value);
+  let dateKey;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    dateKey = raw;
+  } else {
+    const ts = new Date(value).getTime();
+    if (!Number.isFinite(ts)) return undefined;
+    dateKey = new Date(ts).toISOString().slice(0, 10);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return undefined;
+  return localDateToUtc(dateKey, timeZone);
+}
 
 // IES-P0-16: body/param schemas.
 const TASK_PRIORITY = ['low', 'medium', 'high', 'urgent'];
@@ -90,7 +114,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       color: color || '#0ea5e9',
       tags: tags || [],
       subtasks: subtasks || [],
-      deadline: deadline ? new Date(deadline) : undefined,
+      deadline: encodeDeadline(deadline, userTimezone(req.user)) || undefined,
     });
 
     logger.debug('task created');
@@ -107,6 +131,10 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
     const patch = buildPatch(req.body, TASK_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ message: 'No updatable fields provided' });
+    }
+    if ('deadline' in patch) {
+      patch.deadline = encodeDeadline(patch.deadline, userTimezone(req.user));
+      if (patch.deadline === undefined) delete patch.deadline;
     }
 
     const task = await Task.findOneAndUpdate(
@@ -129,14 +157,26 @@ router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, 
   try {
     const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // IES-P1-09: the cascade removes the task's sessions/journal, and any
+    // worklog linked via taskRef must not keep dangling `sessionIds` or a stale
+    // `totalActiveMs`. Recompute each affected log against its (now-deleted)
+    // sessions — the single source of truth — which strips the orphaned ids and
+    // zeroes the derived totals, then unlink the task.
+    const workLogs = await WorkLog.find({ taskRef: req.params.id, userId: req.user._id });
+
     await Promise.all([
       Session.deleteMany({ taskId: req.params.id, userId: req.user._id }),
       Journal.deleteMany({ taskId: req.params.id, userId: req.user._id }),
-      WorkLog.updateMany(
-        { taskRef: req.params.id, userId: req.user._id },
-        { $unset: { taskRef: '' } }
-      ),
     ]);
+
+    const timeZone = userTimezone(req.user);
+    await Promise.all(workLogs.map(async (log) => {
+      await syncWorkLog(log, req.user._id, { timeZone, persist: false });
+      log.taskRef = undefined;
+      await log.save();
+    }));
+
     logger.debug('task deleted');
     res.json({ message: 'Task deleted' });
     Activity.create({ userId: req.user._id, action: 'task.deleted', details: { taskTitle: task.title } }).catch(() => {});
@@ -151,7 +191,7 @@ router.post('/:id/subtasks', validate(subtaskCreateSchema, { params: taskParamsS
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $push: { subtasks: { title: req.body.title } } },
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);
@@ -166,7 +206,7 @@ router.patch('/:id/subtasks/:subId', validate(subtaskPatchSchema, { params: subt
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id, 'subtasks._id': req.params.subId },
       { $set: { 'subtasks.$.completed': req.body.completed } },
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!task) return res.status(404).json({ message: 'Task or subtask not found' });
     res.json(task);
@@ -181,7 +221,7 @@ router.delete('/:id/subtasks/:subId', validate(null, { params: subtaskParamsSche
     const task = await Task.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { subtasks: { _id: req.params.subId } } },
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
     res.json(task);

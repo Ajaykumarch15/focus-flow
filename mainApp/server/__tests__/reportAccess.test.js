@@ -235,4 +235,145 @@ describe('IES-P0-40 · public share-token path is gated by a valid, unexpired to
     const res = await fetch(`${baseUrl}/api/reports/share/token/expired-1`);
     expect(res.status).toBe(404);
   });
+
+  it('refuses a share whose owner has been soft-deleted (IES-P1-23)', async () => {
+    vi.spyOn(ReportShare, 'findOne').mockResolvedValue({
+      token: 'gone-owner-1',
+      userId: USER_ID,
+      date: '2026-07-15',
+      revokedAt: null,
+      expiresAt: null,
+    });
+    mockFindById(authUser({ deletedAt: new Date() }));
+    const res = await fetch(`${baseUrl}/api/reports/share/token/gone-owner-1`);
+    expect(res.status).toBe(404);
+    expect((await res.json()).message).toBe('User not found');
+  });
+});
+
+describe('IES-P1-13 · share creation always sets a bounded expiresAt', () => {
+  function mockCreateCapture() {
+    let captured;
+    vi.spyOn(ReportShare, 'create').mockImplementation(async (doc) => {
+      captured = doc;
+      return { ...doc, token: 'share-token-p1-13' };
+    });
+    return () => captured;
+  }
+
+  it('defaults to a future expiresAt within the 1..365 day bound', async () => {
+    mockFindById(authUser());
+    const getCaptured = mockCreateCapture();
+    const before = Date.now();
+
+    const res = await fetch(`${baseUrl}/api/reports/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeaderFor(signToken(USER_ID)),
+      },
+      body: JSON.stringify({ date: '2026-07-15' }),
+    });
+
+    expect(res.status).toBe(201);
+    const captured = getCaptured();
+    expect(captured.expiresAt).toBeDefined();
+    expect(captured.expiresAt.getTime()).toBeGreaterThan(before);
+    expect(captured.expiresAt.getTime()).toBeLessThanOrEqual(before + 365 * 86400000);
+  });
+
+  it('honours an explicit expiresInDays and stays within the cap', async () => {
+    mockFindById(authUser());
+    const getCaptured = mockCreateCapture();
+    const before = Date.now();
+
+    const res = await fetch(`${baseUrl}/api/reports/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeaderFor(signToken(USER_ID)),
+      },
+      body: JSON.stringify({ date: '2026-07-15', expiresInDays: 7 }),
+    });
+
+    expect(res.status).toBe(201);
+    const captured = getCaptured();
+    expect(captured.expiresAt.getTime()).toBeGreaterThanOrEqual(before + 7 * 86400000 - 1000);
+    expect(captured.expiresAt.getTime()).toBeLessThanOrEqual(before + 7 * 86400000 + 1000);
+  });
+
+  it('rejects expiresInDays outside the 1..365 bound', async () => {
+    mockFindById(authUser());
+    const createSpy = vi.spyOn(ReportShare, 'create').mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/reports/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeaderFor(signToken(USER_ID)),
+      },
+      body: JSON.stringify({ date: '2026-07-15', expiresInDays: 366 }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('IES-P1-15 · share responses are never cached (no-store)', () => {
+  it('token render response carries Cache-Control: no-store', async () => {
+    vi.spyOn(ReportShare, 'findOne').mockResolvedValue({
+      token: 'ns-token',
+      userId: USER_ID,
+      date: '2026-07-15',
+      revokedAt: null,
+      expiresAt: null,
+    });
+    mockFindById(authUser());
+    vi.spyOn(Session, 'find').mockImplementation(() => ({
+      populate: () => Promise.resolve([]),
+    }));
+    vi.spyOn(WorkLog, 'find').mockImplementation(() => ({ sort: () => Promise.resolve([]) }));
+
+    const res = await fetch(`${baseUrl}/api/reports/share/token/ns-token`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('unknown-token 404 also refuses caching', async () => {
+    vi.spyOn(ReportShare, 'findOne').mockResolvedValue(null);
+    const res = await fetch(`${baseUrl}/api/reports/share/token/does-not-exist`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('share creation response carries Cache-Control: no-store', async () => {
+    mockFindById(authUser());
+    vi.spyOn(ReportShare, 'create').mockResolvedValue({
+      token: 'ns-token',
+      date: '2026-07-15',
+      expiresAt: null,
+    });
+    const res = await fetch(`${baseUrl}/api/reports/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeaderFor(signToken(USER_ID)),
+      },
+      body: JSON.stringify({ date: '2026-07-15' }),
+    });
+    expect(res.status).toBe(201);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('revoke response carries Cache-Control: no-store', async () => {
+    mockFindById(authUser());
+    vi.spyOn(ReportShare, 'findOneAndUpdate').mockResolvedValue({ token: 'ns-token' });
+    const res = await fetch(`${baseUrl}/api/reports/share/ns-token/revoke`, {
+      method: 'POST',
+      headers: { Cookie: cookieHeaderFor(signToken(USER_ID)) },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
 });

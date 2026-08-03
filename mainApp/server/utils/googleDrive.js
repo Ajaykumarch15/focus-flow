@@ -1,5 +1,18 @@
 const { google } = require('googleapis');
 const { logger } = require('./logger');
+const User = require('../models/User');
+
+// IES-P1-24 · per-user single-flight token refresh.
+//
+// A burst of concurrent Drive operations (project folder creation racing a
+// worklog doc create, N parallel worklog syncs) used to call
+// `refreshAccessToken()` once per request — each hitting Google and each
+// persisting its own token metadata. The Map below keys an in-flight refresh by
+// user id, so only the first caller performs the refresh; every concurrent
+// caller awaits the same promise and then applies the refreshed tokens to its
+// own client. The entry is always removed on settle, so a later request refreshes
+// again once the token is near expiry (rotation still works as in IES-P0-10).
+const refreshPromises = new Map();
 
 function getOAuth2Client() {
   return new google.auth.OAuth2(
@@ -9,9 +22,85 @@ function getOAuth2Client() {
   );
 }
 
+// Persist the drive-sync error flag for a user. Done as a targeted `$set` (not
+// `user.save()`) so it can never clobber token metadata that a concurrent
+// request may have just rotated. Best-effort: a failed flag write only logs.
+async function setDriveError(user, message) {
+  if (!user || !user._id) return;
+  try {
+    await User.updateOne({ _id: user._id }, { $set: { driveSyncError: String(message).slice(0, 500) } });
+  } catch (err) {
+    logger.warn('Failed to persist drive sync error flag');
+  }
+}
+
+async function clearDriveError(user) {
+  if (!user || !user._id) return;
+  try {
+    await User.updateOne({ _id: user._id }, { $set: { driveSyncError: '' } });
+  } catch (err) {
+    logger.warn('Failed to clear drive sync error flag');
+  }
+}
+
+/**
+ * Refreshes the user's Google access token once, persists the rotated tokens
+ * (IES-P0-10), and returns the updated token metadata so every single-flight
+ * waiter can rebuild its own OAuth2 client. On failure the connection is
+ * disconnected (as before) and the drive-sync error flag is surfaced.
+ */
+async function refreshAndPersist(user) {
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: user.googleTokens.accessToken,
+    refresh_token: user.googleTokens.refreshToken,
+    expiry_date: user.googleTokens.expiryDate,
+  });
+
+  try {
+    logger.debug('Refreshing Google access token');
+    const { credentials } = await oauth2Client.refreshAccessToken();
+
+    user.googleTokens.accessToken = credentials.access_token;
+    // IES-P0-10: refresh-token rotation — Google issues a NEW refresh token on
+    // each refresh; persist it so an old (revoked) one is never reused.
+    if (credentials.refresh_token) {
+      user.googleTokens.refreshToken = credentials.refresh_token;
+    }
+    if (credentials.expiry_date) {
+      user.googleTokens.expiryDate = credentials.expiry_date;
+    } else if (credentials.expires_in) {
+      user.googleTokens.expiryDate = Date.now() + (credentials.expires_in * 1000);
+    } else {
+      user.googleTokens.expiryDate = Date.now() + (3600 * 1000); // default 1 hour
+    }
+    user.driveSyncError = ''; // IES-P1-24: a successful refresh clears any prior failure.
+    user.markModified('googleTokens');
+    await user.save();
+    logger.debug('Google access token refreshed and stored');
+
+    return {
+      accessToken: user.googleTokens.accessToken,
+      refreshToken: user.googleTokens.refreshToken,
+      expiryDate: user.googleTokens.expiryDate,
+    };
+  } catch (err) {
+    logger.warn('Failed to refresh Google access token');
+    // Automatically disconnect Google Drive to prevent repeat errors and loops,
+    // and surface the failure to the client so the user can reconnect.
+    user.googleConnected = false;
+    user.googleTokens = undefined;
+    user.driveSyncError = 'Google connection has expired. Please reconnect in settings.';
+    user.markModified('googleTokens');
+    await user.save();
+    throw new Error('Google connection has expired. Please reconnect in settings.');
+  }
+}
+
 /**
  * Returns an authorized OAuth2 client. If the access token is close to expiry or expired,
- * it refreshes the token manually and saves the new token metadata back to the user model.
+ * it refreshes the token (deduplicated per user) and saves the new token metadata
+ * back to the user model.
  */
 async function getAuthorizedClient(user) {
   if (!user.googleTokens || !user.googleTokens.refreshToken) {
@@ -26,43 +115,32 @@ async function getAuthorizedClient(user) {
   });
 
   // Check if token is expired or close to it (1 minute margin)
-  if (user.googleTokens.expiryDate && Date.now() >= user.googleTokens.expiryDate - 60000) {
-    try {
-      logger.debug('Refreshing Google access token');
-      const { credentials } = await oauth2Client.refreshAccessToken();
-      
-      user.googleTokens.accessToken = credentials.access_token;
-      // IES-P0-10: refresh-token rotation — Google issues a NEW refresh token on
-      // each refresh; persist it so an old (revoked) one is never reused.
-      if (credentials.refresh_token) {
-        user.googleTokens.refreshToken = credentials.refresh_token;
-      }
-      if (credentials.expiry_date) {
-        user.googleTokens.expiryDate = credentials.expiry_date;
-      } else if (credentials.expires_in) {
-        user.googleTokens.expiryDate = Date.now() + (credentials.expires_in * 1000);
-      } else {
-        user.googleTokens.expiryDate = Date.now() + (3600 * 1000); // default 1 hour
-      }
-      user.markModified('googleTokens');
-      await user.save();
-
-      // update credentials in local client
-      oauth2Client.setCredentials({
-        access_token: user.googleTokens.accessToken,
-        refresh_token: user.googleTokens.refreshToken,
-        expiry_date: user.googleTokens.expiryDate,
-      });
-      logger.debug('Google access token refreshed and stored');
-    } catch (err) {
-      logger.warn('Failed to refresh Google access token');
-      // Automatically disconnect Google Drive to prevent repeat errors and loops
-      user.googleConnected = false;
-      user.googleTokens = undefined;
-      await user.save();
-      throw new Error('Google connection has expired. Please reconnect in settings.');
-    }
+  if (!user.googleTokens.expiryDate || Date.now() < user.googleTokens.expiryDate - 60000) {
+    return oauth2Client;
   }
+
+  const userId = String(user._id);
+  let inFlight = refreshPromises.get(userId);
+  if (!inFlight) {
+    inFlight = refreshAndPersist(user);
+    refreshPromises.set(userId, inFlight);
+    // `.then(cleanup, cleanup)` (not `.finally()`) so a failed refresh never
+    // leaves an unhandled rejection on the cleanup promise.
+    const cleanup = () => {
+      if (refreshPromises.get(userId) === inFlight) refreshPromises.delete(userId);
+    };
+    inFlight.then(cleanup, cleanup);
+  }
+
+  const updated = await inFlight;
+
+  // Apply the single-flight refresh result to THIS caller's client, so even a
+  // caller whose loaded user doc predates the rotation gets the fresh tokens.
+  oauth2Client.setCredentials({
+    access_token: updated.accessToken,
+    refresh_token: updated.refreshToken,
+    expiry_date: updated.expiryDate,
+  });
 
   return oauth2Client;
 }
@@ -277,7 +355,11 @@ async function updateWorkLogDoc(oauth2Client, googleDocId, title, projectName, f
     });
     logger.debug('Google Document updated');
   } catch (err) {
+    // IES-P1-24: rethrow so the caller can surface the failure (driveSyncError)
+    // instead of this degrading silently. The worklog patch still succeeded
+    // locally — the caller treats Drive as best-effort.
     logger.warn('Failed to update Google Document');
+    throw err;
   }
 }
 
@@ -287,4 +369,6 @@ module.exports = {
   createProjectFolders,
   createWorkLogDoc,
   updateWorkLogDoc,
+  setDriveError,
+  clearDriveError,
 };

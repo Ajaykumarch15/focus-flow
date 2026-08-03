@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
@@ -12,6 +12,8 @@ import {
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { WorkLogExporterModal } from '../components/worklog/WorkLogExporterModal';
 import { useStore } from '../store/useStore';
+import { useAuthStore } from '../store/useAuthStore';
+import { useActiveTimer } from '../hooks/useActiveTimer';
 import { useProjectStore } from '../store/useProjectStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../store/useToastStore';
@@ -103,32 +105,16 @@ function AutoInput({ logId, field, placeholder, value: initial, mono = false, ar
 
 // ── Timer Panel ───────────────────────────────────────────────────────────────
 function TimerPanel({ log }: { log: WorkLog }) {
-  const {
-    startTimer, pauseTimer, resumeTimer, stopTimer,
-    activeTaskId, activeTimerState, tasks, tick,
-  } = useStore();
+  const { startTimer, pauseTimer, resumeTimer, stopTimer, tasks } = useStore();
   const { syncTime } = useWorkLogStore();
-  const [elapsed, setElapsed] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { activeTaskId, activeTimerState, elapsedMs } = useActiveTimer();
   const linkedTaskId = log.taskRef?._id;
   const isThisActive = activeTaskId === linkedTaskId;
   const isRunning    = isThisActive && activeTimerState === 'running';
   const isPaused     = isThisActive && activeTimerState === 'paused';
+  const elapsed      = isThisActive ? elapsedMs : 0;
   const liveTask = tasks.find(t => t.id === linkedTaskId);
   const liveSession = liveTask?.sessions[liveTask.sessions.length - 1];
-
-  useEffect(() => {
-    if (isRunning && liveSession) {
-      const update = () => setElapsed(liveSession.activeTime);
-      update();
-      intervalRef.current = setInterval(() => { tick(); setElapsed(liveSession.activeTime); }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (isPaused && liveSession) setElapsed(liveSession.activeTime);
-      else if (!isThisActive)      setElapsed(0);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, isPaused, liveSession?.activeTime]);
 
   const handleStop = async () => {
     if (!linkedTaskId) return;
@@ -1313,6 +1299,7 @@ function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
 export function WorkLogPage() {
   const { activeLogs, closedLogs, loading, loadAll } = useWorkLogStore();
   const { profile } = useStore();
+  const { user } = useAuthStore();
   const [showCreate, setShowCreate] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState('');
@@ -1350,6 +1337,19 @@ export function WorkLogPage() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+
+      {/* IES-P1-24: a failed Drive sync is surfaced here with a recovery hint —
+          the Google Drive connection is managed in Settings → Integrations. */}
+      {user?.googleConnected && user?.driveSyncError && (
+        <div className="flex items-start gap-3 p-4 mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10">
+          <AlertOctagon size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-amber-300">Google Drive sync needs attention</p>
+            <p className="text-xs text-amber-200/80 mt-0.5">{user.driveSyncError}</p>
+            <p className="text-xs text-amber-200/60 mt-1">Fix it in <span className="font-semibold">Settings → Integrations</span> by reconnecting Drive.</p>
+          </div>
+        </div>
+      )}
 
       {/* ═══ Header ═══ */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">

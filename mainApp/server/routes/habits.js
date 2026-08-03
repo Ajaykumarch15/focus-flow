@@ -1,6 +1,7 @@
 const express = require('express');
 const Habit = require('../models/Habit');
 const protect = require('../middleware/auth');
+const { dayKey, localDateToUtc, userTimezone } = require('../utils/dates');
 const { z, objectId, intInRange, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
@@ -42,19 +43,18 @@ const habitTodaySchema = z.object({
   note: z.string().max(2000, 'Note too long'),
 }).partial().passthrough();
 
-function todayMidnight() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+// IES-P1-06: "today" for habit entries is the calendar day in the user's
+// timezone. Entry dates are stored as the tz-midnight instant (`localDateToUtc`)
+// so `dayKey(entry.date.getTime(), tz)` round-trips to the same day.
+function todayMidnight(user) {
+  const timeZone = userTimezone(user);
+  return localDateToUtc(dayKey(Date.now(), timeZone), timeZone);
 }
 
-function findTodayEntry(habit) {
-  const today = todayMidnight().getTime();
-  return habit.entries.find(entry => {
-    const d = new Date(entry.date);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() === today;
-  });
+function findTodayEntry(habit, user) {
+  const timeZone = userTimezone(user);
+  const today = dayKey(Date.now(), timeZone);
+  return habit.entries.find(entry => dayKey(entry.date.getTime(), timeZone) === today);
 }
 
 router.get('/', async (req, res, next) => {
@@ -171,9 +171,9 @@ router.patch('/:id/today', validate(habitTodaySchema, { params: habitParamsSchem
     const habit = await Habit.findOne({ _id: req.params.id, userId: req.user._id });
     if (!habit) return res.status(404).json({ message: 'Habit not found' });
 
-    let entry = findTodayEntry(habit);
+    let entry = findTodayEntry(habit, req.user);
     if (!entry) {
-      habit.entries.push({ date: todayMidnight(), completedItems: [], minutes: 0, feeling: 'okay', note: '' });
+      habit.entries.push({ date: todayMidnight(req.user), completedItems: [], minutes: 0, feeling: 'okay', note: '' });
       entry = habit.entries[habit.entries.length - 1];
     }
 

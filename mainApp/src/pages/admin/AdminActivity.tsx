@@ -67,6 +67,8 @@ const FILTERS = [
 
 export function AdminActivity() {
   const [activities, setActivities] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -75,13 +77,15 @@ export function AdminActivity() {
   const load = useCallback(async (reset = false) => {
     if (reset) setLoading(true); else setLoadingMore(true);
     try {
-      const before = reset || activities.length === 0 ? undefined : activities[activities.length - 1]?.createdAt;
-      const data = await api.admin.getActivity(50, before, filter || undefined);
-      if (reset || activities.length === 0) setActivities(data);
-      else setActivities(prev => [...prev, ...data]);
+      const cursor = reset ? undefined : nextCursor ?? undefined;
+      const data = await api.admin.getActivity(50, cursor, filter || undefined);
+      if (reset) setActivities(data.items);
+      else setActivities(prev => [...prev, ...data.items]);
+      setNextCursor(data.nextCursor);
+      setHasMore(data.hasMore);
     } catch {}
     finally { setLoading(false); setLoadingMore(false); }
-  }, [filter, activities.length]);
+  }, [filter, nextCursor]);
 
   useEffect(() => { load(true); }, [filter]);
 
@@ -115,7 +119,7 @@ export function AdminActivity() {
           <div role="status" className="p-8 text-center"><Loader2 size={20} className="text-purple-400 animate-spin mx-auto" /></div>
         )}
       </div>
-      {activities.length > 0 && (
+      {hasMore && (
         <button onClick={() => load(false)} disabled={loadingMore}
           className="w-full py-2.5 rounded-xl text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">
           {loadingMore ? <Loader2 size={13} className="animate-spin" /> : <ChevronDown size={13} />} Load more

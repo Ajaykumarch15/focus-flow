@@ -5,12 +5,10 @@ import { Sidebar }        from './Sidebar';
 import { ToastContainer } from '../ui/ToastContainer';
 import { GlobalHeader }   from '../ui/GlobalHeader';
 import { NotificationPermissionBanner } from '../ui/NotificationPermissionBanner';
-import { useTimer }       from '../../hooks/useTimer';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useStore }       from '../../store/useStore';
 
 export function AppLayout() {
-  useTimer();
   useNotifications();
   const location = useLocation();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();

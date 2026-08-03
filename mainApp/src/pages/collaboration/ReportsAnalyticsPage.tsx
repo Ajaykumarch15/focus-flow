@@ -8,16 +8,22 @@ import { saveAs } from 'file-saver';
 
 type ReportType = 'sprint' | 'developer' | 'productivity' | 'engineering';
 
+// IES-P1-20: an empty task set is not a 100% completion rate — it's "no data".
+// Returns null so callers can render an explicit empty state instead of a
+// fabricated metric.
+export function computeFeatureCompletionRate(tasks: { sprintStatus: string }[]): number | null {
+  if (tasks.length === 0) return null;
+  const completed = tasks.filter((t) => t.sprintStatus === 'done').length;
+  return Math.round((completed / tasks.length) * 100);
+}
+
 export function ReportsAnalyticsPage() {
   const { tasks, members, sprints, blockers } = useCollaborationStore();
 
   const [activeReportType, setActiveReportType] = useState<ReportType>('sprint');
 
   const completedTasks = useMemo(() => tasks.filter((t) => t.sprintStatus === 'done'), [tasks]);
-  const featureCompletionRate = useMemo(() => {
-    if (tasks.length === 0) return 100;
-    return Math.round((completedTasks.length / tasks.length) * 100);
-  }, [tasks, completedTasks]);
+  const featureCompletionRate = useMemo(() => computeFeatureCompletionRate(tasks), [tasks]);
 
   const handleExport = () => {
     const report = {
@@ -67,7 +73,9 @@ export function ReportsAnalyticsPage() {
 
         <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Feature Completion Rate</span>
-          <p className="text-3xl font-display font-extrabold text-emerald-400">{featureCompletionRate}%</p>
+          <p className="text-3xl font-display font-extrabold text-emerald-400">
+            {featureCompletionRate === null ? 'No data' : `${featureCompletionRate}%`}
+          </p>
           <p className="text-[11px] text-emerald-400/80 font-medium">{completedTasks.length} features merged</p>
         </div>
 

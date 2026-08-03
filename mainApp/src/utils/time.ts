@@ -47,18 +47,17 @@ export function formatHoursDecimal(ms: number): number {
 }
 
 // ── Deadline helpers ─────────────────────────────────────────────────────────
+// IES-P1-06: deadlines are calendar days in the user's timezone, so every
+// deadline comparison happens on day keys — never on raw instants.
 
 export type DeadlineStatus = 'overdue' | 'due-today' | 'due-soon' | 'upcoming';
 
-export function getDeadlineStatus(deadline: number | undefined): { status: DeadlineStatus; label: string } | null {
+export function getDeadlineStatus(deadline: number | undefined, timeZone = getTimezone()): { status: DeadlineStatus; label: string } | null {
   if (!deadline) return null;
-  const now = Date.now();
-  const diff = deadline - now;
-  const daysLeft = Math.ceil(diff / 86400000);
+  const daysLeft = daysBetweenKeys(getTodayKey(timeZone), dayKeyInTz(deadline, timeZone));
 
-  if (diff < 0) {
-    const daysOver = Math.abs(daysLeft);
-    return { status: 'overdue', label: daysOver === 0 ? 'Overdue today' : `Overdue by ${daysOver} day${daysOver !== 1 ? 's' : ''}` };
+  if (daysLeft < 0) {
+    return { status: 'overdue', label: daysLeft === -1 ? 'Overdue today' : `Overdue by ${-daysLeft} day${-daysLeft !== 1 ? 's' : ''}` };
   }
   if (daysLeft === 0) return { status: 'due-today', label: 'Due today' };
   if (daysLeft === 1) return { status: 'due-soon', label: 'Due tomorrow' };
@@ -66,14 +65,115 @@ export function getDeadlineStatus(deadline: number | undefined): { status: Deadl
   return { status: 'upcoming', label: `Due in ${daysLeft} days` };
 }
 
-export function isOverdue(deadline: number | undefined): boolean {
+export function isOverdue(deadline: number | undefined, timeZone = getTimezone()): boolean {
   if (!deadline) return false;
-  return deadline < Date.now();
+  return dayKeyInTz(deadline, timeZone) < getTodayKey(timeZone);
 }
 
-export function isDueToday(deadline: number | undefined): boolean {
+export function isDueToday(deadline: number | undefined, timeZone = getTimezone()): boolean {
   if (!deadline) return false;
-  return isToday(deadline);
+  return dayKeyInTz(deadline, timeZone) === getTodayKey(timeZone);
+}
+
+// ── Timezone-aware day keys (mirror server/utils/dates.js) ───────────────────
+// The user's calendar day is defined by their profile timezone. `getTodayKey`
+// is the single source of truth for "today" on the client. localStorage is read
+// per call (never cached) so a timezone change in Settings applies immediately.
+
+export function getTimezone(): string {
+  try {
+    const raw = localStorage.getItem('ff_profile_cache');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.timezone) return parsed.timezone;
+    }
+  } catch { /* ignore */ }
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+export function dayKeyInTz(timestamp: number | string, timeZone = getTimezone()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(timestamp));
+}
+
+/** The user's "today" as a YYYY-MM-DD day key. */
+export function getTodayKey(timeZone = getTimezone()): string {
+  return dayKeyInTz(Date.now(), timeZone);
+}
+
+export function getOffsetMs(date: Date | number, timeZone: string): number {
+  try {
+    const d = date instanceof Date ? date : new Date(date);
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hour12: false,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(d);
+    const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
+    const asUtc = Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour === '24' ? '0' : values.hour),
+      Number(values.minute),
+      Number(values.second)
+    );
+    return asUtc - d.getTime();
+  } catch {
+    return 0;
+  }
+}
+
+/** Encode a local calendar day (YYYY-MM-DD) as the user-tz midnight instant. */
+export function localDateToUtc(dateKey: string, timeZone: string): number {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const utcGuess = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  return utcGuess - getOffsetMs(new Date(utcGuess), timeZone);
+}
+
+/** Start of the calendar day a timestamp falls in, for the user's timezone. */
+export function startOfDayInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  return localDateToUtc(dayKeyInTz(timestamp, timeZone), timeZone);
+}
+
+/** Whole calendar days between two YYYY-MM-DD keys (positive = `toKey` is later). */
+export function daysBetweenKeys(fromKey: string, toKey: string): number {
+  const [fy, fm, fd] = fromKey.split('-').map(Number);
+  const [ty, tm, td] = toKey.split('-').map(Number);
+  return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000);
+}
+
+/** Shift a YYYY-MM-DD key by a signed number of days (calendar-date math). */
+export function addDaysToKey(dateKey: string, days: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d) + days * 86400000);
+  return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
+}
+
+/**
+ * Monday of the current ISO week, as a YYYY-MM-DD key in the user's timezone.
+ * ISO weeks run Monday–Sunday; the day-cache week totals use this boundary.
+ */
+export function getIsoWeekStartKey(timeZone = getTimezone()): string {
+  const today = getTodayKey(timeZone);
+  const [y, m, d] = today.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
+  const daysSinceMonday = (dow + 6) % 7;
+  return addDaysToKey(today, -daysSinceMonday);
+}
+
+/** Sunday ending the current ISO week, as a YYYY-MM-DD key in the user's timezone. */
+export function getIsoWeekEndKey(timeZone = getTimezone()): string {
+  return addDaysToKey(getIsoWeekStartKey(timeZone), 6);
 }
 
 // ── Core date helpers (LOCAL TIME ONLY) ──────────────────────────────────────

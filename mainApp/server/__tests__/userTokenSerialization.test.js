@@ -121,7 +121,7 @@ describe('IES-P0-04 · Google OAuth tokens never reach API responses', () => {
     expect(JSON.stringify(body)).not.toMatch(TOKEN_FIELDS);
   });
 
-  it('GET /api/admin/users returns no google tokens', async () => {
+  it('GET /api/admin/users returns no google tokens (paged response)', async () => {
     const admin = buildUser({ email: 'admin@example.com', role: 'admin' });
     const members = [
       buildUser({ email: 'a@example.com' }),
@@ -131,7 +131,7 @@ describe('IES-P0-04 · Google OAuth tokens never reach API responses', () => {
       select: () => Promise.resolve(admin),
     }));
     vi.spyOn(User, 'find').mockImplementation(() => ({
-      select: () => ({ sort: () => Promise.resolve(members) }),
+      sort: () => ({ limit: () => ({ select: () => Promise.resolve(members) }) }),
     }));
 
     const res = await fetch(`${baseUrl}/api/admin/users`, {
@@ -139,9 +139,11 @@ describe('IES-P0-04 · Google OAuth tokens never reach API responses', () => {
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(Array.isArray(body)).toBe(true);
-    expect(body).toHaveLength(2);
-    for (const u of body) {
+    expect(Array.isArray(body.items)).toBe(true);
+    expect(body.items).toHaveLength(2);
+    expect(body.hasMore).toBe(false);
+    expect(body.nextCursor).toBeNull();
+    for (const u of body.items) {
       expect(u.googleTokens).toBeUndefined();
       expect(u.passwordHash).toBeUndefined();
       expect(JSON.stringify(u)).not.toMatch(TOKEN_FIELDS);

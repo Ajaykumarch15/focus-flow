@@ -12,6 +12,13 @@ type ApiUser = {
   settings: Record<string, any>;
 };
 
+// IES-P1-18: admin list endpoints are cursor-paginated.
+type Paginated<T> = {
+  items: T[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
 // IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
 // makes the browser attach it to every request (cross-origin in dev).
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -67,14 +74,45 @@ export const api = {
         : '';
       return request<any[]>(`/sessions${qs ? '?' + qs : ''}`);
     },
-    start: (taskId: string, startTime: number) =>
-      request<any>('/sessions', { method: 'POST', body: JSON.stringify({ taskId, startTime }) }),
-    pause: (id: string, pauseTime: number) =>
-      request<any>(`/sessions/${id}/pause`, { method: 'PATCH', body: JSON.stringify({ pauseTime }) }),
-    resume: (id: string, resumeTime: number) =>
-      request<any>(`/sessions/${id}/resume`, { method: 'PATCH', body: JSON.stringify({ resumeTime }) }),
-    stop: (id: string, endTime: number) =>
-      request<any>(`/sessions/${id}/stop`, { method: 'PATCH', body: JSON.stringify({ endTime }) }),
+    // IES-P1-05: optional `opId` is the idempotency key offline replays reuse;
+    // omitting a timestamp lets the server clock govern (no fabricated time).
+    start: (taskId: string, startTime?: number, opId?: string) =>
+      request<any>('/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          taskId,
+          ...(startTime !== undefined ? { startTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    pause: (id: string, pauseTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/pause`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(pauseTime !== undefined ? { pauseTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    resume: (id: string, resumeTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/resume`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(resumeTime !== undefined ? { resumeTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    stop: (id: string, endTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/stop`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(endTime !== undefined ? { endTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    // IES-P1-26: liveness beat so the server's reaper never closes a live timer
+    // as a zombie. Fire-and-forget; a dropped beat is retried on the next tick.
+    heartbeat: (id: string) =>
+      request<any>(`/sessions/${id}/heartbeat`, { method: 'PATCH' }),
   },
 
   journals: {
@@ -187,11 +225,21 @@ export const api = {
 
   admin: {
     getStats: () => request<any>('/admin/stats'),
-    listUsers: (includeDeleted?: boolean) => {
-      const qs = includeDeleted ? '?includeDeleted=true' : '';
-      return request<any[]>(`/admin/users${qs}`);
+    listUsers: (includeDeleted?: boolean, cursor?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (includeDeleted) params.set('includeDeleted', 'true');
+      if (cursor) params.set('cursor', cursor);
+      if (limit) params.set('limit', String(limit));
+      const qs = params.toString();
+      return request<Paginated<any>>(`/admin/users${qs ? '?' + qs : ''}`);
     },
-    listDeletedUsers: () => request<any[]>('/admin/users/deleted'),
+    listDeletedUsers: (cursor?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (cursor) params.set('cursor', cursor);
+      if (limit) params.set('limit', String(limit));
+      const qs = params.toString();
+      return request<Paginated<any>>(`/admin/users/deleted${qs ? '?' + qs : ''}`);
+    },
     updateUser: (userId: string, data: { name?: string; email?: string; role?: string }) =>
       request<any>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteUser: (userId: string) =>
@@ -202,13 +250,14 @@ export const api = {
       const qs = period ? `?period=${period}` : '';
       return request<any>(`/admin/system-analytics${qs}`);
     },
-    getActivity: (limit?: number, before?: string, action?: string) => {
+    getActivity: (limit?: number, cursor?: string, action?: string, before?: string) => {
       const params = new URLSearchParams();
       if (limit) params.set('limit', String(limit));
-      if (before) params.set('before', before);
+      if (cursor) params.set('cursor', cursor);
+      else if (before) params.set('before', before);
       if (action) params.set('action', action);
       const qs = params.toString();
-      return request<any[]>(`/admin/activity${qs ? '?' + qs : ''}`);
+      return request<Paginated<any>>(`/admin/activity${qs ? '?' + qs : ''}`);
     },
     getUserAnalytics: (userId: string, from?: number, to?: number) => {
       const params = new URLSearchParams();

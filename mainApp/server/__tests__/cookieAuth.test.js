@@ -96,7 +96,7 @@ describe('IES-P0-12 · httpOnly session cookie', () => {
     const res = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Origin: CLIENT_URL },
-      body: JSON.stringify({ name: 'Cookie User', email: 'new@example.com', password: 'secret1' }),
+      body: JSON.stringify({ name: 'Cookie User', email: 'new@example.com', password: 'cookie-pass-1234' }),
     });
 
     expect(res.status).toBe(201);

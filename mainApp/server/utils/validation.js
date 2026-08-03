@@ -49,6 +49,17 @@ const requiredString = (max, label, message) =>
 
 const email = requiredString(255, 'email', 'Email is required').pipe(z.email('Invalid email'));
 
+// IES-P1-05: client-generated idempotency key for offline queue replays. The
+// client reuses the same opId on every attempt, so the server can ignore
+// duplicate operations. Optional (interactive calls may omit it) and capped so
+// a malformed/hostile value can't bloat the document.
+const opId = z
+  .string({ error: 'Invalid opId' })
+  .trim()
+  .min(1, 'Invalid opId')
+  .max(100, 'opId too long (max 100)')
+  .optional();
+
 function httpError(status, code, message) {
   const err = new Error(message);
   err.status = status;
@@ -104,6 +115,7 @@ module.exports = {
   intInRange,
   requiredString,
   email,
+  opId,
   validate,
   httpError,
   toValidationError,

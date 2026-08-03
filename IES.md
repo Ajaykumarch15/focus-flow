@@ -714,6 +714,13 @@ Branch: `fix/` or `feat/` + `<p0-01>-<kebab-title>`; Commit scope: `fix(security
 - **Risk:** Med.
 - **Testing:** Deleted user excluded from all aggregates; team membership cleaned.
 - **DoD:** Deleted users fully excluded; cleanup documented.
+- **Data retention (documented in `server/routes/admin.js:250-259`):** Soft-delete keeps
+  the account row and all child data (sessions/tasks/worklogs, audit history, revoked
+  report shares until the TTL index retires them) for forensic/audit purposes. Deleted
+  users are scrubbed from every shared surface: team membership (`$pull` on the cascade),
+  token-gated report shares (revoked), and all analytics/team/leaderboard aggregates
+  (`deletedAt: null` filters). They can never re-authenticate (login + `protect` reject
+  `deletedAt` set) and their issued sessions die immediately (tokenVersion bumped).
 
 #### IES-P1-24 · Google Drive reliability (single-flight refresh, error surfacing)
 - **Refs:** BE-31, BE-42, EAR R15

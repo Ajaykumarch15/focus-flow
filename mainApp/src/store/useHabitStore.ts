@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
 import { runMutation } from '../utils/mutation';
+import { getTodayKey, dayKeyInTz, localDateToUtc, getTimezone } from '../utils/time';
 
 export type HabitFeeling = 'rough' | 'okay' | 'good' | 'great' | 'energized';
 
@@ -71,10 +72,11 @@ interface PersistedHabitTimer {
   baseMinutes: number;
 }
 
+// IES-P1-06: "today" for habit entries is the calendar day in the user's
+// timezone. The stored date is the tz-midnight instant (matches the server
+// encoding), so `dayKeyInTz(entry.date)` round-trips to the same day.
 function todayKey(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  return new Date(localDateToUtc(getTodayKey(), getTimezone())).toISOString();
 }
 
 function normalizeHabit(doc: any): Habit {
@@ -144,13 +146,8 @@ function patchHabit(habits: Habit[], updated: Habit): Habit[] {
 }
 
 export function getTodayHabitEntry(habit: Habit): HabitEntry {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const existing = habit.entries.find(entry => {
-    const d = new Date(entry.date);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() === today.getTime();
-  });
+  const today = getTodayKey();
+  const existing = habit.entries.find(entry => dayKeyInTz(entry.date) === today);
 
   return existing || {
     _id: 'today',
@@ -176,13 +173,8 @@ function elapsedMs(timer: {
 function mergeTodayMinutes(habits: Habit[], id: string, minutes: number): Habit[] {
   return habits.map(habit => {
     if (habit._id !== id) return habit;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const existing = habit.entries.find(entry => {
-      const d = new Date(entry.date);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() === today.getTime();
-    });
+    const today = getTodayKey();
+    const existing = habit.entries.find(entry => dayKeyInTz(entry.date) === today);
 
     if (existing) {
       return {

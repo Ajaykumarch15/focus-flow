@@ -57,7 +57,7 @@ export function AdminOverview() {
           api.admin.listUsers(),
           api.teams.list(),
         ]);
-        setStats(s); setAnalytics(a); setActivities(act); setUsers(u); setTeams(t);
+        setStats(s); setAnalytics(a); setActivities(act.items); setUsers(u.items); setTeams(t);
       } catch {}
       finally { setLoading(false); }
     })();

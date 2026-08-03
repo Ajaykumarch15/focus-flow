@@ -230,7 +230,7 @@ describe('IES-P0-09 · auth routes enforce rate limits end-to-end', () => {
       last = await fetch(`${baseUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: registerBody(`New User ${i}`, `newuser${i}@example.com`, 'secret1'),
+        body: registerBody(`New User ${i}`, `newuser${i}@example.com`, 'register-secret-1234'),
       });
       expect(last.status).toBe(201);
     }
@@ -238,7 +238,7 @@ describe('IES-P0-09 · auth routes enforce rate limits end-to-end', () => {
     const blocked = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: registerBody('New User 5', 'newuser5@example.com', 'secret1'),
+      body: registerBody('New User 5', 'newuser5@example.com', 'register-secret-1234'),
     });
     expect(blocked.status).toBe(429);
   });

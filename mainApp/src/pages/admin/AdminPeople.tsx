@@ -194,8 +194,14 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
 // ── Main People Page ──────────────────────────────────────────────────────────
 export function AdminPeople() {
   const [users, setUsers] = useState<UserSummary[]>([]);
+  const [usersCursor, setUsersCursor] = useState<string | null>(null);
+  const [usersHasMore, setUsersHasMore] = useState(false);
   const [deletedUsers, setDeletedUsers] = useState<UserSummary[]>([]);
+  const [deletedCursor, setDeletedCursor] = useState<string | null>(null);
+  const [deletedHasMore, setDeletedHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const [loadingMoreDeleted, setLoadingMoreDeleted] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
   const [showTrash, setShowTrash] = useState(false);
@@ -205,9 +211,40 @@ export function AdminPeople() {
 
   useEffect(() => {
     Promise.all([api.admin.listUsers(), api.admin.listDeletedUsers()])
-      .then(([u, d]) => { setUsers(u); setDeletedUsers(d); })
+      .then(([u, d]) => {
+        setUsers(u.items);
+        setUsersHasMore(u.hasMore);
+        setUsersCursor(u.nextCursor);
+        setDeletedUsers(d.items);
+        setDeletedHasMore(d.hasMore);
+        setDeletedCursor(d.nextCursor);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const loadMoreUsers = async () => {
+    if (!usersHasMore || loadingMoreUsers) return;
+    setLoadingMoreUsers(true);
+    try {
+      const data = await api.admin.listUsers(false, usersCursor ?? undefined);
+      setUsers(prev => [...prev, ...data.items]);
+      setUsersHasMore(data.hasMore);
+      setUsersCursor(data.nextCursor);
+    } catch {}
+    finally { setLoadingMoreUsers(false); }
+  };
+
+  const loadMoreDeleted = async () => {
+    if (!deletedHasMore || loadingMoreDeleted) return;
+    setLoadingMoreDeleted(true);
+    try {
+      const data = await api.admin.listDeletedUsers(deletedCursor ?? undefined);
+      setDeletedUsers(prev => [...prev, ...data.items]);
+      setDeletedHasMore(data.hasMore);
+      setDeletedCursor(data.nextCursor);
+    } catch {}
+    finally { setLoadingMoreDeleted(false); }
+  };
 
   const filtered = useMemo(() => {
     let list = users;
@@ -297,6 +334,12 @@ export function AdminPeople() {
               ))}
             </div>
           )}
+          {deletedHasMore && (
+            <button onClick={loadMoreDeleted} disabled={loadingMoreDeleted}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800/60 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">
+              {loadingMoreDeleted ? <Loader2 size={12} className="animate-spin" /> : <Trash size={12} />} Load more deleted
+            </button>
+          )}
         </div>
       )}
 
@@ -326,6 +369,13 @@ export function AdminPeople() {
           </motion.div>
         ))}
       </motion.div>
+
+      {usersHasMore && (
+        <button onClick={loadMoreUsers} disabled={loadingMoreUsers}
+          className="w-full py-2.5 rounded-xl text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">
+          {loadingMoreUsers ? <Loader2 size={13} className="animate-spin" /> : <Users size={13} />} Load more users
+        </button>
+      )}
 
       <AnimatePresence>
         {showEditUser && <EditUserModal user={showEditUser} onClose={() => setShowEditUser(null)} onSave={handleUpdate} />}

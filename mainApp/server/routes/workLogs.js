@@ -1,11 +1,12 @@
 const express = require('express');
 const WorkLog = require('../models/WorkLog');
-const Session = require('../models/Session');
 const Task    = require('../models/Task');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
 const { logger } = require('../utils/logger');
+const { syncWorkLog, syncWorkLogsBulk } = require('../utils/worklogSync');
+const { ARRAY_CAPS } = require('../utils/worklogLimits');
 const { z, objectId, timestamp, intInRange, validate } = require('../utils/validation');
 
 const router = express.Router();
@@ -142,9 +143,10 @@ const workLogTaskPatchSchema = z.object({ taskRef: objectId.nullable() });
 
 // Fields a client may update on a WorkLog via PATCH. Nested sub-document fields
 // are matched on their dotted paths. Everything else is rejected.
+// IES-P1-27: the legacy top-level `problem` is folded into `problemFlow.problem`
+// (see the PATCH handler) — only the canonical path is writable here.
 const WORKLOG_PATCH_FIELDS = {
   title: true,
-  problem: true,
   gitBranch: true,
   currentWork: true,
   plan: true,
@@ -182,17 +184,13 @@ const WORKLOG_PATCH_FIELDS = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function sumMs(entries) {
-  return (entries || []).reduce((a, e) => a + (e.activeMs || 0), 0);
-}
-
 function userTimezone(req) {
   return req.user?.settings?.timezone || 'UTC';
 }
 
 function triggerGoogleDocSync(req, log) {
   if (req.user && req.user.googleConnected && req.user.googleTokens && req.user.googleTokens.refreshToken && log.googleDocId) {
-    const { getAuthorizedClient, updateWorkLogDoc } = require('../utils/googleDrive');
+    const { getAuthorizedClient, updateWorkLogDoc, setDriveError, clearDriveError } = require('../utils/googleDrive');
     getAuthorizedClient(req.user).then(async (oauth2Client) => {
       await updateWorkLogDoc(
         oauth2Client,
@@ -200,7 +198,7 @@ function triggerGoogleDocSync(req, log) {
         log.title,
         log.projectRef ? log.projectRef.name : 'No Project',
         {
-          problem: log.problemFlow?.problem || log.problem,
+          problem: log.problem,
           plan: log.plan,
           designNotes: log.designNotes,
           currentWork: log.currentWork,
@@ -209,112 +207,14 @@ function triggerGoogleDocSync(req, log) {
           links: log.links
         }
       );
+      // IES-P1-24: the doc updated on Drive — reset any prior sync failure.
+      await clearDriveError(req.user);
     }).catch(driveErr => {
+      // IES-P1-24: surface the failure instead of degrading silently.
       logger.warn('Failed to sync updated WorkLog to Google Docs');
+      setDriveError(req.user, 'Google Docs sync failed. Please reconnect in settings.').catch(() => {});
     });
   }
-}
-
-function dayKey(ts, timeZone) {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(ts));
-}
-
-function getOffsetMs(date, timeZone) {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      hour12: false,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).formatToParts(date);
-    const values = Object.fromEntries(parts.map(p => [p.type, p.value]));
-    const asUtc = Date.UTC(
-      Number(values.year),
-      Number(values.month) - 1,
-      Number(values.day),
-      Number(values.hour === '24' ? '0' : values.hour),
-      Number(values.minute),
-      Number(values.second)
-    );
-    return asUtc - date.getTime();
-  } catch {
-    return 0;
-  }
-}
-
-function localDateToUtc(dateKey, timeZone) {
-  const [year, month, day] = dateKey.split('-').map(Number);
-  const utcGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-  return new Date(utcGuess.getTime() - getOffsetMs(utcGuess, timeZone));
-}
-
-function sessionActiveMs(session) {
-  if (!session.isActive) return session.activeTime || 0;
-  const now = Date.now();
-  const lastPause = session.pauseLog?.length
-    ? session.pauseLog[session.pauseLog.length - 1]
-    : null;
-  const isPaused = lastPause && !lastPause.resumeTime;
-  if (isPaused) {
-    return Math.max(0, lastPause.pauseStart - session.startTime - session.totalPauseDuration);
-  }
-  return Math.max(0, now - session.startTime - session.totalPauseDuration);
-}
-
-// Pull all session data for a task and upsert one workEntry per day.
-async function syncWorkEntries(log, userId, timeZone = 'UTC') {
-  const taskId = log.taskRef?._id || log.taskRef;
-  if (!taskId) return log;
-
-  const sessions = await Session.find({ userId, taskId });
-  if (sessions.length === 0) return log;
-
-  const grouped = new Map();
-  for (const session of sessions) {
-    const key = dayKey(session.startTime, timeZone);
-    const activeMs = sessionActiveMs(session);
-    if (activeMs <= 0) continue;
-    const existing = grouped.get(key) || {
-      date: localDateToUtc(key, timeZone),
-      activeMs: 0,
-      startedAt: session.startTime,
-      endedAt: session.endTime || session.startTime,
-      sessionIds: [],
-    };
-    existing.activeMs += activeMs;
-    existing.startedAt = Math.min(existing.startedAt, session.startTime);
-    existing.endedAt = Math.max(existing.endedAt, session.endTime || Date.now());
-    existing.sessionIds.push(session._id);
-    grouped.set(key, existing);
-  }
-
-  for (const [key, aggregate] of grouped.entries()) {
-    const existingIdx = log.workEntries.findIndex(e =>
-      dayKey(e.date.getTime(), timeZone) === key || e.date.toISOString().slice(0, 10) === key
-    );
-    if (existingIdx >= 0) {
-      log.workEntries[existingIdx].date = aggregate.date;
-      log.workEntries[existingIdx].activeMs = aggregate.activeMs;
-      log.workEntries[existingIdx].startedAt = aggregate.startedAt;
-      log.workEntries[existingIdx].endedAt = aggregate.endedAt;
-      log.workEntries[existingIdx].sessionIds = aggregate.sessionIds;
-    } else {
-      log.workEntries.push({ ...aggregate, what: '' });
-    }
-  }
-
-  log.totalActiveMs = sumMs(log.workEntries);
-  await log.save();
-  return log;
 }
 
 // ── GET /api/worklogs ─────────────────────────────────────────────────────────
@@ -330,9 +230,22 @@ router.get('/', async (req, res, next) => {
       .sort({ isActive: -1, updatedAt: -1 });
 
     const timeZone = userTimezone(req);
-    logs = await Promise.all(logs.map(log => syncWorkEntries(log, req.user._id, timeZone)));
+    // IES-P1-02: GET computes effective totals without writing to the DB.
+    // IES-P1-03: one batched session query for the whole list (no N+1).
+    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
 
-    res.json(logs);
+    // IES-P1-10: list responses stay lean — the heaviest arrays (auto-generated
+    // timer timeline, progress snapshots, attachments) are omitted; the detail
+    // route (GET /:id) still returns the full document. The arrays the main
+    // WorkLog view renders (workEntries, completedItems, decisions, blockers,
+    // links) stay, so the page needs no extra round-trip to paint.
+    res.json(logs.map((log) => {
+      const json = typeof log.toObject === 'function' ? log.toObject() : log;
+      delete json.timelineEntries;
+      delete json.progressSnapshots;
+      delete json.attachments;
+      return json;
+    }));
   } catch (err) {
     next(err);
   }
@@ -347,7 +260,8 @@ router.get('/:id', async (req, res, next) => {
 
     if (!log) return res.status(404).json({ message: 'Not found' });
 
-    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
+    // IES-P1-02: GET computes effective totals without writing to the DB.
+    log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req), persist: false });
     res.json(log);
   } catch (err) {
     next(err);
@@ -369,8 +283,8 @@ router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
     let googleDocUrl = '';
 
     if (req.user.googleConnected && req.user.googleTokens && req.user.googleTokens.refreshToken) {
+      const { getAuthorizedClient, createProjectFolders, createWorkLogDoc, setDriveError, clearDriveError } = require('../utils/googleDrive');
       try {
-        const { getAuthorizedClient, createProjectFolders, createWorkLogDoc } = require('../utils/googleDrive');
         const oauth2Client = await getAuthorizedClient(req.user);
         let targetFolderId = null;
         let pName = 'General';
@@ -424,8 +338,11 @@ router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
           googleDocId = docRes.googleDocId;
           googleDocUrl = docRes.googleDocUrl;
         }
+        await clearDriveError(req.user);
       } catch (driveErr) {
         logger.warn('Google Drive doc creation failed');
+        // IES-P1-24: surface the failure so the client can prompt a reconnect.
+        await setDriveError(req.user, 'Drive doc creation failed. Please reconnect in settings.');
       }
     } else if (projectId) {
       const project = await Project.findOne({ _id: projectId, userId: req.user._id });
@@ -459,7 +376,7 @@ router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
       projectRef,
       googleDocId,
       googleDocUrl,
-      problemFlow: problemFlow || { problem: problem || '' },
+      problemFlow: { ...(problemFlow || {}), problem: problemFlow?.problem || problem || '' },
       gitRef:      gitRef || { branch: gitBranch || '' },
       tomorrowPlan: tomorrowPlan || {},
       reflection:  reflection || {},
@@ -473,7 +390,7 @@ router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
       { path: 'taskRef', select: 'title color category totalTime' },
       { path: 'projectRef', select: 'name googleFolderId workLogsFolderId' }
     ]);
-    populated = await syncWorkEntries(populated, req.user._id, userTimezone(req));
+    populated = await syncWorkLog(populated, req.user._id, { timeZone: userTimezone(req) });
 
     res.status(201).json(populated);
     Activity.create({ userId: req.user._id, action: 'worklog.created', details: { worklogTitle: log.title } }).catch(() => {});
@@ -485,7 +402,15 @@ router.post('/', validate(workLogCreateSchema), async (req, res, next) => {
 // ── PATCH /api/worklogs/:id ───────────────────────────────────────────────────
 router.patch('/:id', validate(workLogPatchSchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
-    const patch = buildPatch(req.body, WORKLOG_PATCH_FIELDS);
+    // IES-P1-27: fold a legacy top-level `problem` write into the single
+    // `problemFlow.problem` source (explicit `problemFlow.problem` wins).
+    const body = { ...req.body };
+    if (body.problem != null && body['problemFlow.problem'] == null) {
+      body['problemFlow.problem'] = body.problem;
+    }
+    delete body.problem;
+
+    const patch = buildPatch(body, WORKLOG_PATCH_FIELDS);
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ message: 'No updatable fields provided' });
     }
@@ -505,16 +430,39 @@ router.patch('/:id', validate(workLogPatchSchema, { params: workLogParamsSchema 
   }
 });
 
+// PATCH /api/worklogs/:id/entries/:entryId — edit a day's "what I did" text.
+// IES-P1-02: the unified sync preserves this text for surviving days.
+router.patch('/:id/entries/:entryId', validate(
+  z.object({ what: text(10000, 'what') }),
+  { params: z.object({ id: objectId, entryId: objectId }) }
+), async (req, res, next) => {
+  try {
+    const { what } = req.body;
+    const log = await WorkLog.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id, 'workEntries._id': req.params.entryId },
+      { $set: { 'workEntries.$.what': what } },
+      { new: true, runValidators: true }
+    ).populate('taskRef', 'title color category totalTime')
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    if (!log) return res.status(404).json({ message: 'Not found' });
+    res.json(log);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Sub-Document Specific Endpoints ─────────────────────────────────────────
 
 // POST /api/worklogs/:id/timeline — Add timeline entry
 router.post('/:id/timeline', validate(timelineEntrySchema, { params: workLogParamsSchema }), async (req, res, next) => {
   try {
     const { title, description, type, category, metadata, timestamp } = req.body;
+    // IES-P1-10: `$slice: -cap` keeps the newest entries — the array cannot grow
+    // past its budget even though findOneAndUpdate skips the pre-save hook.
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $push: { timelineEntries: { title, description, type: type || 'note', category: category || 'General', metadata, timestamp: timestamp || Date.now() } } },
-      { new: true }
+      { $push: { timelineEntries: { $each: [{ title, description, type: type || 'note', category: category || 'General', metadata, timestamp: timestamp || Date.now() }], $slice: -ARRAY_CAPS.timelineEntries } } },
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -532,11 +480,11 @@ router.post('/:id/decisions', validate(decisionSchema, { params: workLogParamsSc
       { _id: req.params.id, userId: req.user._id },
       { 
         $push: { 
-          decisions: { title, context, decision, alternatives, rationale, timestamp: Date.now() },
-          timelineEntries: { title: `Decision: ${title}`, description: decision, type: 'decision', category: 'Architecture' }
+          decisions: { $each: [{ title, context, decision, alternatives, rationale, timestamp: Date.now() }], $slice: -ARRAY_CAPS.decisions },
+          timelineEntries: { $each: [{ title: `Decision: ${title}`, description: decision, type: 'decision', category: 'Architecture' }], $slice: -ARRAY_CAPS.timelineEntries }
         } 
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -552,7 +500,7 @@ router.delete('/:id/decisions/:decId', validate(null, { params: itemParams('decI
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { decisions: { _id: req.params.decId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -570,11 +518,11 @@ router.post('/:id/blockers', validate(blockerCreateSchema, { params: workLogPara
       { _id: req.params.id, userId: req.user._id },
       { 
         $push: { 
-          blockerList: { title, severity: severity || 'medium', status: 'open', notes, createdAt: Date.now() },
-          timelineEntries: { title: `Blocker Added: ${title}`, description: notes, type: 'blocker', category: 'Blocker' }
+          blockerList: { $each: [{ title, severity: severity || 'medium', status: 'open', notes, createdAt: Date.now() }], $slice: -ARRAY_CAPS.blockerList },
+          timelineEntries: { $each: [{ title: `Blocker Added: ${title}`, description: notes, type: 'blocker', category: 'Blocker' }], $slice: -ARRAY_CAPS.timelineEntries }
         } 
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -596,7 +544,7 @@ router.patch('/:id/blockers/:blkId', validate(blockerPatchSchema, { params: item
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id, 'blockerList._id': req.params.blkId },
       { $set: patch },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -612,7 +560,7 @@ router.delete('/:id/blockers/:blkId', validate(null, { params: itemParams('blkId
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { blockerList: { _id: req.params.blkId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -630,11 +578,11 @@ router.post('/:id/snapshots', validate(snapshotCreateSchema, { params: workLogPa
       { _id: req.params.id, userId: req.user._id },
       { 
         $push: { 
-          progressSnapshots: { period: period || 'Morning', text, timestamp: Date.now() },
-          timelineEntries: { title: `${period} Snapshot`, description: text, type: 'snapshot', category: 'Progress' }
+          progressSnapshots: { $each: [{ period: period || 'Morning', text, timestamp: Date.now() }], $slice: -ARRAY_CAPS.progressSnapshots },
+          timelineEntries: { $each: [{ title: `${period} Snapshot`, description: text, type: 'snapshot', category: 'Progress' }], $slice: -ARRAY_CAPS.timelineEntries }
         } 
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -650,7 +598,7 @@ router.delete('/:id/snapshots/:snapId', validate(null, { params: itemParams('sna
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { progressSnapshots: { _id: req.params.snapId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -666,8 +614,8 @@ router.post('/:id/attachments', validate(attachmentCreateSchema, { params: workL
     const { name, type, url, sizeBytes, description } = req.body;
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $push: { attachments: { name, type: type || 'file', url, sizeBytes: sizeBytes || 0, description: description || '', uploadDate: Date.now() } } },
-      { new: true }
+      { $push: { attachments: { $each: [{ name, type: type || 'file', url, sizeBytes: sizeBytes || 0, description: description || '', uploadDate: Date.now() }], $slice: -ARRAY_CAPS.attachments } } },
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -683,7 +631,7 @@ router.delete('/:id/attachments/:attId', validate(null, { params: itemParams('at
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { attachments: { _id: req.params.attId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -701,11 +649,11 @@ router.post('/:id/completed', validate(completedItemCreateSchema, { params: work
       { _id: req.params.id, userId: req.user._id },
       { 
         $push: { 
-          completedItems: { text, category: category || 'feature', done: true, completedAt: Date.now(), createdAt: Date.now() },
-          timelineEntries: { title: `Completed: ${text}`, description: `Category: ${category || 'feature'}`, type: 'completed_item', category: 'Done' }
+          completedItems: { $each: [{ text, category: category || 'feature', done: true, completedAt: Date.now(), createdAt: Date.now() }], $slice: -ARRAY_CAPS.completedItems },
+          timelineEntries: { $each: [{ title: `Completed: ${text}`, description: `Category: ${category || 'feature'}`, type: 'completed_item', category: 'Done' }], $slice: -ARRAY_CAPS.timelineEntries }
         } 
       },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -722,7 +670,7 @@ router.delete('/:id/completed/:itemId', validate(null, { params: itemParams('ite
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { completedItems: { _id: req.params.itemId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -739,8 +687,8 @@ router.post('/:id/links', validate(linkCreateSchema, { params: workLogParamsSche
     const { label, url, category } = req.body;
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $push: { links: { label, url, category: category || 'General' } } },
-      { new: true }
+      { $push: { links: { $each: [{ label, url, category: category || 'General' }], $slice: -ARRAY_CAPS.links } } },
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -757,7 +705,7 @@ router.delete('/:id/links/:linkId', validate(null, { params: itemParams('linkId'
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $pull: { links: { _id: req.params.linkId } } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -774,7 +722,7 @@ router.post('/:id/sync-time', validate(null, { params: workLogParamsSchema }), a
     let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id });
     if (!log) return res.status(404).json({ message: 'Not found' });
 
-    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
+    log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req) });
     await log.populate([
       { path: 'taskRef', select: 'title color category totalTime' },
       { path: 'projectRef', select: 'name googleFolderId workLogsFolderId' }
@@ -797,12 +745,12 @@ router.patch('/:id/task', validate(workLogTaskPatchSchema, { params: workLogPara
     let log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       taskRef ? { $set: { taskRef } } : { $unset: { taskRef: '' }, $set: { totalActiveMs: 0, workEntries: [] } },
-      { new: true }
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
 
     if (!log) return res.status(404).json({ message: 'Not found' });
-    log = await syncWorkEntries(log, req.user._id, userTimezone(req));
+    log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req) });
     await log.populate([
       { path: 'taskRef', select: 'title color category totalTime' },
       { path: 'projectRef', select: 'name googleFolderId workLogsFolderId' }
@@ -818,8 +766,8 @@ router.post('/:id/close', validate(null, { params: workLogParamsSchema }), async
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $set: { status: 'done', isActive: false, closedAt: new Date() } },
-      { new: true }
+      { $set: { status: 'done', isActive: false, closedAt: Date.now() } },
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
@@ -835,8 +783,8 @@ router.post('/:id/continue', validate(null, { params: workLogParamsSchema }), as
   try {
     const log = await WorkLog.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
-      { $set: { status: 'in-progress', isActive: true, closedAt: null, reopenedAt: new Date() } },
-      { new: true }
+      { $set: { status: 'in-progress', isActive: true, closedAt: null, reopenedAt: Date.now() } },
+      { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
      .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });

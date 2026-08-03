@@ -51,4 +51,27 @@ describe('WorkLogWidget (no mount-only stale reads)', () => {
     });
     expect(loadTodaySpy).toHaveBeenCalledTimes(2);
   });
+
+  it('renders an empty state when there is no today log (no fabricated data)', () => {
+    const { container } = render(<WorkLogWidget />);
+    expect(container.textContent).toContain("Start today's work log");
+    expect(container.textContent).not.toMatch(/completed today/);
+  });
+
+  it('renders the real today log summary when one exists', () => {
+    act(() => {
+      useWorkLogStore.setState({
+        todayLog: mapLog({
+          _id: 't1',
+          title: 'Test',
+          status: 'in-progress',
+          currentWork: 'Building the reports page',
+          completedItems: [{ _id: 'c1', text: 'Ship widgets', done: true, completedAt: Date.now(), createdAt: Date.now() }],
+        }),
+      });
+    });
+    const { container } = render(<WorkLogWidget />);
+    expect(container.textContent).toContain('1 thing completed today');
+    expect(container.textContent).not.toContain("Start today's work log");
+  });
 });

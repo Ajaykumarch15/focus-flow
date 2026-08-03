@@ -552,7 +552,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      api.admin.listUsers().then(setAdminUsers).catch(() => {});
+      api.admin.listUsers().then(d => setAdminUsers(d.items)).catch(() => {});
     }
   }, [isAdmin]);
 

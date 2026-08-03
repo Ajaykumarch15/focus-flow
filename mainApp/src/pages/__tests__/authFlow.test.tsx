@@ -87,10 +87,10 @@ describe('P0-31 auth flows share the /hub landing', () => {
     const { container } = renderAt('/register', <Register />);
     setInput(container, 'name', 'Ajay Kumar');
     setInput(container, 'email', 'ajay@example.com');
-    setInput(container, 'password', 'secret123');
-    setInput(container, 'confirmPassword', 'secret123');
+    setInput(container, 'password', 'correct-horse-battery');
+    setInput(container, 'confirmPassword', 'correct-horse-battery');
     await submitForm(container);
-    expect(registerSpy).toHaveBeenCalledWith('Ajay Kumar', 'ajay@example.com', 'secret123');
+    expect(registerSpy).toHaveBeenCalledWith('Ajay Kumar', 'ajay@example.com', 'correct-horse-battery');
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/hub');
   });
 });

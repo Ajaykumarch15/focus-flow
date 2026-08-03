@@ -549,10 +549,7 @@ function SmartInsights({ weekMs, todayMs, completedToday, overdueCount: _overdue
     const items: { icon: React.ElementType; text: string; color: string; bg: string }[] = [];
 
     if (weekMs > 0) {
-      const lastWeekMs = weekMs * 0.85;
-      const diff = weekMs - lastWeekMs;
-      if (diff > 0) items.push({ icon: TrendingUp, text: `+${Math.round(diff / 3600000 * 10) / 10}h ahead of last week`, color: '#22c55e', bg: 'bg-emerald-500/10' });
-      else items.push({ icon: TrendingUp, text: 'Consistent focus this week', color: accent, bg: 'bg-brand-500/10' });
+      items.push({ icon: TrendingUp, text: `${formatHours(weekMs)} focused this week`, color: accent, bg: 'bg-brand-500/10' });
     }
 
     if (completedToday > 0) {

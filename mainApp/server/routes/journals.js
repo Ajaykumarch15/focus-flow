@@ -76,7 +76,7 @@ router.patch('/:id', validate(journalPatchSchema, { params: journalParamsSchema 
     const journal = await Journal.findOneAndUpdate(
       { _id: req.params.id, userId: req.user._id },
       { $set: patch },
-      { new: true }
+      { new: true, runValidators: true }
     );
     if (!journal) return res.status(404).json({ message: 'Journal not found' });
     res.json(journal);

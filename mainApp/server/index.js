@@ -80,6 +80,7 @@ const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
 const errorHandler = require('./middleware/errorHandler'); // IES-P0-14
+const { startReaper } = require('./jobs/reaper');          // IES-P1-26
 
 const app = express();
 
@@ -129,6 +130,9 @@ const PORT = process.env.PORT || 5001;
 (async () => {
   await connectWithRetry(process.env.MONGODB_URI);
   const server = await startServer(app, PORT);
+  // IES-P1-26: reclaim abandoned sessions in the background. unref()'d — it never
+  // keeps the process alive on its own.
+  startReaper();
   const shutdown = createShutdownHandler({ server });
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));

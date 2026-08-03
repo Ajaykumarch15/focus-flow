@@ -22,6 +22,16 @@ import {
   splitSessionAcrossMidnight,
   formatDate,
   formatDateShort,
+  getTodayKey,
+  dayKeyInTz,
+  getOffsetMs,
+  localDateToUtc,
+  startOfDayInTz,
+  daysBetweenKeys,
+  addDaysToKey,
+  getIsoWeekStartKey,
+  getIsoWeekEndKey,
+  getTimezone,
 } from '../time';
 
 afterEach(() => {
@@ -75,26 +85,92 @@ describe('deadline helpers', () => {
     expect(isDueToday(undefined)).toBe(false);
   });
 
-  it('classifies overdue deadlines', () => {
+  it('classifies overdue deadlines (calendar-day semantics)', () => {
+    const tz = 'UTC';
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
-    const now = Date.now();
-    expect(getDeadlineStatus(now - 1)?.status).toBe('overdue');
-    expect(getDeadlineStatus(now - 86_400_000)?.label).toBe('Overdue by 1 day');
-    expect(getDeadlineStatus(now - 2 * 86_400_000)?.label).toBe('Overdue by 2 days');
-    expect(isOverdue(now - 1)).toBe(true);
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    expect(getDeadlineStatus(Date.parse('2026-07-14T23:00:00Z'), tz)?.status).toBe('overdue');
+    expect(getDeadlineStatus(Date.parse('2026-07-13T00:00:00Z'), tz)?.label).toBe('Overdue by 2 days');
+    expect(isOverdue(Date.parse('2026-07-14T23:59:59Z'), tz)).toBe(true);
+    // An instant earlier on the due day itself is NOT overdue
+    expect(isOverdue(Date.parse('2026-07-15T00:00:00Z'), tz)).toBe(false);
   });
 
   it('classifies due-today, due-soon and upcoming deadlines', () => {
+    const tz = 'UTC';
     vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
-    const now = Date.now();
-    expect(getDeadlineStatus(now)?.status).toBe('due-today');
-    expect(isDueToday(now)).toBe(true);
-    expect(getDeadlineStatus(now + 86_400_000)?.status).toBe('due-soon');
-    expect(getDeadlineStatus(now + 2 * 86_400_000)?.label).toBe('Due in 2 days');
-    expect(getDeadlineStatus(now + 3 * 86_400_000)?.label).toBe('Due in 3 days');
-    expect(getDeadlineStatus(now + 4 * 86_400_000)?.status).toBe('upcoming');
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    expect(getDeadlineStatus(Date.parse('2026-07-15T23:00:00Z'), tz)?.status).toBe('due-today');
+    expect(isDueToday(Date.parse('2026-07-15T00:00:00Z'), tz)).toBe(true);
+    expect(getDeadlineStatus(Date.parse('2026-07-16T00:00:00Z'), tz)?.status).toBe('due-soon');
+    expect(getDeadlineStatus(Date.parse('2026-07-17T00:00:00Z'), tz)?.label).toBe('Due in 2 days');
+    expect(getDeadlineStatus(Date.parse('2026-07-18T00:00:00Z'), tz)?.label).toBe('Due in 3 days');
+    expect(getDeadlineStatus(Date.parse('2026-07-19T00:00:00Z'), tz)?.status).toBe('upcoming');
+  });
+
+  it('never drifts across timezones (deadline day is stable in any tz)', () => {
+    const tz = 'America/New_York';
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    // Old UTC-midnight storage read back in a negative-offset tz used to land
+    // on the previous day; day-key comparison keeps the picked date.
+    const deadline = localDateToUtc('2026-07-15', tz); // tz-midnight of the due day
+    expect(isDueToday(deadline, tz)).toBe(true);
+    expect(isOverdue(deadline, tz)).toBe(false);
+  });
+});
+
+describe('timezone-aware day keys', () => {
+  it('dayKeyInTz groups by the given timezone', () => {
+    expect(dayKeyInTz(Date.parse('2026-07-10T00:00:00Z'), 'Asia/Kolkata')).toBe('2026-07-10');
+    expect(dayKeyInTz(Date.parse('2026-07-10T00:00:00Z'), 'America/New_York')).toBe('2026-07-09');
+    expect(dayKeyInTz(Date.parse('2026-07-10T23:30:00Z'), 'Asia/Kolkata')).toBe('2026-07-11');
+  });
+
+  it('getTodayKey reflects the requested timezone', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
+    expect(getTodayKey('UTC')).toBe('2026-07-15');
+    expect(getTodayKey('Asia/Kolkata')).toBe('2026-07-15');
+    expect(getTodayKey('America/New_York')).toBe('2026-07-15');
+    vi.setSystemTime(new Date('2026-07-15T23:30:00Z'));
+    expect(getTodayKey('America/New_York')).toBe('2026-07-15');
+    expect(getTodayKey('Asia/Kolkata')).toBe('2026-07-16');
+  });
+
+  it('getOffsetMs matches the tz offset at a given instant', () => {
+    const summer = Date.parse('2026-07-10T00:00:00Z');
+    const winter = Date.parse('2026-01-10T00:00:00Z');
+    expect(getOffsetMs(summer, 'UTC')).toBe(0);
+    expect(getOffsetMs(summer, 'Asia/Kolkata')).toBe(5.5 * 3600000);
+    expect(getOffsetMs(winter, 'America/New_York')).toBe(-5 * 3600000);
+  });
+
+  it('localDateToUtc round-trips through dayKeyInTz in any timezone', () => {
+    for (const tz of ['UTC', 'Asia/Kolkata', 'America/New_York']) {
+      const key = '2026-08-05';
+      const instant = localDateToUtc(key, tz);
+      expect(dayKeyInTz(instant, tz)).toBe(key);
+    }
+  });
+
+  it('startOfDayInTz returns the tz-midnight of the day a timestamp falls in', () => {
+    const tz = 'Asia/Kolkata';
+    const ts = Date.parse('2026-07-10T05:30:00Z');
+    expect(startOfDayInTz(ts, tz)).toBe(localDateToUtc('2026-07-10', tz));
+    expect(startOfDayInTz(ts, tz)).toBeLessThanOrEqual(ts);
+  });
+
+  it('daysBetweenKeys counts whole calendar days', () => {
+    expect(daysBetweenKeys('2026-07-15', '2026-07-15')).toBe(0);
+    expect(daysBetweenKeys('2026-07-15', '2026-07-16')).toBe(1);
+    expect(daysBetweenKeys('2026-07-15', '2026-07-13')).toBe(-2);
+    expect(daysBetweenKeys('2026-12-31', '2027-01-01')).toBe(1);
+  });
+
+  it('getTimezone falls back to the browser timezone without a profile cache', () => {
+    try { localStorage.removeItem('ff_profile_cache'); } catch { /* ignore */ }
+    expect(getTimezone()).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 });
 
@@ -179,6 +255,25 @@ describe('splitSessionAcrossMidnight', () => {
     expect(total).toBe(7_200_000);
     expect(buckets[0].activeMs).toBeGreaterThan(0);
     expect(buckets[1].activeMs).toBeGreaterThan(0);
+  });
+});
+
+describe('ISO week helpers (IES-P1-19)', () => {
+  it('addDaysToKey shifts calendar dates across month/year boundaries', () => {
+    expect(addDaysToKey('2026-07-15', -7)).toBe('2026-07-08');
+    expect(addDaysToKey('2026-03-01', -1)).toBe('2026-02-28');
+    expect(addDaysToKey('2026-12-31', 1)).toBe('2027-01-01');
+  });
+
+  it('getIsoWeekStartKey returns the Monday of the current week (Mon–Sun)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-15T12:00:00Z')); // Wednesday
+    expect(getIsoWeekStartKey('UTC')).toBe('2026-07-13');
+    expect(getIsoWeekEndKey('UTC')).toBe('2026-07-19');
+    vi.setSystemTime(new Date('2026-07-19T12:00:00Z')); // Sunday — still this week
+    expect(getIsoWeekStartKey('UTC')).toBe('2026-07-13');
+    vi.setSystemTime(new Date('2026-07-20T00:00:00Z')); // Monday — new week
+    expect(getIsoWeekStartKey('UTC')).toBe('2026-07-20');
   });
 });
 

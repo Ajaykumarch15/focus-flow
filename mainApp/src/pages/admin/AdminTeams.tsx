@@ -151,7 +151,7 @@ export function AdminTeams() {
 
   useEffect(() => {
     Promise.all([api.teams.list(), api.admin.listUsers()])
-      .then(([t, u]) => { setTeams(t); setUsers(u); })
+      .then(([t, u]) => { setTeams(t); setUsers(u.items); })
       .finally(() => setLoading(false));
   }, []);
 

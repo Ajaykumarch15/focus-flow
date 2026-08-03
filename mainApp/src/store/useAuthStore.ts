@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
-import { clearTimer } from '../utils/timerPersist';
+import { clearTimer, clearTodayMs } from '../utils/timerPersist';
 import { timerEngine } from '../utils/timerEngine';
 
 interface AuthUser {
@@ -11,6 +11,7 @@ interface AuthUser {
   avatar?:  string;
   settings: Record<string, any>;
   googleConnected?: boolean;
+  driveSyncError?: string;
 }
 
 export type Workspace = 'personal' | 'admin';
@@ -69,7 +70,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_worklog_cache');
     localStorage.removeItem('ff_habit_cache');
     localStorage.removeItem('ff_habit_timer');
-    localStorage.removeItem('ff_today_ms');
+    clearTodayMs();
     clearTimer();
     timerEngine.hydrate(null);
     set({ user: null, loading: false, workspace: null });

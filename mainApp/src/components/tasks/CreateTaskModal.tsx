@@ -31,7 +31,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
       priority: form.priority,
       category: form.category,
       status: 'todo',
-      deadline: form.deadline ? new Date(form.deadline).getTime() : undefined,
+      deadline: form.deadline || undefined,
       reminderMinutesBefore: form.deadline ? form.reminderMinutesBefore : undefined,
       color: form.color,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),

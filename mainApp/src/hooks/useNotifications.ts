@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { useHabitStore } from '../store/useHabitStore';
-import { isOverdue, isDueToday } from '../utils/time';
+import { isOverdue, isDueToday, getTodayKey } from '../utils/time';
 import { toast } from '../store/useToastStore';
 
 const NOTIFICATION_PREFS_KEY = 'ff_notification_prefs';
@@ -78,7 +78,7 @@ export function useNotifications() {
       if (!prefs.enabled) return;
 
       const { tasks, getTodayTime, profile } = useStore.getState();
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayKey();
 
       if (prefs.deadlineReminders) {
         for (const task of tasks) {

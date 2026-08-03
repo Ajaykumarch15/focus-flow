@@ -13,9 +13,10 @@ import { api } from '../utils/api';
 import {
   loadTimer,
   loadTodayMs,
+  loadWeekMs,
 } from '../utils/timerPersist';
 import { timerEngine } from '../utils/timerEngine';
-import { offlineQueue } from '../utils/offlineQueue';
+import { offlineQueue, createOpId } from '../utils/offlineQueue';
 import type {
   Task, JournalEntry, TimerState, Priority,
   Subtask, ThemeSettings, UserProfile,
@@ -49,6 +50,27 @@ function loadCached<T>(key: string, fallback: T): T {
 
 function saveCache(key: string, value: unknown): void {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
+// IES-P1-26: session liveness. The client beats every 30s while a timer is open
+// (running or paused) so the server's reaper (10-min staleness) never closes a
+// live session as a zombie. A dropped beat is retried silently next tick.
+const HEARTBEAT_INTERVAL_MS = 30_000;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+function startHeartbeat(sessionId: string | null): void {
+  stopHeartbeat();
+  if (!sessionId) return;
+  heartbeatTimer = setInterval(() => {
+    api.sessions.heartbeat(sessionId).catch(() => { /* silent: next beat retries */ });
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat(): void {
+  if (heartbeatTimer !== null) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
 }
 
 function applyThemeToDOM(theme: ThemeSettings): void {
@@ -193,7 +215,7 @@ interface StoreState {
   setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
-  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime'>) => Promise<string>;
+  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline'> & { deadline?: string | number }) => Promise<string>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   completeTask: (id: string) => Promise<void>;
@@ -203,7 +225,6 @@ interface StoreState {
   pauseTimer: (taskId: string) => void;
   resumeTimer: (taskId: string) => void;
   stopTimer: (taskId: string) => Promise<void>;
-  tick: () => void;
 
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
@@ -313,6 +334,10 @@ export const useStore = create<StoreState>((set, get) => {
 
         const engineSnap = timerEngine.getSnapshot();
 
+        // IES-P1-26: a timer restored from the backend (or local storage) must
+        // resume beating, or the reaper will close it as a zombie.
+        startHeartbeat(engineSnap.sessionId);
+
         set({
           tasks: baseTasks,
           journals: journalDocs.map(mapJournal),
@@ -352,13 +377,17 @@ export const useStore = create<StoreState>((set, get) => {
     // ── Tasks ─────────────────────────────────────────────────────────────────
     addTask: async (data) => {
       const tempId = `temp_${Date.now()}`;
+      const { deadline, ...rest } = data;
       const tempTask: Task = {
-        ...data, id: tempId, sessions: [], totalTime: 0,
+        ...rest,
+        id: tempId, sessions: [], totalTime: 0,
         createdAt: Date.now(), updatedAt: Date.now(),
+        deadline: typeof deadline === 'number' ? deadline
+          : deadline ? new Date(deadline).getTime() : undefined,
       };
       set(s => ({ tasks: [tempTask, ...s.tasks] }));
       try {
-        const doc = await api.tasks.create({ ...data, deadline: data.deadline ? new Date(data.deadline).toISOString() : undefined });
+        const doc = await api.tasks.create({ ...data, deadline: data.deadline || undefined });
         const real = mapTask(doc);
         set(s => ({ tasks: s.tasks.map(t => t.id === tempId ? real : t) }));
         return real.id;
@@ -398,6 +427,7 @@ export const useStore = create<StoreState>((set, get) => {
     // ── Timer Operations (Delegated to TimerEngine & OfflineQueue) ────────────
     startTimer: async (taskId) => {
       const now = Date.now();
+      const opId = createOpId();
       const res = await timerEngine.start(taskId, undefined, now);
       if (!res.success) {
         if (res.error) toast.error('Timer Error', res.error);
@@ -409,17 +439,19 @@ export const useStore = create<StoreState>((set, get) => {
       }));
 
       try {
-        const sessionDoc = await api.sessions.start(taskId, now);
+        const sessionDoc = await api.sessions.start(taskId, now, opId);
         timerEngine.setSessionId(sessionDoc._id);
+        startHeartbeat(sessionDoc._id);
       } catch (err) {
         console.warn('Network issue on session start. Enqueuing offline op.');
-        offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now });
+        offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId);
       }
     },
 
     pauseTimer: (taskId) => {
       const sessionId = timerEngine.getActiveSessionId();
       const now = Date.now();
+      const opId = createOpId();
 
       const res = timerEngine.pause(taskId, now);
       if (!res.success) {
@@ -432,8 +464,8 @@ export const useStore = create<StoreState>((set, get) => {
       }));
 
       if (sessionId) {
-        api.sessions.pause(sessionId, now).catch(() => {
-          offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now });
+        api.sessions.pause(sessionId, now, opId).catch(() => {
+          offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now }, opId);
         });
       }
     },
@@ -441,6 +473,7 @@ export const useStore = create<StoreState>((set, get) => {
     resumeTimer: (taskId) => {
       const sessionId = timerEngine.getActiveSessionId();
       const now = Date.now();
+      const opId = createOpId();
 
       const res = timerEngine.resume(taskId, now);
       if (!res.success) {
@@ -453,8 +486,8 @@ export const useStore = create<StoreState>((set, get) => {
       }));
 
       if (sessionId) {
-        api.sessions.resume(sessionId, now).catch(() => {
-          offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now });
+        api.sessions.resume(sessionId, now, opId).catch(() => {
+          offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now }, opId);
         });
       }
     },
@@ -462,6 +495,7 @@ export const useStore = create<StoreState>((set, get) => {
     stopTimer: async (taskId) => {
       const sessionId = timerEngine.getActiveSessionId();
       const now = Date.now();
+      const opId = createOpId();
 
       const res = await timerEngine.stop(taskId, now);
       if (!res.success && res.error !== 'Timer is already idle') {
@@ -475,19 +509,16 @@ export const useStore = create<StoreState>((set, get) => {
 
       if (sessionId) {
         try {
-          await api.sessions.stop(sessionId, now);
+          await api.sessions.stop(sessionId, now, opId);
+          stopHeartbeat();
           await get().fetchTasks();
           // Auto-sync WorkLog store
           useWorkLogStore.getState().loadToday().catch(() => {});
         } catch {
           console.warn('Network issue on session stop. Enqueuing offline op.');
-          offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now });
+          offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId);
         }
       }
-    },
-
-    tick: () => {
-      // Managed automatically by TimerEngine singleton
     },
 
     // ── Subtasks ───────────────────────────────────────────────────────────────
@@ -586,11 +617,9 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     getWeekTime: () => {
-      const tasks = get().tasks;
-      let total = 0;
-      for (const task of tasks) total += task.totalTime || 0;
+      const completedMs = loadWeekMs();
       const liveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
-      return total + liveMs;
+      return completedMs + liveMs;
     },
   };
 });

@@ -1,7 +1,7 @@
 const express = require('express');
 const Project = require('../models/Project');
 const protect = require('../middleware/auth');
-const { getAuthorizedClient, createProjectFolders } = require('../utils/googleDrive');
+const { getAuthorizedClient, createProjectFolders, setDriveError, clearDriveError } = require('../utils/googleDrive');
 const { logger } = require('../utils/logger');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
 
@@ -34,8 +34,11 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
 
     const trimmedName = name.trim();
 
-    // Check if project already exists for this user
-    const existing = await Project.findOne({ userId: req.user._id, name: { $regex: new RegExp(`^${trimmedName}$`, 'i') } });
+    // IES-P1-12: exact-match pre-check on the lowercased `nameKey` (never a
+    // `$regex` over user input). The DB unique index `{ userId, nameKey }` is
+    // the authoritative guard — the E11000 catch below keeps the same friendly
+    // 400 for the race where two creates slip past this check simultaneously.
+    const existing = await Project.findOne({ userId: req.user._id, nameKey: trimmedName.toLowerCase() });
     if (existing) {
       return res.status(400).json({ message: 'A project with this name already exists' });
     }
@@ -47,16 +50,27 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
       try {
         const oauth2Client = await getAuthorizedClient(req.user);
         folderIds = await createProjectFolders(oauth2Client, trimmedName);
+        await clearDriveError(req.user); // IES-P1-24: Drive worked — reset the flag.
       } catch (driveErr) {
         logger.warn('Google Drive folder creation failed during project setup');
+        // IES-P1-24: surface the failure so the client can prompt a reconnect.
+        await setDriveError(req.user, 'Drive folder creation failed. Please reconnect in settings.');
       }
     }
 
-    const project = await Project.create({
-      userId: req.user._id,
-      name: trimmedName,
-      ...folderIds,
-    });
+    let project;
+    try {
+      project = await Project.create({
+        userId: req.user._id,
+        name: trimmedName,
+        ...folderIds,
+      });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        return res.status(400).json({ message: 'A project with this name already exists' });
+      }
+      throw err;
+    }
 
     logger.debug('project created');
     res.status(201).json(project);
@@ -92,10 +106,13 @@ router.post('/:id/sync-drive', validate(null, { params: projectParamsSchema }), 
     project.reportsFolderId = folderIds.reportsFolderId;
 
     await project.save();
+    await clearDriveError(req.user); // IES-P1-24: sync succeeded — reset the flag.
 
     logger.debug('project drive folders synced');
     res.json(project);
   } catch (err) {
+    // IES-P1-24: sync-drive failures reach the client as a 500 AND set the flag.
+    await setDriveError(req.user, 'Drive sync failed. Please reconnect in settings.').catch(() => {});
     next(err);
   }
 });

@@ -21,6 +21,9 @@ const reportShareSchema = new mongoose.Schema(
     },
     expiresAt: {
       type: Date,
+      // IES-P1-13: every share gets a bounded expiry at creation (route caps it
+      // to 1..365 days). Required so the TTL index below can retire every share.
+      required: true,
     },
     revokedAt: {
       type: Date,
@@ -30,5 +33,10 @@ const reportShareSchema = new mongoose.Schema(
 );
 
 reportShareSchema.index({ userId: 1, date: 1, revokedAt: 1 });
+
+// IES-P1-13 (DB-18): TTL index — documents are removed the moment `expiresAt`
+// passes, whether or not they were revoked. `expireAfterSeconds: 0` means no
+// grace period. Documents without `expiresAt` are untouched (none, per required).
+reportShareSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model('ReportShare', reportShareSchema);

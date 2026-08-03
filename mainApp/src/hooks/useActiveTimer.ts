@@ -6,8 +6,9 @@
  * without causing entire app/Zustand store re-renders every second.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { timerEngine, TimerFSMState } from '../utils/timerEngine';
+import { formatDuration } from '../utils/time';
 import { useStore } from '../store/useStore';
 
 export function useActiveTimer() {
@@ -26,7 +27,7 @@ export function useActiveTimer() {
 
   const tasks = useStore(s => s.tasks);
   const activeTask = tasks.find(t => t.id === snapshot.taskId);
-  const display = timerEngine.getFormattedDisplay();
+  const display = useMemo(() => formatDuration(elapsedMs), [elapsedMs]);
 
   return {
     activeTaskId: snapshot.taskId,

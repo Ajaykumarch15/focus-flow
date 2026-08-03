@@ -13,6 +13,7 @@ const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const sessionsRouter = require('../routes/sessions');
 const { serverTime, FUTURE_SKEW_MS, MAX_SESSION_AGE_MS } = require('../utils/sessionTime');
+const { dayKey, localDateToUtc } = require('../utils/dates');
 
 const NOW = 1_700_000_000_000;
 const HOUR = 3_600_000;
@@ -93,6 +94,45 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     };
   }
 
+  // IES-P1-08: a stateful User.updateOne mock that mimics MongoDB's atomic
+  // conditional-update semantics for the points $inc / streak day-gate / best
+  // pipeline, so we can verify increments are never lost and a day counts once.
+  function installAtomicUserMock(initial, timeZone) {
+    const state = {
+      totalPoints: initial.totalPoints ?? 0,
+      streak: { current: initial.current ?? 0, best: initial.best ?? 0, lastDate: initial.lastDate ?? null },
+    };
+    const updateOne = vi.spyOn(User, 'updateOne').mockImplementation((filter, update) => {
+      if (update && update.$inc && update.$inc.totalPoints !== undefined) {
+        state.totalPoints += update.$inc.totalPoints;
+        return Promise.resolve({ modifiedCount: 1 });
+      }
+      if (update && update.$inc && update.$inc['streak.current'] !== undefined) {
+        if (state.streak.lastDate === filter['streak.lastDate']) {
+          state.streak.current += 1;
+          state.streak.lastDate = dayKey(Date.now(), timeZone);
+          return Promise.resolve({ modifiedCount: 1 });
+        }
+        return Promise.resolve({ modifiedCount: 0 });
+      }
+      if (update && update.$set && update.$set['streak.current'] !== undefined) {
+        const banned = filter['streak.lastDate']?.$nin || [];
+        if (!banned.includes(state.streak.lastDate)) {
+          state.streak.current = 1;
+          state.streak.lastDate = dayKey(Date.now(), timeZone);
+          return Promise.resolve({ modifiedCount: 1 });
+        }
+        return Promise.resolve({ modifiedCount: 0 });
+      }
+      if (Array.isArray(update)) {
+        state.streak.best = Math.max(state.streak.best || 0, state.streak.current);
+        return Promise.resolve({ modifiedCount: 1 });
+      }
+      return Promise.resolve({ modifiedCount: 1 });
+    });
+    return { state, updateOne };
+  }
+
   beforeAll(async () => {
     process.env.JWT_SECRET = 'p0-07-test-secret-at-least-32-chars-long';
     mockUser = {
@@ -107,6 +147,8 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     vi.spyOn(User, 'findById').mockImplementation(() => ({
       select: () => Promise.resolve(mockUser),
     }));
+    // IES-P1-08: the stop route now updates the user via atomic updateOne calls.
+    vi.spyOn(User, 'updateOne').mockResolvedValue({ modifiedCount: 1 });
     vi.spyOn(Activity, 'create').mockImplementation(() => Promise.resolve());
     vi.spyOn(WorkLog, 'find').mockResolvedValue([]);
 
@@ -183,6 +225,9 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     expect(session.endTime).toBeLessThanOrEqual(Date.now() + FUTURE_SKEW_MS);
     expect(session.activeTime).toBeLessThan(HOUR); // ~5 min elapsed, not a year
     expect(session.activeTime).toBeGreaterThan(0);
+    // IES-P1-07: focusScore stays within [0, 100] on every stop.
+    expect(session.focusScore).toBe(100);
+    expect(session.focusScore).toBeLessThanOrEqual(100);
   });
 
   it('PATCH stop with endTime before startTime clamps to a sane elapsed time', async () => {
@@ -219,5 +264,238 @@ describe('PATCH/POST /api/sessions enforce server timestamps', () => {
     const pause = session.pauseLog[0];
     expect(pause.resumeTime).toBeLessThanOrEqual(Date.now() + FUTURE_SKEW_MS);
     expect(session.totalPauseDuration).toBeGreaterThanOrEqual(0);
+  });
+
+  // ── IES-P1-05: offline-replay opId dedupe ──────────────────────────────────
+
+  it('POST ignores a duplicate opId replay (no second session)', async () => {
+    const existing = { _id: 'sess-dup', taskId: TASK_ID, startTime: Date.now() - 60_000, isActive: true, clientOpId: 'op-dup' };
+    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: TASK_ID, title: 'T' });
+    vi.spyOn(Session, 'findOne').mockClear().mockImplementation(async (filter) =>
+      filter.clientOpId ? existing : null
+    );
+    const create = vi.spyOn(Session, 'create').mockClear().mockResolvedValue({});
+    vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: TASK_ID, opId: 'op-dup' }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body._id).toBe('sess-dup');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('POST start stores the client opId for idempotent replay', async () => {
+    vi.spyOn(Task, 'findOne').mockClear().mockResolvedValue({ _id: TASK_ID, title: 'T' });
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(null);
+    vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+    const create = vi.spyOn(Session, 'create').mockClear().mockImplementation(async (doc) => ({ _id: 'sess-new', ...doc }));
+
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskId: TASK_ID, opId: 'op-abc' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ clientOpId: 'op-abc' }));
+  });
+
+  it('PATCH pause ignores an already-applied opId (no duplicate pause)', async () => {
+    const session = makeActiveSession({ pauseLog: [], pauseCount: 0, appliedOpIds: ['op-pause-1'] });
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/pause`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pauseTime: Date.now(), opId: 'op-pause-1' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(session.pauseCount).toBe(0);
+    expect(session.save).not.toHaveBeenCalled();
+  });
+
+  it('PATCH pause applies a new opId and records it', async () => {
+    const session = makeActiveSession({ pauseLog: [], pauseCount: 0, appliedOpIds: [] });
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/pause`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pauseTime: Date.now(), opId: 'op-pause-2' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(session.pauseCount).toBe(1);
+    expect(session.appliedOpIds).toContain('op-pause-2');
+  });
+
+  it('PATCH stop ignores an already-applied opId (no re-compute)', async () => {
+    resetMockUser();
+    const session = makeActiveSession({ isActive: true, appliedOpIds: ['op-stop-1'] });
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endTime: Date.now(), opId: 'op-stop-1' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(session.isActive).toBe(true); // untouched by the duplicate replay
+    expect(session.save).not.toHaveBeenCalled();
+    expect(mockUser.save).not.toHaveBeenCalled();
+  });
+
+  // ── IES-P1-06: streaks key off the user's timezone, not server-local/UTC ──
+
+  it('PATCH stop computes streak "today" from the user timezone boundary', async () => {
+    resetMockUser();
+    const timeZone = 'Asia/Kolkata'; // UTC+5:30 — the old UTC key / server-local boundary drifted here
+    mockUser.settings = { dailyGoal: 1, timezone: timeZone };
+    mockUser.streak = { current: 0, best: 0, lastDate: null };
+
+    const { state, updateOne } = installAtomicUserMock({ current: 0, best: 0, lastDate: null }, timeZone);
+
+    const session = makeActiveSession();
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    const findMock = vi.spyOn(Session, 'find').mockClear();
+    findMock.mockImplementation((filter) => {
+      if (filter.startTime) {
+        return Promise.resolve([{ activeTime: 2 * HOUR }]); // ≥ 1h goal
+      }
+      return Promise.resolve([]); // allSessions total
+    });
+    vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const todayFilter = findMock.mock.calls[0][0];
+    expect(todayFilter.startTime.$gte).toBe(localDateToUtc(dayKey(Date.now(), timeZone), timeZone).getTime());
+    // IES-P1-08: the streak day-gate is applied via conditional updateOne.
+    expect(state.streak.current).toBe(1);
+    expect(state.streak.lastDate).toBe(dayKey(Date.now(), timeZone));
+    expect(state.totalPoints).toBeGreaterThan(0);
+    expect(updateOne).toHaveBeenCalledWith(
+      { _id: mockUser._id },
+      { $inc: { totalPoints: expect.any(Number) } }
+    );
+  });
+
+  it('PATCH stop with a UTC user keeps the UTC day boundary', async () => {
+    resetMockUser();
+    const timeZone = 'UTC';
+    mockUser.settings = { dailyGoal: 1, timezone: timeZone };
+    mockUser.streak = { current: 5, best: 5, lastDate: null };
+
+    const { state } = installAtomicUserMock({ current: 5, best: 5, lastDate: null }, timeZone);
+
+    const session = makeActiveSession();
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    const findMock = vi.spyOn(Session, 'find').mockClear();
+    findMock.mockImplementation((filter) => {
+      if (filter.startTime) return Promise.resolve([{ activeTime: 2 * HOUR }]);
+      return Promise.resolve([]);
+    });
+    vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    const todayFilter = findMock.mock.calls[0][0];
+    expect(todayFilter.startTime.$gte).toBe(Date.parse(`${dayKey(Date.now(), 'UTC')}T00:00:00.000Z`));
+    expect(state.streak.lastDate).toBe(dayKey(Date.now(), 'UTC'));
+    // streak resets to 1 (lastDate was null), best stays at its max via pipeline.
+    expect(state.streak.current).toBe(1);
+    expect(state.streak.best).toBe(5);
+  });
+
+  // ── IES-P1-08: concurrent stops can't lose increments or double-count a day ──
+
+  it('two concurrent stops apply both point increments and advance the streak day-gate once', async () => {
+    resetMockUser();
+    const timeZone = 'UTC';
+    mockUser.settings = { dailyGoal: 1, timezone: timeZone };
+    mockUser.streak = { current: 0, best: 0, lastDate: null };
+
+    const { state } = installAtomicUserMock({ current: 0, best: 0, lastDate: null }, timeZone);
+
+    const SESSION_B = '507f1f77bcf86cd799439022';
+    const sessionA = makeActiveSession();
+    const sessionB = makeActiveSession({ _id: SESSION_B });
+    const sessionsById = { [SESSION_ID]: sessionA, [SESSION_B]: sessionB };
+    vi.spyOn(Session, 'findOne').mockClear().mockImplementation(async ({ _id }) => sessionsById[_id] || null);
+    const findMock = vi.spyOn(Session, 'find').mockClear();
+    findMock.mockImplementation((filter) => {
+      if (filter.startTime) return Promise.resolve([{ activeTime: 2 * HOUR }]);
+      return Promise.resolve([]);
+    });
+    vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const stop = (id) => fetch(`${baseUrl}/api/sessions/${id}/stop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const results = await Promise.all([stop(SESSION_ID), stop(SESSION_B)]);
+
+    expect(results.map((r) => r.status)).toEqual([200, 200]);
+    // Both $inc point increments land — nothing is lost to a stale read.
+    expect(state.totalPoints).toBeGreaterThan(0);
+    expect(state.totalPoints).toBeGreaterThanOrEqual(2 * Math.round((5 * 60_000 / 60000) * 1));
+    // The day-gate let only ONE stop count today.
+    expect(state.streak.current).toBe(1);
+    expect(state.streak.lastDate).toBe(dayKey(Date.now(), timeZone));
+    expect(state.streak.best).toBe(1);
+  });
+
+  it('PATCH stop treats a 0h dailyGoal as met (no silent 8h fallback)', async () => {
+    resetMockUser();
+    const timeZone = 'UTC';
+    // P1-07 allows dailyGoal 0..24; `|| 8` would silently upgrade 0h to 8h and
+    // skip the streak update entirely. 0h must mean "goal already met".
+    mockUser.settings = { dailyGoal: 0, timezone: timeZone };
+    mockUser.streak = { current: 0, best: 0, lastDate: null };
+
+    const { state } = installAtomicUserMock({ current: 0, best: 0, lastDate: null }, timeZone);
+
+    const session = makeActiveSession();
+    vi.spyOn(Session, 'findOne').mockClear().mockResolvedValue(session);
+    vi.spyOn(Session, 'find').mockClear().mockResolvedValue([]); // 0 active time today
+    vi.spyOn(Task, 'findById').mockClear().mockResolvedValue(null);
+    vi.spyOn(Task, 'findByIdAndUpdate').mockClear().mockResolvedValue({});
+
+    const res = await fetch(`${baseUrl}/api/sessions/${SESSION_ID}/stop`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${signToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(200);
+    expect(state.streak.current).toBe(1);
+    expect(state.streak.lastDate).toBe(dayKey(Date.now(), timeZone));
   });
 });

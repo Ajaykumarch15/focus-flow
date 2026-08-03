@@ -234,11 +234,14 @@ function patchList(logs: WorkLog[], id: string, updated: WorkLog): WorkLog[] {
   return logs.map(l => l._id === id ? updated : l);
 }
 
+// IES-P1-20: no fallback to an arbitrary active log — "today" is only today.
+// Without a log whose workEntries include the current day, todayLog is null so
+// the UI can render a true empty state instead of yesterday's data.
 function getTodayLog(logs: WorkLog[]): WorkLog | null {
   const today = new Date().toDateString();
   return logs.find(log =>
     log.workEntries?.some(e => new Date(e.date).toDateString() === today)
-  ) || logs[0] || null;
+  ) || null;
 }
 
 function readCachedLogs(): Pick<WorkLogState, 'activeLogs' | 'closedLogs' | 'todayLog'> {
@@ -335,7 +338,7 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
       const today = new Date().toDateString();
       const todayLog = logs.find(log =>
         log.workEntries?.some(e => new Date(e.date).toDateString() === today)
-      ) || logs[0] || null;
+      ) || null;
       const { closedLogs } = get();
       cacheLogs(logs, closedLogs, todayLog);
       set({

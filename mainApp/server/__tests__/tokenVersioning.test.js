@@ -8,6 +8,8 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Activity = require('../models/Activity');
+const Team = require('../models/Team');
+const ReportShare = require('../models/ReportShare');
 const authRouter = require('../routes/auth');
 const adminRouter = require('../routes/admin');
 
@@ -208,6 +210,10 @@ describe('IES-P0-08 · protect rejects deleted users and stale tokens', () => {
 describe('IES-P0-08 · admin actions bump tokenVersion', () => {
   beforeEach(() => {
     mockFindByIdReturning(adminUser);
+    // IES-P1-23: the soft-delete cascade scrubs team membership and report
+    // shares — these models are not connected in tests, so stub the writes.
+    vi.spyOn(Team, 'updateMany').mockResolvedValue({});
+    vi.spyOn(ReportShare, 'updateMany').mockResolvedValue({});
   });
 
   it('role change increments tokenVersion', async () => {
@@ -264,6 +270,11 @@ describe('IES-P0-08 · admin actions bump tokenVersion', () => {
     expect(ops.$set.deletedAt).toBeInstanceOf(Date);
     expect(ops.$inc).toEqual({ tokenVersion: 1 });
     expect(opts).toEqual({ new: true });
+
+    // IES-P1-23: the soft-delete cascade dissolves team membership and revokes
+    // the deleted user's report shares.
+    expect(Team.updateMany).toHaveBeenCalledWith({ members: TARGET_ID }, { $pull: { members: TARGET_ID } });
+    expect(ReportShare.updateMany).toHaveBeenCalledWith({ userId: TARGET_ID, revokedAt: null }, { $set: { revokedAt: expect.any(Date) } });
   });
 
   it('restore clears deletedAt without bumping tokenVersion', async () => {
@@ -299,7 +310,7 @@ describe('IES-P0-08 · register tokens carry tokenVersion 0', () => {
     const res = await fetch(`${baseUrl}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'New', email: 'new@example.com', password: 'secret1' }),
+      body: JSON.stringify({ name: 'New', email: 'new@example.com', password: 'new-user-secret-1' }),
     });
 
     expect(res.status).toBe(201);

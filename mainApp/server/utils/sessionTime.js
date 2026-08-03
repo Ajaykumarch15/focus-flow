@@ -9,10 +9,8 @@
  * even when the offline queue replays previously-queued operations.
  */
 
-// Allow a small clock-skew tolerance so legitimately time-shifted devices still work.
-const FUTURE_SKEW_MS = 5 * 60 * 1000;
-// A session may never reach back further than 24h from the server's clock.
-const MAX_SESSION_AGE_MS = 24 * 60 * 60 * 1000;
+// IES-P1-27: shared bounds come from `utils/dates.js` (single definition).
+const { FUTURE_SKEW_MS, MAX_SESSION_AGE_MS } = require('./dates');
 
 /**
  * @param {number|undefined|null} clientValue  epoch ms supplied by the client

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,6 +7,7 @@ import {
   Timer, Zap, BookOpen, ChevronDown,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
 import type { Mood } from '../types';
@@ -14,43 +15,15 @@ import type { Mood } from '../types';
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
-// ── Animated Timer Display ────────────────────────────────────────────────────
-function LiveTimer({ isRunning, isPaused, liveTime, totalTime, isActive: _isActive }: {
-  isRunning: boolean; isPaused: boolean; liveTime: number; totalTime: number; isActive: boolean;
-}) {
-  const [elapsed, setElapsed] = useState(liveTime);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (isRunning) {
-      const tick = () => setElapsed(prev => prev + 1000);
-      intervalRef.current = setInterval(tick, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setElapsed(liveTime);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, liveTime]);
-
-  const display = isRunning || isPaused ? elapsed : totalTime;
-
-  return (
-    <div className={`font-mono text-5xl lg:text-6xl font-extrabold tracking-wider transition-colors duration-300 ${
-      isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
-    }`}>
-      {formatDuration(display)}
-    </div>
-  );
-}
-
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
     addSubtask, toggleSubtask, deleteSubtask, addJournal,
-    journals, activeTaskId, activeTimerState, updateTask,
+    journals, updateTask,
   } = useStore();
+  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
 
   const task = getTask(id!);
   const [newSubtask, setNewSubtask] = useState('');
@@ -86,9 +59,6 @@ export function TaskDetail() {
   const subtaskProgress = task.subtasks.length > 0
     ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
     : 0;
-
-  const lastSession = task.sessions[task.sessions.length - 1];
-  const liveTime = isActive && lastSession ? lastSession.activeTime : 0;
 
   const handleAddSubtask = (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,8 +192,11 @@ export function TaskDetail() {
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
                 </>
               )}
-              <LiveTimer isRunning={isRunning} isPaused={isPaused} liveTime={liveTime}
-                totalTime={task.totalTime} isActive={isActive} />
+              <div className={`font-mono text-5xl lg:text-6xl font-extrabold tracking-wider transition-colors duration-300 ${
+                isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
+              }`}>
+                {isActive ? activeDisplay : formatDuration(task.totalTime)}
+              </div>
             </div>
 
             {/* Status label */}

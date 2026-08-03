@@ -125,4 +125,48 @@ describe('TimerEngine & Session FSM', () => {
     offlineQueue.clear();
     expect(offlineQueue.getPendingCount()).toBe(0);
   });
+
+  it('P1-01. start/stop/pause are idempotent — duplicate calls are safe no-ops', async () => {
+    // start twice for the same task must not create a second session or reset elapsed
+    const startRes = await timerEngine.start('task-idem', 'sess-idem', 1000000);
+    expect(startRes.success).toBe(true);
+    expect(startRes.sessionId).toBe('sess-idem');
+
+    const restartRes = await timerEngine.start('task-idem', undefined, 1001000);
+    expect(restartRes.success).toBe(true);
+    expect(restartRes.sessionId).toBe('sess-idem');
+    expect(timerEngine.getElapsedMs(1002000)).toBe(2000); // elapsed continues from original start
+
+    // pause twice — second is rejected, state stays paused
+    expect(timerEngine.pause('task-idem', 1005000).success).toBe(true);
+    const doublePause = timerEngine.pause('task-idem', 1006000);
+    expect(doublePause.success).toBe(false);
+
+    // resume then stop
+    expect(timerEngine.resume('task-idem', 1007000).success).toBe(true);
+    const stopRes = await timerEngine.stop('task-idem', 1009000);
+    expect(stopRes.success).toBe(true);
+    expect(stopRes.activeTime).toBe(7000); // 9000 wall ms − 2000 paused
+
+    // stop again — already idle, safe failure without throwing or mutating
+    const stopAgain = await timerEngine.stop('task-idem', 1010000);
+    expect(stopAgain.success).toBe(false);
+    expect(stopAgain.error).toBe('Timer is already idle');
+    expect(timerEngine.getState()).toBe('idle');
+    expect(timerEngine.getElapsedMs()).toBe(0);
+  });
+
+  it('P1-01. starting a different task while running records and switches cleanly', async () => {
+    await timerEngine.start('task-a', 'sess-a', 1000000);
+    timerEngine.pause('task-a', 1004000);
+    expect(timerEngine.getElapsedMs(1004000)).toBe(4000);
+
+    const switchRes = await timerEngine.start('task-b', 'sess-b', 1005000);
+    expect(switchRes.success).toBe(true);
+    expect(timerEngine.getState()).toBe('running');
+    expect(timerEngine.getActiveTaskId()).toBe('task-b');
+    expect(timerEngine.getActiveSessionId()).toBe('sess-b');
+    // new session starts fresh
+    expect(timerEngine.getElapsedMs(1007000)).toBe(2000);
+  });
 });
