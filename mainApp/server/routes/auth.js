@@ -114,9 +114,13 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
     if (!email || !password)
       return res.status(400).json({ message: 'Email and password are required' });
 
-    // Need passwordHash for comparison — select it explicitly; googleTokens stays off the response.
+    // passwordHash is included by default (not select:false), so a pure
+    // exclusion projection keeps it available for comparePassword while keeping
+    // googleTokens out of the query result. Mixing `+passwordHash` (inclusion)
+    // with `-googleTokens` (exclusion) is rejected by MongoDB. The toJSON
+    // transform additionally strips both from the response.
     // Soft-deleted users (deletedAt set) are rejected at login.
-    const user = await User.findOne({ email, deletedAt: null }).select('+passwordHash -googleTokens');
+    const user = await User.findOne({ email, deletedAt: null }).select('-googleTokens');
     // Defensive: the query already filters deletedAt, but never trust a stale doc.
     if (!user || user.deletedAt)
       return res.status(401).json({ message: 'Invalid email or password' });
