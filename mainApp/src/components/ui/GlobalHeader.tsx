@@ -62,6 +62,7 @@ export function GlobalHeader() {
           type="button"
           onClick={() => setSearchOpen(true)}
           aria-label="Search workspace (Ctrl+K)"
+          aria-keyshortcuts="Control+K"
           title="Search workspace (Ctrl+K)"
           className="h-9 px-3 rounded-xl bg-surface-800/60 border border-surface-800 text-xs text-surface-400 hover:text-surface-200 hover:border-surface-600 transition-all flex items-center gap-2"
         >

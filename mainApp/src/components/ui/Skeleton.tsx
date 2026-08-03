@@ -1,22 +1,13 @@
 import { CSSProperties } from 'react';
-import { motion } from 'framer-motion';
 
 interface SkeletonProps {
   className?: string;
   style?: CSSProperties;
 }
 
-/** Base animated placeholder block. */
+/** Base animated placeholder block (GPU-friendly shimmer). */
 export function Skeleton({ className = '', style }: SkeletonProps) {
-  return (
-    <motion.div
-      className={`bg-surface-800 rounded-xl animate-pulse ${className}`}
-      style={style}
-      initial={{ opacity: 0.5 }}
-      animate={{ opacity: [0.5, 0.8, 0.5] }}
-      transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-    />
-  );
+  return <div className={`skeleton ${className}`} style={style} />;
 }
 
 /** Placeholder circle (avatar, icon). */

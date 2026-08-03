@@ -74,19 +74,30 @@ export function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto no-scrollbar">
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">
+              Menu
+            </motion.p>
+          )}
+        </AnimatePresence>
         {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to}
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative
-              ${isActive ? 'bg-brand-500/10 text-brand-500 dark:text-brand-400 font-semibold border border-brand-500/15' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
+              `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+              ${isActive ? 'text-brand-500 dark:text-brand-400 font-semibold' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
             }
           >
             {({ isActive }) => (
               <>
                 {isActive && (
-                  <motion.div layoutId="activeNavLeft" className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand-500" />
+                  <>
+                    <motion.div layoutId="activeNavBg" className="absolute inset-0 rounded-xl bg-brand-500/10 border border-brand-500/15" />
+                    <motion.div layoutId="activeNavLeft" className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand-500" />
+                  </>
                 )}
-                <Icon size={18} className="flex-shrink-0" />
+                <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'group-hover:text-surface-50'}`} />
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span

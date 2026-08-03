@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar }        from './Sidebar';
@@ -11,10 +11,12 @@ import { useStore }       from '../../store/useStore';
 export function AppLayout() {
   useNotifications();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement>(null);
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+    mainRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname, setMobileSidebarOpen]);
 
   return (
@@ -25,7 +27,7 @@ export function AppLayout() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <GlobalHeader />
-        <main className="flex-1 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin">
           <NotificationPermissionBanner />
           <motion.div
             initial={{ opacity: 0, y: 8 }}
