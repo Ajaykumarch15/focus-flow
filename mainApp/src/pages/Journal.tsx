@@ -19,8 +19,6 @@ export function Journal() {
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const activeTasks = tasks.filter(t => t.status !== 'completed');
-
   const autoResize = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -59,7 +57,7 @@ export function Journal() {
     if (!content.trim()) return;
 
     addJournal({
-      taskId: taskId || (activeTasks[0]?.id ?? ''),
+      taskId,
       content,
       mood,
       focusRating: mood,

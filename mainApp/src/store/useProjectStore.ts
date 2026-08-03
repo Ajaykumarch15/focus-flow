@@ -40,7 +40,7 @@ export const useProjectStore = create<ProjectState>((set, _get) => ({
   createProject: async (name: string) => {
     set({ loading: true, error: null });
     try {
-      const newProject = await api.projects.create(name);
+      const newProject = await api.projects.create({ name });
       set(state => ({
         projects: [...state.projects, newProject].sort((a, b) => a.name.localeCompare(b.name)),
         loading: false,

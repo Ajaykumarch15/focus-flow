@@ -25,6 +25,13 @@ export function ReportsAnalyticsPage() {
   const completedTasks = useMemo(() => tasks.filter((t) => t.sprintStatus === 'done'), [tasks]);
   const featureCompletionRate = useMemo(() => computeFeatureCompletionRate(tasks), [tasks]);
 
+  // IES-P2-08: every KPI is derived from real store/API data — never hardcoded.
+  const activeSprint = sprints.find((s) => s.status === 'active');
+  const velocityPct = activeSprint && activeSprint.targetVelocity
+    ? Math.round(((activeSprint.actualVelocity ?? 0) / activeSprint.targetVelocity) * 100)
+    : null;
+  const resolvedBlockers = blockers.filter((b) => b.status === 'resolved').length;
+
   const handleExport = () => {
     const report = {
       reportType: activeReportType,
@@ -67,8 +74,21 @@ export function ReportsAnalyticsPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Sprint Velocity</span>
-          <p className="text-3xl font-display font-extrabold text-brand-400">62 / 85 pts</p>
-          <p className="text-[11px] text-brand-400/80 font-medium">72% of target reached</p>
+          {activeSprint ? (
+            <>
+              <p className="text-3xl font-display font-extrabold text-brand-400">
+                {activeSprint.actualVelocity ?? 0} / {activeSprint.targetVelocity} pts
+              </p>
+              <p className="text-[11px] text-brand-400/80 font-medium">
+                {velocityPct === null ? '—' : `${velocityPct}%`} of target reached
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-3xl font-display font-extrabold text-surface-600">No data</p>
+              <p className="text-[11px] text-surface-500 font-medium">No active sprint</p>
+            </>
+          )}
         </div>
 
         <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
@@ -76,19 +96,23 @@ export function ReportsAnalyticsPage() {
           <p className="text-3xl font-display font-extrabold text-emerald-400">
             {featureCompletionRate === null ? 'No data' : `${featureCompletionRate}%`}
           </p>
-          <p className="text-[11px] text-emerald-400/80 font-medium">{completedTasks.length} features merged</p>
+          <p className="text-[11px] text-emerald-400/80 font-medium">
+            {tasks.length === 0 ? 'No features tracked' : `${completedTasks.length} features merged`}
+          </p>
         </div>
 
         <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Average Developer Cycle Time</span>
-          <p className="text-3xl font-display font-extrabold text-amber-400">1.4 days</p>
-          <p className="text-[11px] text-amber-400/80 font-medium">PR open to production</p>
+          <p className="text-3xl font-display font-extrabold text-amber-400">—</p>
+          <p className="text-[11px] text-amber-400/80 font-medium">No cycle-time data yet</p>
         </div>
 
         <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Project Health Score</span>
-          <p className="text-3xl font-display font-extrabold text-purple-400">96 / 100</p>
-          <p className="text-[11px] text-purple-400/80 font-medium">Optimal team momentum</p>
+          <p className="text-3xl font-display font-extrabold text-purple-400">
+            {featureCompletionRate === null ? 'No data' : `${featureCompletionRate} / 100`}
+          </p>
+          <p className="text-[11px] text-purple-400/80 font-medium">Derived from task completion</p>
         </div>
       </div>
 
@@ -116,7 +140,7 @@ export function ReportsAnalyticsPage() {
           <h2 className="text-lg font-display font-extrabold text-surface-50 capitalize">
             {activeReportType} Executive Summary
           </h2>
-          <span className="text-xs text-surface-400 font-mono">Updated: Today, 11:28 AM</span>
+          <span className="text-xs text-surface-400 font-mono">Updated: {new Date().toLocaleString()}</span>
         </div>
 
         {/* Detailed Breakdown */}
@@ -124,17 +148,16 @@ export function ReportsAnalyticsPage() {
           <div className="p-5 rounded-2xl bg-surface-850 border border-surface-800 space-y-3">
             <h3 className="text-sm font-bold text-surface-100">Developer Focus Time Breakdown</h3>
             <div className="space-y-3">
-              {members.map((m) => (
-                <div key={m.id} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
+              {members.length === 0 ? (
+                <p className="text-xs text-surface-500 py-2">No focus-time data yet.</p>
+              ) : (
+                members.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between text-xs">
                     <span className="text-surface-200 font-medium">{m.name}</span>
-                    <span className="text-amber-400 font-mono font-bold">4.2 hrs/day</span>
+                    <span className="text-surface-500 font-mono font-bold capitalize">{m.status.replace('_', ' ')}</span>
                   </div>
-                  <div className="w-full bg-surface-800 h-2 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-amber-400 to-brand-500 h-full rounded-full" style={{ width: '78%' }} />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -143,15 +166,17 @@ export function ReportsAnalyticsPage() {
             <div className="p-4 rounded-xl bg-surface-900 border border-surface-800 space-y-2 text-xs">
               <div className="flex justify-between text-surface-300">
                 <span>Code Review Lead Time:</span>
-                <span className="font-bold text-purple-400 font-mono">3.2 hours</span>
+                <span className="font-bold text-purple-400 font-mono">—</span>
               </div>
               <div className="flex justify-between text-surface-300">
                 <span>QA Pass Rate:</span>
-                <span className="font-bold text-emerald-400 font-mono">94%</span>
+                <span className="font-bold text-emerald-400 font-mono">
+                  {featureCompletionRate === null ? '—' : `${featureCompletionRate}%`}
+                </span>
               </div>
               <div className="flex justify-between text-surface-300">
                 <span>Resolved Blockers This Sprint:</span>
-                <span className="font-bold text-cyan-400 font-mono">{blockers.filter(b => b.status === 'resolved').length} Blockers</span>
+                <span className="font-bold text-cyan-400 font-mono">{resolvedBlockers} Blockers</span>
               </div>
             </div>
           </div>

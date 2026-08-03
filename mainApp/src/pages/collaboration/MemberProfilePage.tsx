@@ -6,24 +6,31 @@ import {
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { MemberRole } from '../../types/collaboration';
+import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
 
 export function MemberProfilePage() {
   const { workspaceId, memberId } = useParams<{ workspaceId: string; memberId: string }>();
   const navigate = useNavigate();
-  const { members, tasks, activities, updateMemberRole } = useCollaborationStore();
+  const { members, tasks, activities, sprints, activeWorkspaceId, updateMemberRole } = useCollaborationStore();
 
+  // IES-P2-08: no fabricated fallback member — a missing id is a real not-found state.
   const selectedMember = useMemo(
-    () => members.find((m) => m.id === memberId) || members[0],
+    () => members.find((m) => m.id === memberId),
     [members, memberId]
   );
 
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<MemberRole>(selectedMember.role);
+  const [selectedRole, setSelectedRole] = useState<MemberRole>(selectedMember?.role ?? 'Developer');
 
   // Computed telemetry
-  const assignedTasks = useMemo(() => tasks.filter((t) => t.assigneeId === selectedMember.id), [tasks, selectedMember.id]);
+  const assignedTasks = useMemo(() => (selectedMember ? tasks.filter((t) => t.assigneeId === selectedMember.id) : []), [tasks, selectedMember]);
   const completedTasks = useMemo(() => assignedTasks.filter((t) => t.sprintStatus === 'done'), [assignedTasks]);
-  const memberActivities = useMemo(() => activities.filter((a) => a.actor.id === selectedMember.id), [activities, selectedMember.id]);
+  const memberActivities = useMemo(() => (selectedMember ? activities.filter((a) => a.actor.id === selectedMember.id) : []), [activities, selectedMember]);
+
+  const activeSprint = sprints.find((s) => s.status === 'active');
+  const focusLabel = typeof selectedMember?.currentFocusTimeMs === 'number' && selectedMember.currentFocusTimeMs > 0
+    ? `${Math.floor(selectedMember.currentFocusTimeMs / 3600000)}h ${Math.floor((selectedMember.currentFocusTimeMs % 3600000) / 60000)}m`
+    : '—';
 
   const statusColorMap = {
     in_focus: 'bg-amber-400 text-amber-950',
@@ -34,15 +41,31 @@ export function MemberProfilePage() {
   };
 
   const handleSaveRole = () => {
+    if (!selectedMember) return;
     updateMemberRole(selectedMember.id, selectedRole);
     setIsEditing(false);
   };
+
+  if (!selectedMember) {
+    return (
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+        <button onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
+          className="flex items-center gap-2 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
+          <ArrowLeft size={14} /> Back to Member Roster
+        </button>
+        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-12 text-center space-y-3">
+          <h1 className="font-display font-extrabold text-surface-100 text-lg">Member not found</h1>
+          <p className="text-xs text-surface-400">This member does not exist in the active workspace.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       
       {/* Back link */}
-      <button onClick={() => navigate(`/w/${workspaceId || 'ws-acme-dev'}/members`)}
+      <button onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
         className="flex items-center gap-2 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
         <ArrowLeft size={14} /> Back to Member Roster
       </button>
@@ -114,7 +137,7 @@ export function MemberProfilePage() {
           <div className="p-4 rounded-2xl bg-surface-850 border border-surface-800">
             <span className="text-xs text-surface-400 font-semibold">Today's Focus Time</span>
             <p className="text-xl font-display font-extrabold text-amber-400 mt-1 flex items-center gap-1.5">
-              <Flame size={18} /> 4h 12m
+              <Flame size={18} /> {focusLabel}
             </p>
           </div>
 
@@ -130,7 +153,7 @@ export function MemberProfilePage() {
 
           <div className="p-4 rounded-2xl bg-surface-850 border border-surface-800">
             <span className="text-xs text-surface-400 font-semibold">Current Sprint</span>
-            <p className="text-xl font-display font-extrabold text-purple-400 mt-1">Sprint 24</p>
+            <p className="text-xl font-display font-extrabold text-purple-400 mt-1">{activeSprint?.name || '—'}</p>
           </div>
         </div>
       </div>
@@ -160,6 +183,11 @@ export function MemberProfilePage() {
                 )}
               </div>
             ))}
+            {assignedTasks.length === 0 && (
+              <div className="p-4 rounded-xl bg-surface-850 text-xs text-surface-400 italic text-center">
+                No assigned features yet.
+              </div>
+            )}
           </div>
         </div>
 
@@ -172,8 +200,8 @@ export function MemberProfilePage() {
             {memberActivities.length > 0 ? (
               memberActivities.map((act) => (
                 <div key={act.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 text-xs space-y-1">
-                  <p className="font-semibold text-surface-200">{act.title}</p>
-                  <p className="text-surface-400">{act.detail}</p>
+                  <p className="font-semibold text-surface-200">{activityActionLabel(act.action)}</p>
+                  <p className="text-surface-400">{activityDetail(act)}</p>
                   <p className="text-[10px] text-surface-500 font-mono">{new Date(act.timestamp).toLocaleString()}</p>
                 </div>
               ))

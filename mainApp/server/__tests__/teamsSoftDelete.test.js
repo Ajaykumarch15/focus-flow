@@ -135,17 +135,13 @@ describe('IES-P1-23 · team analytics exclude deleted members', () => {
   });
 });
 
-describe('IES-P1-23 · team writes only store active members', () => {
-  it('POST /api/teams filters members to active users', async () => {
+describe('IES-P1-23/IES-P2-02 · team writes validate member ids', () => {
+  it('POST /api/teams rejects a member id that is not an active user', async () => {
     mockFindById();
     const userFind = vi.spyOn(User, 'find').mockImplementation(() => ({
       select: () => Promise.resolve([{ _id: M1 }, { _id: M2 }]),
     }));
-    vi.spyOn(Team.prototype, 'save').mockResolvedValue(undefined);
-    vi.spyOn(Team.prototype, 'populate').mockImplementation(function () {
-      return Promise.resolve(this);
-    });
-    vi.spyOn(Activity, 'create').mockResolvedValue(undefined);
+    const saveSpy = vi.spyOn(Team.prototype, 'save');
 
     const res = await fetch(`${baseUrl}/api/teams`, {
       method: 'POST',
@@ -153,25 +149,19 @@ describe('IES-P1-23 · team writes only store active members', () => {
       body: JSON.stringify({ name: 'Core', description: 'Core team', members: [M1, M2, M3_DELETED] }),
     });
 
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(404);
     expect(userFind).toHaveBeenCalledWith({ _id: { $in: [M1, M2, M3_DELETED] }, deletedAt: null });
-    const body = await res.json();
-    expect(body.members).toEqual([M1, M2]);
+    expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it('PATCH /api/teams/:id persists only active members', async () => {
+  it('PATCH /api/teams/:id rejects a member id that is not an active user', async () => {
     mockFindById();
     const userFind = vi.spyOn(User, 'find').mockImplementation(() => ({
       select: () => Promise.resolve([{ _id: M1 }]),
     }));
-    const findByIdAndUpdate = vi.spyOn(Team, 'findByIdAndUpdate').mockImplementation(() => ({
-      populate: () =>
-        Promise.resolve({
-          _id: TEAM_ID,
-          name: 'Core',
-          members: [{ _id: M1, name: 'M1', email: 'm1@x.com', avatar: '', role: 'user' }],
-        }),
-    }));
+    // IES-P2-01: PATCH now loads the team first to enforce workspace ownership.
+    vi.spyOn(Team, 'findById').mockResolvedValue({ _id: TEAM_ID, name: 'Core', members: [M1] });
+    const findByIdAndUpdate = vi.spyOn(Team, 'findByIdAndUpdate');
 
     const res = await fetch(`${baseUrl}/api/teams/${TEAM_ID}`, {
       method: 'PATCH',
@@ -179,12 +169,8 @@ describe('IES-P1-23 · team writes only store active members', () => {
       body: JSON.stringify({ name: 'Core', members: [M1, M3_DELETED] }),
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(userFind).toHaveBeenCalledWith({ _id: { $in: [M1, M3_DELETED] }, deletedAt: null });
-    expect(findByIdAndUpdate).toHaveBeenCalledWith(
-      TEAM_ID,
-      { name: 'Core', members: [M1] },
-      { new: true }
-    );
+    expect(findByIdAndUpdate).not.toHaveBeenCalled();
   });
 });

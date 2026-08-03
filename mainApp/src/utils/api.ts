@@ -1,6 +1,8 @@
 // IES-P0-22: VITE_API_URL is required — no silent localhost fallback.
 // The build fails loudly when it is missing (see vite.config.ts requireApiUrl)
 // and its type is declared in src/vite-env.d.ts.
+import type { WorkspaceActivity, NotificationItem, SearchResults } from '../types/collaboration';
+
 const BASE = import.meta.env.VITE_API_URL;
 
 type ApiUser = {
@@ -281,9 +283,9 @@ export const api = {
 
   teams: {
     list: () => request<any[]>('/teams'),
-    create: (data: { name: string; description?: string; members?: string[] }) => 
+    create: (data: { name: string; description?: string; members?: string[]; workspaceId?: string; leaderId?: string; color?: string }) => 
       request<any>('/teams', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; description?: string; members?: string[] }) => 
+    update: (id: string, data: { name?: string; description?: string; members?: string[]; leaderId?: string; color?: string }) => 
       request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => 
       request<any>(`/teams/${id}`, { method: 'DELETE' }),
@@ -297,9 +299,68 @@ export const api = {
   },
 
   projects: {
-    list: () => request<any[]>('/projects'),
-    create: (name: string) => request<any>('/projects', { method: 'POST', body: JSON.stringify({ name }) }),
+    list: (workspaceId?: string) => {
+      const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
+      return request<any[]>(`/projects${qs}`);
+    },
+    create: (data: { name: string; workspaceId?: string }) =>
+      request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
+  },
+
+  // IES-P2-01: real workspace CRUD + membership surface (IES-P2-07 wiring).
+  workspaces: {
+    list: () => request<any[]>('/workspaces'),
+    get: (id: string) => request<any>(`/workspaces/${id}`),
+    create: (data: { name: string; type?: string; icon?: string; description?: string; settings?: Record<string, any> }) =>
+      request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, any>) =>
+      request<any>(`/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id: string) => request<any>(`/workspaces/${id}`, { method: 'DELETE' }),
+    members: (id: string) => request<any[]>(`/workspaces/${id}/members`),
+    invite: (id: string, data: { userId?: string; email?: string; role?: string }) =>
+      request<any[]>(`/workspaces/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
+    join: (id: string) => request<any>(`/workspaces/${id}/join`, { method: 'POST' }),
+    setRole: (id: string, userId: string, role: string) =>
+      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+    removeMember: (id: string, userId: string) =>
+      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
+
+    // IES-P2-04: real, workspace-scoped activity feed.
+    activity: (id: string, limit?: number, cursor?: string) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', String(limit));
+      if (cursor) params.set('cursor', cursor);
+      const qs = params.toString();
+      return request<Paginated<WorkspaceActivity>>(`/workspaces/${id}/activity${qs ? '?' + qs : ''}`);
+    },
+  },
+
+  // IES-P2-05: real, per-user notifications (invite / role change / removal).
+  notifications: {
+    list: (opts?: { limit?: number; cursor?: string; unreadOnly?: boolean }) => {
+      const params = new URLSearchParams();
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.cursor) params.set('cursor', opts.cursor);
+      if (opts?.unreadOnly) params.set('unreadOnly', 'true');
+      const qs = params.toString();
+      return request<Paginated<NotificationItem>>(`/notifications${qs ? '?' + qs : ''}`);
+    },
+    unreadCount: () => request<{ count: number }>('/notifications/unread-count'),
+    markRead: (id: string) =>
+      request<NotificationItem>(`/notifications/${id}/read`, { method: 'PATCH' }),
+    markAllRead: () =>
+      request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
+  },
+
+  // IES-P2-06: global (personal) + workspace-scoped search.
+  search: {
+    run: (query: string, opts?: { workspaceId?: string; limit?: number }) => {
+      const params = new URLSearchParams({ q: query });
+      if (opts?.workspaceId) params.set('workspaceId', opts.workspaceId);
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      return request<SearchResults>(`/search?${params.toString()}`);
+    },
   },
 
   google: {

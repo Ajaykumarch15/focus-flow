@@ -31,6 +31,7 @@ const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ d
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
 
 // Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
@@ -151,6 +152,7 @@ export default function App() {
               <Route path="/team"        element={<TeamWorkspace />} />
               <Route path="/worklog"     element={<WorkLogPage />} />
               <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
+              <Route path="/search"      element={<SearchResultsPage />} />
               <Route path="/reports"     element={<ReportsPage />} />
               <Route path="/tasks"       element={<Tasks />} />
               <Route path="/tasks/:id"   element={<TaskDetail />} />

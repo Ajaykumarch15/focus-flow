@@ -117,26 +117,20 @@ export interface CollaborativeTask {
   updatedAt: string;
 }
 
-export interface EngineeringActivity {
+// IES-P2-04: real workspace activity, shaped by GET /api/workspaces/:id/activity
+// (workspace-scoped, newest-first, keyset-paginated).
+export interface WorkspaceActivity {
   id: string;
   workspaceId: string;
   actor: {
     id: string;
     name: string;
+    email?: string;
     avatar?: string;
   };
-  type:
-    | 'focus_session_start'
-    | 'task_completed'
-    | 'blocker_resolved'
-    | 'arch_diagram_upload'
-    | 'pr_merged'
-    | 'worklog_shared'
-    | 'doc_created';
-  title: string;
-  detail?: string;
+  action: string;
+  details: Record<string, any>;
   timestamp: string;
-  targetUrl?: string;
 }
 
 export interface DiscussionComment {
@@ -173,7 +167,10 @@ export interface NotificationItem {
     | 'review_requested'
     | 'blocker_added'
     | 'sprint_started'
-    | 'report_shared';
+    | 'report_shared'
+    | 'invited'
+    | 'role_changed'
+    | 'removed';
   title: string;
   body: string;
   targetUrl?: string;
@@ -218,4 +215,26 @@ export interface TeamCalendarEvent {
   endDate?: string;
   memberIds?: string[];
   color: string;
+}
+
+// IES-P2-06: normalized search result rendered by both the command palette and
+// the SearchResults page. `kind` mirrors the server facet a result came from.
+export interface SearchResultItem {
+  kind: 'project' | 'team' | 'member' | 'task' | 'worklog' | 'workspace';
+  id: string;
+  title: string;
+  subtitle: string;
+  workspaceId?: string;
+  url: string;
+}
+
+export interface SearchResults {
+  query: string;
+  workspaceId?: string;
+  projects: SearchResultItem[];
+  teams: SearchResultItem[];
+  members: SearchResultItem[];
+  tasks: SearchResultItem[];
+  worklogs: SearchResultItem[];
+  workspaces: SearchResultItem[];
 }

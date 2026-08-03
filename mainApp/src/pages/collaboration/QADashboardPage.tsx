@@ -13,7 +13,8 @@ export function QADashboardPage() {
   const openBlockers = useMemo(() => blockers.filter((b) => b.status !== 'resolved'), [blockers]);
 
   const sprintReadinessPct = useMemo(() => {
-    if (tasks.length === 0) return 100;
+    // IES-P2-08: an empty task set is "no data", not a fabricated 100% readiness.
+    if (tasks.length === 0) return null;
     return Math.round((doneFeatures.length / tasks.length) * 100);
   }, [tasks, doneFeatures]);
 
@@ -43,8 +44,12 @@ export function QADashboardPage() {
 
           <div className="p-4 rounded-2xl bg-surface-850 border border-surface-800 min-w-[240px] text-center space-y-1">
             <span className="text-xs text-surface-400 font-semibold">Overall Sprint Readiness</span>
-            <p className="text-3xl font-display font-extrabold text-emerald-400">{sprintReadinessPct}%</p>
-            <p className="text-[10px] text-surface-500 font-medium">{doneFeatures.length} of {tasks.length} Features Validated</p>
+            <p className="text-3xl font-display font-extrabold text-emerald-400">
+              {sprintReadinessPct === null ? '—' : `${sprintReadinessPct}%`}
+            </p>
+            <p className="text-[10px] text-surface-500 font-medium">
+              {tasks.length === 0 ? 'No features tracked' : `${doneFeatures.length} of ${tasks.length} Features Validated`}
+            </p>
           </div>
         </div>
 
@@ -91,9 +96,15 @@ export function QADashboardPage() {
                 <div key={feat.id} className="p-5 rounded-2xl bg-surface-850 border border-surface-800 space-y-3 hover:border-surface-700 transition-all">
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-[10px] font-extrabold uppercase bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">
-                        PR #{feat.gitContext?.prNumber || 142}
-                      </span>
+                      {feat.gitContext?.prNumber ? (
+                        <span className="text-[10px] font-extrabold uppercase bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">
+                          PR #{feat.gitContext.prNumber}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-extrabold uppercase bg-surface-800 text-surface-500 px-2 py-0.5 rounded border border-surface-700">
+                          No PR linked
+                        </span>
+                      )}
                       <h3 className="text-sm font-bold text-surface-100 mt-1">{feat.title}</h3>
                       <p className="text-xs text-surface-400 mt-0.5">{feat.description}</p>
                     </div>
@@ -105,8 +116,8 @@ export function QADashboardPage() {
                   </div>
 
                   <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px] text-surface-400">
-                    <span>Branch: <code className="text-emerald-400">{feat.gitContext?.branch || 'feature/main-update'}</code></span>
-                    <span>Reviewer: {feat.gitContext?.reviewerName || 'Sneha Patel'}</span>
+                    <span>Branch: {feat.gitContext?.branch ? <code className="text-emerald-400">{feat.gitContext.branch}</code> : '—'}</span>
+                    <span>Reviewer: {feat.gitContext?.reviewerName || '—'}</span>
                   </div>
                 </div>
               ))
@@ -138,6 +149,11 @@ export function QADashboardPage() {
                 <p className="text-xs text-surface-400">{blk.impactDescription}</p>
               </div>
             ))}
+            {openBlockers.length === 0 && (
+              <div className="p-6 rounded-2xl bg-surface-850 border border-surface-800 text-center text-xs text-surface-400 italic">
+                No open blockers right now.
+              </div>
+            )}
           </div>
         </div>
 

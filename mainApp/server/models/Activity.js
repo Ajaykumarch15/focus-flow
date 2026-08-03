@@ -10,6 +10,10 @@ const activitySchema = new mongoose.Schema(
   {
     userId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     action:   { type: String, required: true, index: true },
+    // IES-P2-04: workspace/team scoping for the collaboration activity feed.
+    // Null on legacy events that are not tied to a workspace (e.g. user.created).
+    workspaceRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', default: null },
+    teamRef:      { type: mongoose.Schema.Types.ObjectId, ref: 'Team', default: null },
     details:  { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
@@ -17,6 +21,8 @@ const activitySchema = new mongoose.Schema(
 
 activitySchema.index({ createdAt: 1 }, { expireAfterSeconds: ACTIVITY_TTL_SECONDS });
 activitySchema.index({ action: 1, createdAt: -1 });
+// IES-P2-04: the workspace feed reads newest-first for one workspace.
+activitySchema.index({ workspaceRef: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Activity', activitySchema);
 module.exports.ACTIVITY_TTL_SECONDS = ACTIVITY_TTL_SECONDS;

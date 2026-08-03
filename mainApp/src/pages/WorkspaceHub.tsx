@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -24,8 +25,13 @@ const itemVariants = {
 export function WorkspaceHub() {
   const navigate = useNavigate();
   const { user, setWorkspace } = useAuthStore();
-  const { workspaces } = useCollaborationStore();
+  const { workspaces, loadWorkspaces } = useCollaborationStore();
   const { theme } = useStore();
+
+  // IES-P2-07: real workspace counts replace the removed seed data.
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -162,7 +168,7 @@ export function WorkspaceHub() {
               {/* Summary stats */}
               <div className="pt-3 flex items-center gap-4 text-xs font-semibold text-surface-300 flex-wrap">
                 <div className="flex items-center gap-1.5 bg-surface-850 px-3 py-1.5 rounded-xl border border-surface-800">
-                  <GitBranch size={14} className="text-cyan-400" /> {workspaces.length} Project{workspaces.length !== 1 ? 's' : ''}
+                  <GitBranch size={14} className="text-cyan-400" /> {workspaces.length} Workspace{workspaces.length !== 1 ? 's' : ''}
                 </div>
                 <div className="flex items-center gap-1.5 bg-surface-850 px-3 py-1.5 rounded-xl border border-surface-800">
                   <Users size={14} className="text-violet-400" /> {totalMembers} Members

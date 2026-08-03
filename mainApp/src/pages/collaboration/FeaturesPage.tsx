@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Plus, Search, GitBranch,
+  Sparkles, Search, GitBranch,
   MessageSquare, CheckSquare
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
@@ -12,7 +12,6 @@ export function FeaturesPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
-  const [, setShowCreateModal] = useState(false);
   const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
     open: false, targetType: 'task', targetId: '', title: ''
   });
@@ -60,10 +59,6 @@ export function FeaturesPage() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
-
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
-            <Plus size={15} /> New Feature
-          </button>
         </div>
       </div>
 
@@ -176,6 +171,12 @@ export function FeaturesPage() {
           );
         })}
       </div>
+
+      {wsTasks.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
+          No features match this workspace yet.
+        </div>
+      )}
 
       {/* Discussion Modal */}
       <DiscussionsModal

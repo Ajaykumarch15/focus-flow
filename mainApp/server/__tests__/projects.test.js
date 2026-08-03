@@ -130,7 +130,7 @@ describe('IES-P1-12 · POST /api/projects — no regex path, duplicates blocked'
     });
 
     expect(res.status).toBe(201);
-    expect(findOneSpy).toHaveBeenCalledWith({ userId: USER_ID, nameKey: 'acme (2) [prod] +' });
+    expect(findOneSpy).toHaveBeenCalledWith({ userId: USER_ID, workspaceRef: null, nameKey: 'acme (2) [prod] +' });
     const findCall = findOneSpy.mock.calls[0][0];
     expect(findCall).not.toHaveProperty('$regex');
     expect(Project.create).toHaveBeenCalledWith(

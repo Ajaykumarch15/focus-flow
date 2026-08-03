@@ -41,6 +41,12 @@ nameKey: {
       type:    String,
       default: '',
     },
+    // IES-P2-01: optional workspace scope (DDD §3.2). null = personal project.
+    workspaceRef: {
+      type:    mongoose.Schema.Types.ObjectId,
+      ref:     'Workspace',
+      default: null,
+    },
   },
   { timestamps: true }
 );
@@ -49,7 +55,18 @@ nameKey: {
 // `{ userId: 1, name: 1 }` index was case-sensitive, so "Foo"/"foo" could both
 // be created. `nameKey` is always lowercased, so this blocks duplicates for all
 // casings at the DB (E11000) even when the route pre-check races.
-projectSchema.index({ userId: 1, nameKey: 1 }, { unique: true });
+//
+// IES-P2-01: both uniqueness scopes are partial. Personal projects
+// (workspaceRef: null) keep the per-user rule; workspace projects are unique per
+// workspace instead, so the same user may use the same name in two workspaces.
+projectSchema.index(
+  { userId: 1, nameKey: 1 },
+  { unique: true, partialFilterExpression: { workspaceRef: null } }
+);
+projectSchema.index(
+  { workspaceRef: 1, nameKey: 1 },
+  { unique: true, partialFilterExpression: { workspaceRef: { $type: 'objectId' } } }
+);
 
 // IES-P1-12: keep `nameKey` in lockstep with `name`. Registered on 'validate'
 // (not 'save') because mongoose validates the document BEFORE pre-save hooks

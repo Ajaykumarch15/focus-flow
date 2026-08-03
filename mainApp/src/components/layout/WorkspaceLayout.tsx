@@ -20,7 +20,7 @@ export function WorkspaceLayout() {
   const navigate = useNavigate();
   const { user, setWorkspace: setAuthWorkspace } = useAuthStore();
   const {
-    workspaces, activeWorkspaceId, setActiveWorkspace,
+    workspaces, workspacesLoading, activeWorkspaceId, setActiveWorkspace, loadCollabData,
     tasks, blockers, docs, projects, notifications, markAllNotificationsRead
   } = useCollaborationStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
@@ -32,12 +32,33 @@ export function WorkspaceLayout() {
     setMobileSidebarOpen(false);
   }, [location.pathname, setMobileSidebarOpen]);
 
+  // IES-P2-07: load the workspace graph (workspaces + members/teams/projects)
+  // whenever a workspace route mounts or the workspace in the URL changes.
+  useEffect(() => {
+    if (workspaceId && workspaceId !== activeWorkspaceId) setActiveWorkspace(workspaceId);
+    loadCollabData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]);
+
   const [showWsDropdown, setShowWsDropdown] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateBlocker, setShowCreateBlocker] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
+
+  if (!activeWs) {
+    return (
+      <div className="flex h-screen bg-surface-950 text-surface-50 items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-surface-400">
+          <div className="w-8 h-8 border-2 border-surface-700 border-t-brand-500 rounded-full animate-spin" />
+          <p className="text-sm font-semibold">
+            {workspacesLoading ? 'Loading workspace…' : 'No workspaces yet'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const wsTasks = tasks.filter((t) => t.workspaceId === activeWs.id);
   const openBlockers = blockers.filter((b) => b.workspaceId === activeWs.id && b.status !== 'resolved');
