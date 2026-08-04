@@ -19,8 +19,29 @@ function requireApiUrl() {
   }
 }
 
+// In cross-origin deployments (static SPA host + separate API host) the SPA's
+// <meta> CSP would block fetches to the API unless connect-src names that
+// origin. Inject VITE_API_URL's origin into index.html at build time.
+function apiOriginCsp() {
+  let apiOrigin = ''
+  return {
+    name: 'inject-api-origin-csp',
+    configResolved(config: { mode: string; root: string }) {
+      const env = loadEnv(config.mode, config.root, '')
+      try {
+        apiOrigin = new URL(env.VITE_API_URL || '').origin
+      } catch {
+        apiOrigin = ''
+      }
+    },
+    transformIndexHtml(html: string) {
+      return apiOrigin ? html.replace(/__VITE_API_ORIGIN__/g, apiOrigin) : html
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), requireApiUrl()],
+  plugins: [react(), requireApiUrl(), apiOriginCsp()],
   test: {
     environment: 'happy-dom',
     exclude: ['**/node_modules/**', '**/dist/**', 'server/**'],

@@ -66,8 +66,11 @@ describe('IES-P0-11 · security headers', () => {
     expect(content).toContain("script-src 'self'");
     expect(content).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
     expect(content).toContain("font-src 'self' https://fonts.gstatic.com");
-    expect(content).toContain("frame-ancestors 'none'");
-    expect(content).toContain("connect-src 'self' ws://localhost:5173 http://localhost:5001");
+    // NB: frame-ancestors is intentionally NOT in the meta CSP — browsers ignore
+    // it there (it would only emit a console warning). It is enforced solely via
+    // the HTTP header set by securityHeaders middleware (asserted above).
+    expect(content).toContain("connect-src 'self'");
+    expect(content).toContain("ws://localhost:5173 http://localhost:5001");
     expect(content).toContain("object-src 'none'");
   });
 

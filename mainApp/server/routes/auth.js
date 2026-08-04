@@ -55,20 +55,36 @@ const registerLimiter = createAuthRegisterLimiter();
 const signToken = (user) =>
   jwt.sign({ id: user._id, tv: user.tokenVersion }, process.env.JWT_SECRET, { expiresIn: '30d' });
 
-// IES-P0-12: the session JWT is delivered in an httpOnly+SameSite=Lax cookie so
-// no script can read it (XSS-proof) and browsers won't attach it cross-site.
+// IES-P0-12: the session JWT is delivered in an httpOnly cookie so no script can
+// read it (XSS-proof). SameSite is computed per request:
+//  - Same-origin deployments (nginx proxy, single host) → Lax (strictest).
+//  - Cross-origin deployments (static SPA host + separate API host, e.g. two
+//    Render services) → None + Secure. SameSite=Lax would make the browser
+//    silently drop the cookie on cross-origin fetch(), which logs users out
+//    immediately after login/register. None is only emitted over HTTPS.
 const SESSION_COOKIE = 'ff_session';
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30d, matching signToken
-const sessionCookieOptions = () => ({
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
-  maxAge: SESSION_MAX_AGE_MS,
-  path: '/',
-});
-const setSessionCookie = (res, token) => res.cookie(SESSION_COOKIE, token, sessionCookieOptions());
-const clearSessionCookie = (res) =>
-  res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(), maxAge: undefined });
+const sessionCookieOptions = (req) => {
+  const secure = process.env.NODE_ENV === 'production';
+  let sameSite = 'lax';
+  try {
+    const clientOrigin = new URL(process.env.CLIENT_URL).origin;
+    const apiOrigin = `${req.protocol}://${req.get('host')}`;
+    if (secure && clientOrigin !== apiOrigin) sameSite = 'none';
+  } catch {
+    // invalid/missing CLIENT_URL — env validation rejects it at boot anyway.
+  }
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    maxAge: SESSION_MAX_AGE_MS,
+    path: '/',
+  };
+};
+const setSessionCookie = (res, token, req) => res.cookie(SESSION_COOKIE, token, sessionCookieOptions(req));
+const clearSessionCookie = (res, req) =>
+  res.clearCookie(SESSION_COOKIE, { ...sessionCookieOptions(req), maxAge: undefined });
 
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', registerLimiter, validate(registerSchema), async (req, res, next) => {
@@ -99,7 +115,7 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req, 
       throw err;
     }
 
-    setSessionCookie(res, signToken(user));
+    setSessionCookie(res, signToken(user), req);
     res.status(201).json({ user });
   } catch (err) {
     next(err);
@@ -129,7 +145,7 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
     if (!valid)
       return res.status(401).json({ message: 'Invalid email or password' });
 
-    setSessionCookie(res, signToken(user));
+    setSessionCookie(res, signToken(user), req);
     res.json({ user });   // passwordHash stripped by toJSON transform
     Activity.create({ userId: user._id, action: 'login', details: { email: user.email } }).catch(() => {});
   } catch (err) {
@@ -145,7 +161,7 @@ router.post('/logout', protect, async (req, res, next) => {
   try {
     req.user.tokenVersion = (req.user.tokenVersion || 0) + 1;
     await req.user.save();
-    clearSessionCookie(res);
+    clearSessionCookie(res, req);
     res.json({ message: 'Logged out' });
   } catch (err) {
     next(err);
