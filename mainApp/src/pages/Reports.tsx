@@ -16,6 +16,8 @@ import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
 import { useNavigate } from 'react-router-dom';
 import { MOOD_EMOJIS } from '../lib/config';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -736,11 +738,11 @@ export function ReportsPage() {
                 <div className="rounded-xl border border-surface-800 bg-surface-850/50 p-4">
                   <label className="block text-xs text-surface-400 font-semibold mb-2 uppercase tracking-wider">View Single Day</label>
                   <div className="flex gap-2">
-                    <input type="date" className="input text-sm rounded-xl flex-1" value={dayInput} onChange={e => setDayInput(e.target.value)} />
-                    <button onClick={() => dayInput && setSelectedDate(dayInput)}
-                      className="btn-primary px-4 text-sm flex items-center gap-2 rounded-xl">
-                      <Calendar size={14} /> View
-                    </button>
+                    <Input type="date" className="text-sm rounded-xl flex-1" value={dayInput} onChange={e => setDayInput(e.target.value)} />
+                    <Button onClick={() => dayInput && setSelectedDate(dayInput)}
+                      leftIcon={<Calendar size={14} />}>
+                      View
+                    </Button>
                   </div>
                 </div>
 
@@ -748,8 +750,8 @@ export function ReportsPage() {
                 <div className="rounded-xl border border-surface-800 bg-surface-850/50 p-4">
                   <label className="block text-xs text-surface-400 font-semibold mb-2 uppercase tracking-wider">Custom Range</label>
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <input type="date" className="input text-sm rounded-xl" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-                    <input type="date" className="input text-sm rounded-xl" value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
+                    <Input type="date" className="text-sm rounded-xl" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
+                    <Input type="date" className="text-sm rounded-xl" value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {[

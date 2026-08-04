@@ -10,6 +10,11 @@ import { useStore } from '../store/useStore';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
+import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
@@ -36,14 +41,12 @@ export function TaskDetail() {
   if (!task) {
     return (
       <div className="p-6 flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-surface-800 flex items-center justify-center mx-auto mb-4">
-            <Circle size={28} className="text-surface-600" />
-          </div>
-          <p className="text-surface-200 font-semibold text-lg">Task not found</p>
-          <p className="text-surface-400 text-sm mt-1 mb-4">This task may have been deleted.</p>
-          <button onClick={() => navigate('/tasks')} className="btn-primary px-5 py-2.5 rounded-xl">Back to Tasks</button>
-        </div>
+        <EmptyState
+          icon={<Circle size={28} className="text-surface-600" />}
+          title="Task not found"
+          description="This task may have been deleted."
+          action={<Button onClick={() => navigate('/tasks')} size="lg">Back to Tasks</Button>}
+        />
       </div>
     );
   }
@@ -79,10 +82,11 @@ export function TaskDetail() {
 
       {/* ═══ Back + Header ═══ */}
       <motion.div variants={fadeUp} initial="hidden" animate="show">
-        <button onClick={() => navigate('/tasks')}
-          className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 font-medium transition-colors mb-4 px-3 py-1.5 rounded-lg hover:bg-surface-800 w-fit">
-          <ArrowLeft size={15} /> Back to Tasks
-        </button>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/tasks')}
+          className="text-sm mb-4 px-3 py-1.5 rounded-lg w-fit"
+          leftIcon={<ArrowLeft size={15} />}>
+          Back to Tasks
+        </Button>
 
         <div className={`rounded-2xl border bg-surface-900 p-6 lg:p-8 relative overflow-hidden ${
           isTaskOverdue ? 'border-red-500/30' : 'border-surface-800/60'
@@ -93,27 +97,27 @@ export function TaskDetail() {
 
           <div className="pl-3">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <span className={`inline-flex items-center gap-1 badge text-[11px] font-semibold ${priority.bg} ${priority.color} border ${priority.border}`}>
+              <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' || task.priority === 'medium' ? 'warning' : 'success'} className={`text-[11px] border ${priority.border}`}>
                 {priority.label}
-              </span>
-              <span className="badge text-[11px] font-semibold bg-surface-800 text-surface-300 border border-surface-700">
+              </Badge>
+              <Badge tone="neutral" className="text-[11px] border border-surface-700">
                 {task.category}
-              </span>
+              </Badge>
               {deadlineInfo && (
-                <span className={`badge text-[11px] font-semibold ${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
-                  <Clock size={10} className="mr-1" /> {deadlineInfo.label}
-                </span>
+                <Badge tone={deadlineInfo.status === 'overdue' ? 'danger' : deadlineInfo.status === 'due-today' || deadlineInfo.status === 'due-soon' ? 'warning' : 'brand'} icon={<Clock size={10} className="mr-1" />} className={`text-[11px] border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
+                  {deadlineInfo.label}
+                </Badge>
               )}
               {task.status === 'completed' && (
-                <span className="badge text-[11px] font-semibold text-emerald-400 bg-emerald-400/10 border border-emerald-400/20">
-                  <CheckCircle size={10} className="mr-1" /> Done
-                </span>
+                <Badge tone="success" icon={<CheckCircle size={10} className="mr-1" />} className="text-[11px] border border-emerald-400/20">
+                  Done
+                </Badge>
               )}
             </div>
 
             {editTitle ? (
               <div className="flex items-center gap-2">
-                <input className="input text-xl font-display font-bold h-12 rounded-xl flex-1"
+                <Input className="text-xl font-display font-bold h-12 rounded-xl flex-1"
                   value={titleValue} onChange={e => setTitleValue(e.target.value)} autoFocus />
                 <button onClick={() => { updateTask(task.id, { title: titleValue }); setEditTitle(false); }}
                   className="p-2.5 bg-emerald-500/15 text-emerald-400 rounded-xl border border-emerald-500/20 hover:bg-emerald-500/25 transition-all">
@@ -223,7 +227,7 @@ export function TaskDetail() {
                 <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
                   onClick={() => startTimer(task.id)}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
-                  <Play size={15} fill="white" /> Start Timer
+                  <Play size={15} fill="white" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
                 </motion.button>
               )}
               {isRunning && (
@@ -374,12 +378,11 @@ export function TaskDetail() {
             </div>
 
             <form onSubmit={handleAddSubtask} className="flex gap-2">
-              <input className="input flex-1 text-sm rounded-xl" placeholder="Add subtask…"
+              <Input className="flex-1 text-sm rounded-xl" placeholder="Add subtask…"
                 value={newSubtask} onChange={e => setNewSubtask(e.target.value)} />
-              <button type="submit" disabled={!newSubtask.trim()}
-                className="btn-primary px-3 py-2 rounded-xl">
+              <Button type="submit" disabled={!newSubtask.trim()} size="icon">
                 <Plus size={15} />
-              </button>
+              </Button>
             </form>
           </motion.div>
 
@@ -393,8 +396,8 @@ export function TaskDetail() {
               <span className="text-sm font-bold text-surface-100">Journal Entry</span>
             </div>
 
-            <textarea
-              className="input resize-none h-28 text-sm mb-3 rounded-xl"
+            <Textarea
+              className="resize-none h-28 text-sm mb-3 rounded-xl"
               placeholder="Write your thoughts, progress, blockers…"
               value={journalText}
               onChange={e => setJournalText(e.target.value)}
@@ -414,10 +417,10 @@ export function TaskDetail() {
               </div>
             </div>
 
-            <button onClick={handleAddJournal} disabled={!journalText.trim()}
-              className="btn-primary w-full py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
-              <BookOpen size={14} /> Save Journal Entry
-            </button>
+            <Button onClick={handleAddJournal} disabled={!journalText.trim()}
+              className="w-full" leftIcon={<BookOpen size={14} />}>
+              Save Journal Entry
+            </Button>
           </motion.div>
 
           {/* ═══ Previous Entries ═══ */}

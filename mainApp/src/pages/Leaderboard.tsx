@@ -5,6 +5,9 @@ import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { Skeleton, SkeletonCircle } from '../components/ui/Skeleton';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 
 interface LeaderboardUser {
   _id: string;
@@ -41,30 +44,30 @@ export function Leaderboard() {
         {/* Podium skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 items-end">
           {/* Silver */}
-          <div className="card p-6 border-slate-400/20 order-2 md:order-1 h-48 flex flex-col items-center justify-center">
+          <Card className="p-6 border-slate-400/20 order-2 md:order-1 h-48 flex flex-col items-center justify-center">
             <SkeletonCircle size={64} className="mb-3" />
             <Skeleton className="h-4 w-24 rounded mb-2" />
             <Skeleton className="h-4 w-16 rounded" />
-          </div>
+          </Card>
           {/* Gold */}
-          <div className="card p-8 border-yellow-400/30 bg-yellow-400/5 order-1 md:order-2 h-56 flex flex-col items-center justify-center">
+          <Card className="p-8 border-yellow-400/30 bg-yellow-400/5 order-1 md:order-2 h-56 flex flex-col items-center justify-center">
             <SkeletonCircle size={80} className="mb-4" />
             <Skeleton className="h-5 w-28 rounded mb-2" />
             <Skeleton className="h-5 w-20 rounded mb-2" />
             <Skeleton className="h-3 w-24 rounded" />
-          </div>
+          </Card>
           {/* Bronze */}
-          <div className="card p-6 border-orange-700/20 order-3 h-44 flex flex-col items-center justify-center">
+          <Card className="p-6 border-orange-700/20 order-3 h-44 flex flex-col items-center justify-center">
             <SkeletonCircle size={64} className="mb-3" />
             <Skeleton className="h-4 w-24 rounded mb-2" />
             <Skeleton className="h-4 w-16 rounded" />
-          </div>
+          </Card>
         </div>
 
         {/* List skeleton */}
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="card p-4 flex items-center gap-4">
+            <Card key={i} className="p-4 flex items-center gap-4">
               <Skeleton className="w-6 h-4 rounded" />
               <SkeletonCircle size={40} />
               <div className="flex-1">
@@ -75,7 +78,7 @@ export function Leaderboard() {
                 <Skeleton className="h-4 w-12 rounded mb-1" />
                 <Skeleton className="h-3 w-10 rounded" />
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
@@ -124,9 +127,9 @@ export function Leaderboard() {
             <h3 className="text-surface-50 text-lg font-extrabold truncate w-full text-center">{top3[0].name}</h3>
             <p className="text-amber-500 font-extrabold text-xl">{top3[0].totalPoints.toLocaleString()} pts</p>
             {top3[0].streak.current > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 text-orange-500 text-xs font-semibold bg-orange-500/10 px-3 py-1 rounded-full">
-                <Flame size={14} fill="currentColor" /> {top3[0].streak.current} day streak
-              </div>
+              <Badge tone="warning" icon={<Flame size={14} fill="currentColor" />} className="mt-2 px-3 py-1">
+                {top3[0].streak.current} day streak
+              </Badge>
             )}
           </motion.div>
         )}
@@ -167,9 +170,9 @@ export function Leaderboard() {
               <h4 className="text-surface-50 font-semibold truncate text-sm">{user.name}</h4>
               <div className="flex items-center gap-3">
                 {user.streak.current > 0 && (
-                  <span className="text-[10px] text-orange-500 font-bold uppercase flex items-center gap-0.5">
-                    <Flame size={10} fill="currentColor" /> {user.streak.current} day streak
-                  </span>
+                  <Badge tone="warning" icon={<Flame size={10} fill="currentColor" />} className="text-[10px] font-bold uppercase">
+                    {user.streak.current} day streak
+                  </Badge>
                 )}
               </div>
             </div>
@@ -181,10 +184,11 @@ export function Leaderboard() {
         ))}
 
         {users.length === 0 && (
-          <div className="card p-12 text-center rounded-[22px]">
-            <Users size={40} className="mx-auto mb-4 text-surface-400" />
-            <p className="text-surface-300 font-medium">No users have opted into the leaderboard yet.</p>
-          </div>
+          <EmptyState
+            icon={<Users size={40} className="text-surface-400" />}
+            title="No leaderboard entries yet"
+            description="No users have opted into the leaderboard yet."
+          />
         )}
       </div>
     </div>

@@ -8,6 +8,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
+import { timerEngine } from '../utils/timerEngine';
 import { api } from '../utils/api';
 import { formatHours, formatMs, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, startOfDay } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
@@ -15,6 +16,11 @@ import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { MOOD_LABELS } from '../utils/colors';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { Card, CardHeader, CardTitle, CardBody } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { StatusBadge } from '../components/ui/StatusBadge';
+import { EmptyState } from '../components/ui/EmptyState';
 
 // ── Motion Variants ──────────────────────────────────────────────────────────
 
@@ -94,19 +100,19 @@ function ChartTooltipContent({ active, payload, label }: any) {
 // ── Main Dashboard ───────────────────────────────────────────────────────────
 
 export function Dashboard() {
-  const { tasks, profile, theme, journals, activeTaskId, dataLoading, getTodayTime, activeTimerState } = useStore();
+  const { tasks, profile, theme, journals, activeTaskId, dataLoading, getTodayTime, activeTimerState, currentSessionStart } = useStore();
   const { activeLogs } = useWorkLogStore();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     api.sessions.list().then(setSessions).catch(console.error);
-  }, []);
+  }, [activeTaskId]);
 
   useEffect(() => {
-    if (activeTimerState === 'running') {
+    if (activeTimerState !== 'idle') {
       const id = setInterval(() => setTick(t => t + 1), 1000);
       return () => clearInterval(id);
     }
@@ -124,13 +130,11 @@ export function Dashboard() {
     for (const s of sessions) {
       if (s.startTime >= ws) wMs += (s.activeTime || 0);
     }
-    if (activeTaskId) {
-      const activeTask = tasks.find(t => t.id === activeTaskId);
-      const live = activeTask?.sessions.find(s => !s.endTime);
-      if (live && live.startTime >= ws) wMs += live.activeTime;
+    if (activeTimerState !== 'idle' && (currentSessionStart || 0) >= ws) {
+      wMs += timerEngine.getElapsedMs();
     }
     return wMs;
-  }, [sessions, tasks, activeTaskId]);
+  }, [sessions, activeTimerState, currentSessionStart, tick]);
 
   // ── Derived stats ────────────────────────────────────────────────────────
 
@@ -152,13 +156,12 @@ export function Dashboard() {
     for (const s of sessions) {
       if (s.startTime >= start && s.startTime <= end) hours += (s.activeTime || 0) / 3600000;
     }
-    if (activeTaskId) {
-      const activeTask = tasks.find(t => t.id === activeTaskId);
-      const live = activeTask?.sessions.find(s => !s.endTime);
-      if (live && live.startTime >= start && live.startTime <= end) hours += live.activeTime / 3600000;
+    if (activeTimerState !== 'idle' && currentSessionStart &&
+        currentSessionStart >= start && currentSessionStart <= end) {
+      hours += timerEngine.getElapsedMs() / 3600000;
     }
     return { day, hours: Math.round(hours * 10) / 10 };
-  }), [sessions, tasks, activeTaskId, days.join()]);
+  }), [sessions, activeTimerState, currentSessionStart, days.join(), tick]);
 
   const weekHoursTotal = weekData.reduce((s, d) => s + d.hours, 0);
   const weekAvg = weekHoursTotal / 7;
@@ -228,49 +231,62 @@ export function Dashboard() {
   return (
     <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
 
-      {/* ═══════════════ HERO ═══════════════ */}
+      {/* ═══════════════ EXECUTION HERO (Developer Focus) ═══════════════ */}
       <motion.div variants={fadeUp} initial="hidden" animate="show"
         className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 p-8 lg:p-10">
-        {/* Background glow */}
         <div className="absolute top-0 right-0 w-[500px] h-[300px] opacity-20 dark:opacity-15 pointer-events-none"
           style={{
             background: `radial-gradient(ellipse at top right, ${accent}30, transparent 70%)`,
           }} />
-        <div className="absolute bottom-0 left-0 w-[300px] h-[200px] opacity-10 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse at bottom left, ${accent}20, transparent 70%)`,
-          }} />
 
         <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-          {/* Left */}
+          {/* Left Hero Context */}
           <div className="flex-1 min-w-0">
-            <motion.h1 variants={fadeUp} className="text-3xl lg:text-[2.5rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
-              {greeting}, {profile.name.split(' ')[0]} <span className="inline-block animate-[wave_0.6s_ease-in-out_0.3s_1]">&#128075;</span>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
+                Developer Mission Control
+              </Badge>
+              {activeTaskId && (
+                <Badge tone="warning" className="text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                  Timer Running
+                </Badge>
+              )}
+            </div>
+
+            <motion.h1 variants={fadeUp} className="text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
+              {greeting}, {profile.name.split(' ')[0]} 👋
             </motion.h1>
-            <motion.p variants={fadeUp} className="text-surface-400 font-medium text-sm mt-2">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-            </motion.p>
-            <motion.p variants={fadeUp} className="text-surface-300 text-[15px] mt-4 max-w-md leading-relaxed">
-              {motivation}
+
+            <motion.p variants={fadeUp} className="text-surface-300 text-sm mt-3 max-w-lg leading-relaxed">
+              {activeTaskId
+                ? `Active Session: You are focusing on "${tasks.find(t => t.id === activeTaskId)?.title || 'current task'}"`
+                : motivation}
             </motion.p>
 
-            <motion.div variants={fadeUp} className="flex items-center gap-3 mt-6">
+            <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-3 mt-6">
               {activeTaskId ? (
-                <button onClick={() => navigate('/focus')}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-amber-500 text-white hover:bg-amber-400 transition-all shadow-lg shadow-amber-500/20">
-                  <Play size={15} fill="currentColor" /> Resume Focus
-                </button>
+                <Button
+                  size="lg"
+                  leftIcon={<Play size={15} fill="currentColor" />}
+                  className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
+                  onClick={() => navigate('/focus')}
+                >
+                  Resume Active Timer Session
+                </Button>
               ) : (
-                <button onClick={() => setShowCreate(true)}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg"
-                  style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}>
-                  <Plus size={16} /> New Task
-                </button>
+                <Button
+                  size="lg"
+                  leftIcon={<Plus size={16} />}
+                  className="shadow-lg"
+                  style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
+                  onClick={() => setShowCreate(true)}
+                >
+                  Start New Task
+                </Button>
               )}
-              <button onClick={() => navigate('/tasks')}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium text-surface-300 hover:text-surface-100 bg-surface-800/60 hover:bg-surface-800 border border-surface-700/50 transition-all">
-                View All Tasks <ChevronRight size={14} />
-              </button>
+              <Button variant="secondary" size="lg" rightIcon={<ChevronRight size={14} />} onClick={() => navigate('/tasks')}>
+                View My Backlog ({activeTasks.length})
+              </Button>
             </motion.div>
           </div>
 
@@ -282,7 +298,7 @@ export function Dashboard() {
                 <span className="text-3xl font-display font-extrabold text-surface-50">
                   <AnimatedValue value={Math.round(dailyGoalProgress)} />%
                 </span>
-                <span className="text-[11px] text-surface-400 font-medium">Goal</span>
+                <span className="text-[11px] text-surface-400 font-medium">Daily Goal</span>
               </div>
             </div>
             <div className="text-center">
@@ -290,48 +306,47 @@ export function Dashboard() {
                 {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
               </p>
               {remainingMs > 0 && dailyGoalProgress < 100 && (
-                <p className="text-xs text-surface-400 mt-0.5">{formatMs(remainingMs)} remaining</p>
+                <p className="text-xs text-surface-400 mt-0.5">{formatMs(remainingMs)} remaining today</p>
               )}
             </div>
           </motion.div>
         </div>
       </motion.div>
 
-      {/* ═══════════════ ATTENTION PANEL ═══════════════ */}
+      {/* ═══════════════ ACTION NEEDED PANEL ═══════════════ */}
       <AnimatePresence>
         {overdueCount > 0 && (
           <motion.div variants={fadeUp} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-3 p-4 rounded-2xl border border-red-500/20 bg-red-500/5">
-            <div className="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle size={16} className="text-red-500" />
+            className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
+            <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={16} className="text-danger-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-red-500">
-                {overdueCount} overdue task{overdueCount !== 1 ? 's' : ''}
+              <p className="text-sm font-bold text-danger-500">
+                {overdueCount} Overdue Task{overdueCount !== 1 ? 's' : ''} Requiring Attention
               </p>
-              <p className="text-xs text-red-400/70 mt-0.5">These need your attention</p>
+              <p className="text-xs text-danger-400/80 mt-0.5">Prioritize these tasks to keep sprint delivery on schedule.</p>
             </div>
-            <button onClick={() => navigate('/tasks')}
-              className="text-xs font-semibold text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-all">
-              View All
-            </button>
+            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/tasks')}>
+              Resolve Now →
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ KPI CARDS ═══════════════ */}
+      {/* ═══════════════ DEVELOPER KEY METRICS ═══════════════ */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard icon={Clock} label="Focus Time" value={formatHours(todayMs)}
-          sub={`Goal: ${profile.dailyGoal}h`} color={accent} delay={0} />
+        <KPICard icon={Clock} label="Today's Focus Time" value={formatHours(todayMs)}
+          sub={`Target: ${profile.dailyGoal}h`} color={accent} />
         <KPICard icon={Flame} label="Current Streak"
-          value={`${streak} day${streak !== 1 ? 's' : ''}`}
-          sub={`Best: ${profile.streak?.best || 0}`} color="#f97316" delay={0.06} />
+          value={`${streak} Day${streak !== 1 ? 's' : ''}`}
+          sub={`Personal Best: ${profile.streak?.best || 0}`} color="#f97316" />
         <KPICard icon={Zap} label="Focus Points"
           value={points.toLocaleString()}
-          sub="All time" color="#8b5cf6" delay={0.12} />
-        <KPICard icon={CheckCircle} label="Completed"
+          sub="Session XP" color="#8b5cf6" />
+        <KPICard icon={CheckCircle} label="Completed Today"
           value={String(completedToday)}
-          sub="tasks today" color="#22c55e" delay={0.18} />
+          sub="Tasks done" color="#22c55e" />
       </motion.div>
 
       {/* ═══════════════ SMART INSIGHTS ═══════════════ */}
@@ -349,19 +364,34 @@ export function Dashboard() {
             <div className="flex items-center gap-3">
               <h2 className="font-display font-bold text-surface-50 text-lg">Active Tasks</h2>
               {activeTasks.length > 0 && (
-                <span className="text-xs font-bold text-surface-400 bg-surface-800 px-2.5 py-0.5 rounded-lg">
-                  {activeTasks.length}
-                </span>
+                <Badge tone="neutral">{activeTasks.length}</Badge>
               )}
             </div>
-            <button onClick={() => setShowCreate(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-surface-400 hover:text-surface-200 px-3 py-1.5 rounded-lg hover:bg-surface-800 transition-all">
-              <Plus size={13} /> Add
-            </button>
+            <Button variant="ghost" size="xs" leftIcon={<Plus size={13} />} onClick={() => setShowCreate(true)}>
+              Add
+            </Button>
           </motion.div>
 
           {activeTasks.length === 0 ? (
-            <EmptyTasks onNew={() => setShowCreate(true)} accent={accent} />
+            <motion.div variants={fadeIn} initial="hidden" animate="show">
+              <Card>
+                <EmptyState
+                  icon={<Zap size={28} className="text-brand-400" />}
+                  title="No active tasks"
+                  description="Create your first task to start tracking focus time and building momentum."
+                  action={
+                    <Button
+                      leftIcon={<Plus size={15} />}
+                      className="bg-none shadow-lg"
+                      style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
+                      onClick={() => setShowCreate(true)}
+                    >
+                      Create Task
+                    </Button>
+                  }
+                />
+              </Card>
+            </motion.div>
           ) : (
             <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
               {activeTasks.map(task => (
@@ -376,136 +406,149 @@ export function Dashboard() {
         {/* ─── Sidebar ─── */}
         <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-4">
           {/* Weekly Analytics */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-display font-bold text-surface-50 text-[15px]">This Week</h3>
-              <BarChart3 size={15} className="text-surface-500" />
-            </div>
-            <p className="text-sm font-semibold text-surface-200 mb-0.5">
-              <AnimatedValue value={weekHoursTotal} decimals={1} />h focused
-            </p>
-            {peakDay && peakDay.hours > 0 && (
-              <p className="text-[11px] text-surface-400 mb-4">
-                Peak: {peakDay.day} ({peakDay.hours}h)
-              </p>
-            )}
-            <ResponsiveContainer width="100%" height={150}>
-              <AreaChart data={weekData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gradChart" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={accent} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={accent} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10, fontWeight: 500 }}
-                  axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip content={<ChartTooltipContent />} />
-                {weekAvg > 0 && (
-                  <ReferenceLine y={weekAvg} stroke="#52525b" strokeDasharray="4 4" strokeWidth={1} />
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <CardTitle>This Week</CardTitle>
+                <BarChart3 size={15} className="text-surface-500" />
+              </CardHeader>
+              <CardBody>
+                <p className="text-sm font-semibold text-surface-200 mb-0.5">
+                  <AnimatedValue value={weekHoursTotal} decimals={1} />h focused
+                </p>
+                {peakDay && peakDay.hours > 0 && (
+                  <p className="text-[11px] text-surface-400 mb-4">
+                    Peak: {peakDay.day} ({peakDay.hours}h)
+                  </p>
                 )}
-                <Area type="monotone" dataKey="hours" stroke={accent} strokeWidth={2}
-                  fill="url(#gradChart)" dot={{ fill: accent, strokeWidth: 0, r: 2.5 }}
-                  activeDot={{ r: 5, strokeWidth: 2, stroke: accent, fill: 'var(--color-surface-900)' }}
-                  animationDuration={1000} />
-              </AreaChart>
-            </ResponsiveContainer>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={weekData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gradChart" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={accent} stopOpacity={0.25} />
+                        <stop offset="95%" stopColor={accent} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10, fontWeight: 500 }}
+                      axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    {weekAvg > 0 && (
+                      <ReferenceLine y={weekAvg} stroke="#52525b" strokeDasharray="4 4" strokeWidth={1} />
+                    )}
+                    <Area type="monotone" dataKey="hours" stroke={accent} strokeWidth={2}
+                      fill="url(#gradChart)" dot={{ fill: accent, strokeWidth: 0, r: 2.5 }}
+                      activeDot={{ r: 5, strokeWidth: 2, stroke: accent, fill: 'var(--color-surface-900)' }}
+                      animationDuration={1000} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardBody>
+            </Card>
           </motion.div>
 
           {/* Recent Journals */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-surface-50 text-[15px]">Recent Journal</h3>
-              <button onClick={() => navigate('/journal')}
-                className="text-[11px] font-semibold text-surface-400 hover:text-surface-200 transition-all">
-                View All
-              </button>
-            </div>
-            {journals.length === 0 ? (
-              <EmptyJournal onNew={() => navigate('/journal')} />
-            ) : (
-              <div className="space-y-2.5">
-                {journals.slice(0, 3).map(j => {
-                  const task = tasks.find(t => t.id === j.taskId);
-                  const moodEmoji = MOOD_LABELS[j.mood]?.split(' ')[0] || '📝';
-                  return (
-                    <button key={j.id} onClick={() => navigate('/journal')}
-                      className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
-                      <div className="flex items-start gap-2.5">
-                        <span className="text-base flex-shrink-0 mt-0.5">{moodEmoji}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-surface-200 truncate">{task?.title || 'Journal Entry'}</p>
-                          <p className="text-[11px] text-surface-500 mt-0.5">
-                            {new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                          </p>
-                          <p className="text-xs text-surface-300 line-clamp-2 mt-1.5 leading-relaxed">{j.content}</p>
-                        </div>
-                        <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Journal</CardTitle>
+                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/journal')}>
+                  View All
+                </Button>
+              </CardHeader>
+              <CardBody>
+                {journals.length === 0 ? (
+                  <div className="text-center py-4">
+                    <BookOpen size={24} className="mx-auto text-surface-600 mb-2" />
+                    <p className="text-xs text-surface-400 mb-3">No journal entries yet</p>
+                    <Button variant="ghost" size="xs" className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10" onClick={() => navigate('/journal')}>
+                      Write your first entry
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {journals.slice(0, 3).map(j => {
+                      const task = tasks.find(t => t.id === j.taskId);
+                      const moodEmoji = MOOD_LABELS[j.mood]?.split(' ')[0] || '📝';
+                      return (
+                        <button key={j.id} onClick={() => navigate('/journal')}
+                          className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
+                          <div className="flex items-start gap-2.5">
+                            <span className="text-base flex-shrink-0 mt-0.5">{moodEmoji}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-surface-200 truncate">{task?.title || 'Journal Entry'}</p>
+                              <p className="text-[11px] text-surface-500 mt-0.5">
+                                {new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </p>
+                              <p className="text-xs text-surface-300 line-clamp-2 mt-1.5 leading-relaxed">{j.content}</p>
+                            </div>
+                            <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
           </motion.div>
 
           {/* Recent Work Logs */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display font-bold text-surface-50 text-[15px]">Recent Work Logs</h3>
-              <button onClick={() => navigate('/worklog')}
-                className="text-[11px] font-semibold text-surface-400 hover:text-surface-200 transition-all">
-                View All
-              </button>
-            </div>
-            {activeLogs.length === 0 ? (
-              <div className="text-center py-4">
-                <Briefcase size={20} className="text-surface-600 mx-auto mb-2" />
-                <p className="text-xs text-surface-500">No active work logs</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {activeLogs.slice(0, 3).map(log => (
-                  <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
-                    className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-surface-200 truncate">{log.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
-                            log.status === 'in-progress' ? 'bg-sky-500/10 text-sky-400' :
-                            log.status === 'blocked' ? 'bg-red-500/10 text-red-400' :
-                            log.status === 'done' ? 'bg-emerald-500/10 text-emerald-400' :
-                            'bg-surface-700 text-surface-400'
-                          }`}>{log.status}</span>
-                          {log.totalActiveMs > 0 && (
-                            <span className="text-[10px] text-surface-500">
-                              {Math.floor(log.totalActiveMs / 3600000)}h {Math.floor((log.totalActiveMs % 3600000) / 60000)}m
-                            </span>
-                          )}
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Work Logs</CardTitle>
+                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog')}>
+                  View All
+                </Button>
+              </CardHeader>
+              <CardBody>
+                {activeLogs.length === 0 ? (
+                  <div className="text-center py-4">
+                    <Briefcase size={20} className="text-surface-600 mx-auto mb-2" />
+                    <p className="text-xs text-surface-500">No active work logs</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {activeLogs.slice(0, 3).map(log => (
+                      <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                        className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-surface-200 truncate">{log.title}</p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <StatusBadge status={log.status} />
+                              {log.totalActiveMs > 0 && (
+                                <span className="text-[10px] text-surface-500">
+                                  {Math.floor(log.totalActiveMs / 3600000)}h {Math.floor((log.totalActiveMs % 3600000) / 60000)}m
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
                         </div>
-                      </div>
-                      <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardBody>
+            </Card>
           </motion.div>
 
           {/* Quick Actions */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-            <h3 className="font-display font-bold text-surface-50 text-[15px] mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-2.5">
-              <QuickAction icon={Plus} label="New Task" onClick={() => setShowCreate(true)} color={accent} />
-              <QuickAction icon={Timer} label="Focus" onClick={() => navigate('/focus')} color="#f97316" />
-              <QuickAction icon={PenLine} label="Journal" onClick={() => navigate('/journal')} color="#8b5cf6" />
-              <QuickAction icon={Briefcase} label="Work Log" onClick={() => navigate('/worklog')} color="#22c55e" />
-            </div>
+          <motion.div variants={fadeUp}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardBody>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <QuickAction icon={Plus} label="New Task" onClick={() => setShowCreate(true)} color={accent} />
+                  <QuickAction icon={Timer} label="Focus" onClick={() => navigate('/focus')} color="#f97316" />
+                  <QuickAction icon={PenLine} label="Journal" onClick={() => navigate('/journal')} color="#8b5cf6" />
+                  <QuickAction icon={Briefcase} label="Work Log" onClick={() => navigate('/worklog')} color="#22c55e" />
+                </div>
+              </CardBody>
+            </Card>
           </motion.div>
         </motion.div>
       </div>
@@ -521,22 +564,22 @@ export function Dashboard() {
 // Sub-components
 // ══════════════════════════════════════════════════════════════════════════════
 
-function KPICard({ icon: Icon, label, value, sub, color, delay: _delay = 0 }: {
-  icon: React.ElementType; label: string; value: string; sub?: string; color: string; delay?: number;
+function KPICard({ icon: Icon, label, value, sub, color }: {
+  icon: React.ElementType; label: string; value: string; sub?: string; color: string;
 }) {
   return (
     <motion.div variants={fadeUp}
-      className="rounded-2xl border border-surface-800 bg-surface-900 p-5 hover:border-surface-700 hover:shadow-lg transition-all duration-200 group relative overflow-hidden">
-      {/* Accent top border */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-        style={{ background: `${color}12` }}>
-        <Icon size={18} style={{ color }} />
+      className="rounded-2xl border border-surface-800/60 bg-surface-900 p-5 relative overflow-hidden hover:border-surface-700 hover:shadow-lg transition-all duration-200 group">
+      <div className="absolute top-0 right-0 w-24 h-24 opacity-5 pointer-events-none rounded-bl-full"
+        style={{ backgroundColor: color }} />
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}10` }}>
+          <Icon size={18} style={{ color }} />
+        </div>
       </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 mb-0.5">{value}</p>
-      <p className="text-xs font-medium text-surface-400">{label}</p>
-      {sub && <p className="text-[11px] text-surface-500 mt-1">{sub}</p>}
+      <p className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 mb-0.5">{value}</p>
+      <p className="text-xs text-surface-400 font-medium">{label}</p>
+      {sub && <p className="text-[10px] text-surface-500 mt-1">{sub}</p>}
     </motion.div>
   );
 }
@@ -587,50 +630,17 @@ function SmartInsights({ weekMs, todayMs, completedToday, overdueCount: _overdue
       {insights.map((insight, i) => {
         const Icon = insight.icon;
         return (
-          <motion.div key={i} variants={fadeUp}
-            className="flex items-center gap-3 p-3.5 rounded-xl border border-surface-800 bg-surface-900 hover:border-surface-700 transition-all">
-            <div className={`w-8 h-8 rounded-lg ${insight.bg} flex items-center justify-center flex-shrink-0`}>
-              <Icon size={14} style={{ color: insight.color }} />
-            </div>
-            <p className="text-xs font-medium text-surface-300 leading-snug">{insight.text}</p>
+          <motion.div key={i} variants={fadeUp}>
+            <Card className="flex items-center gap-3 p-3.5 hover:border-surface-700 transition-colors">
+              <div className={`w-8 h-8 rounded-lg ${insight.bg} flex items-center justify-center flex-shrink-0`}>
+                <Icon size={14} style={{ color: insight.color }} />
+              </div>
+              <p className="text-xs font-medium text-surface-300 leading-snug">{insight.text}</p>
+            </Card>
           </motion.div>
         );
       })}
     </motion.div>
-  );
-}
-
-function EmptyTasks({ onNew, accent }: { onNew: () => void; accent: string }) {
-  return (
-    <motion.div variants={fadeIn} initial="hidden" animate="show"
-      className="rounded-2xl border border-surface-800 bg-surface-900 p-10 text-center">
-      <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-        style={{ background: `${accent}12` }}>
-        <Zap size={28} style={{ color: accent }} />
-      </div>
-      <h3 className="font-display font-bold text-surface-100 text-lg mb-1.5">No active tasks</h3>
-      <p className="text-sm text-surface-400 max-w-xs mx-auto mb-5">
-        Create your first task to start tracking focus time and building momentum.
-      </p>
-      <button onClick={onNew}
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all shadow-lg"
-        style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}>
-        <Plus size={15} /> Create Task
-      </button>
-    </motion.div>
-  );
-}
-
-function EmptyJournal({ onNew }: { onNew: () => void }) {
-  return (
-    <div className="text-center py-4">
-      <BookOpen size={24} className="mx-auto text-surface-600 mb-2" />
-      <p className="text-xs text-surface-400 mb-3">No journal entries yet</p>
-      <button onClick={onNew}
-        className="text-xs font-semibold text-brand-400 hover:text-brand-300 transition-all">
-        Write your first entry
-      </button>
-    </div>
   );
 }
 

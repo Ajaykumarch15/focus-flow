@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Settings, ShieldCheck, Lock, Save } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
 
 export function WorkspaceSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -40,7 +42,7 @@ export function WorkspaceSettingsPage() {
       <form onSubmit={handleSave} className="space-y-6">
         
         {/* Security & Access Policies */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
             <Lock size={18} className="text-brand-400" /> Security & Governance Policies
           </h2>
@@ -75,10 +77,10 @@ export function WorkspaceSettingsPage() {
             </label>
 
           </div>
-        </div>
+        </Card>
 
         {/* Role Permission Hierarchy Table */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
             <ShieldCheck size={18} className="text-purple-400" /> Configurable Role Permissions Matrix
           </h2>
@@ -120,13 +122,13 @@ export function WorkspaceSettingsPage() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Card>
 
         <div className="flex items-center justify-end gap-3">
           {saved && <span role="status" aria-live="polite" className="text-xs text-emerald-400 font-semibold">Settings saved successfully!</span>}
-          <button type="submit" className="btn-primary px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-brand-500/20">
-            <Save size={14} /> Save Workspace Configuration
-          </button>
+          <Button type="submit" size="sm" className="px-6 shadow-lg shadow-brand-500/20" leftIcon={<Save size={14} />}>
+            Save Workspace Configuration
+          </Button>
         </div>
 
       </form>

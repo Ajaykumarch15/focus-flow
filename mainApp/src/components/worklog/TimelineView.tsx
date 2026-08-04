@@ -3,6 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Clock, Play, Pause, Square, Plus, Sparkles, CheckCircle2, AlertTriangle, Lightbulb, FileText } from 'lucide-react';
 import { WorkLog, TimelineEntry, useWorkLogStore } from '../../store/useWorkLogStore';
 import { format } from 'date-fns';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { Badge } from '../../components/ui/Badge';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 interface TimelineViewProps {
   workLog: WorkLog;
@@ -57,12 +63,14 @@ export function TimelineView({ workLog }: TimelineViewProps) {
             Chronological history of work sessions, milestones, and daily events.
           </p>
         </div>
-        <button
+        <Button
+          size="xs"
           onClick={() => setShowAddModal(true)}
-          className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5"
+          className="px-3 py-1.5"
+          leftIcon={<Plus size={14} />}
         >
-          <Plus size={14} /> Add Event
-        </button>
+          Add Event
+        </Button>
       </div>
 
       {/* Modal / Form */}
@@ -74,25 +82,25 @@ export function TimelineView({ workLog }: TimelineViewProps) {
             className="card p-4 rounded-xl border border-brand-500/30 bg-surface-850 space-y-3"
           >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <input
-                className="input text-sm rounded-lg col-span-2"
+              <Input
+                className="text-sm rounded-lg col-span-2"
                 placeholder="Timeline event title (e.g., Investigated API latency issue)"
                 value={title} onChange={e => setTitle(e.target.value)} required
               />
-              <input
-                className="input text-sm rounded-lg"
+              <Input
+                className="text-sm rounded-lg"
                 placeholder="Category (e.g., Debugging, Feature)"
                 value={category} onChange={e => setCategory(e.target.value)}
               />
             </div>
-            <textarea
-              className="input text-sm rounded-lg w-full resize-none"
+            <Textarea
+              className="text-sm rounded-lg w-full resize-none"
               placeholder="Additional details or observations..."
               rows={2} value={description} onChange={e => setDescription(e.target.value)}
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowAddModal(false)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
-              <button type="submit" className="btn-primary text-xs px-4 py-1.5">Save Entry</button>
+              <Button type="button" variant="secondary" size="xs" onClick={() => setShowAddModal(false)} className="px-3 py-1.5">Cancel</Button>
+              <Button type="submit" size="xs" className="px-4 py-1.5">Save Entry</Button>
             </div>
           </motion.form>
         )}
@@ -100,10 +108,12 @@ export function TimelineView({ workLog }: TimelineViewProps) {
 
       {/* Timeline List */}
       {entries.length === 0 ? (
-        <div className="card p-8 text-center border border-dashed border-surface-800 rounded-2xl">
-          <Clock size={32} className="mx-auto text-surface-600 mb-2" />
-          <p className="text-sm font-medium text-surface-300">No timeline entries yet</p>
-          <p className="text-xs text-surface-500 mt-1">Start a timer session or add manual entries to build your day's story.</p>
+        <div className="rounded-2xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
+          <EmptyState
+            icon={<Clock size={32} className="text-surface-600" />}
+            title="No timeline entries yet"
+            description="Start a timer session or add manual entries to build your day's story."
+          />
         </div>
       ) : (
         <div className="relative pl-6 space-y-6 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-surface-800">
@@ -123,16 +133,16 @@ export function TimelineView({ workLog }: TimelineViewProps) {
                   <Icon size={12} />
                 </div>
 
-                <div className="card p-4 rounded-xl border border-surface-800 hover:border-surface-700 transition-all bg-surface-900/60">
+                <Card className="p-4 rounded-xl border border-surface-800 hover:border-surface-700 transition-all bg-surface-900/60">
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-mono text-brand-400 font-semibold">{timeStr}</span>
                       <span className="text-xs font-semibold text-surface-50">{entry.title}</span>
                     </div>
                     {entry.category && (
-                      <span className="badge bg-surface-800 text-surface-400 text-[10px]">
+                      <Badge tone="neutral" className="text-[10px]">
                         {entry.category}
-                      </span>
+                      </Badge>
                     )}
                   </div>
                   {entry.description && (
@@ -140,7 +150,7 @@ export function TimelineView({ workLog }: TimelineViewProps) {
                       {entry.description}
                     </p>
                   )}
-                </div>
+                </Card>
               </motion.div>
             );
           })}

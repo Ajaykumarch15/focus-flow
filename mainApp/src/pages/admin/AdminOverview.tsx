@@ -7,6 +7,9 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../utils/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -15,16 +18,17 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
   icon: React.ElementType; label: string; value: string; sub?: string; color: string;
 }) {
   return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl border border-surface-800 bg-surface-900 p-5 hover:border-surface-700 transition-all relative overflow-hidden group">
-      <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${color}12` }}>
-        <Icon size={18} style={{ color }} />
-      </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 mb-0.5">{value}</p>
-      <p className="text-xs font-medium text-surface-400">{label}</p>
-      {sub && <p className="text-[11px] text-emerald-400 mt-1">{sub}</p>}
+    <motion.div variants={fadeUp}>
+      <Card className="p-5 hover:border-surface-700 transition-all relative overflow-hidden group">
+        <div className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ background: `linear-gradient(90deg, transparent, ${color}, transparent)` }} />
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${color}12` }}>
+          <Icon size={18} style={{ color }} />
+        </div>
+        <p className="text-2xl font-display font-extrabold text-surface-50 mb-0.5">{value}</p>
+        <p className="text-xs font-medium text-surface-400">{label}</p>
+        {sub && <p className="text-[11px] text-emerald-400 mt-1">{sub}</p>}
+      </Card>
     </motion.div>
   );
 }
@@ -100,92 +104,97 @@ export function AdminOverview() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* New Users */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><Users size={14} className="text-purple-400" /> New Users (30d)</h3>
-          </div>
-          <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.newUsers || 0}</p>
-          <p className="text-xs text-surface-400">{analytics?.activeUsers || 0} unique active users this period</p>
+        <motion.div variants={fadeUp} initial="hidden" animate="show">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><Users size={14} className="text-purple-400" /> New Users (30d)</h3>
+            </div>
+            <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.newUsers || 0}</p>
+            <p className="text-xs text-surface-400">{analytics?.activeUsers || 0} unique active users this period</p>
+          </Card>
         </motion.div>
 
         {/* Task Completion */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><Target size={14} className="text-emerald-400" /> Task Completion</h3>
-          </div>
-          <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.taskCompletionRate || 0}%</p>
-          <p className="text-xs text-surface-400">{analytics?.completedTasks || 0} of {analytics?.totalTasks || 0} tasks completed</p>
+        <motion.div variants={fadeUp} initial="hidden" animate="show">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><Target size={14} className="text-emerald-400" /> Task Completion</h3>
+            </div>
+            <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.taskCompletionRate || 0}%</p>
+            <p className="text-xs text-surface-400">{analytics?.completedTasks || 0} of {analytics?.totalTasks || 0} tasks completed</p>
+          </Card>
         </motion.div>
 
         {/* Focus Score */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><TrendingUp size={14} className="text-amber-400" /> Focus Score</h3>
-          </div>
-          <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.avgFocusScore || 0}</p>
-          <p className="text-xs text-surface-400">Average across {analytics?.totalSessions || 0} sessions</p>
+        <motion.div variants={fadeUp} initial="hidden" animate="show">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-surface-100 flex items-center gap-2"><TrendingUp size={14} className="text-amber-400" /> Focus Score</h3>
+            </div>
+            <p className="text-3xl font-display font-extrabold text-surface-50 mb-1">{analytics?.avgFocusScore || 0}</p>
+            <p className="text-xs text-surface-400">Average across {analytics?.totalSessions || 0} sessions</p>
+          </Card>
         </motion.div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Users */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-surface-100">Recent Users</h3>
-            <button onClick={() => navigate('/admin/people')} className="text-xs text-surface-500 hover:text-surface-200 flex items-center gap-1">View All <ChevronRight size={12} /></button>
-          </div>
-          <div className="space-y-2">
-            {users.slice(0, 5).map((u: any) => (
-              <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-850 transition-colors">
-                <div className="w-8 h-8 rounded-full bg-surface-800 flex items-center justify-center text-xs font-bold text-surface-300">{u.name.charAt(0).toUpperCase()}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-surface-200 font-medium truncate">{u.name}</p>
-                  <p className="text-[11px] text-surface-500 truncate">{u.email}</p>
+        <motion.div variants={fadeUp} initial="hidden" animate="show">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-surface-100">Recent Users</h3>
+              <Button variant="ghost" size="xs" className="text-surface-500 hover:text-surface-200" rightIcon={<ChevronRight size={12} />} onClick={() => navigate('/admin/people')}>View All</Button>
+            </div>
+            <div className="space-y-2">
+              {users.slice(0, 5).map((u: any) => (
+                <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-850 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-surface-800 flex items-center justify-center text-xs font-bold text-surface-300">{u.name.charAt(0).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-surface-200 font-medium truncate">{u.name}</p>
+                    <p className="text-[11px] text-surface-500 truncate">{u.email}</p>
+                  </div>
+                  <Badge tone={u.role === 'admin' ? 'brand' : 'neutral'} className="rounded-md px-2 text-[10px] font-bold uppercase">{u.role}</Badge>
                 </div>
-                <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${u.role === 'admin' ? 'bg-purple-500/15 text-purple-400' : 'bg-surface-800 text-surface-500'}`}>{u.role}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Card>
         </motion.div>
 
         {/* Recent Activity */}
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-surface-100">Recent Activity</h3>
-            <button onClick={() => navigate('/admin/activity')} className="text-xs text-surface-500 hover:text-surface-200 flex items-center gap-1">View All <ChevronRight size={12} /></button>
-          </div>
-          <div className="space-y-2">
-            {activities.length === 0 ? (
-              <p className="text-sm text-surface-500 text-center py-6">No recent activity</p>
-            ) : activities.slice(0, 5).map((a: any) => {
-              const user = a.userId;
-              const timeAgo = (() => {
-                const diff = Date.now() - new Date(a.createdAt).getTime();
-                if (diff < 60000) return 'just now';
-                if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-                if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-                return `${Math.floor(diff / 86400000)}d ago`;
-              })();
-              return (
-                <div key={a._id} className="flex items-center gap-3 p-2 rounded-xl">
-                  <div className="w-7 h-7 rounded-full bg-surface-800 flex items-center justify-center text-[10px] font-bold text-surface-400">
-                    {user?.name?.charAt(0)?.toUpperCase() || '?'}
+        <motion.div variants={fadeUp} initial="hidden" animate="show">
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-surface-100">Recent Activity</h3>
+              <Button variant="ghost" size="xs" className="text-surface-500 hover:text-surface-200" rightIcon={<ChevronRight size={12} />} onClick={() => navigate('/admin/activity')}>View All</Button>
+            </div>
+            <div className="space-y-2">
+              {activities.length === 0 ? (
+                <p className="text-sm text-surface-500 text-center py-6">No recent activity</p>
+              ) : activities.slice(0, 5).map((a: any) => {
+                const user = a.userId;
+                const timeAgo = (() => {
+                  const diff = Date.now() - new Date(a.createdAt).getTime();
+                  if (diff < 60000) return 'just now';
+                  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                  return `${Math.floor(diff / 86400000)}d ago`;
+                })();
+                return (
+                  <div key={a._id} className="flex items-center gap-3 p-2 rounded-xl">
+                    <div className="w-7 h-7 rounded-full bg-surface-800 flex items-center justify-center text-[10px] font-bold text-surface-400">
+                      {user?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-surface-300 truncate">
+                        <span className="font-semibold text-surface-200">{user?.name || 'System'}</span> {a.action.replace(/[._]/g, ' ')}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-surface-500 flex-shrink-0">{timeAgo}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-surface-300 truncate">
-                      <span className="font-semibold text-surface-200">{user?.name || 'System'}</span> {a.action.replace(/[._]/g, ' ')}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-surface-500 flex-shrink-0">{timeAgo}</span>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </Card>
         </motion.div>
       </div>
     </div>

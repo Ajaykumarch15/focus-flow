@@ -9,6 +9,12 @@ import {
 } from 'lucide-react';
 import { ACCENT_PRESETS } from '../utils/colors';
 import { getNotificationSettings, saveNotificationSettings, NotificationSettings, requestNotificationPermission } from '../hooks/useNotifications';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Field } from '../components/ui/Field';
+import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const LOCAL_CACHE_KEYS = [
   'focusflow-storage', 'ff_profile_cache', 'ff_theme_cache',
@@ -148,19 +154,19 @@ export function Settings() {
                   </div>
                 </div>
                 <Field label="Display Name">
-                  <input className="input h-11 rounded-xl" value={profile.name}
+                  <Input className="h-11 rounded-xl" value={profile.name}
                     onChange={e => { updateProfile({ name: e.target.value }); flashSaved(); }} />
                 </Field>
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Daily Goal (hours)">
-                    <input type="number" className="input h-11 rounded-xl" min="1" max="24" value={profile.dailyGoal}
+                    <Input type="number" className="h-11 rounded-xl" min="1" max="24" value={profile.dailyGoal}
                       onChange={e => { updateProfile({ dailyGoal: Number(e.target.value) }); flashSaved(); }} />
                   </Field>
                   <Field label="Timezone">
-                    <select className="input h-11 rounded-xl" value={profile.timezone}
+                    <Select className="h-11 rounded-xl" value={profile.timezone}
                       onChange={e => { updateProfile({ timezone: e.target.value }); flashSaved(); }}>
                       {TIMEZONE_OPTIONS.map(z => <option key={z} value={z}>{z}</option>)}
-                    </select>
+                    </Select>
                   </Field>
                 </div>
                 <p className="text-xs text-surface-500">Daily reports and work-log history use this timezone for day boundaries.</p>
@@ -235,9 +241,9 @@ export function Settings() {
                     <input type="color" value={theme.accentColor || '#0ea5e9'}
                       onChange={e => { updateTheme({ accentColor: e.target.value }); flashSaved(); }}
                       className="w-9 h-9 rounded-lg border border-surface-800 cursor-pointer bg-surface-850 p-1" />
-                    <input type="text" placeholder="#0ea5e9" maxLength={7} value={theme.accentColor || '#0ea5e9'}
+                    <Input type="text" placeholder="#0ea5e9" maxLength={7} value={theme.accentColor || '#0ea5e9'}
                       onChange={e => { if (/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)) { updateTheme({ accentColor: e.target.value }); flashSaved(); } }}
-                      className="input h-9 w-28 text-xs font-mono rounded-lg" />
+                      className="h-9 w-28 text-xs font-mono rounded-lg" />
                     <span className="text-xs text-surface-500">Custom hex</span>
                   </div>
                 </div>
@@ -280,11 +286,11 @@ export function Settings() {
             <Section id="focus" icon={Clock} iconBg="bg-amber-500/10" iconColor="text-amber-500 dark:text-amber-400" title="Focus & Timer" desc="Configure your Pomodoro sessions">
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Focus Duration (min)">
-                  <input type="number" className="input h-11 rounded-xl" min="1" max="120" value={profile.pomodoroWork}
+                  <Input type="number" className="h-11 rounded-xl" min="1" max="120" value={profile.pomodoroWork}
                     onChange={e => { updateProfile({ pomodoroWork: Number(e.target.value) }); flashSaved(); }} />
                 </Field>
                 <Field label="Break Duration (min)">
-                  <input type="number" className="input h-11 rounded-xl" min="1" max="60" value={profile.pomodoroBreak}
+                  <Input type="number" className="h-11 rounded-xl" min="1" max="60" value={profile.pomodoroBreak}
                     onChange={e => { updateProfile({ pomodoroBreak: Number(e.target.value) }); flashSaved(); }} />
                 </Field>
               </div>
@@ -323,9 +329,9 @@ export function Settings() {
                     )}
                   </div>
                   {user?.googleConnected ? (
-                    <button onClick={handleDisconnectGoogle} className="px-3 py-1.5 text-xs font-medium text-surface-300 hover:text-surface-50 bg-surface-800 hover:bg-surface-700 rounded-lg transition-all border border-surface-700">Disconnect</button>
+                    <Button variant="secondary" size="sm" onClick={handleDisconnectGoogle}>Disconnect</Button>
                   ) : (
-                    <button onClick={handleConnectGoogle} className="px-3 py-1.5 text-xs font-medium text-white bg-brand-500 hover:bg-brand-400 rounded-lg transition-all shadow-sm">Connect</button>
+                    <Button size="sm" onClick={handleConnectGoogle}>Connect</Button>
                   )}
                 </div>
               </div>
@@ -347,14 +353,14 @@ export function Settings() {
             <Section id="data" icon={Database} iconBg="bg-rose-500/10" iconColor="text-rose-500 dark:text-rose-400" title="Data & Storage" desc="Manage your local data">
               <div className="space-y-3">
                 <p className="text-xs text-surface-400">FocusFlow syncs data with the server and caches locally for speed. Clear the cache if the app looks stale.</p>
-                <button onClick={() => {
+                <Button variant="secondary" onClick={() => {
                   if (confirm('Clear local cache? Server data will remain safe.')) {
                     LOCAL_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
                     flashSaved();
                   }
-                }} className="px-4 py-2.5 text-sm font-medium text-surface-300 hover:text-surface-50 bg-surface-800 hover:bg-surface-700 rounded-xl transition-all border border-surface-700">
+                }}>
                   Clear Local Cache
-                </button>
+                </Button>
               </div>
             </Section>
 
@@ -366,14 +372,14 @@ export function Settings() {
                     <p className="text-sm font-medium text-surface-200">Two-Factor Authentication</p>
                     <p className="text-xs text-surface-500 mt-0.5">Add an extra layer of security</p>
                   </div>
-                  <span className="text-[10px] font-semibold text-surface-500 bg-surface-800 px-2 py-1 rounded-md border border-surface-700 uppercase tracking-wider">Coming Soon</span>
+                  <Badge className="rounded-md border border-surface-700 px-2 py-1 text-[10px] uppercase tracking-wider">Coming Soon</Badge>
                 </div>
                 <div className="flex items-center justify-between py-2.5 border-t border-surface-800">
                   <div>
                     <p className="text-sm font-medium text-surface-200">Active Sessions</p>
                     <p className="text-xs text-surface-500 mt-0.5">Manage devices signed into your account</p>
                   </div>
-                  <span className="text-[10px] font-semibold text-surface-500 bg-surface-800 px-2 py-1 rounded-md border border-surface-700 uppercase tracking-wider">Coming Soon</span>
+                  <Badge className="rounded-md border border-surface-700 px-2 py-1 text-[10px] uppercase tracking-wider">Coming Soon</Badge>
                 </div>
               </div>
             </Section>
@@ -405,15 +411,6 @@ function Section({ id, icon: Icon, iconBg, iconColor, title, desc, children }: {
       </div>
       {children}
     </motion.section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold text-surface-300 mb-1.5">{label}</label>
-      {children}
-    </div>
   );
 }
 
@@ -455,11 +452,12 @@ function NotificationSettingsSection({ onSaved }: { onSaved: () => void }) {
 
   if (Notification.permission === 'denied') {
     return (
-      <div className="text-center py-6 rounded-xl border border-surface-800 bg-surface-850/50">
-        <Bell size={20} className="mx-auto text-surface-500 mb-2" />
-        <p className="text-sm text-surface-400">Browser notifications are blocked.</p>
-        <p className="text-xs text-surface-500 mt-1">Enable them in your browser settings.</p>
-      </div>
+      <EmptyState
+        className="rounded-xl border border-surface-800 bg-surface-850/50 !py-8"
+        icon={<Bell size={20} />}
+        title="Browser notifications are blocked"
+        description="Enable them in your browser settings."
+      />
     );
   }
 
@@ -478,7 +476,7 @@ function NotificationSettingsSection({ onSaved }: { onSaved: () => void }) {
           <p className="text-xs text-surface-500 mt-0.5">Master switch for all alerts</p>
         </div>
         {Notification.permission !== 'granted' ? (
-          <button onClick={handleEnableAll} className="px-3 py-1.5 text-xs font-medium text-white bg-brand-500 hover:bg-brand-400 rounded-lg transition-all shadow-sm">Enable</button>
+          <Button size="sm" onClick={handleEnableAll}>Enable</Button>
         ) : (
           <Toggle enabled={settings.enabled} onToggle={() => { updateSetting('enabled', !settings.enabled); }} />
         )}

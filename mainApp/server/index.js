@@ -79,6 +79,8 @@ const workspaceRoutes = require('./routes/workspaces'); // IES-P2-01
 const projectRoutes = require('./routes/projects');
 const notificationRoutes = require('./routes/notifications'); // IES-P2-05
 const searchRoutes = require('./routes/search');             // IES-P2-06
+const sprintRoutes = require('./routes/sprints');            // IES-R1
+const featureRoutes = require('./routes/features');          // IES-R1
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
@@ -123,6 +125,8 @@ app.use('/api/workspaces', workspaceRoutes);    // IES-P2-01
 app.use('/api/projects', projectRoutes);
 app.use('/api/notifications', notificationRoutes); // IES-P2-05
 app.use('/api/search', searchRoutes);              // IES-P2-06
+app.use('/api/sprints', sprintRoutes);             // IES-R1
+app.use('/api/features', featureRoutes);           // IES-R1
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());

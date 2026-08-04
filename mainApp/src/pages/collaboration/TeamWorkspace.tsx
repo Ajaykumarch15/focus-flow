@@ -1,29 +1,98 @@
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
-  ShieldCheck, Plus, Search, GitBranch, Clock,
+  Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
+  ShieldCheck, Plus, GitBranch, Clock,
   CheckCircle2, ChevronDown, MessageSquare, Flame,
-  Zap, Edit3, UserCheck
+  Zap, Edit3, UserCheck, Rocket, Gauge, ListChecks, CalendarClock, FileWarning
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { SprintStatus, MemberRole } from '../../types/collaboration';
+import { useAuthStore } from '../../store/useAuthStore';
+import { SprintStatus, MemberRole, CollaborativeTask } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { CreateBlockerModal } from '../../components/collaboration/CreateBlockerModal';
 import { CreateDocModal } from '../../components/collaboration/CreateDocModal';
-import { GlobalCommandPalette } from '../../components/collaboration/GlobalCommandPalette';
+import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
+import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
+import { CreateFeatureModal } from '../../components/collaboration/CreateFeatureModal';
+import { ProjectBacklog } from '../../components/collaboration/ProjectBacklog';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+
+import { getWorkspaceMaturityLevel, isFeatureVisibleForMaturity } from '../../utils/workspaceMaturity';
 
 // ── Motion Variants ────────────────────────────────────────────────────────────
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
+
+// ── P6-T1: pure board computation over live store data ─────────────────────────
+// The server does not persist an `actualVelocity`, so the Active Sprint Velocity
+// card derives it from real task data: committed effort delivered (sum of
+// `estimatedHours` across `done` tasks). Returns 0 when nothing is done yet.
+export function computeSprintVelocity(tasks: Pick<CollaborativeTask, 'sprintStatus' | 'estimatedHours'>[]): number {
+  return tasks
+    .filter((t) => t.sprintStatus === 'done')
+    .reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
+}
+
+// ── UX-R1: pure helpers for the Mission Control dashboard ──────────────────────
+// All dashboard widgets read these over live store data; nothing is fabricated.
+
+/** Open work assigned to a user (not yet done): { count, hours }. */
+export function computeAssignedWork(
+  tasks: Pick<CollaborativeTask, 'assigneeId' | 'sprintStatus' | 'estimatedHours'>[],
+  userId: string | null,
+): { count: number; hours: number } {
+  const mine = tasks.filter((t) => t.assigneeId && t.assigneeId === userId && t.sprintStatus !== 'done');
+  return {
+    count: mine.length,
+    hours: mine.reduce((sum, t) => sum + (t.estimatedHours || 0), 0),
+  };
+}
+
+/** Tasks sitting in review that this user is the designated reviewer for. */
+export function computePendingReviews(
+  tasks: Pick<CollaborativeTask, 'reviewerId' | 'sprintStatus'>[],
+  reviewerId: string | null,
+): number {
+  return tasks.filter((t) => t.reviewerId && t.reviewerId === reviewerId && t.sprintStatus === 'review').length;
+}
+
+/** A dated deadline surfaced by Mission Control (sprint end dates / milestones). */
+export interface DeadlineItem {
+  title: string;
+  dueDate: string;
+}
+
+/** Deadlines within the next `days` (default 7), soonest first. */
+export function computeUpcomingDeadlines<T extends DeadlineItem>(items: T[], days = 7, from = new Date()): T[] {
+  const now = from.getTime();
+  const horizon = now + days * 24 * 60 * 60 * 1000;
+  return items
+    .filter((i) => i.dueDate)
+    .filter((i) => {
+      const d = new Date(i.dueDate).getTime();
+      return d >= now && d <= horizon;
+    })
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+}
+
+/** Overall workspace progress across every task: { done, total, pct }. */
+export function computeWorkspaceProgress(
+  tasks: Pick<CollaborativeTask, 'sprintStatus'>[],
+): { done: number; total: number; pct: number } {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.sprintStatus === 'done').length;
+  return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
+}
 
 type TeamTab = 'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin';
 
 export function TeamWorkspace() {
   const {
     workspaces, activeWorkspaceId, setActiveWorkspace,
-    members, projects, sprints, tasks, activities,
+    members, projects, sprints, tasks, features, activities,
     docs, blockers, events, updateTaskStatus, updateMemberRole, resolveBlocker,
     loadWorkspaceActivity, activityLoading, activityHasMore, activityNextCursor
   } = useCollaborationStore();
@@ -49,8 +118,10 @@ export function TeamWorkspace() {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateBlocker, setShowCreateBlocker] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
+  const [showCreateSprint, setShowCreateSprint] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
+  const [showCreateFeature, setShowCreateFeature] = useState(false);
   const [editingDoc, setEditingDoc] = useState<any>(null);
-  const [showSearch, setShowSearch] = useState(false);
 
   // Discussions Modal state
   const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
@@ -62,13 +133,45 @@ export function TeamWorkspace() {
   const wsBlockers = useMemo(() => activeWs ? blockers.filter((b) => b.workspaceId === activeWs.id) : [], [blockers, activeWs?.id]);
   const wsDocs = useMemo(() => activeWs ? docs.filter((d) => d.workspaceId === activeWs.id) : [], [docs, activeWs?.id]);
   const wsProjects = useMemo(() => activeWs ? projects.filter((p) => p.workspaceId === activeWs.id) : [], [projects, activeWs?.id]);
+  const wsFeatures = useMemo(() => activeWs ? features.filter((f) => f.workspaceId === activeWs.id) : [], [features, activeWs?.id]);
   const wsActivities = useMemo(() => activeWs ? activities.filter((a) => a.workspaceId === activeWs.id) : [], [activities, activeWs?.id]);
 
   const activeSprint = useMemo(() => activeWs ? sprints.find((s) => s.workspaceId === activeWs.id && s.status === 'active') : undefined, [sprints, activeWs?.id]);
 
+  // P6-T1: tasks committed to the active sprint feed the velocity card. Empty
+  // (or no active sprint) yields a graceful "—" instead of a fabricated number.
+  const activeSprintTasks = useMemo(
+    () => (activeSprint ? wsTasks.filter((t) => t.sprintId === activeSprint.id) : []),
+    [wsTasks, activeSprint],
+  );
+  const activeSprintVelocity = useMemo(() => computeSprintVelocity(activeSprintTasks), [activeSprintTasks]);
+
+  // UX-R1: Mission Control data — everything derived, nothing fabricated.
+  const currentUserId = useAuthStore.getState().user?._id ?? null;
+  const myName = useAuthStore.getState().user?.name ?? '';
+  const myAssignedWork = useMemo(() => computeAssignedWork(wsTasks, currentUserId), [wsTasks, currentUserId]);
+  const myPendingReviews = useMemo(() => computePendingReviews(wsTasks, currentUserId), [wsTasks, currentUserId]);
+  const deadlineItems = useMemo(() => {
+    const items: DeadlineItem[] = [];
+    if (activeSprint?.endDate) items.push({ title: `Sprint ends: ${activeSprint.name}`, dueDate: activeSprint.endDate });
+    wsProjects.forEach((p) => {
+      p.milestones.filter((ms) => ms.status !== 'completed').forEach((ms) => {
+        items.push({ title: `${p.name} · ${ms.title}`, dueDate: ms.dueDate });
+      });
+    });
+    return items;
+  }, [activeSprint, wsProjects]);
+  const upcomingDeadlines = useMemo(() => computeUpcomingDeadlines(deadlineItems), [deadlineItems]);
+  const workspaceProgress = useMemo(() => computeWorkspaceProgress(wsTasks), [wsTasks]);
+  const sprintProgress = useMemo(
+    () => (activeSprintTasks.length === 0
+      ? 0
+      : Math.round((activeSprintTasks.filter((t) => t.sprintStatus === 'done').length / activeSprintTasks.length) * 100)),
+    [activeSprintTasks],
+  );
+
   // Presence counters
   const onlineMembers = members.filter((m) => m.status !== 'offline');
-  const focusingMembers = members.filter((m) => m.status === 'in_focus');
   const openBlockers = wsBlockers.filter((b) => b.status !== 'resolved');
 
   if (!activeWs) {
@@ -85,27 +188,27 @@ export function TeamWorkspace() {
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
 
-      {/* ═══ Top Workspace Switcher Header ═══ */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-800 pb-5">
-        <div className="flex items-center gap-3 flex-wrap">
+      {/* ═══ Compact Workspace Identity Header (UX-R1) ═══ */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
 
           {/* Workspace Dropdown */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button onClick={() => setShowWsMenu(!showWsMenu)}
-              className="flex items-center gap-3 bg-surface-900 border border-surface-700/80 hover:border-brand-500/50 px-4 py-2.5 rounded-2xl transition-all shadow-sm group">
-              <span className="text-2xl">{activeWs.icon}</span>
+              aria-label={`Switch workspace (currently ${activeWs.name})`}
+              className="flex items-center gap-3 bg-surface-900 border border-surface-700/80 hover:border-brand-500/50 pl-2.5 pr-3 py-2 rounded-2xl transition-all shadow-sm group">
+              <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-xl shadow-lg">
+                {activeWs.icon}
+              </span>
               <div className="text-left">
                 <div className="flex items-center gap-2">
-                  <h1 className="font-display font-extrabold text-surface-50 text-base leading-tight group-hover:text-brand-300 transition-colors">
+                  <h1 className="font-display font-extrabold text-surface-50 text-sm leading-tight group-hover:text-brand-300 transition-colors">
                     {activeWs.name}
                   </h1>
-                  <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-500/15 text-brand-400 px-2 py-0.5 rounded-md border border-brand-500/20">
-                    {activeWs.type}
-                  </span>
+                  <ChevronDown size={14} className={`text-surface-500 transition-transform ${showWsMenu ? 'rotate-180' : ''}`} />
                 </div>
-                <p className="text-xs text-surface-400 mt-0.5">{activeWs.description}</p>
+                <p className="text-[11px] text-surface-400 truncate max-w-[240px]">{activeWs.description}</p>
               </div>
-              <ChevronDown size={16} className={`text-surface-500 transition-transform ml-2 ${showWsMenu ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Dropdown Menu */}
@@ -130,196 +233,348 @@ export function TeamWorkspace() {
                     </button>
                   ))}
                   <div className="border-t border-surface-800 pt-1">
-                    <button onClick={() => { setShowWsMenu(false); setShowNewWsModal(true); }}
-                      className="w-full flex items-center gap-2 p-2.5 text-xs font-semibold text-brand-400 hover:bg-brand-500/10 rounded-xl transition-colors">
-                      <Plus size={14} /> Create New Workspace
-                    </button>
+                    <Button onClick={() => { setShowWsMenu(false); setShowNewWsModal(true); }}
+                      variant="ghost" size="xs" leftIcon={<Plus size={14} />}
+                      className="w-full text-brand-400 hover:bg-brand-500/10 rounded-xl">
+                      Create New Workspace
+                    </Button>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <button onClick={() => setShowSearch(true)}
-            className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-surface-900 border border-surface-800 text-xs text-surface-400 hover:text-surface-200 hover:border-surface-700 transition-all">
-            <Search size={14} />
-            <span>Search Workspace</span>
-            <kbd className="text-[10px] font-mono bg-surface-800 px-1.5 py-0.5 rounded border border-surface-700 ml-2">Cmd+K</kbd>
-          </button>
+          {/* Identity meta: type + member avatars */}
+          <div className="hidden md:flex items-center gap-3">
+            <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
+              {activeWs.type}
+            </Badge>
+            <div className="flex -space-x-2">
+              {members.slice(0, 4).map((m) => (
+                <div key={m.id} title={m.name}
+                  className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-cyan-500 ring-2 ring-surface-950 flex items-center justify-center text-[10px] font-bold text-white">
+                  {m.name.charAt(0)}
+                </div>
+              ))}
+              {members.length > 4 && (
+                <div className="w-7 h-7 rounded-full bg-surface-800 ring-2 ring-surface-950 flex items-center justify-center text-[10px] font-bold text-surface-300">
+                  +{members.length - 4}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-surface-400 font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              {onlineMembers.length}/{members.length} online
+            </div>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => setShowCreateBlocker(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl text-xs font-bold transition-all">
-            <AlertOctagon size={14} /> Report Blocker
-          </button>
-          <button onClick={() => setShowCreateProject(true)}
-            className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 text-xs font-bold">
-            <Plus size={15} /> New Project
-          </button>
-        </div>
+        <p className="hidden lg:flex items-center gap-1.5 text-[11px] text-surface-500 font-medium shrink-0">
+          <Rocket size={12} className="text-brand-400" />
+          Engineering Command Center
+        </p>
       </div>
 
-      {/* ═══ Phase X Tab Navigation Bar ═══ */}
+      {/* ═══ Phase X Tab Navigation Bar (Progressive Disclosure) ═══ */}
       <div className="flex items-center gap-2 border-b border-surface-800 pb-2 overflow-x-auto no-scrollbar">
-        {[
-          { id: 'dashboard', label: 'Live Dashboard', icon: Zap, color: 'text-amber-400' },
-          { id: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', count: wsTasks.length },
-          { id: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', count: wsProjects.length },
-          { id: 'blockers', label: 'Blockers Matrix', icon: AlertOctagon, color: 'text-red-400', count: openBlockers.length },
-          { id: 'docs', label: 'Knowledge Base', icon: BookOpen, color: 'text-purple-400', count: wsDocs.length },
-          { id: 'calendar', label: 'Team Calendar', icon: Calendar, color: 'text-emerald-400' },
-          { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3, color: 'text-sky-400' },
-          { id: 'admin', label: 'Teams & Access', icon: ShieldCheck, color: 'text-orange-400' },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as TeamTab)}
-              className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                isActive ? 'text-surface-50 bg-surface-900 border border-surface-700/80 shadow-md' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-850/50'
-              }`}>
-              <tab.icon size={15} className={isActive ? tab.color : ''} />
-              {tab.label}
-              {tab.count !== undefined && (
-                <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ${
-                  isActive ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500'
-                }`}>{tab.count}</span>
-              )}
-            </button>
+        {(() => {
+          const maturityLevel = getWorkspaceMaturityLevel({
+            membersCount: members.length,
+            projectsCount: wsProjects.length,
+            sprintsCount: sprints.filter(s => s.workspaceId === activeWs.id).length,
+            featuresCount: wsFeatures.length,
+            blockersCount: openBlockers.length,
+            qaTasksCount: wsTasks.filter(t => t.sprintStatus === 'review').length,
+            reportsCount: 0,
+          });
+
+          const allTabs = [
+            { id: 'dashboard', key: null, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
+            { id: 'sprints', key: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', count: wsTasks.length },
+            { id: 'projects', key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', count: wsProjects.length },
+            { id: 'blockers', key: 'blockers', label: 'Blockers Matrix', icon: AlertOctagon, color: 'text-red-400', count: openBlockers.length },
+            { id: 'docs', key: null, label: 'Knowledge Base', icon: BookOpen, color: 'text-purple-400', count: wsDocs.length },
+            { id: 'calendar', key: null, label: 'Team Calendar', icon: Calendar, color: 'text-emerald-400' },
+            { id: 'analytics', key: 'analytics', label: 'Analytics & Reports', icon: BarChart3, color: 'text-sky-400' },
+            { id: 'admin', key: 'admin', label: 'Teams & Access', icon: ShieldCheck, color: 'text-orange-400' },
+          ];
+
+          const visibleTabs = allTabs.filter(
+            (tab) => !tab.key || isFeatureVisibleForMaturity(tab.key as any, maturityLevel)
           );
-        })}
+
+          return visibleTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id as TeamTab)}
+                className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  isActive ? 'text-surface-50 bg-surface-900 border border-surface-700/80 shadow-md' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-850/50'
+                }`}>
+                <tab.icon size={15} className={isActive ? tab.color : ''} />
+                {tab.label}
+                {tab.count !== undefined && (
+                  <Badge tone={isActive ? 'brand' : 'neutral'} className="text-[10px] font-extrabold">{tab.count}</Badge>
+                )}
+              </button>
+            );
+          });
+        })()}
       </div>
 
       {/* ═══ TAB CONTENT PANELS ═══ */}
 
-      {/* ── TAB 1: LIVE DASHBOARD ── */}
+      {/* ── TAB 1: MISSION CONTROL (default landing) ── */}
       {activeTab === 'dashboard' && (
         <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
 
-          {/* Top Presence & Live Status Banner */}
+          {/* Greeting + quick jump */}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="text-lg font-display font-extrabold text-surface-50 flex items-center gap-2">
+                <Zap size={18} className="text-amber-400" /> Mission Control
+              </h2>
+              <p className="text-xs text-surface-400 mt-0.5">
+                {myName ? `${myName.split(' ')[0]}, ` : ''}here's the state of {activeWs.name} — {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}.
+              </p>
+            </div>
+            <Button onClick={() => setActiveTab('sprints')} size="sm" variant="secondary" leftIcon={<Layers size={14} />}>
+              Open Sprint Board
+            </Button>
+          </div>
+
+          {/* Stat Cards — all derived from live store data */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-brand-500/10 to-surface-900 p-5">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-surface-400">Team Online</span>
-                <Users size={16} className="text-brand-400" />
+                <span className="text-xs font-semibold text-surface-400">Your Open Work</span>
+                <ListChecks size={16} className="text-brand-400" />
               </div>
-              <p className="text-2xl font-display font-extrabold text-surface-50">{onlineMembers.length} / {members.length}</p>
-              <p className="text-[11px] text-brand-400 mt-1 font-medium">Asynchronous presence</p>
+              <p className="text-2xl font-display font-extrabold text-surface-50">
+                {currentUserId ? myAssignedWork.count : '—'}
+              </p>
+              <p className="text-[11px] text-brand-400 mt-1 font-medium">
+                {currentUserId ? `${myAssignedWork.hours}h est. remaining` : 'Sign in to see your work'}
+              </p>
             </div>
 
-            <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-amber-500/10 to-surface-900 p-5">
+            <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-emerald-500/10 to-surface-900 p-5">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-surface-400">In Focus Session</span>
-                <Flame size={16} className="text-amber-400" />
+                <span className="text-xs font-semibold text-surface-400">Workspace Progress</span>
+                <Gauge size={16} className="text-emerald-400" />
               </div>
-              <p className="text-2xl font-display font-extrabold text-amber-400">{focusingMembers.length}</p>
-              <p className="text-[11px] text-amber-400/80 mt-1 font-medium">Deep work preserved</p>
-            </div>
-
-            <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-red-500/10 to-surface-900 p-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-surface-400">Open Blockers</span>
-                <AlertOctagon size={16} className="text-red-400" />
+              <p className="text-2xl font-display font-extrabold text-emerald-400">{workspaceProgress.pct}%</p>
+              <div className="mt-2 h-1.5 rounded-full bg-surface-800 overflow-hidden">
+                <div className="h-full rounded-full bg-emerald-400 transition-all duration-200" style={{ width: `${workspaceProgress.pct}%` }} />
               </div>
-              <p className="text-2xl font-display font-extrabold text-red-400">{openBlockers.length}</p>
-              <p className="text-[11px] text-red-400/80 mt-1 font-medium">Needs manager attention</p>
+              <p className="text-[11px] text-emerald-400/80 mt-1 font-medium">{workspaceProgress.done} / {workspaceProgress.total} tasks done</p>
             </div>
 
             <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-purple-500/10 to-surface-900 p-5">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-surface-400">Active Sprint Velocity</span>
-                <BarChart3 size={16} className="text-purple-400" />
+                <span className="text-xs font-semibold text-surface-400">Active Sprint</span>
+                <Layers size={16} className="text-purple-400" />
               </div>
-              <p className="text-2xl font-display font-extrabold text-purple-400">{activeSprint?.actualVelocity ?? '—'} pts</p>
-              <p className="text-[11px] text-purple-400/80 mt-1 font-medium">Target: {activeSprint?.targetVelocity ?? '—'} pts</p>
+              <p className="text-2xl font-display font-extrabold text-purple-400">{activeSprint ? `${sprintProgress}%` : '—'}</p>
+              <div className="mt-2 h-1.5 rounded-full bg-surface-800 overflow-hidden">
+                <div className="h-full rounded-full bg-purple-400 transition-all duration-200" style={{ width: `${sprintProgress}%` }} />
+              </div>
+              <p className="text-[11px] text-purple-400/80 mt-1 font-medium">
+                {activeSprint ? `${activeSprintTasks.filter((t) => t.sprintStatus === 'done').length}/${activeSprintTasks.length} tasks · ${activeSprintVelocity}/${activeSprint.targetVelocity ?? '—'} pts` : 'No sprint active yet'}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-amber-500/10 to-surface-900 p-5">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-surface-400">Pending Reviews</span>
+                <UserCheck size={16} className="text-amber-400" />
+              </div>
+              <p className="text-2xl font-display font-extrabold text-amber-400">{currentUserId ? myPendingReviews : '—'}</p>
+              <p className="text-[11px] text-amber-400/80 mt-1 font-medium">
+                {currentUserId ? (myPendingReviews === 0 ? 'You\'re all caught up' : 'Awaiting your feedback') : 'Sign in to see your queue'}
+              </p>
             </div>
           </div>
 
-          {/* Member Presence Matrix + Engineering Activity Feed */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+          {/* Main grid: left column (sprint + deadlines) + right rail (reviews, blockers, activity) */}
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
 
-            {/* Member Presence Matrix */}
-            <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-              <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
-                <UserCheck size={18} className="text-brand-400" /> Developer Presence & Deep Work
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {members.map((member) => {
-                  const isFocus = member.status === 'in_focus';
-                  const isMeeting = member.status === 'in_meeting';
-                  return (
-                    <div key={member.id}
-                      className={`p-4 rounded-xl border transition-all ${
-                        isFocus ? 'border-amber-500/40 bg-amber-500/5' : isMeeting ? 'border-purple-500/30 bg-purple-500/5' : 'border-surface-800 bg-surface-850/50'
-                      }`}>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="relative">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center font-bold text-white text-sm">
-                            {member.name.charAt(0)}
+            {/* Left column */}
+            <div className="space-y-6">
+              {/* Current Sprint */}
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
+                    <Flame size={18} className="text-purple-400" /> Current Sprint
+                  </h3>
+                  {activeSprint ? (
+                    <Badge tone="brand" className="text-[10px] font-bold uppercase border border-brand-500/20">{activeSprint.name}</Badge>
+                  ) : (
+                    <Button onClick={() => setShowCreateSprint(true)} size="xs" leftIcon={<Plus size={12} />}>
+                      New Sprint
+                    </Button>
+                  )}
+                </div>
+
+                {activeSprint ? (
+                  <>
+                    <p className="text-xs text-surface-400">Goal: <span className="text-surface-200 font-semibold">{activeSprint.goal}</span></p>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      {(['backlog', 'in_progress', 'done'] as const).map((col) => {
+                        const n = activeSprintTasks.filter((t) => t.sprintStatus === col).length;
+                        return (
+                          <div key={col} className="p-3 rounded-xl bg-surface-850 border border-surface-800">
+                            <p className="text-lg font-bold text-surface-50">{n}</p>
+                            <p className="text-[10px] text-surface-500 font-bold uppercase">{col.replace('_', ' ')}</p>
                           </div>
-                          <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-surface-900 ${
-                            isFocus ? 'bg-amber-400' : member.status === 'available' ? 'bg-emerald-400' : isMeeting ? 'bg-purple-400' : 'bg-surface-600'
-                          }`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-surface-100 truncate">{member.name}</p>
-                          <p className="text-[11px] text-surface-400 capitalize">{member.role} · {member.teams.join(', ')}</p>
-                        </div>
-                      </div>
-                      {member.currentFocusTask ? (
-                        <div className="mt-2 text-xs bg-surface-800/80 p-2.5 rounded-lg border border-surface-700/50 text-surface-300">
-                          <p className="font-semibold text-amber-400 flex items-center gap-1.5 text-[11px]">
-                            <Flame size={11} /> Focusing on:
-                          </p>
-                          <p className="truncate mt-0.5">{member.currentFocusTask}</p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-surface-500 italic mt-2">Available for async review</p>
-                      )}
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between text-[11px] text-surface-400 mb-1.5">
+                        <span>Done {activeSprintTasks.filter((t) => t.sprintStatus === 'done').length}/{activeSprintTasks.length}</span>
+                        <span>Velocity {activeSprintVelocity}/{activeSprint.targetVelocity ?? '—'} pts</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-purple-500 transition-all duration-200" style={{ width: `${sprintProgress}%` }} />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-surface-700 bg-surface-850/40 p-6 text-center">
+                    <p className="text-xs text-surface-400 italic">No active sprint. Plan the next iteration from the Sprint Board.</p>
+                    <Button onClick={() => setActiveTab('sprints')} size="xs" variant="secondary" className="mt-3">
+                      Go to Sprint Planning
+                    </Button>
+                  </div>
+                )}
               </div>
-              {members.length === 0 && (
-                <p className="text-xs text-surface-500 italic py-4 text-center">No members in this workspace yet.</p>
-              )}
+
+              {/* Upcoming Deadlines */}
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
+                <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
+                  <CalendarClock size={18} className="text-emerald-400" /> Upcoming Deadlines
+                  {upcomingDeadlines.length > 0 && <Badge tone="neutral" className="text-[10px] font-extrabold">{upcomingDeadlines.length}</Badge>}
+                </h3>
+                {upcomingDeadlines.length === 0 ? (
+                  <p className="text-xs text-surface-500 italic py-4 text-center">Nothing due in the next 7 days. Enjoy the calm.</p>
+                ) : (
+                  <ul className="divide-y divide-surface-800">
+                    {upcomingDeadlines.slice(0, 5).map((d, i) => (
+                      <li key={i} className="py-2.5 flex items-center justify-between gap-3 text-xs">
+                        <span className="text-surface-200 font-semibold truncate">{d.title}</span>
+                        <span className={`shrink-0 font-mono font-bold ${i === 0 ? 'text-red-400' : 'text-surface-400'}`}>
+                          {new Date(d.dueDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
 
-            {/* Live Engineering Activity Feed */}
-            <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-              <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
-                <Clock size={18} className="text-purple-400" /> Engineering Activity
-              </h3>
-              <div className="space-y-3">
-                {activityLoading && wsActivities.length === 0 && (
-                  <p className="text-xs text-surface-500 italic">Loading activity…</p>
+            {/* Right rail */}
+            <div className="space-y-6">
+              {/* Pending Reviews queue */}
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
+                <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
+                  <UserCheck size={18} className="text-amber-400" /> Review Queue
+                </h3>
+                {(() => {
+                  const myReviews = currentUserId ? wsTasks.filter((t) => t.reviewerId === currentUserId && t.sprintStatus === 'review') : [];
+                  return myReviews.length === 0 ? (
+                    <p className="text-xs text-surface-500 italic py-4 text-center">No tasks waiting on your review.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {myReviews.slice(0, 4).map((t) => (
+                        <li key={t.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 text-xs">
+                          <p className="font-bold text-surface-100 leading-snug">{t.title}</p>
+                          <p className="text-[10px] text-purple-400 mt-1 font-semibold uppercase">In Code Review</p>
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
+              </div>
+
+              {/* Open Blockers */}
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
+                    <AlertOctagon size={18} className="text-red-400" /> Blockers
+                  </h3>
+                  <Badge tone={openBlockers.length > 0 ? 'danger' : 'neutral'} className="text-[10px] font-extrabold">{openBlockers.length}</Badge>
+                </div>
+                {openBlockers.length === 0 ? (
+                  <p className="text-xs text-surface-500 italic py-4 text-center">No open blockers. Pipeline is clear.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {openBlockers.slice(0, 3).map((b) => (
+                      <li key={b.id} className="p-3 rounded-xl bg-surface-850 border border-red-500/20 text-xs">
+                        <p className="font-bold text-surface-100">{b.title}</p>
+                        <p className="text-[10px] text-red-400 mt-1 font-bold uppercase">{b.severity}</p>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-                {!activityLoading && wsActivities.length === 0 && (
-                  <p className="text-xs text-surface-500 italic">No activity yet.</p>
-                )}
-                {wsActivities.map((act) => (
-                  <div key={act.id} className="p-3 rounded-xl border border-surface-800 bg-surface-850/40 text-xs">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-surface-100">{act.actor.name}</span>
-                      <span className="text-surface-400 font-semibold">{activityActionLabel(act.action)}</span>
-                    </div>
-                    <p className="text-surface-300">{activityDetail(act)}</p>
-                    <p className="text-[10px] text-surface-500 mt-1 font-mono">
-                      {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                ))}
-                {activityHasMore && (
-                  <button
-                    type="button"
-                    onClick={() => loadWorkspaceActivity(activeWs.id, { cursor: activityNextCursor ?? undefined, append: true })}
-                    className="w-full text-xs font-semibold text-brand-300 hover:text-brand-200 py-2 rounded-lg border border-surface-800 hover:border-brand-500/40 transition-colors"
-                  >
-                    Load more activity
-                  </button>
+                {openBlockers.length > 0 && (
+                  <Button onClick={() => setActiveTab('blockers')} size="xs" variant="secondary" className="w-full">
+                    Manage Blockers
+                  </Button>
                 )}
               </div>
+
+              {/* Recent Activity */}
+              <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
+                <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
+                  <Clock size={18} className="text-purple-400" /> Team Activity
+                </h3>
+                <div className="space-y-3">
+                  {activityLoading && wsActivities.length === 0 && (
+                    <p className="text-xs text-surface-500 italic">Loading activity…</p>
+                  )}
+                  {!activityLoading && wsActivities.length === 0 && (
+                    <p className="text-xs text-surface-500 italic">No activity yet.</p>
+                  )}
+                  {wsActivities.slice(0, 4).map((act) => (
+                    <div key={act.id} className="p-3 rounded-xl border border-surface-800 bg-surface-850/40 text-xs">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-surface-100">{act.actor.name}</span>
+                        <span className="text-surface-400 font-semibold">{activityActionLabel(act.action)}</span>
+                      </div>
+                      <p className="text-surface-300 line-clamp-1">{activityDetail(act)}</p>
+                      <p className="text-[10px] text-surface-500 mt-1 font-mono">
+                        {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
+                  {activityHasMore && (
+                    <Button
+                      type="button"
+                      variant="ghost" size="sm"
+                      onClick={() => loadWorkspaceActivity(activeWs.id, { cursor: activityNextCursor ?? undefined, append: true })}
+                      className="w-full text-brand-300 hover:text-brand-200 rounded-lg border border-surface-800 hover:border-brand-500/40"
+                    >
+                      Load more activity
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Workspace Health strip */}
+          <div className="rounded-2xl border border-surface-800 bg-surface-900 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <FileWarning size={16} className="text-emerald-400" />
+              <p className="text-xs font-bold text-surface-100">Workspace Health</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-surface-400">
+              <span>{wsProjects.length} projects</span>
+              <span>{wsFeatures.length} backlog features</span>
+              <span>{sprints.length} sprints</span>
+              <span>{wsTasks.length} tasks · {workspaceProgress.pct}% done</span>
+              <span>{wsDocs.length} knowledge docs</span>
+              <span>{openBlockers.length} open blockers</span>
             </div>
           </div>
         </motion.div>
@@ -328,6 +583,26 @@ export function TeamWorkspace() {
       {/* ── TAB 2: SPRINT BOARD (KANBAN & AGILE) ── */}
       {activeTab === 'sprints' && (
         <div className="space-y-6">
+
+          {/* Sprint Board Actions — real member/feature-aware creation (P6-T4) */}
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
+              <Layers size={18} className="text-brand-400" /> Sprint Planning
+            </h2>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setShowCreateTask(true)}
+                size="sm" leftIcon={<Plus size={14} />}>
+                New Task
+              </Button>
+              <Button onClick={() => setShowCreateSprint(true)}
+                size="sm" leftIcon={<Plus size={14} />}>
+                New Sprint
+              </Button>
+            </div>
+          </div>
+
+          {/* P6-T3: per-project feature backlog with drag-and-drop into sprints */}
+          <ProjectBacklog onCreateFeature={() => setShowCreateFeature(true)} />
 
           {/* Sprint Details & Capacity Header */}
           {activeSprint && (
@@ -351,7 +626,20 @@ export function TeamWorkspace() {
             </div>
           )}
 
+          {/* P6-T1: no active sprint — keep the board usable, explain the missing header */}
+          {!activeSprint && wsTasks.length > 0 && (
+            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-5 flex items-center gap-3 text-xs text-surface-400 italic">
+              <Layers size={14} className="text-surface-500" />
+              No active sprint — sprint goal, capacity, and velocity appear here once a sprint is active. The board below shows the workspace task backlog.
+            </div>
+          )}
+
           {/* 5-Column Kanban Board */}
+          {wsTasks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
+              No tasks yet in this workspace. Tasks you create will appear on the sprint board.
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {(
               [
@@ -367,7 +655,7 @@ export function TeamWorkspace() {
                 <div key={col.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-4 space-y-3 min-h-[500px]">
                   <div className={`pb-2 border-b flex items-center justify-between ${col.color}`}>
                     <span className="font-display font-extrabold text-xs uppercase tracking-wider">{col.label}</span>
-                    <span className="text-xs font-bold bg-surface-800 px-2 py-0.5 rounded-md text-surface-300">{colTasks.length}</span>
+                    <Badge tone="neutral" className="text-xs font-bold">{colTasks.length}</Badge>
                   </div>
 
                   <div className="space-y-3">
@@ -376,9 +664,9 @@ export function TeamWorkspace() {
                         <div className="flex items-center justify-between text-[10px]">
                           <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
                           {task.gitContext?.prNumber && (
-                            <span className="font-mono text-purple-400 font-bold bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
+                            <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
                               PR #{task.gitContext.prNumber}
-                            </span>
+                            </Badge>
                           )}
                         </div>
 
@@ -387,17 +675,18 @@ export function TeamWorkspace() {
 
                         {/* Git Context Badges */}
                         {task.gitContext?.branch && (
-                          <div className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20 flex items-center gap-1 truncate">
-                            <GitBranch size={10} /> {task.gitContext.branch}
-                          </div>
+                          <Badge tone="success" icon={<GitBranch size={10} />} className="text-[10px] font-mono py-1 truncate max-w-full overflow-hidden">
+                            {task.gitContext.branch}
+                          </Badge>
                         )}
 
                         {/* Action Bar */}
                         <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px]">
-                          <button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
-                            className="text-surface-400 hover:text-brand-400 flex items-center gap-1 transition-colors">
-                            <MessageSquare size={12} /> Discuss
-                          </button>
+                          <Button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
+                            variant="ghost" size="xs" leftIcon={<MessageSquare size={12} />}
+                            className="text-surface-400 hover:text-brand-400 hover:bg-transparent">
+                            Discuss
+                          </Button>
 
                           {/* Quick Status Move */}
                           <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
@@ -411,25 +700,38 @@ export function TeamWorkspace() {
                         </div>
                       </div>
                     ))}
+                    {colTasks.length === 0 && (
+                      <p className="text-[11px] text-surface-500 italic py-6 text-center">No tasks</p>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
+          )}
         </div>
       )}
 
       {/* ── TAB 3: PROJECTS & MILESTONES ── */}
       {activeTab === 'projects' && (
         <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
+              <FolderOpen size={18} className="text-cyan-400" /> Projects & Milestones
+            </h2>
+            <Button onClick={() => setShowCreateProject(true)}
+              size="sm" leftIcon={<Plus size={14} />}>
+              New Project
+            </Button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {wsProjects.map((proj) => (
               <div key={proj.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-400 bg-brand-500/15 px-2 py-0.5 rounded-md border border-brand-500/20">
+                    <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
                       {proj.key}
-                    </span>
+                    </Badge>
                     <h3 className="text-lg font-display font-extrabold text-surface-50 mt-1">{proj.name}</h3>
                   </div>
                   {proj.repositoryUrl && (
@@ -451,9 +753,9 @@ export function TeamWorkspace() {
                         <p className="font-semibold text-surface-100">{ms.title}</p>
                         <p className="text-[10px] text-surface-500">Due: {ms.dueDate}</p>
                       </div>
-                      <span className="text-[10px] font-bold uppercase text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                      <Badge tone="success" className="text-[10px] font-bold uppercase border border-emerald-500/20">
                         {ms.targetPoints} pts
-                      </span>
+                      </Badge>
                     </div>
                   ))}
                   {proj.milestones.length === 0 && (
@@ -464,8 +766,13 @@ export function TeamWorkspace() {
             ))}
           </div>
           {wsProjects.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
-              No projects yet. Create your first project from the "New Project" button.
+            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center">
+              <FolderOpen size={28} className="mx-auto text-cyan-400/60 mb-3" />
+              <p className="text-xs font-bold text-surface-300 mb-1">No projects yet</p>
+              <p className="text-xs text-surface-500 italic mb-4">Kick off the first initiative for this workspace.</p>
+              <Button onClick={() => setShowCreateProject(true)} size="sm" leftIcon={<Plus size={14} />}>
+                New Project
+              </Button>
             </div>
           )}
         </div>
@@ -475,19 +782,23 @@ export function TeamWorkspace() {
       {activeTab === 'blockers' && (
         <div className="space-y-6">
           <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <AlertOctagon size={18} className="text-red-400" /> Blocker Resolution Board
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
+                <AlertOctagon size={18} className="text-red-400" /> Blocker Resolution Board
+              </h2>
+              <Button onClick={() => setShowCreateBlocker(true)}
+                variant="danger" size="sm" leftIcon={<AlertOctagon size={14} />}>
+                Report Blocker
+              </Button>
+            </div>
             <div className="space-y-3">
               {wsBlockers.map((blk) => (
                 <div key={blk.id} className="p-4 rounded-xl border border-surface-800 bg-surface-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded border ${
-                        blk.severity === 'critical' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
-                      }`}>
+                      <Badge tone={blk.severity === 'critical' ? 'danger' : 'warning'} className="text-[10px] font-extrabold uppercase">
                         {blk.severity}
-                      </span>
+                      </Badge>
                       <h4 className="text-sm font-bold text-surface-100">{blk.title}</h4>
                     </div>
                     <p className="text-xs text-surface-400">{blk.impactDescription}</p>
@@ -495,21 +806,27 @@ export function TeamWorkspace() {
 
                   <div className="flex items-center gap-3">
                     {blk.status === 'resolved' ? (
-                      <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20 flex items-center gap-1">
-                        <CheckCircle2 size={13} /> Resolved
-                      </span>
+                      <Badge tone="success" icon={<CheckCircle2 size={13} />} className="text-xs font-bold px-3 py-1.5 border border-emerald-500/20">
+                        Resolved
+                      </Badge>
                     ) : (
-                      <button onClick={() => resolveBlocker(blk.id)}
-                        className="btn-primary px-3.5 py-1.5 rounded-xl text-xs font-bold">
+                      <Button onClick={() => resolveBlocker(blk.id)} size="sm">
                         Resolve Blocker
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
               ))}
             </div>
             {wsBlockers.length === 0 && (
-              <p className="text-xs text-surface-500 italic py-4 text-center">No blockers reported.</p>
+              <div className="py-8 text-center">
+                <CheckCircle2 size={28} className="mx-auto text-emerald-400/70 mb-3" />
+                <p className="text-xs font-bold text-surface-300 mb-1">No blockers reported</p>
+                <p className="text-xs text-surface-500 italic mb-4">The pipeline is clear. Report one if something is in the way.</p>
+                <Button onClick={() => setShowCreateBlocker(true)} variant="danger" size="xs" leftIcon={<AlertOctagon size={12} />}>
+                  Report Blocker
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -520,23 +837,24 @@ export function TeamWorkspace() {
             <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
               <BookOpen size={18} className="text-purple-400" /> Knowledge Base Documents
             </h2>
-            <button onClick={() => { setEditingDoc(null); setShowCreateDoc(true); }}
-              className="btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5">
-              <Plus size={14} /> New Document
-            </button>
+            <Button onClick={() => { setEditingDoc(null); setShowCreateDoc(true); }}
+              size="sm" leftIcon={<Plus size={14} />}>
+              New Document
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {wsDocs.map((doc) => (
               <div key={doc.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/15 px-2 py-0.5 rounded border border-purple-500/20">
+                  <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-purple-500/20">
                     {doc.category} · v{doc.version}
-                  </span>
-                  <button onClick={() => { setEditingDoc(doc); setShowCreateDoc(true); }}
-                    aria-label={`Edit document ${doc.title}`} className="p-1 text-surface-500 hover:text-surface-200">
+                  </Badge>
+                  <Button onClick={() => { setEditingDoc(doc); setShowCreateDoc(true); }}
+                    aria-label={`Edit document ${doc.title}`} variant="ghost" size="icon-sm"
+                    className="text-surface-500 hover:text-surface-200">
                     <Edit3 size={14} />
-                  </button>
+                  </Button>
                 </div>
 
                 <h3 className="text-base font-bold text-surface-50">{doc.title}</h3>
@@ -561,7 +879,7 @@ export function TeamWorkspace() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {events.map((ev) => (
               <div key={ev.id} className="p-4 rounded-xl border border-surface-800 bg-surface-850 space-y-1">
-                <span className="text-[10px] font-bold uppercase text-emerald-400">{ev.type}</span>
+                <Badge tone="success" className="text-[10px] font-bold uppercase">{ev.type}</Badge>
                 <p className="text-sm font-bold text-surface-100">{ev.title}</p>
                 <p className="text-xs text-surface-500">{ev.date} {ev.endDate ? `→ ${ev.endDate}` : ''}</p>
               </div>
@@ -645,7 +963,9 @@ export function TeamWorkspace() {
       <CreateProjectModal isOpen={showCreateProject} onClose={() => setShowCreateProject(false)} />
       <CreateBlockerModal isOpen={showCreateBlocker} onClose={() => setShowCreateBlocker(false)} />
       <CreateDocModal isOpen={showCreateDoc} onClose={() => setShowCreateDoc(false)} docToEdit={editingDoc} />
-      <GlobalCommandPalette isOpen={showSearch} onClose={() => setShowSearch(false)} />
+      <CreateSprintModal isOpen={showCreateSprint} onClose={() => setShowCreateSprint(false)} />
+      <CreateTaskModal isOpen={showCreateTask} onClose={() => setShowCreateTask(false)} />
+      <CreateFeatureModal isOpen={showCreateFeature} onClose={() => setShowCreateFeature(false)} />
     </div>
   );
 }

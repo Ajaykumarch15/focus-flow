@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Clock, Activity, Users, FolderOpen } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
+import { Card } from '../../components/ui/Card';
 
 export function ActivityFeedPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -45,7 +46,7 @@ export function ActivityFeedPage() {
         </p>
       </div>
 
-      <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 lg:p-8 space-y-6">
+      <Card className="p-6 lg:p-8 space-y-6">
         <div className="relative border-l-2 border-surface-800 ml-4 space-y-6 pl-6">
           {wsActivities.length === 0 && (
             <p className="text-xs text-surface-500 italic">No activity yet.</p>
@@ -74,7 +75,7 @@ export function ActivityFeedPage() {
             </motion.div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

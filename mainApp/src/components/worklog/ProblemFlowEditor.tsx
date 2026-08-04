@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Bug, CheckCircle2, Lightbulb, HelpCircle, Save, Loader2 } from 'lucide-react';
+import { Search, Bug, CheckCircle2, Lightbulb, HelpCircle, Save } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Textarea } from '../../components/ui/Textarea';
+import { Spinner } from '../../components/ui/Spinner';
 
 interface ProblemFlowEditorProps {
   workLog: WorkLog;
@@ -67,7 +69,7 @@ export function ProblemFlowEditor({ workLog }: ProblemFlowEditorProps) {
             <motion.div
               key={stage.key}
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className={`card p-4 rounded-xl border ${stage.border} bg-surface-900/60 space-y-2`}
+              className={`p-4 rounded-xl border ${stage.border} bg-surface-900/60 space-y-2`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -75,13 +77,13 @@ export function ProblemFlowEditor({ workLog }: ProblemFlowEditorProps) {
                   <span className="text-xs font-semibold text-surface-100">{stage.label}</span>
                 </div>
                 {isSaving ? (
-                  <Loader2 size={12} className="text-brand-400 animate-spin" />
+                  <Spinner size={12} className="text-brand-400" />
                 ) : (
                   <Save size={12} className="text-surface-600" />
                 )}
               </div>
-              <textarea
-                className="input text-sm w-full resize-none rounded-lg font-sans leading-relaxed"
+              <Textarea
+                className="text-sm w-full resize-none rounded-lg font-sans leading-relaxed"
                 rows={3}
                 placeholder={stage.placeholder}
                 value={stage.value}

@@ -1,7 +1,14 @@
 // IES-P0-22: VITE_API_URL is required — no silent localhost fallback.
 // The build fails loudly when it is missing (see vite.config.ts requireApiUrl)
 // and its type is declared in src/vite-env.d.ts.
-import type { WorkspaceActivity, NotificationItem, SearchResults } from '../types/collaboration';
+import type {
+  Feature,
+  GitContext,
+  Sprint,
+  WorkspaceActivity,
+  NotificationItem,
+  SearchResults,
+} from '../types/collaboration';
 
 const BASE = import.meta.env.VITE_API_URL;
 
@@ -19,6 +26,49 @@ type Paginated<T> = {
   items: T[];
   hasMore: boolean;
   nextCursor: string | null;
+};
+
+// ── IES-R1: Phase 3 collaboration payloads (routes in server/routes). ─────────
+// Collaborative task refs mirror CollaborativeTask in src/types/collaboration.ts;
+// only id refs are sent to the API — workspaceId/projectId/sprintId/featureId.
+export type TaskCollabRefs = {
+  workspaceId?: string;
+  projectId?: string;
+  sprintId?: string;
+  featureId?: string;
+};
+
+export type TaskListParams = TaskCollabRefs;
+
+export type SprintCreatePayload = {
+  projectId: string;
+  name: string;
+  startDate: string | number;
+  endDate: string | number;
+  goal?: string;
+  capacityHours?: number;
+  targetVelocity?: number;
+};
+
+export type SprintUpdatePayload = Partial<Omit<SprintCreatePayload, 'projectId'>> & {
+  status?: 'future' | 'active' | 'completed';
+};
+
+export type FeatureCreatePayload = {
+  projectId: string;
+  name: string;
+  description?: string;
+  type?: Feature['type'];
+  labels?: string[];
+  ownerId?: string;
+  estimatedHours?: number;
+  status?: Feature['status'];
+  order?: number;
+  sprintId?: string | null;
+};
+
+export type FeatureUpdatePayload = Partial<Omit<FeatureCreatePayload, 'projectId'>> & {
+  sprintId?: string | null;
 };
 
 // IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
@@ -52,10 +102,23 @@ export const api = {
   },
 
   tasks: {
-    list: () => request<any[]>('/tasks'),
+    // IES-R1: optional collab filters hit the workspace-scoped GET /tasks
+    // (member-gated); omitted, it stays the personal task list.
+    list: (params?: TaskListParams) => {
+      const qs = new URLSearchParams();
+      if (params?.workspaceId) qs.set('workspaceId', params.workspaceId);
+      if (params?.projectId) qs.set('projectId', params.projectId);
+      if (params?.sprintId) qs.set('sprintId', params.sprintId);
+      if (params?.featureId) qs.set('featureId', params.featureId);
+      const s = qs.toString();
+      return request<any[]>(`/tasks${s ? '?' + s : ''}`);
+    },
     create: (body: any) => request<any>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
+    // IES-R1: persist gitContext on a collaborative task (PATCH /tasks/:id/git).
+    patchGit: (id: string, gitContext: GitContext) =>
+      request<any>(`/tasks/${id}/git`, { method: 'PATCH', body: JSON.stringify(gitContext) }),
     addSubtask: (taskId: string, title: string) =>
       request<any>(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
     toggleSubtask: (taskId: string, subId: string, completed: boolean) =>
@@ -242,7 +305,9 @@ export const api = {
       const qs = params.toString();
       return request<Paginated<any>>(`/admin/users/deleted${qs ? '?' + qs : ''}`);
     },
-    updateUser: (userId: string, data: { name?: string; email?: string; role?: string }) =>
+    createUser: (data: { name: string; email: string; password?: string; role?: string; teamId?: string; projectId?: string }) =>
+      request<any>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+    updateUser: (userId: string, data: { name?: string; email?: string; role?: string; status?: string; teamId?: string }) =>
       request<any>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteUser: (userId: string) =>
       request<any>(`/admin/users/${userId}`, { method: 'DELETE' }),
@@ -306,6 +371,37 @@ export const api = {
     create: (data: { name: string; workspaceId?: string }) =>
       request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
+  },
+
+  // IES-R1: real Sprint CRUD backed by the Phase 3 route (server/routes/sprints.js).
+  sprints: {
+    list: (projectId: string) =>
+      request<Sprint[]>(`/sprints?projectId=${encodeURIComponent(projectId)}`),
+    create: (body: SprintCreatePayload) =>
+      request<Sprint>('/sprints', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: SprintUpdatePayload) =>
+      request<Sprint>(`/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/sprints/${id}`, { method: 'DELETE' }),
+  },
+
+  // IES-R1: real Feature CRUD backed by the Phase 3 route (server/routes/features.js).
+  // Backlog = omit/leave null sprintId; use backlog:true to list backlog features.
+  features: {
+    list: (params: { projectId: string; sprintId?: string; backlog?: boolean; type?: Feature['type']; status?: Feature['status'] }) => {
+      const qs = new URLSearchParams({ projectId: params.projectId });
+      if (params.sprintId) qs.set('sprintId', params.sprintId);
+      if (params.backlog !== undefined) qs.set('backlog', String(params.backlog));
+      if (params.type) qs.set('type', params.type);
+      if (params.status) qs.set('status', params.status);
+      return request<Feature[]>(`/features?${qs.toString()}`);
+    },
+    create: (body: FeatureCreatePayload) =>
+      request<Feature>('/features', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: FeatureUpdatePayload) =>
+      request<Feature>(`/features/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/features/${id}`, { method: 'DELETE' }),
   },
 
   // IES-P2-01: real workspace CRUD + membership surface (IES-P2-07 wiring).

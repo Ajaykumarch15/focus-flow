@@ -7,6 +7,9 @@ import { formatDuration } from '../utils/time';
 import { pomodoroTimeLeft, pomodoroProgress, isPomodoroComplete } from '../utils/pomodoro';
 import { getNotificationSettings } from '../hooks/useNotifications';
 import { toast } from '../store/useToastStore';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Select } from '../components/ui/Select';
 
 const QUOTES = [
   "The secret of getting ahead is getting started.",
@@ -182,20 +185,35 @@ export function FocusMode() {
 
       <div className="relative z-10 flex flex-col items-center max-w-xl w-full">
         {/* Mode Toggle */}
-        <div className="flex bg-surface-900 border border-surface-800 rounded-[14px] p-1.5 mb-8 shadow-sm">
-          {(['pomodoro', 'break'] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => handleModeChange(m)}
-              className={`px-6 py-2.5 rounded-[10px] text-xs font-semibold transition-all ${mode === m ? 'bg-brand-500 text-white shadow-sm' : 'text-surface-400 hover:text-surface-50'}`}
-            >
-              {m === 'pomodoro' ? <span className="flex items-center gap-1.5"><Zap size={14} /> Focus Session</span> : <span className="flex items-center gap-1.5"><Coffee size={14} /> Break Session</span>}
-            </button>
-          ))}
+        <div className="flex bg-surface-900 border border-surface-800 rounded-[14px] p-1.5 mb-8 shadow-sm relative">
+          {(['pomodoro', 'break'] as const).map(m => {
+            const active = mode === m;
+            return (
+              <button
+                key={m}
+                onClick={() => handleModeChange(m)}
+                className={`relative px-6 py-2.5 rounded-[10px] text-xs font-semibold transition-colors ${
+                  active ? 'text-white' : 'text-surface-400 hover:text-surface-50'
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="focusModeTab"
+                    className="absolute inset-0 rounded-[10px] bg-brand-500 shadow-sm"
+                    transition={{ type: 'spring', stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {m === 'pomodoro' ? <Zap size={14} /> : <Coffee size={14} />}
+                  {m === 'pomodoro' ? 'Focus Session' : 'Break Session'}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Timer Elevated Card */}
-        <div className="card p-8 rounded-[22px] shadow-sm border border-surface-800 flex flex-col items-center mb-8 w-full bg-[#FFFDF5] dark:bg-surface-900">
+        <Card className="p-8 flex flex-col items-center mb-8 w-full bg-[#FFFDF5] dark:bg-surface-900">
           <div className="relative mb-6">
             <svg viewBox="0 0 280 280" width="100%" style={{ maxWidth: 280 }} className="-rotate-90">
               <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-surface-800)" strokeWidth="8" />
@@ -224,48 +242,50 @@ export function FocusMode() {
 
           {/* Controls */}
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="secondary"
+              size="lg"
+              className="px-4"
               onClick={handleReset}
-              className="btn-secondary px-4"
               title="Reset Timer"
-            >
-              <RotateCcw size={18} />
-            </button>
-            <button
+              leftIcon={<RotateCcw size={18} />}
+            />
+            <Button
+              size="lg"
+              className={`px-8 text-base ${isRunning ? 'bg-none shadow-amber-500/25' : ''}`}
+              style={isRunning ? { backgroundColor: '#f59e0b' } : undefined}
               onClick={handleMainToggle}
               disabled={mode === 'pomodoro' && !selectedTaskId}
-              className={`btn-primary px-8 text-base font-semibold ${
-                isRunning ? 'bg-amber-500 text-white' : ''
-              } disabled:opacity-40 disabled:cursor-not-allowed`}
+              leftIcon={isRunning ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
             >
-              {isRunning ? <span className="flex items-center gap-2"><Pause size={18} /> Pause</span>
-                         : <span className="flex items-center gap-2"><Play size={18} fill="white" />
-                             {mode === 'pomodoro' ? (focusPaused ? 'Resume Focus' : 'Start Focus')
-                                                  : (breakPaused ? 'Resume Break' : 'Start Break')}</span>}
-            </button>
+              {isRunning ? 'Pause'
+                : mode === 'pomodoro' ? (focusPaused ? 'Resume Focus' : 'Start Focus')
+                : (breakPaused ? 'Resume Break' : 'Start Break')}
+            </Button>
             {mode === 'pomodoro' && selectedTaskId && activeTaskId === selectedTaskId && (
-              <button
+              <Button
+                variant="danger"
+                size="lg"
+                className="px-4"
                 onClick={handleStop}
-                className="btn-danger px-4"
                 title="Stop Timer"
-              >
-                <Square size={16} fill="currentColor" />
-              </button>
+                leftIcon={<Square size={16} fill="currentColor" />}
+              />
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Task selector */}
         <div className="w-full mb-6">
-          <select
-            className="input h-12 rounded-[14px] text-center font-medium"
+          <Select
+            className="text-center font-medium"
             value={selectedTaskId}
             onChange={e => setSelectedTaskId(e.target.value)}
             disabled={focusRunning || focusPaused}
           >
             <option value="">— Select a task to focus on —</option>
             {activeTasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-          </select>
+          </Select>
           {mode === 'pomodoro' && !selectedTaskId && (
             <p className="text-center text-xs text-surface-500 mt-2">
               Select a task to record your focus time to your work log.

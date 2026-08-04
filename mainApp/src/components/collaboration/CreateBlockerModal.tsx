@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { AlertOctagon, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { BlockerSeverity } from '../../types/collaboration';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
 
 export function CreateBlockerModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { createBlocker, tasks } = useCollaborationStore();
@@ -41,9 +45,9 @@ export function CreateBlockerModal({ isOpen, onClose }: { isOpen: boolean; onClo
               <p className="text-xs text-surface-400">Notify managers & team immediately</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -52,7 +56,7 @@ export function CreateBlockerModal({ isOpen, onClose }: { isOpen: boolean; onClo
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Blocker Title <span className="text-red-400">*</span>
             </label>
-            <input className="input rounded-xl text-sm w-full" placeholder="e.g. Staging DB Timeout, API Auth failure..."
+            <Input className="rounded-xl text-sm w-full" placeholder="e.g. Staging DB Timeout, API Auth failure..."
               value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
           </div>
 
@@ -81,28 +85,28 @@ export function CreateBlockerModal({ isOpen, onClose }: { isOpen: boolean; onClo
 
           <div>
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">Associated Task (Optional)</label>
-            <select className="input rounded-xl text-sm w-full" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
+            <Select className="rounded-xl text-sm w-full" value={taskId} onChange={(e) => setTaskId(e.target.value)}>
               <option value="">— Select Task —</option>
               {tasks.map((t) => (
                 <option key={t.id} value={t.id}>{t.title}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Impact & Context Description <span className="text-red-400">*</span>
             </label>
-            <textarea rows={3} className="input rounded-xl text-sm w-full resize-none"
+            <Textarea rows={3} className="rounded-xl text-sm w-full resize-none"
               placeholder="What is blocked? Who is impacted? What help is needed?"
               value={impactDescription} onChange={(e) => setImpactDescription(e.target.value)} required />
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 rounded-xl">Cancel</button>
-            <button type="submit" disabled={!title.trim() || !impactDescription.trim()} className="btn-danger flex-1 rounded-xl">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
+            <Button type="submit" variant="danger" disabled={!title.trim() || !impactDescription.trim()} className="flex-1 rounded-xl">
               Report Blocker
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>

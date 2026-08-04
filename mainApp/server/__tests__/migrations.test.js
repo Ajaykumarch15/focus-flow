@@ -19,6 +19,8 @@ const PENDING_ALL = [
   '0007_project_name_key.js',
   '0008_ttl_activity_reportshare.js',
   '0009_fold_worklog_drift.js',
+  '0010_create_sprint_feature_collections.js',
+  '0011_task_collab_links.js',
 ];
 
 const silentLog = () => {};
@@ -33,6 +35,8 @@ function createFakeDb({
   projects = [],
   projectIndexes = [],
   activityIndexes = [],
+  sprintIndexes = [],
+  featureIndexes = [],
 } = {}) {
   const schemaMigrations = { rows: [] };
   const created = [];
@@ -60,6 +64,8 @@ function createFakeDb({
   projectsCollection.find = () => ({ toArray: () => Promise.resolve(projects) });
   projectsCollection.updateOne = vi.fn(async (filter, update) => ({ filter, update }));
   const activitiesCollection = makeIndexedWithState('activities', activityIndexes);
+  const sprintsCollection = makeIndexedWithState('sprints', sprintIndexes);
+  const featuresCollection = makeIndexedWithState('features', featureIndexes);
 
   const collections = {
     schema_migrations: {
@@ -81,6 +87,7 @@ function createFakeDb({
     tasks: {
       find: () => ({ toArray: () => Promise.resolve(tasks) }),
       updateOne: vi.fn(async (filter, update) => ({ filter, update })),
+      updateMany: vi.fn(async (filter, update) => ({ filter, update, modifiedCount: 1 })),
       ...makeIndexed('tasks'),
     },
     habits: {
@@ -92,6 +99,8 @@ function createFakeDb({
     projects: projectsCollection,
     activities: activitiesCollection,
     reportshares: makeIndexed('reportshares'),
+    sprints: sprintsCollection,
+    features: featuresCollection,
   };
 
   return {
@@ -254,7 +263,7 @@ describe('IES-P1-04 · report/analytics index migration', () => {
     const secondRun = await runMigrations({ db, migrationsDir: MIGRATIONS_DIR, dryRun: false, log: silentLog });
 
     expect(secondRun).toEqual([]);
-    expect(created).toHaveLength(13);
+    expect(created).toHaveLength(19);
   });
 });
 
@@ -644,5 +653,90 @@ describe('IES-P1-27 · worklog drift fold migration', () => {
     const second = await migration.up({ db });
     expect(second).toEqual({ folded: 0 });
     expect(worklogs.updateOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('IES-R1 · sprint/feature collection migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0010_create_sprint_feature_collections.js'));
+
+  it('creates every sprint/feature index in the right collections', async () => {
+    const { db, created } = createFakeDb();
+    await migration.up({ db });
+
+    expect(created.map((c) => `${c.collection}:${c.options.name}`)).toEqual([
+      'sprints:projectRef_1_startDate_-1',
+      'sprints:workspaceRef_1_status_1',
+      'features:projectRef_1_order_1',
+      'features:sprintRef_1_status_1',
+      'features:workspaceRef_1',
+      'features:type_1',
+    ]);
+  });
+
+  it('schema declarations match the migration specs (no drift)', () => {
+    const MODELS = {
+      sprints: require('../models/Sprint'),
+      features: require('../models/Feature'),
+    };
+
+    for (const { collection, spec } of migration.INDEXES) {
+      const found = MODELS[collection].schema.indexes().some(
+        ([key]) => JSON.stringify(key) === JSON.stringify(spec)
+      );
+      expect(found, `${collection} is missing schema index ${JSON.stringify(spec)}`).toBe(true);
+    }
+  });
+
+  it('skips indexes that already exist (idempotent guard)', async () => {
+    const { db, created } = createFakeDb({
+      sprintIndexes: [
+        { name: 'projectRef_1_startDate_-1' },
+        { name: 'workspaceRef_1_status_1' },
+      ],
+      featureIndexes: [
+        { name: 'projectRef_1_order_1' },
+        { name: 'sprintRef_1_status_1' },
+        { name: 'workspaceRef_1' },
+        { name: 'type_1' },
+      ],
+    });
+
+    await migration.up({ db });
+    expect(created).toHaveLength(0);
+  });
+});
+
+describe('IES-R1 · task collaboration backfill migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0011_task_collab_links.js'));
+
+  it('backfills collab defaults only onto legacy tasks missing workspaceRef', async () => {
+    const { db } = createFakeDb();
+    await migration.up({ db });
+
+    const [filter, update] = db.collection('tasks').updateMany.mock.calls[0];
+    expect(filter).toEqual({ workspaceRef: { $exists: false } });
+    expect(update.$set).toEqual(migration.DEFAULTS);
+    expect(update.$set.workspaceRef).toBeNull();
+    expect(update.$set.sprintStatus).toBe('backlog');
+  });
+
+  it('reports the driver modified count', async () => {
+    const { db } = createFakeDb();
+    const result = await migration.up({ db });
+    expect(result).toEqual({ modifiedCount: 1 });
+  });
+
+  it('defaults match the Task model schema (no drift)', () => {
+    const Task = require('../models/Task');
+    const schemaDefaults = {
+      workspaceRef: Task.schema.path('workspaceRef').defaultValue,
+      projectRef: Task.schema.path('projectRef').defaultValue,
+      sprintRef: Task.schema.path('sprintRef').defaultValue,
+      featureRef: Task.schema.path('featureRef').defaultValue,
+      sprintStatus: Task.schema.path('sprintStatus').defaultValue,
+    };
+    for (const [field, value] of Object.entries(schemaDefaults)) {
+      expect(migration.DEFAULTS[field], `${field} drifted from the model default`).toBe(value);
+    }
   });
 });

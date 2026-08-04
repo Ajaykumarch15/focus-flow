@@ -6,6 +6,11 @@ import {
 import { Habit, HabitFeeling, getTodayHabitEntry, useHabitStore } from '../store/useHabitStore';
 import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Textarea } from '../components/ui/Textarea';
+import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
 const FEELINGS: { value: HabitFeeling; label: string }[] = [
@@ -67,8 +72,7 @@ function NewHabitForm({ onClose }: { onClose: () => void }) {
       className="card p-5 mb-6"
     >
       <div className="grid grid-cols-1 md:grid-cols-[1fr_160px] gap-3 mb-3">
-        <input
-          className="input"
+        <Input
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="Habit name"
@@ -76,8 +80,8 @@ function NewHabitForm({ onClose }: { onClose: () => void }) {
         />
         <div className="relative">
           <Clock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-          <input
-            className="input pl-9"
+          <Input
+            className="pl-9"
             type="number"
             min={0}
             value={targetMinutes}
@@ -87,8 +91,8 @@ function NewHabitForm({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
-      <textarea
-        className="input resize-none mb-3"
+      <Textarea
+        className="resize-none mb-3"
         rows={2}
         value={description}
         onChange={e => setDescription(e.target.value)}
@@ -111,37 +115,41 @@ function NewHabitForm({ onClose }: { onClose: () => void }) {
       <div className="space-y-2 mb-4">
         {items.map((item, index) => (
           <div key={index} className="flex gap-2">
-            <input
-              className="input text-sm"
+            <Input
+              className="text-sm"
               value={item}
               onChange={e => setItems(current => current.map((v, i) => i === index ? e.target.value : v))}
               placeholder={`Checklist item ${index + 1}`}
             />
-            <button
+            <Button
               type="button"
+              variant="danger"
+              size="icon-sm"
               onClick={() => setItems(current => current.filter((_, i) => i !== index))}
-              className="btn-secondary px-3"
               disabled={items.length === 1}
               aria-label="Remove checklist item"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
         ))}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => setItems(current => [...current, ''])}
-          className="btn-ghost flex items-center gap-2 text-sm"
+          className="text-sm"
+          leftIcon={<Plus size={14} />}
         >
-          <Plus size={14} /> Add checklist item
-        </button>
+          Add checklist item
+        </Button>
       </div>
 
       <div className="flex gap-3">
-        <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-        <button type="submit" disabled={!title.trim() || creating} className="btn-primary flex-1">
+        <Button type="button" variant="secondary" onClick={onClose} className="flex-1">Cancel</Button>
+        <Button type="submit" disabled={!title.trim() || creating} className="flex-1">
           {creating ? 'Creating...' : 'Create Habit'}
-        </button>
+        </Button>
       </div>
     </motion.form>
   );
@@ -212,37 +220,42 @@ function HabitCard({ habit }: { habit: Habit }) {
         </div>
         <div className="flex items-center gap-2">
           {!isThisActive && (
-            <button
+            <Button
               onClick={() => startTimer(habit._id)}
               disabled={!!activeHabitId}
-              className="btn-primary flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="disabled:opacity-40 disabled:cursor-not-allowed"
+              leftIcon={<Play size={14} fill="currentColor" />}
             >
-              <Play size={14} fill="currentColor" /> Start
-            </button>
+              Start
+            </Button>
           )}
           {isRunning && (
-            <button
+            <Button
+              variant="secondary"
               onClick={() => pauseTimer(habit._id)}
-              className="btn-secondary flex items-center gap-2 text-yellow-300"
+              className="text-yellow-300"
+              leftIcon={<Pause size={14} />}
             >
-              <Pause size={14} /> Pause
-            </button>
+              Pause
+            </Button>
           )}
           {isPaused && (
-            <button
+            <Button
               onClick={() => resumeTimer(habit._id)}
-              className="btn-primary flex items-center gap-2"
+              leftIcon={<Play size={14} fill="currentColor" />}
             >
-              <Play size={14} fill="currentColor" /> Resume
-            </button>
+              Resume
+            </Button>
           )}
           {isThisActive && (
-            <button
+            <Button
+              variant="secondary"
               onClick={() => stopTimer(habit._id)}
-              className="btn-secondary flex items-center gap-2 text-red-300"
+              className="text-red-300"
+              leftIcon={<Square size={13} fill="currentColor" />}
             >
-              <Square size={13} fill="currentColor" /> Stop
-            </button>
+              Stop
+            </Button>
           )}
           <button
             onClick={() => deleteHabit(habit._id)}
@@ -343,15 +356,15 @@ function HabitCard({ habit }: { habit: Habit }) {
       </div>
 
       <form onSubmit={addItem} className="flex gap-2 mb-5">
-        <input
-          className="input text-sm py-2"
+        <Input
+          className="text-sm py-2"
           value={newItem}
           onChange={e => setNewItem(e.target.value)}
           placeholder="Add checklist item"
         />
-        <button type="submit" className="btn-secondary px-3" aria-label="Add checklist item">
+        <Button type="submit" variant="secondary" size="icon-sm" aria-label="Add checklist item">
           <Plus size={15} />
-        </button>
+        </Button>
       </form>
 
       <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4">
@@ -359,8 +372,7 @@ function HabitCard({ habit }: { habit: Habit }) {
           <label className="text-xs text-surface-400 flex items-center gap-1.5 mb-2">
             <Clock size={12} /> Time count
           </label>
-          <input
-            className="input"
+          <Input
             type="number"
             min={0}
             step={0.1}
@@ -391,8 +403,8 @@ function HabitCard({ habit }: { habit: Habit }) {
         </div>
       </div>
 
-      <textarea
-        className="input resize-none mt-4 text-sm"
+      <Textarea
+        className="resize-none mt-4 text-sm"
         rows={2}
         value={note}
         onChange={e => setNote(e.target.value)}
@@ -418,24 +430,24 @@ export function Habits() {
     <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <PageHeader title="Habits" description={`${habits.length} Habits · ${completedToday} Completed Today · ${todayMinutes}m Logged`}
         icon={<span className="text-xl">⚡</span>} iconColor="#10b981"
-        actions={<button onClick={() => setShowCreate(true)} className="btn-primary"><Plus size={18} /> New Habit</button>} />
+        actions={<Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={18} />}>New Habit</Button>} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
             <Target size={18} />
           </div>
           <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{completedToday}</div>
           <div className="text-sm font-medium text-surface-300">Fully checked today</div>
-        </div>
-        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+        </Card>
+        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
           <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
             <Clock size={18} />
           </div>
           <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{todayMinutes}m</div>
           <div className="text-sm font-medium text-surface-300">Habit time today</div>
-        </div>
-        <div className="card p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
+        </Card>
+        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
           <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
             <Check size={18} />
           </div>
@@ -443,7 +455,7 @@ export function Habits() {
             {habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).completedItems.length, 0)}
           </div>
           <div className="text-sm font-medium text-surface-300">Checklist items done</div>
-        </div>
+        </Card>
       </div>
 
       <AnimatePresence>
@@ -461,7 +473,7 @@ export function Habits() {
 
           {/* Habit card skeletons */}
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="card p-5">
+            <Card key={i} className="p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <Skeleton className="w-3 h-3 rounded-full" />
@@ -478,15 +490,17 @@ export function Habits() {
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       ) : habits.length === 0 ? (
-        <div className="card p-10 text-center">
-          <Activity size={38} className="text-surface-600 mx-auto mb-3" />
-          <p className="text-surface-200 font-medium">No habits yet</p>
-          <p className="text-surface-500 text-sm mt-1">Create your first habit and track today in one place.</p>
-        </div>
+        <Card className="p-10 text-center">
+          <EmptyState
+            icon={<Activity size={38} className="text-surface-600" />}
+            title="No habits yet"
+            description="Create your first habit and track today in one place."
+          />
+        </Card>
       ) : (
         <div className="space-y-4">
           <AnimatePresence mode="popLayout">

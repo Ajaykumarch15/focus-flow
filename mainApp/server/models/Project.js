@@ -47,6 +47,35 @@ nameKey: {
       ref:     'Workspace',
       default: null,
     },
+    // R1-P4 (optional, decision d = now): persist project metadata previously
+    // optimistic-only in useCollaborationStore (docs/migration-recommendation-1.md §3.4).
+    description: {
+      type:    String,
+      default: '',
+    },
+    key: {
+      type:    String,
+      trim:    true,
+      maxlength: 10,
+      default: '',
+    },
+    status: {
+      type:    String,
+      enum:    ['planning', 'active', 'completed', 'on_hold'],
+      default: 'active',
+    },
+    milestones: [
+      {
+        _id: false,
+        id:      { type: String, default: '' },
+        title:   { type: String, default: '' },
+        dueDate: { type: String, default: '' },
+        status:  { type: String, enum: ['planning', 'active', 'completed'], default: 'planning' },
+        targetPoints: { type: Number, default: 0 },
+      },
+    ],
+    members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    teamIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
   },
   { timestamps: true }
 );

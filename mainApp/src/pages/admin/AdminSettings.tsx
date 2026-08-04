@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
 import { Settings, Shield, Database, Download, FileText, Flag, Globe } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -9,12 +11,14 @@ function SettingSection({ icon: Icon, title, description, children }: {
   icon: React.ElementType; title: string; description: string; children: React.ReactNode;
 }) {
   return (
-    <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-surface-800 flex items-center justify-center"><Icon size={18} className="text-surface-300" /></div>
-        <div><h3 className="text-sm font-bold text-surface-100">{title}</h3><p className="text-xs text-surface-400">{description}</p></div>
-      </div>
-      {children}
+    <motion.div variants={fadeUp}>
+      <Card className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-surface-800 flex items-center justify-center"><Icon size={18} className="text-surface-300" /></div>
+          <div><h3 className="text-sm font-bold text-surface-100">{title}</h3><p className="text-xs text-surface-400">{description}</p></div>
+        </div>
+        {children}
+      </Card>
     </motion.div>
   );
 }
@@ -43,11 +47,11 @@ export function AdminSettings() {
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 rounded-xl bg-surface-850">
               <div><span className="text-sm text-surface-200 font-medium">Admin</span><p className="text-[11px] text-surface-500">Full access to all features and settings</p></div>
-              <span className="text-xs font-bold text-purple-400 bg-purple-500/10 px-2 py-1 rounded-lg">2 roles</span>
+              <Badge tone="brand" className="rounded-lg px-2 py-1">2 roles</Badge>
             </div>
             <div className="flex items-center justify-between p-3 rounded-xl bg-surface-850">
               <div><span className="text-sm text-surface-200 font-medium">User</span><p className="text-[11px] text-surface-500">Standard access to personal productivity features</p></div>
-              <span className="text-xs font-bold text-surface-400 bg-surface-800 px-2 py-1 rounded-lg">Default</span>
+              <Badge tone="neutral" className="rounded-lg px-2 py-1">Default</Badge>
             </div>
           </div>
         </SettingSection>

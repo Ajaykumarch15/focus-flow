@@ -6,6 +6,13 @@ import { Login } from '../Login';
 import { Register } from '../Register';
 import { useAuthStore } from '../../store/useAuthStore';
 
+// P0-31: the auth-form tests exercise the real form, so the enterprise
+// registration flag is mocked to the community (enabled) setting.
+vi.mock('../../utils/config', () => ({
+  PUBLIC_REGISTRATION_ENABLED: true,
+  ORGANIZATION_CONFIG: { orgName: 'Test', supportEmail: 'a@test.io', allowSelfServicePasswordReset: false },
+}));
+
 function LocationProbe() {
   const loc = useLocation();
   return <div data-testid="location">{loc.pathname}</div>;

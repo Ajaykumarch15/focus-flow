@@ -4,6 +4,10 @@ import { X, Plus, Bell } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { Priority } from '../../types';
 import { TASK_COLORS, CATEGORIES } from '../../utils/colors';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
 
 interface CreateTaskModalProps {
   onClose: () => void;
@@ -58,16 +62,16 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-display font-extrabold text-surface-50">Create Task</h2>
-          <button onClick={onClose} className="btn-ghost p-2">
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-2">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-semibold text-surface-200 mb-1.5">Title *</label>
-            <input
-              className="input h-12 rounded-[14px]"
+            <Input
+              className="h-12 rounded-[14px]"
               placeholder="What are you working on?"
               value={form.title}
               onChange={e => setForm(p => ({ ...p, title: e.target.value }))}
@@ -77,8 +81,8 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
           <div>
             <label className="block text-sm font-semibold text-surface-200 mb-1.5">Description</label>
-            <textarea
-              className="input resize-none h-24 rounded-[14px] py-3"
+            <Textarea
+              className="resize-none h-24 rounded-[14px] py-3"
               placeholder="Add more details..."
               value={form.description}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
@@ -88,8 +92,8 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-surface-200 mb-1.5">Priority</label>
-              <select
-                className="input h-12 rounded-[14px]"
+              <Select
+                className="h-12 rounded-[14px]"
                 value={form.priority}
                 onChange={e => setForm(p => ({ ...p, priority: e.target.value as Priority }))}
               >
@@ -97,25 +101,25 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                 <option value="medium">Medium</option>
                 <option value="high">High</option>
                 <option value="urgent">Urgent</option>
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-sm font-semibold text-surface-200 mb-1.5">Category</label>
-              <select
-                className="input h-12 rounded-[14px]"
+              <Select
+                className="h-12 rounded-[14px]"
                 value={form.category}
                 onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
               >
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+              </Select>
             </div>
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-surface-200 mb-1.5">Deadline</label>
-            <input
+            <Input
               type="date"
-              className="input h-12 rounded-[14px]"
+              className="h-12 rounded-[14px]"
               value={form.deadline}
               onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))}
             />
@@ -126,8 +130,8 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               <label className="block text-sm font-semibold text-surface-200 mb-1.5 flex items-center gap-1.5">
                 <Bell size={14} /> Remind me
               </label>
-              <select
-                className="input h-12 rounded-[14px]"
+              <Select
+                className="h-12 rounded-[14px]"
                 value={form.reminderMinutesBefore}
                 onChange={e => setForm(p => ({ ...p, reminderMinutesBefore: Number(e.target.value) }))}
               >
@@ -135,7 +139,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                 <option value={15}>15 minutes before</option>
                 <option value={60}>1 hour before</option>
                 <option value={1440}>1 day before</option>
-              </select>
+              </Select>
             </div>
           )}
 
@@ -156,8 +160,8 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
           <div>
             <label className="block text-sm font-semibold text-surface-200 mb-1.5">Tags (comma separated)</label>
-            <input
-              className="input h-12 rounded-[14px]"
+            <Input
+              className="h-12 rounded-[14px]"
               placeholder="frontend, bug, v2"
               value={form.tags}
               onChange={e => setForm(p => ({ ...p, tags: e.target.value }))}
@@ -165,16 +169,17 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={!form.title.trim()}
-              className="btn-primary flex-1"
+              className="flex-1"
+              leftIcon={<Plus size={16} />}
             >
-              <Plus size={16} /> Create Task
-            </button>
+              Create Task
+            </Button>
           </div>
         </form>
       </motion.div>

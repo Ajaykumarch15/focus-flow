@@ -5,27 +5,71 @@ import {
   MessageSquare, CheckSquare
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { CollaborativeTask } from '../../types/collaboration';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
+import { WorkItemTypeBadge } from '../../components/collaboration/WorkItemTypeBadge';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Badge } from '../../components/ui/Badge';
+
+// IES-R1 (P6-T2): pure computations over live Feature/Task data (testable).
+
+export interface FeatureProgress {
+  done: number;
+  total: number;
+  pct: number | null;
+}
+
+// An empty linked-task set is "no data", not a fabricated 0% or 100%.
+export function computeFeatureProgress(tasks: Pick<CollaborativeTask, 'sprintStatus'>[]): FeatureProgress {
+  const done = tasks.filter((t) => t.sprintStatus === 'done').length;
+  return {
+    done,
+    total: tasks.length,
+    pct: tasks.length === 0 ? null : Math.round((done / tasks.length) * 100),
+  };
+}
+
+export function groupTasksByFeature(tasks: CollaborativeTask[]): Map<string, CollaborativeTask[]> {
+  const map = new Map<string, CollaborativeTask[]>();
+  for (const t of tasks) {
+    if (!t.featureId) continue;
+    const list = map.get(t.featureId) ?? [];
+    list.push(t);
+    map.set(t.featureId, list);
+  }
+  return map;
+}
 
 export function FeaturesPage() {
-  const { tasks, members } = useCollaborationStore();
+  const { features, tasks, members, activeWorkspaceId } = useCollaborationStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedPriority, setSelectedPriority] = useState<string>('all');
+  const [selectedType, setSelectedType] = useState<string>('all');
   const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
     open: false, targetType: 'task', targetId: '', title: ''
   });
 
-  // Personal task subtask creation form state inside feature detail view
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  // Feature detail view state
+  const [expandedFeatureId, setExpandedFeatureId] = useState<string | null>(null);
 
-  const wsTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      const matchSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || t.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchPriority = selectedPriority === 'all' || t.priority === selectedPriority;
-      return matchSearch && matchPriority;
+  const wsFeatures = useMemo(
+    () => features.filter((f) => f.workspaceId === activeWorkspaceId),
+    [features, activeWorkspaceId],
+  );
+
+  const filteredFeatures = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return wsFeatures.filter((f) => {
+      const matchSearch =
+        f.name.toLowerCase().includes(q) ||
+        f.description.toLowerCase().includes(q);
+      const matchType = selectedType === 'all' || f.type === selectedType;
+      return matchSearch && matchType;
     });
-  }, [tasks, searchQuery, selectedPriority]);
+  }, [wsFeatures, searchQuery, selectedType]);
+
+  const tasksByFeature = useMemo(() => groupTasksByFeature(tasks), [tasks]);
 
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -37,7 +81,7 @@ export function FeaturesPage() {
             <Sparkles size={24} className="text-purple-400" /> Central Engineering Feature Matrix
           </h1>
           <p className="text-xs text-surface-400 mt-1">
-            Features are owned by the workspace. Personal developer tasks link directly into feature implementation.
+            Features are owned by the workspace. Developer tasks link directly into feature implementation.
           </p>
         </div>
 
@@ -45,30 +89,36 @@ export function FeaturesPage() {
           {/* Search */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-            <input type="text" placeholder="Filter features..." aria-label="Filter features"
+            <Input type="text" placeholder="Filter features..." aria-label="Filter features"
               value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-surface-900 border border-surface-750 focus:border-brand-500 text-xs text-surface-50 rounded-xl pl-9 pr-4 py-2.5 outline-none transition-all w-60" />
           </div>
 
-          {/* Priority filter */}
-          <select aria-label="Filter by priority" value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}
-            className="bg-surface-900 border border-surface-750 text-xs text-surface-300 rounded-xl px-3 py-2.5 outline-none">
-            <option value="all">All Priorities</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
+          {/* Work-item type filter */}
+          <div className="w-44">
+            <Select aria-label="Filter by type" value={selectedType} onChange={(e) => setSelectedType(e.target.value)}
+              className="bg-surface-900 border border-surface-750 text-xs text-surface-300 rounded-xl px-3 py-2.5 outline-none">
+              <option value="all">All Types</option>
+              <option value="feature">Feature</option>
+              <option value="bug">Bug</option>
+              <option value="spike">Spike</option>
+              <option value="chore">Chore</option>
+              <option value="research">Research</option>
+              <option value="debt">Tech Debt</option>
+              <option value="improvement">Improvement</option>
+            </Select>
+          </div>
         </div>
       </div>
 
       {/* Feature Cards Grid */}
       <div className="space-y-4">
-        {wsTasks.map((feature) => {
-          const assignee = members.find((m) => m.id === feature.assigneeId);
-          const completedSubtasks = feature.subtasks.filter((s) => s.completed).length;
-          const subtaskPct = feature.subtasks.length > 0 ? Math.round((completedSubtasks / feature.subtasks.length) * 100) : 0;
-          const isExpanded = expandedTaskId === feature.id;
+        {filteredFeatures.map((feature) => {
+          const assignee = members.find((m) => m.id === feature.ownerId);
+          const linkedTasks = tasksByFeature.get(feature.id) ?? [];
+          const progress = computeFeatureProgress(linkedTasks);
+          const actualHours = linkedTasks.reduce((sum, t) => sum + (t.actualHours || 0), 0);
+          const isExpanded = expandedFeatureId === feature.id;
 
           return (
             <motion.div key={feature.id} layout
@@ -77,22 +127,18 @@ export function FeaturesPage() {
               {/* Feature Header */}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-md border ${
-                      feature.priority === 'urgent' ? 'bg-red-500/20 text-red-400 border-red-500/30' : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
-                    }`}>
-                      {feature.priority}
-                    </span>
-                    <span className="text-[10px] font-extrabold uppercase bg-surface-800 text-surface-300 px-2 py-0.5 rounded-md">
-                      {feature.sprintStatus.replace('_', ' ')}
-                    </span>
-                    {feature.gitContext?.prNumber && (
-                      <span className="text-[10px] font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
-                        PR #{feature.gitContext.prNumber}
-                      </span>
-                    )}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <WorkItemTypeBadge type={feature.type} />
+                    <Badge tone="neutral" className="text-[10px] font-extrabold uppercase">
+                      {feature.status.replace('_', ' ')}
+                    </Badge>
+                    {feature.labels.slice(0, 3).map((label) => (
+                      <Badge key={label} tone="info" className="text-[10px] font-bold">
+                        {label}
+                      </Badge>
+                    ))}
                   </div>
-                  <h3 className="text-lg font-display font-extrabold text-surface-50">{feature.title}</h3>
+                  <h3 className="text-lg font-display font-extrabold text-surface-50">{feature.name}</h3>
                   <p className="text-xs text-surface-400 leading-relaxed">{feature.description}</p>
                 </div>
 
@@ -100,19 +146,19 @@ export function FeaturesPage() {
                 <div className="p-4 rounded-2xl bg-surface-850 border border-surface-800 min-w-[240px] space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-surface-400">Implementation Progress</span>
-                    <span className="font-mono font-bold text-brand-400">{subtaskPct}%</span>
+                    <span className="font-mono font-bold text-brand-400">{progress.pct === null ? '—' : `${progress.pct}%`}</span>
                   </div>
                   <div className="w-full bg-surface-800 h-2 rounded-full overflow-hidden">
-                    <div className="bg-gradient-to-r from-brand-500 to-cyan-400 h-full rounded-full transition-all duration-500" style={{ width: `${subtaskPct}%` }} />
+                    <div className="bg-gradient-to-r from-brand-500 to-cyan-400 h-full rounded-full transition-all duration-500" style={{ width: `${progress.pct ?? 0}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-surface-500">
                     <span>Est: {feature.estimatedHours}h</span>
-                    <span>Actual: {feature.actualHours}h</span>
+                    <span>Actual: {actualHours}h</span>
                   </div>
                 </div>
               </div>
 
-              {/* Developer & Git Context Bar */}
+              {/* Developer & Action Bar */}
               <div className="pt-3 border-t border-surface-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
@@ -121,23 +167,17 @@ export function FeaturesPage() {
                     </div>
                     <span className="font-semibold text-surface-200">Owner: {assignee?.name || 'Unassigned'}</span>
                   </div>
-
-                  {feature.gitContext?.branch && (
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1">
-                      <GitBranch size={11} /> {feature.gitContext.branch}
-                    </span>
-                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: feature.id, title: feature.title })}
+                  <button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: feature.id, title: feature.name })}
                     className="px-3 py-1.5 rounded-xl bg-surface-800 hover:bg-surface-750 text-surface-300 text-xs font-semibold flex items-center gap-1.5 transition-colors">
                     <MessageSquare size={13} /> Discussion Threads
                   </button>
 
-                  <button onClick={() => setExpandedTaskId(isExpanded ? null : feature.id)}
+                  <button onClick={() => setExpandedFeatureId(isExpanded ? null : feature.id)}
                     className="px-3.5 py-1.5 rounded-xl bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 text-xs font-bold border border-brand-500/20 flex items-center gap-1.5 transition-colors">
-                    <CheckSquare size={13} /> Private Implementation Tasks ({feature.subtasks.length})
+                    <CheckSquare size={13} /> Private Implementation Tasks ({linkedTasks.length})
                   </button>
                 </div>
               </div>
@@ -148,20 +188,35 @@ export function FeaturesPage() {
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                     className="pt-4 border-t border-surface-800 space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-surface-300 flex items-center gap-2">
-                      <CheckSquare size={14} className="text-brand-400" /> Linked Private Subtasks (Developer Owned)
+                      <CheckSquare size={14} className="text-brand-400" /> Linked Private Implementation Tasks (Developer Owned)
                     </h4>
 
                     <div className="space-y-2">
-                      {feature.subtasks.map((st) => (
-                        <div key={st.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 flex items-center justify-between text-xs">
-                          <span className={st.completed ? 'line-through text-surface-500' : 'text-surface-200 font-medium'}>
-                            {st.title}
-                          </span>
-                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${st.completed ? 'bg-emerald-500/15 text-emerald-400' : 'bg-surface-800 text-surface-400'}`}>
-                            {st.completed ? 'Completed' : 'In Progress'}
-                          </span>
+                      {linkedTasks.map((task) => (
+                        <div key={task.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-surface-200 font-medium truncate">{task.title}</span>
+                            {task.gitContext?.branch && (
+                              <Badge tone="success" icon={<GitBranch size={11} />} className="text-[10px] font-mono hidden sm:inline-flex">
+                                {task.gitContext.branch}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Badge tone="neutral" className="text-[10px] font-bold uppercase">
+                              {task.sprintStatus.replace('_', ' ')}
+                            </Badge>
+                            <Badge tone={task.priority === 'urgent' ? 'danger' : 'brand'} className="text-[10px] font-bold uppercase">
+                              {task.priority}
+                            </Badge>
+                          </div>
                         </div>
                       ))}
+                      {linkedTasks.length === 0 && (
+                        <p className="text-[11px] text-surface-500 italic py-3 text-center">
+                          No implementation tasks linked to this feature yet.
+                        </p>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -172,9 +227,11 @@ export function FeaturesPage() {
         })}
       </div>
 
-      {wsTasks.length === 0 && (
+      {filteredFeatures.length === 0 && (
         <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
-          No features match this workspace yet.
+          {wsFeatures.length === 0
+            ? 'No features yet in this workspace.'
+            : 'No features match the current filters.'}
         </div>
       )}
 

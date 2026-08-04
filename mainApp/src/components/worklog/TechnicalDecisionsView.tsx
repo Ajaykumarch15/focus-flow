@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lightbulb, Plus, Trash2, Scale, BookOpen } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 interface TechnicalDecisionsViewProps {
   workLog: WorkLog;
@@ -48,12 +53,14 @@ export function TechnicalDecisionsView({ workLog }: TechnicalDecisionsViewProps)
             Document trade-offs, architecture choices, and rationale for future reference.
           </p>
         </div>
-        <button
+        <Button
+          size="xs"
           onClick={() => setShowAdd(true)}
-          className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5"
+          className="px-3 py-1.5"
+          leftIcon={<Plus size={14} />}
         >
-          <Plus size={14} /> Log Decision
-        </button>
+          Log Decision
+        </Button>
       </div>
 
       <AnimatePresence>
@@ -63,53 +70,55 @@ export function TechnicalDecisionsView({ workLog }: TechnicalDecisionsViewProps)
             onSubmit={handleAdd}
             className="card p-4 rounded-xl border border-amber-500/30 bg-surface-850 space-y-3"
           >
-            <input
-              className="input text-sm rounded-lg w-full"
+            <Input
+              className="text-sm rounded-lg w-full"
               placeholder="Decision title (e.g., Why Zustand for state management?)"
               value={title} onChange={e => setTitle(e.target.value)} required
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <textarea
-                className="input text-sm rounded-lg resize-none" rows={2}
+              <Textarea
+                className="text-sm rounded-lg resize-none" rows={2}
                 placeholder="Context / Problem description..."
                 value={context} onChange={e => setContext(e.target.value)}
               />
-              <textarea
-                className="input text-sm rounded-lg resize-none" rows={2}
+              <Textarea
+                className="text-sm rounded-lg resize-none" rows={2}
                 placeholder="Chosen Decision..."
                 value={decision} onChange={e => setDecision(e.target.value)} required
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <textarea
-                className="input text-sm rounded-lg resize-none" rows={2}
+              <Textarea
+                className="text-sm rounded-lg resize-none" rows={2}
                 placeholder="Rationale / Why this was chosen?"
                 value={rationale} onChange={e => setRationale(e.target.value)}
               />
-              <textarea
-                className="input text-sm rounded-lg resize-none" rows={2}
+              <Textarea
+                className="text-sm rounded-lg resize-none" rows={2}
                 placeholder="Alternatives considered & rejected..."
                 value={alternatives} onChange={e => setAlternatives(e.target.value)}
               />
             </div>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
-              <button type="submit" className="btn-primary text-xs px-4 py-1.5">Save Decision</button>
+              <Button type="button" variant="secondary" size="xs" onClick={() => setShowAdd(false)} className="px-3 py-1.5">Cancel</Button>
+              <Button type="submit" size="xs" className="px-4 py-1.5">Save Decision</Button>
             </div>
           </motion.form>
         )}
       </AnimatePresence>
 
       {decisions.length === 0 ? (
-        <div className="card p-8 text-center border border-dashed border-surface-800 rounded-2xl">
-          <Scale size={32} className="mx-auto text-surface-600 mb-2" />
-          <p className="text-sm font-medium text-surface-300">No technical decisions logged</p>
-          <p className="text-xs text-surface-500 mt-1">Log architectural decisions, library choices, and trade-offs made during development.</p>
+        <div className="rounded-2xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
+          <EmptyState
+            icon={<Scale size={32} className="text-surface-600" />}
+            title="No technical decisions logged"
+            description="Log architectural decisions, library choices, and trade-offs made during development."
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {decisions.map(d => (
-            <div key={d._id} className="card p-5 rounded-2xl border border-surface-800 bg-surface-900/60 space-y-3 group">
+            <Card key={d._id} className="p-5 rounded-2xl border border-surface-800 bg-surface-900/60 space-y-3 group">
               <div className="flex items-start justify-between">
                 <h4 className="text-sm font-bold text-surface-50 flex items-center gap-2">
                   <BookOpen size={16} className="text-amber-400" />
@@ -152,7 +161,7 @@ export function TechnicalDecisionsView({ workLog }: TechnicalDecisionsViewProps)
                   {d.alternatives}
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}

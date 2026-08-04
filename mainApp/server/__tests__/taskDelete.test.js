@@ -56,7 +56,15 @@ describe('IES-P1-09 · task-delete cascade integrity', () => {
     await new Promise((resolve) => server.close(resolve));
   });
 
+  // IES-R1: DELETE pre-loads the task to check the workspace editor gate.
+  function mockFindOne(existing) {
+    vi.spyOn(Task, 'findOne').mockClear().mockReturnValue({
+      select: () => Promise.resolve(existing),
+    });
+  }
+
   it('strips orphaned sessionIds and recomputes totals on linked worklogs', async () => {
+    mockFindOne({ _id: TASK_ID, title: 'T' });
     const linkedLog = {
       _id: '507f1f77bcf86cd799439021',
       taskRef: TASK_ID,
@@ -95,6 +103,7 @@ describe('IES-P1-09 · task-delete cascade integrity', () => {
   });
 
   it('removes the task sessions and journals as part of the cascade', async () => {
+    mockFindOne({ _id: TASK_ID, title: 'T' });
     vi.spyOn(Task, 'findOneAndDelete').mockClear().mockResolvedValue({ _id: TASK_ID, title: 'T' });
     vi.spyOn(Session, 'deleteMany').mockClear().mockResolvedValue({ deletedCount: 3 });
     vi.spyOn(Journal, 'deleteMany').mockClear().mockResolvedValue({ deletedCount: 2 });
@@ -111,6 +120,7 @@ describe('IES-P1-09 · task-delete cascade integrity', () => {
   });
 
   it('returns 404 when the task does not exist', async () => {
+    mockFindOne(null);
     vi.spyOn(Task, 'findOneAndDelete').mockClear().mockResolvedValue(null);
     vi.spyOn(Session, 'deleteMany').mockClear();
     vi.spyOn(Journal, 'deleteMany').mockClear();

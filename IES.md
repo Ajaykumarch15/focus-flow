@@ -23,7 +23,8 @@ Work begins from the **current repository** (`feature/updates` branch), not a gr
 - `IES-P0-xx` — Phase 0, Foundation Stabilization.
 - `IES-P1-xx` — Phase 1, Platform Stabilization.
 - `IES-P2-xx` — Phase 2, Workspace Foundation.
-- Each item traces to EAR findings (e.g., `CFG-1`, `BE-8`, `DB-4`, `FE-3`, `CM-2`) listed under **Refs**.
+- `IES-P3-<F>-<N>` — Phase 3, Sprint & Feature Management (planned; traces to MPEP E9 / WPS §9–10, see §3.3 note).
+- Each item traces to EAR findings (e.g., `CFG-1`, `BE-8`, `DB-4`, `FE-3`, `CM-2`) listed under **Refs** (P3 items trace to MPEP/WPS instead).
 
 ### 1.2 Priority
 - **Critical** — active security hole / data loss / must fix before any deploy.
@@ -59,6 +60,7 @@ Work begins from the **current repository** (`feature/updates` branch), not a gr
 | **Epic: Data model & reports** | `epic/data-model` | Indexes, Validation bounds, Task/Journal/WorkLog, Reports | 1 |
 | **Epic: Analytics, dashboard, settings, admin** | `epic/analytics` | Real metrics, Pagination, Settings, Admin hardening | 1 |
 | **Epic: Workspace foundation** | `epic/workspace` | Teams, Roles, Projects, Activity, Notifications, Search, Collab UI | 2 |
+| **Epic: Sprint & feature management** | `epic/P3-delivery` | Sprint/Feature domain, Store/Board, Metrics/Report, Blockers, Integration, Release | 3 |
 
 Story template: `story/<epic>/<area>` (e.g. `story/security/xss`). Task template: `task/<epic>/<p0-01>`.
 Branch: `fix/` or `feat/` + `<p0-01>-<kebab-title>`; Commit scope: `fix(security):`, `feat(api):`, `refactor(ui):`, etc.; PR title: `<scope>: <Title> (<item id>)`.
@@ -886,6 +888,200 @@ Branch: `fix/` or `feat/` + `<p0-01>-<kebab-title>`; Commit scope: `fix(security
 - **Testing:** typecheck/build green after removal.
 - **DoD:** Dependency removed; build green.
 
+### 3.3 Phase 3 — Sprint & Feature Management (planned)
+
+> **Status: Proposed — do not start until the Phase-2 (S9) release-readiness checklist (§8.4) closes.**
+> Phase 3 continues the IES execution cadence **beyond the EAR scope**, implementing the next roadmap epic
+> MPEP **E9** ("Sprint & Feature Management", WPS §9–§10) — the "delivery data plane." Unlike P0–P2 items,
+> these tasks trace to **MPEP E9 / WPS §9–10**, not EAR findings; they close the PRD core loop
+> (session → worklog → report → **sprint review**), which today ends in client-local ephemeral state
+> (`useCollaborationStore` `createSprint`/`createTask` fake `m1`/`ct-${Date.now()}` ids; no `Sprint`/`Feature`/
+> `Blocker` models or routes exist). Full blueprint: `EPIC-SPRINTS-FEATURES.md`. All existing Phase-2
+> infrastructure is reused (workspace RBAC, activity, notifications, search, pagination, `runMutation`,
+> `@hello-pangea/dnd`). Total ≈ 26 dev-days (≈ 2 sprints at IES capacity) + 25% contingency ≈ 33 days.
+
+#### IES-P3-01-01 · Sprint model + indexes
+- **Refs:** MPEP E9, WPS §9; blueprint F3.1
+- **Priority:** High · **Complexity:** M · **Hours:** 4 · **Deps:** IES-P2-01 (workspace layer)
+- **Description:** New `server/models/Sprint.js`: `workspaceRef`, `projectRef`, `name`, `goal`, `startDate`/`endDate`, `status` enum (`future|active|completed`), `capacityHours`, `targetVelocity`, `createdBy`, timestamps. Indexes: `{workspaceRef, status}`, `{workspaceRef, endDate}`.
+- **Affected files:** `server/models/Sprint.js`, DB.
+- **Architecture refs:** SAD (data), DDD (sprint domain), WPS §9.
+- **Risk:** Low (additive, no migration).
+- **Testing:** Model bounds; workspace-scoped uniqueness.
+- **DoD:** Collection + 2 indexes live; bounds enforced.
+
+#### IES-P3-01-02 · Sprint routes + RBAC
+- **Refs:** MPEP E9, WPS §9; blueprint F3.1
+- **Priority:** High · **Complexity:** M · **Hours:** 12 · **Deps:** IES-P3-01-01, IES-P2-03 (role middleware)
+- **Description:** `server/routes/sprints.js` mounted under `/api/workspaces/:id/sprints` (list/create) and `/api/sprints/:id` (get/patch/delete, `POST :id/start`, `POST :id/complete`). Reuse `loadWorkspace`/`requireMember/Manager`. Lifecycle rules: only `future→active→completed`; `active` needs a valid date range. Emit `sprint.created`/`sprint.completed` Activity events.
+- **Affected files:** `server/routes/sprints.js`, activity hooks, `server/index.js` (mount).
+- **Architecture refs:** SAD (API/authz), DDD, WPS §9.
+- **Risk:** Med (new domain surface).
+- **Testing:** CRUD, role matrix, lifecycle transitions, soft-delete behavior.
+- **DoD:** Routes mounted with RBAC; lifecycle + Activity events tested.
+
+#### IES-P3-02-01 · Feature model + indexes
+- **Refs:** MPEP E9, WPS §10; blueprint F3.2
+- **Priority:** High · **Complexity:** M · **Hours:** 8 · **Deps:** IES-P3-01-01 (sprintRef)
+- **Description:** New `server/models/Feature.js`: `workspaceRef`, `projectRef`, `sprintRef?`, `title≤200`, `description≤5000`, `status` enum (reuse `backlog|ready|in_progress|review|done`), `priority`, `ownerId`/`assigneeId`/`reviewerId`, `followerIds[]`, `labels[]`, `estimatedHours`, `subtasks[{title,completed}]`, `dependencies[]` (feature ids), `gitContext`, `actualHours` (server-derived), timestamps. Indexes: `{workspaceRef, status}`, `{workspaceRef, sprintRef}`, `{assigneeId, status}`. Replaces the frontend-only `CollaborativeTask` concept for workspace scope (personal `Task` untouched).
+- **Affected files:** `server/models/Feature.js`, `src/types/collaboration.ts` (rename coordination).
+- **Architecture refs:** SAD (data), DDD, WPS §10.
+- **Risk:** Med (rename churn — do the `CollaborativeTask`→`Feature` rename early).
+- **Testing:** Bounds, status enum, sub-doc caps.
+- **DoD:** Collection + indexes live; rename coordinated with IES-P3-03-01.
+
+#### IES-P3-02-02 · Feature routes + derived actuals
+- **Refs:** MPEP E9, WPS §10; blueprint F3.2
+- **Priority:** High · **Complexity:** L · **Hours:** 20 · **Deps:** IES-P3-02-01, IES-P3-01-02
+- **Description:** `server/routes/features.js`: list (filter by workspace/sprint/status/assignee), create, get, patch, delete, `PATCH :id/status` (enforces transition rules + `requireReviewForDone`), `PATCH :id/git-context`, subtasks + dependency edges. `actualHours` recomputed from linked WorkLogs/Sessions server-side on read (aggregation, cached at sprint granularity). Role rules: Viewer read-only; Developer transitions items where assignee/owner; Manager create/assign/plan.
+- **Affected files:** `server/routes/features.js` + `server/utils/featureDerived.js` (new), `server/index.js` (mount).
+- **Architecture refs:** SAD (API/authz), DDD, WPS §10, EAR Part 1 integrity rules (computed, never self-reported).
+- **Risk:** Med-High (workflow + derived values; the epic's long pole).
+- **Testing:** Workflow matrix, QA-gate setting, actuals vs fixtures, dependency-cycle rejection.
+- **DoD:** Routes with RBAC; `actualHours` server-derived; status workflow enforced.
+
+#### IES-P3-03-01 · Types + API client
+- **Refs:** MPEP E9; blueprint F3.3
+- **Priority:** High · **Complexity:** M · **Hours:** 8 · **Deps:** IES-P3-01-02/02-02 (API contract) · **parallel to** IES-P3-02-01
+- **Description:** `src/types/collaboration.ts`: rename/replace `CollaborativeTask`→`Feature` (keep alias while callers migrate), align `Sprint` to the model; extend `src/utils/api.ts` with `api.sprints.*` and `api.features.*` (+blockers).
+- **Affected files:** `src/types/collaboration.ts`, `src/utils/api.ts`, collab pages importing `CollaborativeTask`.
+- **Architecture refs:** SAD (client layering).
+- **Risk:** Med (rename across collab pages).
+- **Testing:** `api.collaboration.test.ts` surface tests.
+- **DoD:** Types aligned to models; API client covers new endpoints.
+
+#### IES-P3-03-02 · Store loaders + runMutation actions
+- **Refs:** MPEP E9; blueprint F3.3
+- **Priority:** High · **Complexity:** L · **Hours:** 16 · **Deps:** IES-P3-03-01
+- **Description:** `useCollaborationStore`: add `sprints`/`features`/`blockers` to the load graph in `loadCollabData`; replace `createSprint`/`createTask`/`updateTaskStatus`/`updateGitContext`/`createBlocker`/`resolveBlocker` with `runMutation`-backed actions; remove hardcoded `'m1'`/fake ids (use `useAuthStore` user). Optimistic move + rollback on status transitions.
+- **Affected files:** `src/store/useCollaborationStore.ts`.
+- **Architecture refs:** SAD (state), EAR Part 2 FE-5 (optimistic rollback helper).
+- **Risk:** High (store rewrite; all collab pages depend on it).
+- **Testing:** Store unit tests for every new action (optimistic + rollback + failure).
+- **DoD:** No client-local work-item mutations remain; all actions API-backed.
+
+#### IES-P3-03-03 · Persistence e2e extension
+- **Refs:** MPEP E9; blueprint F3.3
+- **Priority:** High · **Complexity:** S · **Hours:** 8 · **Deps:** IES-P3-03-02
+- **Description:** Extend `collabPersistence.test.ts`: create sprint → add feature → move status → resolve blocker → simulate refresh → assert restored. Update the coverage note (no longer "client-local").
+- **Affected files:** `src/store/__tests__/collabPersistence.test.ts`.
+- **Testing:** e2e refresh suite.
+- **DoD:** Refresh survival proven for sprints/features/blockers.
+
+#### IES-P3-04-01 · Board data + sprint selector
+- **Refs:** WPS §9; blueprint F3.4
+- **Priority:** High · **Complexity:** M · **Hours:** 8 · **Deps:** IES-P3-03-02
+- **Description:** `TeamWorkspace.tsx` sprints tab: sprint selector (active/completed/future), board scoped to selected sprint; header shows capacity, committed, done from real store data.
+- **Affected files:** `src/pages/collaboration/TeamWorkspace.tsx`.
+- **Architecture refs:** UXS (board), SAD (client).
+- **Risk:** Med (UI state).
+- **Testing:** Component renders with store fixtures.
+- **DoD:** Board reads real sprint/feature store data; no fabricated header numbers.
+
+#### IES-P3-04-02 · Drag-and-drop status moves
+- **Refs:** WPS §9; blueprint F3.4
+- **Priority:** High · **Complexity:** M · **Hours:** 16 · **Deps:** IES-P3-04-01
+- **Description:** Wire `@hello-pangea/dnd` (already a dependency) across the 5 columns; drop → `updateFeatureStatus` via `runMutation` (optimistic, rollback on failure); quick-status select retained for a11y fallback.
+- **Affected files:** `src/pages/collaboration/TeamWorkspace.tsx`.
+- **Architecture refs:** UXS, EAR Part 2 FE-5.
+- **Risk:** Med (drag-state bugs).
+- **Testing:** Store-level move/rollback; component smoke.
+- **DoD:** DnD persists status via API; rollback on failure; a11y fallback works.
+
+#### IES-P3-05-01 · Feature detail drawer
+- **Refs:** WPS §10; blueprint F3.5
+- **Priority:** High · **Complexity:** M · **Hours:** 16 · **Deps:** IES-P3-03-02
+- **Description:** Drawer/modal from board card + FeaturesPage row: fields edit (title, desc, priority, labels, estimate, assignee/reviewer, git context), subtask add/toggle, discussions (existing modal), dependency links.
+- **Affected files:** `src/components/collaboration/FeatureDetail.tsx` (new), `src/pages/collaboration/FeaturesPage.tsx`.
+- **Architecture refs:** UXS, SAD (components).
+- **Risk:** Med.
+- **Testing:** Component + store actions.
+- **DoD:** Detail drawer fully editable; changes persist.
+
+#### IES-P3-05-02 · QA gate enforcement
+- **Refs:** WPS §9/§10, workspace `settings.requireReviewForDone`; blueprint F3.5
+- **Priority:** High · **Complexity:** M · **Hours:** 8 · **Deps:** IES-P3-05-01, IES-P3-02-02 (server-side gate)
+- **Description:** Status transition UI disables/explains disallowed moves; when `settings.requireReviewForDone` is on, `backlog/in_progress→done` must route through `review` with a reviewerId set; QADashboard approve → `review→done` only.
+- **Affected files:** board + `src/pages/collaboration/QADashboardPage.tsx`.
+- **Architecture refs:** UXS, DDD (workflow).
+- **Testing:** Gate logic unit tests; store guard.
+- **DoD:** Workflow enforced in UI + store, mirroring the route rule.
+
+#### IES-P3-06-01 · Burndown + velocity widgets
+- **Refs:** WPS §9; blueprint F3.6
+- **Priority:** Medium · **Complexity:** M · **Hours:** 16 · **Deps:** IES-P3-04-01
+- **Description:** Replace fabricated "Active Sprint Velocity" tile (TeamWorkspace.tsx:231) and sprint header numbers with derived values: burndown series from feature done-dates (or sprint-scoped actual hours per day from worklogs), velocity = completed points over last N sprints, capacity hours. All numbers traceable to store/API; empty states per EAR FE-32.
+- **Affected files:** `src/pages/collaboration/TeamWorkspace.tsx`, `src/lib/sprintMetrics.ts` (new).
+- **Architecture refs:** EAR Part 2 FE-32 (empty states).
+- **Risk:** Med (metric meaning).
+- **Testing:** Metrics unit tests against fixtures.
+- **DoD:** No fabricated sprint numbers; empty states render.
+
+#### IES-P3-07-01 · Auto-generated sprint report + export
+- **Refs:** PRD §2.1 (report feeds sprint review); blueprint F3.7
+- **Priority:** Medium · **Complexity:** M · **Hours:** 16 · **Deps:** IES-P3-06-01
+- **Description:** Report tab/section for the selected sprint: goal, dates, feature list w/ status+estimates+actuals, per-developer actual hours, blockers, link to worklog summaries. Export JSON + DOCX (reuse `docx` engine used by reports). Read-only; role-gated.
+- **Affected files:** `src/pages/collaboration/SprintReport.tsx` (new) + export util.
+- **Architecture refs:** SAD (client), DDD (reports).
+- **Risk:** Med (export fidelity).
+- **Testing:** Report content matches fixtures; export smoke.
+- **DoD:** Sprint report auto-generated + exportable JSON/DOCX.
+
+#### IES-P3-08-01 · Blocker model + routes
+- **Refs:** WPS §9; blueprint F3.8
+- **Priority:** Medium · **Complexity:** M · **Hours:** 12 · **Deps:** IES-P3-02-01
+- **Description:** `server/models/Blocker.js` (`workspaceRef`, `featureRef?`, `worklogRef?`, `title`, `severity`, `status`, `ownerId`, `reporterId`, `impactDescription`, `resolvedAt`) + routes create/resolve/list. Activity: `blocker.added`/`blocker.resolved`. Notification `blocker_added` to assignee/owner.
+- **Affected files:** `server/models/Blocker.js`, `server/routes/blockers.js` (new), activity hooks, `server/index.js` (mount).
+- **Architecture refs:** SAD (API), DDD, PRD (blockers).
+- **Risk:** Low-Med.
+- **Testing:** CRUD, resolve idempotency.
+- **DoD:** Blockers persisted; Activity + notification emitted.
+
+#### IES-P3-08-02 · Store + UI wiring
+- **Refs:** WPS §9; blueprint F3.8
+- **Priority:** Medium · **Complexity:** S · **Hours:** 8 · **Deps:** IES-P3-08-01, IES-P3-03-02
+- **Description:** `createBlocker`/`resolveBlocker` API-backed; TeamWorkspace blockers tab + WorkspaceLayout badge use real data; remove hardcoded `'m1'`.
+- **Affected files:** `src/store/useCollaborationStore.ts`, `TeamWorkspace.tsx`, WorkspaceLayout.
+- **Testing:** Store action tests; persistence test add.
+- **DoD:** No hardcoded author/ids; blockers real and persisted.
+
+#### IES-P3-09-01 · Workflow notifications
+- **Refs:** PRD (notifications), WPS §9; blueprint F3.9
+- **Priority:** Medium · **Complexity:** M · **Hours:** 12 · **Deps:** IES-P3-02-02 (transition hooks)
+- **Description:** Emit `assigned` (on assignee set/change), `review_requested` (on move to review), `sprint_started` (on sprint start) using the existing Notification model; render in existing bell + NotificationCenter.
+- **Affected files:** features/sprints routes (emission), NotificationCenter (types already modeled).
+- **Architecture refs:** SAD (notifications), PRD.
+- **Risk:** Low-Med.
+- **Testing:** Notification creation tests.
+- **DoD:** Notifications fire for the four workflow events.
+
+#### IES-P3-09-02 · Search facets
+- **Refs:** WPS (search); blueprint F3.9
+- **Priority:** Medium · **Complexity:** S · **Hours:** 8 · **Deps:** IES-P3-03-01
+- **Description:** Add `sprints` + `features` to `server/routes/search.js` and `SearchResultItem` kinds; global palette + SearchResults page render them.
+- **Affected files:** `server/routes/search.js`, `src/pages/SearchResults.tsx`.
+- **Architecture refs:** SAD (search).
+- **Testing:** Search suite extension.
+- **DoD:** Sprints/features searchable and rendered.
+
+#### IES-P3-10-01 · Role + QA-gate e2e
+- **Refs:** blueprint F3.10
+- **Priority:** High · **Complexity:** M · **Hours:** 8 · **Deps:** IES-P3-02-02, IES-P3-05-02
+- **Description:** Server e2e: Viewer 403 on create; Developer cannot move to `done` when `requireReviewForDone`; Manager planning flows.
+- **Affected files:** server test file.
+- **Architecture refs:** TQS (quality).
+- **Testing:** Role/QA matrix.
+- **DoD:** Role + QA-gate e2e green.
+
+#### IES-P3-10-02 · Regression + docs + release notes
+- **Refs:** blueprint F3.10
+- **Priority:** High · **Complexity:** M · **Hours:** 12 · **Deps:** all above
+- **Description:** Full frontend+server suites, tsc, build, audit gate; update SAD/AIS/BAG/DDD/IES for new models+routes; write Phase-3 release notes.
+- **Affected files:** docs + release notes (`RELEASES.md`).
+- **Risk:** Low.
+- **Testing:** Full regression.
+- **DoD:** All gates green; docs + release notes updated; deployed per §8.4.
+
 ---
 
 ## 4. Sprint planning
@@ -975,6 +1171,24 @@ Cadence: **2-week sprints**. Capacity model: 3 engineers (1 FE, 1 BE, 1 full-sta
 - **Quality gates:** No seed data in store; no fabricated metrics in UI; e2e collab flow persists across refresh; regression suite green.
 - **Review criteria:** Release readiness checklist fully green; demo to stakeholders; DoD all sprints.
 
+### Sprint 10 — Sprint & Feature domain + board (Phase 3)
+- **Objectives:** Real Sprint/Feature/Blocker backend with RBAC, store rewiring, board + detail/QA-gate UI. **Gate: Phase-2 (S9) release-readiness checklist (§8.4) must close first.**
+- **Stories:** `story/sprint/domain` (P3-01-01..02) · `story/feature/domain` (P3-02-01..02) · `story/workspace/store` (P3-03-01..03) · `story/sprint/board` (P3-04-01..02) · `story/feature/ui` (P3-05-01..02) · `story/blockers/persist` (P3-08-01 BE)
+- **Tasks:** IES-P3-01-01, IES-P3-01-02, IES-P3-02-01, IES-P3-02-02, IES-P3-03-01, IES-P3-03-02, IES-P3-03-03, IES-P3-04-01, IES-P3-04-02, IES-P3-05-01, IES-P3-05-02, IES-P3-08-01
+- **Deliverables:** Sprint/Feature/Blocker models + routes + RBAC; `actualHours` derived server-side; store wired via `runMutation` (no local work-item state); board DnD; feature detail + QA gate.
+- **Engineering deliverables:** FE: P3-03-01/02/03, P3-04-01/02, P3-05-01/02. BE: P3-01-01/02, P3-02-01/02, P3-08-01. DB: Sprint/Feature/Blocker collections + indexes (additive). Testing: T1 backend suite (F3.1/3.2), T2 persistence e2e + frontend suite (F3.3), T3 board/QA-gate tests (F3.4/3.5). Docs: API contract review (R1), derived-actuals design (R2). Deploy: staging.
+- **Quality gates:** Roles enforced on every sprint/feature mutation; persistence e2e survives refresh; `requireReviewForDone` workflow enforced (server + store); suites green.
+- **Review criteria:** Multi-role scenario test passes; refresh-survival demo (board identical after reload); no client-local work-item mutation remains.
+
+### Sprint 11 — Metrics, report, integration + release (Phase 3 close)
+- **Objectives:** Real sprint metrics, auto-generated sprint report, blockers FE, notifications/search integration, role/QA-gate e2e, release.
+- **Stories:** `story/sprint/metrics-report` (P3-06-01, P3-07-01) · `story/blockers/persist` (P3-08-02 FE) · `story/workflow/integration` (P3-09-01..02) · `story/release` (P3-10-01..02)
+- **Tasks:** IES-P3-06-01, IES-P3-07-01, IES-P3-08-02, IES-P3-09-01, IES-P3-09-02, IES-P3-10-01, IES-P3-10-02
+- **Deliverables:** Burndown/velocity from real data; auto-generated sprint report + JSON/DOCX export; blockers FE; workflow notifications; search facets; role/QA-gate e2e; Phase-3 release notes + docs.
+- **Engineering deliverables:** FE: P3-06-01, P3-07-01, P3-08-02, P3-09-01 (NotificationCenter render), P3-09-02 (SearchResults). BE: P3-09-01 (emission), P3-09-02 (search facets). DB: none (additive only). Testing: T4 metrics/report/notifications/search tests, T5 full regression + audit gate. Docs: SAD/AIS/BAG/DDD/IES + release notes. Deploy: **production** per Release Readiness Checklist (§8.4).
+- **Quality gates:** Every metric traceable to store/API (no fabricated numbers); four workflow notifications verified; search facets live; full regression + audit gate green.
+- **Review criteria:** Release readiness checklist green; stakeholder demo; Phase-3 DoD met (no client-local work-item state; persistence proven; role tests green).
+
 ---
 
 ## 5. Engineering deliverables matrix (per sprint)
@@ -990,6 +1204,8 @@ Cadence: **2-week sprints**. Capacity model: 3 engineers (1 FE, 1 BE, 1 full-sta
 | S7 | P1-19/20/21, admin pagination | P1-16/17/18/22/23/24/25/26/27 | P1-13 TTL | analytics fixtures, pagination, concurrency | naming conventions | staging |
 | S8 | P2-05/06 UI | P2-01/02/03/04/05/06 | P2-01/02 models/indexes | permission matrix, integration | permission matrix, API ref | staging |
 | S9 | P2-07/08/09/10/11/12 | — | — | store tests, e2e collab, regression | release notes | **production** |
+| S10 | P3-03/04/05 (types, store, board, detail, QA gate) | P3-01/02/08-01 (sprint/feature/blocker domain) | Sprint/Feature/Blocker + indexes (additive) | T1 backend, T2 persistence e2e, T3 board/gate | API contract, derived-actuals design | staging |
+| S11 | P3-06/07/08-02/09 FE (metrics, report, blockers, notifications, search) | P3-09 BE (notification emission, search facets) | — | T4 metrics/report/integration, T5 full regression + audit | SAD/AIS/BAG/DDD/IES + release notes | **production** |
 
 ---
 
@@ -1026,6 +1242,16 @@ graph TD
   AA --> AD[P2-07 Store wiring]
   AD --> AE[P2-08 Real metrics]
   Z --> AD
+  AD --> AF[P3-01 Sprint domain]
+  AF --> AG[P3-02 Feature domain]
+  AG --> AH[P3-03 Store wiring]
+  AH --> AI[P3-04 Board]
+  AI --> AJ[P3-06 Metrics]
+  AJ --> AK[P3-07 Sprint report]
+  AH --> AL[P3-05 QA gate]
+  AG --> AM[P3-08 Blockers]
+  AG --> AN[P3-09 Notifications/search]
+  AJ --> AO[P3-10 E2E + release]
 ```
 
 ### 6.2 Critical path
@@ -1034,8 +1260,9 @@ graph TD
 3. **S3:** P0-12 cookie auth (depends on P0-01)
 4. **S5:** P1-01 timer unify → P1-02 sync unify → P1-03 N+1 → P1-06 timezone → P1-14 reports
 5. **S8:** P2-01 workspace backend → P2-03 roles → P2-07 store wiring → P2-08 real metrics → **S9 release**
+6. **S10:** P3-01 sprint domain → P3-02 feature domain → P3-03 store wiring → P3-04 board → P3-06 metrics → P3-07 sprint report → **S11 release**
 
-Long pole risk: **P1-02 (sync unify)** and **P1-10 (array caps)** are the hardest data-integrity items — protect them with full-time BE ownership from S5.
+Long pole risk: **P1-02 (sync unify)** and **P1-10 (array caps)** are the hardest data-integrity items — protect them with full-time BE ownership from S5. In Phase 3, **P3-02-02 (feature routes + derived actuals)** and **P3-03-02 (store rewiring)** are the long poles — give them full-time BE/FE ownership in S10.
 
 ### 6.3 Parallel tracks (independent, can proceed simultaneously)
 - **Track FE-1:** P0-24→P0-25→P0-26/27/28→P0-29/30/31/32/33 (frontend hygiene, S3) — runs parallel to Track BE-1.
@@ -1043,6 +1270,7 @@ Long pole risk: **P1-02 (sync unify)** and **P1-10 (array caps)** are the hardes
 - **Track OPS:** P0-38/39/40/41 + P0-21/22/23 (S4) — parallel to everything after S1.
 - **Track DATA:** P1-04/07/08/09/11/12/13 (S6) — parallel to timer track (S5) once P0-07/P0-17 land.
 - **Track WORKSPACE:** P2-01/02/03 (S8) — needs only P0-06/P0-08; can start early if S8 capacity frees.
+- **Track P3-BE:** P3-01/02 backend (S10) ∥ **Track P3-FE:** P3-03-01 types/api client built against the agreed API contract (R1 review before wiring). After P3-03-02: P3-08-BE + P3-09-BE run parallel; board/detail (P3-04/05) parallel to metrics/report (P3-06/07) in S11.
 
 ---
 
@@ -1060,6 +1288,12 @@ Long pole risk: **P1-02 (sync unify)** and **P1-10 (array caps)** are the hardes
 | RM-8 | Index builds (P1-04) impact production | Low | Med | Build in maintenance window; background index build; monitor Atlas RU. |
 | RM-9 | Security work exposes other latent issues (staging only) | Med | Med | Dedicated staging env; secrets rotated; no prod exposure until S9. |
 | RM-10 | Team capacity (3 eng) insufficient for S6+S8 overlap | Med | Med | Track DATA and WORKSPACE only overlap after S6; rebalance scope per sprint; drop non-essential Low items. |
+| RM-11 | `CollaborativeTask`→`Feature` rename breaks collab pages | Med | Med | Rename internal to collab types + store only; keep alias while callers migrate; personal `Task` untouched; do the rename early in the epic. |
+| RM-12 | Existing ephemeral collab tasks/sprints disappear at release | Low | Low | Acceptable and documented — they never persisted (fake `m1`/`ct-${Date.now()}` ids); no backfill needed. |
+| RM-13 | Board DnD drag-state regressions | Med | Med | Reuse installed `@hello-pangea/dnd`; optimistic moves roll back on failure; store-level move/rollback tests; quick-status select as a11y fallback. |
+| RM-14 | `actualHours`/velocity accuracy drift from self-reporting | Med | High | Derive from sessions/worklogs server-side (already integrity-tested in Phase 1); never client-reported; fixture tests + R2 design review. |
+| RM-15 | Status-workflow bypass when `requireReviewForDone` is on | Med | High | Enforce transition rules in the route **and** store/UI; QA-gate e2e (IES-P3-10-01); viewer/developer/manager role matrix. |
+| RM-16 | Scope creep into realtime/presence/Mission Control | Med | Med | Explicit non-goals (Appendix A of `EPIC-SPRINTS-FEATURES.md`); tracked as Phase 3b backlog; feature-flag not needed (additive). |
 
 ---
 
@@ -1131,6 +1365,8 @@ All 143 EAR findings are mapped to items:
 | CM-1…CM-12 | 12 | P0-02/07 · P1-02/03/05/10/14 (CM-1→P0-02, CM-2/3/4→P1-05, CM-5/6→P1-14, CM-7→P1-02, CM-8/9→P1-01) |
 
 *Any finding not explicitly named in a card is folded into the item whose Refs list the enclosing group; the "Affected files" and "Description" of each card name the exact code touched.*
+
+*Phase 3 items (`IES-P3-*`) are outside the EAR scope and do not map to EAR findings; they trace to **MPEP Epic E9** (Sprint & Feature Management) and **WPS §9–§10**, as noted in their Refs and the §3.3 header.*
 
 ---
 

@@ -3,6 +3,10 @@ import { motion } from 'framer-motion';
 import { BookOpen, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { DocCategory, KnowledgeDoc } from '../../types/collaboration';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Select } from '../ui/Select';
+import { Textarea } from '../ui/Textarea';
 
 export function CreateDocModal({
   isOpen,
@@ -83,9 +87,9 @@ export function CreateDocModal({
               <p className="text-xs text-surface-400">Knowledge Base with version history & Markdown</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -94,22 +98,22 @@ export function CreateDocModal({
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Document Title <span className="text-red-400">*</span>
             </label>
-            <input className="input rounded-xl text-sm w-full font-semibold" placeholder="e.g. Architecture — FocusFlow Phase X System Design"
+            <Input className="rounded-xl text-sm w-full font-semibold" placeholder="e.g. Architecture — FocusFlow Phase X System Design"
               value={title} onChange={(e) => setTitle(e.target.value)} required autoFocus />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-surface-300 mb-1.5">Category</label>
-              <select className="input rounded-xl text-sm w-full" value={category} onChange={(e) => setCategory(e.target.value as DocCategory)}>
+              <Select className="rounded-xl text-sm w-full" value={category} onChange={(e) => setCategory(e.target.value as DocCategory)}>
                 {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-surface-300 mb-1.5">Tags (Comma-separated)</label>
-              <input className="input rounded-xl text-sm w-full" placeholder="Architecture, PhaseX, SystemDesign"
+              <Input className="rounded-xl text-sm w-full" placeholder="Architecture, PhaseX, SystemDesign"
                 value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
             </div>
           </div>
@@ -118,16 +122,16 @@ export function CreateDocModal({
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Markdown Content <span className="text-red-400">*</span>
             </label>
-            <textarea rows={10} className="input rounded-xl text-sm w-full font-mono resize-none leading-relaxed"
+            <Textarea rows={10} className="rounded-xl text-sm w-full font-mono resize-none leading-relaxed"
               placeholder="# Overview&#10;&#10;Write engineering specifications, API endpoints, or onboarding guides here..."
               value={content} onChange={(e) => setContent(e.target.value)} required />
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 rounded-xl">Cancel</button>
-            <button type="submit" disabled={!title.trim() || !content.trim()} className="btn-primary flex-1 rounded-xl">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
+            <Button type="submit" disabled={!title.trim() || !content.trim()} className="flex-1 rounded-xl">
               {docToEdit ? 'Save Changes' : 'Publish Document'}
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>
