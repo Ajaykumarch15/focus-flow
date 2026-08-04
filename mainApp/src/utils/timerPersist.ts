@@ -7,7 +7,7 @@
  *    never resets to 0 when a new task starts or the page refreshes.
  */
 
-import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, getTimezone } from './time';
+import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, getTimezone, dayKeyInTz } from './time';
 
 // ── Active timer ──────────────────────────────────────────────────────────────
 const TIMER_KEY = 'ff_active_timer';
@@ -21,6 +21,7 @@ export interface PersistedTimer {
   sessionStartTime: number;   // epoch ms — when the session started
   totalPauseDuration: number;   // ms paused so far
   pauseStart?: number;   // if currently paused, when it started
+  baseElapsedMs?: number;   // pre-existing accumulated time (resumed task total)
 }
 
 export function saveTimer(data: PersistedTimer): void {
@@ -149,4 +150,25 @@ export function loadWeekMs(timeZone = getTimezone()): number {
 export function clearTodayMs(): void {
   localStorage.removeItem(DAY_CACHE_KEY);
   localStorage.removeItem(LEGACY_TODAY_KEY);
+}
+
+/**
+ * Rebuild the whole day cache from the backend's session list. Only closed
+ * (inactive) sessions count; the live one is added separately by the engine.
+ * Keyed by the user's calendar day of the session's start time — the same
+ * day semantics `addCompletedSession` uses, so today/week totals survive a
+ * refresh or re-login instead of resetting to zero.
+ */
+export function rebuildDayCache(sessions: Array<{ startTime?: number; activeTime?: number; isActive?: boolean }>): void {
+  migrateLegacyToday();
+  const cache: Record<string, number> = {};
+  for (const s of sessions) {
+    if (!s || s.isActive) continue;
+    const activeMs = s.activeTime || 0;
+    if (activeMs <= 0 || !s.startTime) continue;
+    const key = dayKeyInTz(s.startTime);
+    cache[key] = (cache[key] || 0) + activeMs;
+  }
+  try { localStorage.setItem(DAY_CACHE_KEY, JSON.stringify(cache)); }
+  catch { /* storage full */ }
 }

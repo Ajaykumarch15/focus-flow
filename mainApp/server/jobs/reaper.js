@@ -9,6 +9,7 @@
 
 const Session = require('../models/Session');
 const Task = require('../models/Task');
+const { finalizeSessionDoc } = require('../utils/sessionFinalize');
 const { logger } = require('../utils/logger');
 
 const STALE_MS = 10 * 60 * 1000; // a session with no beat for 10 min is a zombie
@@ -16,22 +17,15 @@ const STALE_MS = 10 * 60 * 1000; // a session with no beat for 10 min is a zombi
 /**
  * Finalize one stale session the same way an explicit stop would: close any open
  * pause, cap the end at the last verified heartbeat, and recompute activeTime.
- * Never credits the client for time after it stopped reporting.
+ * Never credits the client for time after it stopped reporting. Uses the shared
+ * doc finalizer; rewards are intentionally skipped for abandoned zombies.
  */
 async function closeStaleSession(session, now) {
   const lastAlive = Number.isFinite(session.lastHeartbeat)
     ? session.lastHeartbeat
     : session.startTime;
 
-  const lastPause = [...(session.pauseLog || [])].reverse().find((p) => !p.resumeTime);
-  if (lastPause) {
-    lastPause.resumeTime = lastAlive;
-    session.totalPauseDuration = Math.max(0, session.totalPauseDuration || 0) + Math.max(0, lastAlive - lastPause.pauseStart);
-  }
-
-  session.endTime = lastAlive;
-  session.isActive = false;
-  session.activeTime = Math.max(0, lastAlive - session.startTime - (session.totalPauseDuration || 0));
+  finalizeSessionDoc(session, lastAlive);
   await session.save();
   return session;
 }

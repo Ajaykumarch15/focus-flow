@@ -82,6 +82,27 @@ export interface Sprint {
   actualVelocity?: number;
 }
 
+// IES-R1: Feature/FeatureType mirror the server Feature model (server/models/Feature.js).
+// `sprintId` absent/null means the feature lives in the Project Backlog.
+export type FeatureType = 'feature' | 'bug' | 'spike' | 'chore' | 'research' | 'debt' | 'improvement';
+export type FeatureStatus = SprintStatus; // server enum: backlog | ready | in_progress | review | done
+
+export interface Feature {
+  id: string;
+  projectId: string;
+  sprintId?: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  type: FeatureType;
+  labels: string[];
+  ownerId?: string;
+  estimatedHours: number;
+  status: FeatureStatus;
+  order: number;
+  createdAt: string;
+}
+
 export interface GitContext {
   repository?: string;
   branch?: string;
@@ -99,6 +120,7 @@ export interface CollaborativeTask {
   workspaceId: string;
   projectId: string;
   sprintId?: string;
+  featureId?: string;
   title: string;
   description: string;
   sprintStatus: SprintStatus;

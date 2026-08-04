@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookMarked, GitBranch, CheckCircle2, ArrowRight, Plus } from 'lucide-react';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
 import { STATUS_OPTIONS } from './statusConfig';
+import { Spinner } from '../../components/ui/Spinner';
 
 export function WorkLogWidget() {
   const { todayLog, loading, loadToday } = useWorkLogStore();
@@ -38,7 +39,7 @@ export function WorkLogWidget() {
 
       {loading && !log ? (
         <div className="h-16 flex items-center justify-center">
-          <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
+          <Spinner size={16} className="border-brand-500/30 border-t-brand-500" />
         </div>
       ) : log ? (
         <div className="space-y-2.5">

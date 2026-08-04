@@ -3,6 +3,9 @@ import {
   ShieldCheck, AlertOctagon, Check, GitPullRequest
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { Button } from '../../components/ui/Button';
+import { Badge } from '../../components/ui/Badge';
+import { Card } from '../../components/ui/Card';
 
 export function QADashboardPage() {
   const { tasks, blockers, updateTaskStatus } = useCollaborationStore();
@@ -26,13 +29,13 @@ export function QADashboardPage() {
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
       
       {/* Top Banner */}
-      <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 lg:p-8 space-y-6">
+      <Card className="p-6 lg:p-8 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-indigo-400 bg-indigo-500/15 px-2.5 py-1 rounded-md border border-indigo-500/20">
+              <Badge tone="info" className="text-xs font-bold uppercase tracking-widest">
                 QA & Release Gate
-              </span>
+              </Badge>
             </div>
             <h1 className="text-2xl font-display font-extrabold text-surface-50 mt-2 flex items-center gap-2.5">
               <ShieldCheck size={26} className="text-indigo-400" /> Dedicated QA Readiness Dashboard
@@ -79,13 +82,13 @@ export function QADashboardPage() {
             <p className="text-[11px] text-emerald-400/80 mt-1">Production ready</p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Main Content Grid: QA Review Queue vs Blocker Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
         
         {/* QA Review Queue */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
             <GitPullRequest size={18} className="text-indigo-400" /> Features Ready for Testing & Verification ({qaReadyFeatures.length})
           </h2>
@@ -97,22 +100,22 @@ export function QADashboardPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       {feat.gitContext?.prNumber ? (
-                        <span className="text-[10px] font-extrabold uppercase bg-indigo-500/15 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/20">
+                        <Badge tone="info" className="text-[10px] font-extrabold uppercase">
                           PR #{feat.gitContext.prNumber}
-                        </span>
+                        </Badge>
                       ) : (
-                        <span className="text-[10px] font-extrabold uppercase bg-surface-800 text-surface-500 px-2 py-0.5 rounded border border-surface-700">
+                        <Badge tone="neutral" className="text-[10px] font-extrabold uppercase">
                           No PR linked
-                        </span>
+                        </Badge>
                       )}
                       <h3 className="text-sm font-bold text-surface-100 mt-1">{feat.title}</h3>
                       <p className="text-xs text-surface-400 mt-0.5">{feat.description}</p>
                     </div>
 
-                    <button onClick={() => handleApproveFeature(feat.id)}
-                      className="btn-primary px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-brand-500/20">
-                      <Check size={14} /> Approve & Mark Done
-                    </button>
+                    <Button onClick={() => handleApproveFeature(feat.id)} size="sm"
+                      className="shadow-lg shadow-brand-500/20" leftIcon={<Check size={14} />}>
+                      Approve & Mark Done
+                    </Button>
                   </div>
 
                   <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px] text-surface-400">
@@ -127,10 +130,10 @@ export function QADashboardPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* QA Blocker Matrix */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
             <AlertOctagon size={18} className="text-red-400" /> Critical QA & Test Blockers
           </h2>
@@ -139,11 +142,9 @@ export function QADashboardPage() {
             {openBlockers.map((blk) => (
               <div key={blk.id} className="p-4 rounded-xl bg-surface-850 border border-surface-800 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
-                    blk.severity === 'critical' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'
-                  }`}>
+                  <Badge tone={blk.severity === 'critical' ? 'danger' : 'warning'} className="text-[10px] font-bold uppercase">
                     {blk.severity}
-                  </span>
+                  </Badge>
                   <p className="text-xs font-bold text-surface-100">{blk.title}</p>
                 </div>
                 <p className="text-xs text-surface-400">{blk.impactDescription}</p>
@@ -155,7 +156,7 @@ export function QADashboardPage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
       </div>
 

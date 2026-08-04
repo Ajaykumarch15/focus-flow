@@ -27,7 +27,12 @@ export function useActiveTimer() {
 
   const tasks = useStore(s => s.tasks);
   const activeTask = tasks.find(t => t.id === snapshot.taskId);
-  const display = useMemo(() => formatDuration(elapsedMs), [elapsedMs]);
+  // `elapsedMs` stays the pure live session elapsed (Focus Mode, daily totals);
+  // the display adds the pre-existing base so resuming a task keeps its clock.
+  const display = useMemo(
+    () => formatDuration(elapsedMs + (snapshot.baseElapsedMs || 0)),
+    [elapsedMs, snapshot.baseElapsedMs]
+  );
 
   return {
     activeTaskId: snapshot.taskId,
@@ -36,6 +41,7 @@ export function useActiveTimer() {
     activeTask,
     display,
     elapsedMs,
+    baseElapsedMs: snapshot.baseElapsedMs,
     sessionStartTime: snapshot.sessionStartTime,
     totalPauseDuration: snapshot.totalPauseDuration,
   };

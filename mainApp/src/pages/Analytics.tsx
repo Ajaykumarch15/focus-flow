@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
+import { timerEngine } from '../utils/timerEngine';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
 import { formatHours } from '../utils/time';
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Skeleton, SkeletonStatCard, SkeletonChart } from '../components/ui/Skeleton';
+import { Input } from '../components/ui/Input';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#22c55e', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
 
@@ -53,13 +56,47 @@ const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export function Analytics() {
-  const { tasks, theme } = useStore();
+  const { tasks, theme, activeTaskId, activeSessionId, activeTimerState, currentSessionStart } = useStore();
   const [apiSessions, setApiSessions] = useState<AnalyticsSession[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [customStart, setCustomStart] = useState<string>('');
   const [customEnd, setCustomEnd] = useState<string>('');
+
+  // Re-read the timer engine's live elapsed each second while a timer is active,
+  // so the running/paused session is reflected in the charts in real time.
+  const [timerTick, setTimerTick] = useState(0);
+  const prevTimerRef = useRef(activeTimerState);
+
+  useEffect(() => {
+    if (activeTimerState === 'idle') {
+      prevTimerRef.current = 'idle';
+      return;
+    }
+    const id = setInterval(() => setTimerTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeTimerState]);
+
+  // Persist a just-stopped session into the charts without requiring a remount.
+  useEffect(() => {
+    if (prevTimerRef.current !== 'idle' && activeTimerState === 'idle') {
+      api.sessions.list()
+        .then((docs: ApiSession[]) => {
+          setApiSessions(docs.map(doc => ({
+            id: doc._id,
+            taskId: docId(doc.taskId),
+            startTime: doc.startTime,
+            endTime: doc.endTime,
+            activeTime: doc.activeTime || 0,
+            totalPauseDuration: doc.totalPauseDuration || 0,
+            focusScore: doc.focusScore,
+          })));
+        })
+        .catch((err) => toast.error('Could not refresh analytics sessions', err.message || 'Charts may be incomplete.'));
+    }
+    prevTimerRef.current = activeTimerState;
+  }, [activeTimerState]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,25 +124,30 @@ export function Analytics() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [activeTaskId]);
 
   const taskById = useMemo(() => new Map(tasks.map(task => [task.id, task])), [tasks]);
 
+  // The store never populates task.sessions, so the running session is sourced
+  // from the authoritative timer engine instead of the tasks array.
   const liveSessions = useMemo<AnalyticsSession[]>(() => {
-    return tasks.flatMap(task => {
-      const live = task.sessions.find(session => !session.endTime);
-      if (!live || live.activeTime <= 0) return [];
-      return [{
-        id: `live_${task.id}_${live.id}`,
-        taskId: task.id,
-        startTime: live.startTime,
-        endTime: live.endTime,
-        activeTime: live.activeTime,
-        totalPauseDuration: live.totalPauseDuration,
-        focusScore: 100,
-      }];
-    });
-  }, [tasks]);
+    if (activeTimerState === 'idle' || !activeTaskId || !currentSessionStart) return [];
+    const activeTime = timerEngine.getElapsedMs();
+    if (activeTime <= 0) return [];
+    const snapshot = timerEngine.getSnapshot();
+    const openPause = snapshot.timerState === 'paused' && snapshot.pauseStart
+      ? Math.max(0, Date.now() - snapshot.pauseStart)
+      : 0;
+    return [{
+      id: `live_${activeTaskId}_${activeSessionId ?? 'current'}`,
+      taskId: activeTaskId,
+      startTime: currentSessionStart,
+      endTime: undefined,
+      activeTime,
+      totalPauseDuration: snapshot.totalPauseDuration + openPause,
+      focusScore: 100,
+    }];
+  }, [activeTaskId, activeSessionId, activeTimerState, currentSessionStart, timerTick]);
 
   const sessions = useMemo(() => {
     const liveIds = new Set(liveSessions.map(session => session.id.replace(/^live_[^_]+_/, '')));
@@ -517,10 +559,10 @@ export function Analytics() {
             <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-900 border border-surface-800">
               <Calendar size={13} className="text-surface-500" />
-              <input type="date" className="input text-xs py-1.5 px-2 h-9 rounded-lg"
+              <Input type="date" className="text-xs py-1.5 px-2 h-9 rounded-lg"
                 value={customStart} onChange={e => setCustomStart(e.target.value)} />
               <span className="text-xs text-surface-500">→</span>
-              <input type="date" className="input text-xs py-1.5 px-2 h-9 rounded-lg"
+              <Input type="date" className="text-xs py-1.5 px-2 h-9 rounded-lg"
                 value={customEnd} onChange={e => setCustomEnd(e.target.value)} />
             </motion.div>
           )}
@@ -529,19 +571,13 @@ export function Analytics() {
 
       {/* ═══ Empty State ═══ */}
       {!loading && !hasData && (
-        <motion.div variants={fadeUp} initial="hidden" animate="show"
-          className="rounded-2xl border border-surface-800 bg-surface-900 p-12 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-surface-800 flex items-center justify-center mx-auto mb-4">
-            <BarChart3 size={28} className="text-surface-500" />
-          </div>
-          <h3 className="text-lg font-display font-bold text-surface-100 mb-2">No Analytics Data Yet</h3>
-          <p className="text-surface-400 text-sm max-w-md mx-auto leading-relaxed">
-            Start tracking focus sessions to see your productivity analytics, time distribution, and performance insights.
-          </p>
-          <div className="flex items-center justify-center gap-2 mt-4 text-xs text-surface-500">
-            <Clock size={12} /> Start a timer on any task to begin collecting data
-          </div>
-        </motion.div>
+        <EmptyState
+          className="rounded-2xl border border-surface-800 bg-surface-900"
+          icon={<BarChart3 size={28} />}
+          title="No Analytics Data Yet"
+          description="Start tracking focus sessions to see your productivity analytics, time distribution, and performance insights."
+          hint="Start a timer on any task to begin collecting data"
+        />
       )}
 
       {/* ═══ KPI Cards ═══ */}

@@ -4,6 +4,9 @@ import { Download, FileText, Code, Sparkles, Copy, Check, X } from 'lucide-react
 import { WorkLog } from '../../store/useWorkLogStore';
 import { downloadWorkLogMarkdown, downloadWorkLogJSON, generateAIStandupSummary } from '../../utils/workLogExporter';
 import { toast } from '../../store/useToastStore';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Textarea } from '../../components/ui/Textarea';
 
 interface WorkLogExporterModalProps {
   workLog: WorkLog;
@@ -66,26 +69,28 @@ export function WorkLogExporterModal({ workLog, isOpen, onClose }: WorkLogExport
           </div>
 
           {/* AI Ready Standup Prompt Box */}
-          <div className="card p-4 rounded-2xl border border-amber-500/20 bg-surface-850 space-y-2">
+          <Card className="p-4 rounded-2xl border border-amber-500/20 bg-surface-850 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
                 <Sparkles size={14} /> AI Ready Daily Standup Summary
               </span>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleCopyAI}
-                className="btn-secondary text-[11px] px-2.5 py-1 flex items-center gap-1"
+                className="text-[11px] px-2.5 py-1"
+                leftIcon={copiedAI ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
               >
-                {copiedAI ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                 {copiedAI ? 'Copied' : 'Copy'}
-              </button>
+              </Button>
             </div>
-            <textarea
+            <Textarea
               readOnly
-              className="input text-xs font-mono w-full resize-none rounded-xl bg-surface-900 text-surface-300 leading-relaxed"
+              className="text-xs font-mono w-full resize-none rounded-xl bg-surface-900 text-surface-300 leading-relaxed"
               rows={6}
               value={aiSummary}
             />
-          </div>
+          </Card>
         </motion.div>
       </div>
     </AnimatePresence>

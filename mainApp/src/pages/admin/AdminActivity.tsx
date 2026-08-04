@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../utils/api';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Card } from '../../components/ui/Card';
+import { EmptyState } from '../../components/ui/EmptyState';
 
 const ACTION_LABELS: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   'login':              { label: 'Logged in',          color: 'text-blue-400',    bg: 'bg-blue-500/10',    icon: Globe },
@@ -111,14 +113,14 @@ export function AdminActivity() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-surface-800 bg-surface-900 divide-y divide-surface-800 max-h-[600px] overflow-y-auto scrollbar-thin">
+      <Card className="divide-y divide-surface-800 max-h-[600px] overflow-y-auto scrollbar-thin">
         {activities.length === 0 && !loading ? (
-          <div className="p-12 text-center"><Activity size={28} className="text-surface-600 mx-auto mb-3" /><p className="text-sm text-surface-400">No activity recorded yet</p></div>
+          <EmptyState icon={<Activity size={28} className="text-surface-600" />} title="No activity recorded yet" description="" className="!py-12" />
         ) : activities.map((a: any) => <ActivityItem key={a._id} activity={a} />)}
         {loading && activities.length === 0 && (
           <div role="status" className="p-8 text-center"><Loader2 size={20} className="text-purple-400 animate-spin mx-auto" /></div>
         )}
-      </div>
+      </Card>
       {hasMore && (
         <button onClick={() => load(false)} disabled={loadingMore}
           className="w-full py-2.5 rounded-xl text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Target, Zap, BarChart3, BookOpen, Play, CheckCircle, Clock, ArrowRight,
   Timer, Flame, Trophy, TrendingUp, ChevronRight,
   LayoutDashboard, CheckSquare, LineChart, Sparkles,
 } from 'lucide-react';
+import { Button } from '../components/ui/Button';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -41,9 +42,6 @@ const stats = [
 export function Landing() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const { scrollY } = useScroll();
-  const heroOpacity = useTransform(scrollY, [0, 300], [1, 0]);
-  const heroScale = useTransform(scrollY, [0, 300], [1, 0.95]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -67,21 +65,18 @@ export function Landing() {
             <span className="font-display font-extrabold text-surface-50 text-lg tracking-tight">FocusFlow</span>
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('/login')}
-              className="hidden sm:block text-sm text-surface-400 hover:text-surface-200 font-medium transition-colors px-3 py-2">
+            <Button variant="ghost" className="hidden sm:block px-3 py-2" onClick={() => navigate('/login')}>
               Sign In
-            </button>
-            <button onClick={() => navigate('/register')}
-              className="text-sm bg-surface-800 hover:bg-surface-700 text-surface-100 font-semibold px-4 py-2 rounded-xl transition-all border border-surface-700">
+            </Button>
+            <Button variant="secondary" className="px-4 py-2" onClick={() => navigate('/register')}>
               Get Started
-            </button>
+            </Button>
           </div>
         </div>
       </motion.nav>
 
       {/* ═══ Hero ═══ */}
-      <motion.section style={{ opacity: heroOpacity, scale: heroScale }}
-        className="relative pt-32 pb-20 lg:pt-40 lg:pb-28">
+      <section className="relative pt-32 pb-20 lg:pt-40 lg:pb-28">
         {/* Animated gradient blobs */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] pointer-events-none">
           <motion.div className="absolute inset-0 bg-brand-500/8 rounded-full blur-[100px]"
@@ -122,16 +117,14 @@ export function Landing() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.45 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <motion.button onClick={() => navigate('/register')}
-              whileHover={{ scale: 1.03, boxShadow: '0 0 30px rgba(14,165,233,0.3)' }}
-              whileTap={{ scale: 0.97 }}
-              className="bg-brand-500 hover:bg-brand-400 text-white text-base font-bold px-8 py-4 rounded-2xl flex items-center gap-2.5 shadow-xl shadow-brand-500/25 transition-colors">
-              <Play size={18} fill="white" /> Start Free
-            </motion.button>
-            <button onClick={() => navigate('/login')}
-              className="text-base text-surface-300 hover:text-surface-100 font-semibold px-6 py-4 flex items-center gap-2 transition-colors">
-              Sign In <ArrowRight size={16} />
-            </button>
+            <Button size="lg" className="px-8 py-4 text-base" leftIcon={<Play size={18} fill="white" />}
+              onClick={() => navigate('/register')}>
+              Start Free
+            </Button>
+            <Button variant="ghost" size="lg" rightIcon={<ArrowRight size={16} />}
+              onClick={() => navigate('/login')}>
+              Sign In
+            </Button>
           </motion.div>
 
           {/* Mock UI Preview */}
@@ -195,7 +188,7 @@ export function Landing() {
             </div>
           </motion.div>
         </div>
-      </motion.section>
+      </section>
 
       {/* ═══ Stats Bar ═══ */}
       <motion.section initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
@@ -297,10 +290,10 @@ export function Landing() {
                 </li>
               ))}
             </ul>
-            <button onClick={() => navigate('/register')}
-              className="text-sm font-semibold text-brand-400 hover:text-brand-300 flex items-center gap-1.5 transition-colors">
-              Explore Analytics <ChevronRight size={14} />
-            </button>
+            <Button variant="ghost" size="sm" className="!text-brand-400 hover:!text-brand-300" rightIcon={<ChevronRight size={14} />}
+              onClick={() => navigate('/register')}>
+              Explore Analytics
+            </Button>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }}
@@ -388,16 +381,14 @@ export function Landing() {
               Start with a single focus session — your work logs and reports build themselves.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <motion.button onClick={() => navigate('/register')}
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                className="bg-brand-500 hover:bg-brand-400 text-white font-bold px-8 py-4 rounded-2xl flex items-center gap-2.5 shadow-xl shadow-brand-500/25 transition-colors text-base">
-                <Zap size={18} /> Get Started Free
-              </motion.button>
-              <button onClick={() => navigate('/login')}
-                className="text-sm text-surface-400 hover:text-surface-200 font-semibold flex items-center gap-1.5 transition-colors">
-                Already have an account? Sign In <ArrowRight size={14} />
-              </button>
+              <Button size="lg" className="px-8 py-4 text-base" leftIcon={<Zap size={18} />}
+                onClick={() => navigate('/register')}>
+                Get Started Free
+              </Button>
+              <Button variant="ghost" size="sm" rightIcon={<ArrowRight size={14} />}
+                onClick={() => navigate('/login')}>
+                Already have an account? Sign In
+              </Button>
             </div>
           </div>
         </motion.div>

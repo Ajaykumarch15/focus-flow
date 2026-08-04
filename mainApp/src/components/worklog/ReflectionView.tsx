@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { HeartPulse, Sparkles, Zap, Target, Shield, Flame } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Card } from '../../components/ui/Card';
+import { Textarea } from '../../components/ui/Textarea';
 
 interface ReflectionViewProps {
   workLog: WorkLog;
@@ -52,7 +54,7 @@ export function ReflectionView({ workLog }: ReflectionViewProps) {
       </div>
 
       {/* Multi-Dimensional Energy/Mood Sliders */}
-      <div className="card p-5 rounded-2xl border border-surface-800 bg-surface-900/60 space-y-4">
+      <Card className="p-5 rounded-2xl border border-surface-800 bg-surface-900/60 space-y-4">
         <h4 className="text-xs font-bold uppercase tracking-wider text-surface-400">Daily Engineering Well-Being & Focus Ratings (1 - 5)</h4>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {MOOD_METRICS_LIST.map(metric => {
@@ -80,53 +82,53 @@ export function ReflectionView({ workLog }: ReflectionViewProps) {
             );
           })}
         </div>
-      </div>
+      </Card>
 
       {/* Structured Prompts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card p-4 rounded-xl border border-emerald-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-emerald-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-semibold text-emerald-400 block">
             What went particularly well today?
           </label>
-          <textarea
-            className="input text-sm w-full resize-none rounded-lg" rows={2}
+          <Textarea
+            className="text-sm w-full resize-none rounded-lg" rows={2}
             placeholder="Key breakthroughs, clean code refactors, or fast bug resolutions..."
             value={wentWell} onChange={e => setWentWell(e.target.value)} onBlur={e => saveRef('wentWell', e.target.value)}
           />
-        </div>
+        </Card>
 
-        <div className="card p-4 rounded-xl border border-red-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-red-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-semibold text-red-400 block">
             What slowed you down or interrupted deep work?
           </label>
-          <textarea
-            className="input text-sm w-full resize-none rounded-lg" rows={2}
+          <Textarea
+            className="text-sm w-full resize-none rounded-lg" rows={2}
             placeholder="Unexpected meetings, unclear specs, or slow build tools..."
             value={slowedDown} onChange={e => setSlowedDown(e.target.value)} onBlur={e => saveRef('slowedDown', e.target.value)}
           />
-        </div>
+        </Card>
 
-        <div className="card p-4 rounded-xl border border-sky-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-sky-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-semibold text-sky-400 block">
             What key technical lesson did you learn today?
           </label>
-          <textarea
-            className="input text-sm w-full resize-none rounded-lg" rows={2}
+          <Textarea
+            className="text-sm w-full resize-none rounded-lg" rows={2}
             placeholder="New API trick, framework behavior, or architecture pattern..."
             value={learned} onChange={e => setLearned(e.target.value)} onBlur={e => saveRef('learned', e.target.value)}
           />
-        </div>
+        </Card>
 
-        <div className="card p-4 rounded-xl border border-purple-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-purple-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-semibold text-purple-400 block">
             One single improvement for tomorrow?
           </label>
-          <textarea
-            className="input text-sm w-full resize-none rounded-lg" rows={2}
+          <Textarea
+            className="text-sm w-full resize-none rounded-lg" rows={2}
             placeholder="Better timeblocking, turning off Slack notifications, or clearer branch naming..."
             value={improvement} onChange={e => setImprovement(e.target.value)} onBlur={e => saveRef('improvement', e.target.value)}
           />
-        </div>
+        </Card>
       </div>
     </div>
   );

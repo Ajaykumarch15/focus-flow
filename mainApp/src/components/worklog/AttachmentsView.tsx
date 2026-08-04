@@ -2,6 +2,11 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Paperclip, Link2, Plus, Trash2, ExternalLink, Folder } from 'lucide-react';
 import { WorkLog, WorkLink, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Badge } from '../../components/ui/Badge';
 
 interface AttachmentsViewProps {
   workLog: WorkLog;
@@ -67,12 +72,14 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               Quick links to PRs, Figma designs, Linear tickets, API docs, or meeting notes.
             </p>
           </div>
-          <button
+          <Button
+            size="xs"
             onClick={() => setShowAddLink(true)}
-            className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5"
+            className="px-3 py-1.5"
+            leftIcon={<Plus size={14} />}
           >
-            <Plus size={14} /> Add Link
-          </button>
+            Add Link
+          </Button>
         </div>
 
         <AnimatePresence>
@@ -83,26 +90,26 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               className="card p-4 rounded-xl border border-brand-500/30 bg-surface-850 space-y-3"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  className="input text-sm rounded-lg"
+                <Input
+                  className="text-sm rounded-lg"
                   placeholder="Link Title (e.g., Pull Request #42)"
                   value={linkTitle} onChange={e => setLinkTitle(e.target.value)} required
                 />
-                <input
-                  className="input text-sm rounded-lg"
+                <Input
+                  className="text-sm rounded-lg"
                   placeholder="URL (https://...)"
                   value={linkUrl} onChange={e => setLinkUrl(e.target.value)} required
                 />
-                <select
-                  className="input text-sm rounded-lg"
+                <Select
+                  className="text-sm rounded-lg"
                   value={linkCat} onChange={e => setLinkCat(e.target.value as WorkLink['category'])}
                 >
                   {LINK_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
+                </Select>
               </div>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowAddLink(false)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
-                <button type="submit" className="btn-primary text-xs px-4 py-1.5">Save Link</button>
+                <Button type="button" variant="secondary" size="xs" onClick={() => setShowAddLink(false)} className="px-3 py-1.5">Cancel</Button>
+                <Button type="submit" size="xs" className="px-4 py-1.5">Save Link</Button>
               </div>
             </motion.form>
           )}
@@ -110,12 +117,12 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {links.map(l => (
-            <div key={l._id} className="card p-3 rounded-xl border border-surface-800 bg-surface-900/60 flex items-center justify-between group">
+            <Card key={l._id} className="p-3 rounded-xl border border-surface-800 bg-surface-900/60 flex items-center justify-between group">
               <a href={l.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 min-w-0 flex-1 hover:text-brand-400 transition-colors">
                 <ExternalLink size={14} className="text-surface-400 flex-shrink-0" />
                 <div className="min-w-0">
                   <span className="text-xs font-semibold text-surface-100 truncate block">{l.label}</span>
-                  <span className="badge bg-surface-800 text-surface-400 text-[9px] mt-0.5">{l.category}</span>
+                  <Badge tone="neutral" className="text-[9px] mt-0.5">{l.category}</Badge>
                 </div>
               </a>
               <button
@@ -124,7 +131,7 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               >
                 <Trash2 size={13} />
               </button>
-            </div>
+            </Card>
           ))}
         </div>
       </div>
@@ -141,12 +148,14 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               Attach design assets, architecture diagrams, test outputs, or screenshots.
             </p>
           </div>
-          <button
+          <Button
+            size="xs"
             onClick={() => setShowAddAtt(true)}
-            className="btn-primary text-xs flex items-center gap-1.5 px-3 py-1.5"
+            className="px-3 py-1.5"
+            leftIcon={<Plus size={14} />}
           >
-            <Plus size={14} /> Add Attachment
-          </button>
+            Add Attachment
+          </Button>
         </div>
 
         <AnimatePresence>
@@ -157,34 +166,34 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               className="card p-4 rounded-xl border border-purple-500/30 bg-surface-850 space-y-3"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <input
-                  className="input text-sm rounded-lg"
+                <Input
+                  className="text-sm rounded-lg"
                   placeholder="Asset Name (e.g., Auth Flow Diagram)"
                   value={attName} onChange={e => setAttName(e.target.value)} required
                 />
-                <input
-                  className="input text-sm rounded-lg"
+                <Input
+                  className="text-sm rounded-lg"
                   placeholder="URL / File Link"
                   value={attUrl} onChange={e => setAttUrl(e.target.value)} required
                 />
-                <select
-                  className="input text-sm rounded-lg"
+                <Select
+                  className="text-sm rounded-lg"
                   value={attType} onChange={e => setAttType(e.target.value)}
                 >
                   <option value="image">Screenshot / Image</option>
                   <option value="diagram">Diagram / Design</option>
                   <option value="pdf">PDF / Document</option>
                   <option value="code">Code Snippet / Log</option>
-                </select>
+                </Select>
               </div>
-              <input
-                className="input text-sm rounded-lg w-full"
+              <Input
+                className="text-sm rounded-lg w-full"
                 placeholder="Description / Context..."
                 value={attDesc} onChange={e => setAttDesc(e.target.value)}
               />
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setShowAddAtt(false)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
-                <button type="submit" className="btn-primary text-xs px-4 py-1.5">Add Attachment</button>
+                <Button type="button" variant="secondary" size="xs" onClick={() => setShowAddAtt(false)} className="px-3 py-1.5">Cancel</Button>
+                <Button type="submit" size="xs" className="px-4 py-1.5">Add Attachment</Button>
               </div>
             </motion.form>
           )}
@@ -192,7 +201,7 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {attachments.map(a => (
-            <div key={a._id} className="card p-4 rounded-xl border border-surface-800 bg-surface-900/60 flex items-start justify-between gap-3 group">
+            <Card key={a._id} className="p-4 rounded-xl border border-surface-800 bg-surface-900/60 flex items-start justify-between gap-3 group">
               <div className="flex items-start gap-3 min-w-0">
                 <div className="p-2 rounded-lg bg-purple-500/10 text-purple-400 mt-0.5">
                   <Folder size={18} />
@@ -202,7 +211,7 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
                     {a.name}
                   </a>
                   {a.description && <p className="text-xs text-surface-400 truncate">{a.description}</p>}
-                  <span className="badge bg-surface-800 text-surface-400 text-[9px]">{a.type}</span>
+                  <Badge tone="neutral" className="text-[9px]">{a.type}</Badge>
                 </div>
               </div>
               <button
@@ -211,7 +220,7 @@ export function AttachmentsView({ workLog }: AttachmentsViewProps) {
               >
                 <Trash2 size={14} />
               </button>
-            </div>
+            </Card>
           ))}
         </div>
       </div>

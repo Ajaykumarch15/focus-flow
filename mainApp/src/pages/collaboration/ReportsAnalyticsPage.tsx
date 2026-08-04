@@ -4,44 +4,77 @@ import {
   Download
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import type { CollaborativeTask } from '../../types/collaboration';
 import { saveAs } from 'file-saver';
+import { Card } from '../../components/ui/Card';
 
 type ReportType = 'sprint' | 'developer' | 'productivity' | 'engineering';
 
-// IES-P1-20: an empty task set is not a 100% completion rate — it's "no data".
+// IES-P1-20: an empty feature set is not a 100% completion rate — it's "no data".
 // Returns null so callers can render an explicit empty state instead of a
-// fabricated metric.
-export function computeFeatureCompletionRate(tasks: { sprintStatus: string }[]): number | null {
-  if (tasks.length === 0) return null;
-  const completed = tasks.filter((t) => t.sprintStatus === 'done').length;
-  return Math.round((completed / tasks.length) * 100);
+// fabricated metric. Accepts either a Feature (`status`) or a CollaborativeTask
+// (`sprintStatus`) shape so the same KPI works over both live collections.
+export function computeFeatureCompletionRate(items: { sprintStatus?: string; status?: string }[]): number | null {
+  if (items.length === 0) return null;
+  const isDone = (i: { sprintStatus?: string; status?: string }) =>
+    i.status === 'done' || i.sprintStatus === 'done';
+  const completed = items.filter(isDone).length;
+  return Math.round((completed / items.length) * 100);
+}
+
+// IES-R1 (P6-T5): the server persists capacity/target velocity but NOT an
+// `actualVelocity`, so delivered velocity is derived from live task data:
+// committed effort (`estimatedHours`) delivered across `done` tasks.
+export function computeVelocity(
+  tasks: Pick<CollaborativeTask, 'sprintStatus' | 'estimatedHours'>[],
+  targetVelocity: number,
+): { delivered: number; pct: number | null } {
+  const delivered = tasks
+    .filter((t) => t.sprintStatus === 'done')
+    .reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
+  return {
+    delivered,
+    pct: targetVelocity > 0 ? Math.round((delivered / targetVelocity) * 100) : null,
+  };
 }
 
 export function ReportsAnalyticsPage() {
-  const { tasks, members, sprints, blockers } = useCollaborationStore();
+  const { tasks, features, members, sprints, blockers, activeWorkspaceId } = useCollaborationStore();
 
   const [activeReportType, setActiveReportType] = useState<ReportType>('sprint');
 
-  const completedTasks = useMemo(() => tasks.filter((t) => t.sprintStatus === 'done'), [tasks]);
-  const featureCompletionRate = useMemo(() => computeFeatureCompletionRate(tasks), [tasks]);
+  // IES-P2-08: every KPI is derived from real, workspace-scoped store data.
+  const wsTasks = useMemo(() => tasks.filter((t) => t.workspaceId === activeWorkspaceId), [tasks, activeWorkspaceId]);
+  const wsFeatures = useMemo(() => features.filter((f) => f.workspaceId === activeWorkspaceId), [features, activeWorkspaceId]);
+  const wsSprints = useMemo(() => sprints.filter((s) => s.workspaceId === activeWorkspaceId), [sprints, activeWorkspaceId]);
+  const wsBlockers = useMemo(() => blockers.filter((b) => b.workspaceId === activeWorkspaceId), [blockers, activeWorkspaceId]);
 
-  // IES-P2-08: every KPI is derived from real store/API data — never hardcoded.
-  const activeSprint = sprints.find((s) => s.status === 'active');
-  const velocityPct = activeSprint && activeSprint.targetVelocity
-    ? Math.round(((activeSprint.actualVelocity ?? 0) / activeSprint.targetVelocity) * 100)
-    : null;
-  const resolvedBlockers = blockers.filter((b) => b.status === 'resolved').length;
+  const completedFeatures = useMemo(() => wsFeatures.filter((f) => f.status === 'done'), [wsFeatures]);
+  const featureCompletionRate = useMemo(() => computeFeatureCompletionRate(wsFeatures), [wsFeatures]);
+
+  const activeSprint = wsSprints.find((s) => s.status === 'active');
+  const activeSprintTasks = useMemo(
+    () => (activeSprint ? wsTasks.filter((t) => t.sprintId === activeSprint.id) : []),
+    [wsTasks, activeSprint],
+  );
+  const velocity = useMemo(
+    () => (activeSprint ? computeVelocity(activeSprintTasks, activeSprint.targetVelocity) : { delivered: 0, pct: null }),
+    [activeSprint, activeSprintTasks],
+  );
+  const resolvedBlockers = wsBlockers.filter((b) => b.status === 'resolved').length;
 
   const handleExport = () => {
     const report = {
       reportType: activeReportType,
       exportedAt: new Date().toISOString(),
       featureCompletionRate,
-      completedFeatures: completedTasks.length,
-      totalFeatures: tasks.length,
-      resolvedBlockers: blockers.filter((b) => b.status === 'resolved').length,
-      openBlockers: blockers.filter((b) => b.status !== 'resolved').length,
-      activeSprints: sprints.filter((s) => s.status === 'active').length,
+      completedFeatures: completedFeatures.length,
+      totalFeatures: wsFeatures.length,
+      completedTasks: wsTasks.filter((t) => t.sprintStatus === 'done').length,
+      totalTasks: wsTasks.length,
+      resolvedBlockers: wsBlockers.filter((b) => b.status === 'resolved').length,
+      openBlockers: wsBlockers.filter((b) => b.status !== 'resolved').length,
+      activeSprints: wsSprints.filter((s) => s.status === 'active').length,
       members: members.map((m) => ({ name: m.name, role: m.role, status: m.status })),
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -72,15 +105,15 @@ export function ReportsAnalyticsPage() {
 
       {/* Top 4 KPI Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
+        <Card className="p-5 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Sprint Velocity</span>
           {activeSprint ? (
             <>
               <p className="text-3xl font-display font-extrabold text-brand-400">
-                {activeSprint.actualVelocity ?? 0} / {activeSprint.targetVelocity} pts
+                {velocity.delivered} / {activeSprint.targetVelocity} pts
               </p>
               <p className="text-[11px] text-brand-400/80 font-medium">
-                {velocityPct === null ? '—' : `${velocityPct}%`} of target reached
+                {velocity.pct === null ? '—' : `${velocity.pct}%`} of target reached
               </p>
             </>
           ) : (
@@ -89,31 +122,31 @@ export function ReportsAnalyticsPage() {
               <p className="text-[11px] text-surface-500 font-medium">No active sprint</p>
             </>
           )}
-        </div>
+        </Card>
 
-        <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
+        <Card className="p-5 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Feature Completion Rate</span>
           <p className="text-3xl font-display font-extrabold text-emerald-400">
             {featureCompletionRate === null ? 'No data' : `${featureCompletionRate}%`}
           </p>
           <p className="text-[11px] text-emerald-400/80 font-medium">
-            {tasks.length === 0 ? 'No features tracked' : `${completedTasks.length} features merged`}
+            {wsFeatures.length === 0 ? 'No features tracked' : `${completedFeatures.length} features done`}
           </p>
-        </div>
+        </Card>
 
-        <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
+        <Card className="p-5 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Average Developer Cycle Time</span>
           <p className="text-3xl font-display font-extrabold text-amber-400">—</p>
           <p className="text-[11px] text-amber-400/80 font-medium">No cycle-time data yet</p>
-        </div>
+        </Card>
 
-        <div className="p-5 rounded-3xl border border-surface-800 bg-surface-900 space-y-1">
+        <Card className="p-5 space-y-1">
           <span className="text-xs font-semibold text-surface-400">Project Health Score</span>
           <p className="text-3xl font-display font-extrabold text-purple-400">
             {featureCompletionRate === null ? 'No data' : `${featureCompletionRate} / 100`}
           </p>
-          <p className="text-[11px] text-purple-400/80 font-medium">Derived from task completion</p>
-        </div>
+          <p className="text-[11px] text-purple-400/80 font-medium">Derived from feature completion</p>
+        </Card>
       </div>
 
       {/* Report Type Switcher Tabs */}
@@ -135,7 +168,7 @@ export function ReportsAnalyticsPage() {
       </div>
 
       {/* Report Details Container */}
-      <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 lg:p-8 space-y-6">
+      <Card className="p-6 lg:p-8 space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-display font-extrabold text-surface-50 capitalize">
             {activeReportType} Executive Summary
@@ -181,7 +214,7 @@ export function ReportsAnalyticsPage() {
             </div>
           </div>
         </div>
-      </div>
+      </Card>
 
     </div>
   );

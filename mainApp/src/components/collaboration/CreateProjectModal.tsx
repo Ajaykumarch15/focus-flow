@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FolderPlus, X, Plus, Trash2, GitBranch } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
 
 export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { createProject, teams } = useCollaborationStore();
@@ -72,9 +75,9 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
               <p className="text-xs text-surface-400">First-class entity with milestones & repository</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Form */}
@@ -83,13 +86,13 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Project Name <span className="text-red-400">*</span>
             </label>
-            <input className="input rounded-xl text-sm w-full" placeholder="e.g. AI Search Engine, Mobile Gateway..."
+            <Input className="rounded-xl text-sm w-full" placeholder="e.g. AI Search Engine, Mobile Gateway..."
               value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">Description</label>
-            <textarea rows={2} className="input rounded-xl text-sm w-full resize-none"
+            <Textarea rows={2} className="rounded-xl text-sm w-full resize-none"
               placeholder="What are the goals, target users, and key engineering deliverables?"
               value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
@@ -98,7 +101,7 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
             <label className="block text-xs font-semibold text-surface-300 mb-1.5 flex items-center gap-1.5">
               <GitBranch size={13} className="text-brand-400" /> Git Repository URL
             </label>
-            <input className="input rounded-xl text-sm w-full font-mono" placeholder="https://github.com/org/repo"
+            <Input className="rounded-xl text-sm w-full font-mono" placeholder="https://github.com/org/repo"
               value={repositoryUrl} onChange={(e) => setRepositoryUrl(e.target.value)} />
           </div>
 
@@ -127,31 +130,31 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-semibold text-surface-300">Milestones</label>
-              <button type="button" onClick={handleAddMilestone}
-                className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
-                <Plus size={12} /> Add Milestone
-              </button>
+              <Button type="button" variant="ghost" size="xs" onClick={handleAddMilestone}
+                className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1" leftIcon={<Plus size={12} />}>
+                Add Milestone
+              </Button>
             </div>
             <div className="space-y-2">
               {milestones.map((m, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <input className="input rounded-xl text-xs flex-1" placeholder="Milestone title..."
+                  <Input className="rounded-xl text-xs flex-1" placeholder="Milestone title..."
                     value={m.title} onChange={(e) => {
                       const copy = [...milestones];
                       copy[idx].title = e.target.value;
                       setMilestones(copy);
                     }} />
-                  <input type="date" className="input rounded-xl text-xs w-36"
+                  <Input type="date" className="rounded-xl text-xs w-36"
                     value={m.dueDate} onChange={(e) => {
                       const copy = [...milestones];
                       copy[idx].dueDate = e.target.value;
                       setMilestones(copy);
                     }} />
                   {milestones.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveMilestone(idx)}
+                    <Button type="button" variant="danger" size="icon-sm" onClick={() => handleRemoveMilestone(idx)}
                       className="p-2 text-surface-500 hover:text-red-400">
                       <Trash2 size={13} />
-                    </button>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -159,10 +162,10 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
           </div>
 
           <div className="flex gap-3 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 rounded-xl">Cancel</button>
-            <button type="submit" disabled={!name.trim()} className="btn-primary flex-1 rounded-xl">
+            <Button type="button" variant="secondary" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
+            <Button type="submit" disabled={!name.trim()} className="flex-1 rounded-xl">
               Create Project
-            </button>
+            </Button>
           </div>
         </form>
       </motion.div>

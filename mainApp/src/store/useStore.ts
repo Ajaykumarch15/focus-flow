@@ -14,6 +14,7 @@ import {
   loadTimer,
   loadTodayMs,
   loadWeekMs,
+  rebuildDayCache,
 } from '../utils/timerPersist';
 import { timerEngine } from '../utils/timerEngine';
 import { offlineQueue, createOpId } from '../utils/offlineQueue';
@@ -304,13 +305,18 @@ export const useStore = create<StoreState>((set, get) => {
 
         // Rehydrate TimerEngine with active session from backend
         try {
-          const activeSessions = await api.sessions.list({ active: true });
-          const match = activeSessions[0];
+          const allSessions = await api.sessions.list();
+          const match = allSessions.find((s: any) => s.isActive);
           const localTimer = loadTimer();
+
+          // Keep the offline day/week cache authoritative from the backend, so a
+          // refresh or re-login never resets today's progress to zero.
+          rebuildDayCache(allSessions);
 
           if (match) {
             const pauseStart = getOpenPauseStart(match);
             const isPaused = baseTasks.find(t => t.id === docId(match.taskId))?.status === 'paused' || Boolean(pauseStart);
+            const matchedTask = baseTasks.find(t => t.id === docId(match.taskId));
 
             timerEngine.hydrate({
               taskId: docId(match.taskId),
@@ -319,6 +325,7 @@ export const useStore = create<StoreState>((set, get) => {
               sessionStartTime: match.startTime,
               totalPauseDuration: match.totalPauseDuration || 0,
               pauseStart,
+              baseElapsedMs: matchedTask?.totalTime ?? 0,
             });
           } else if (localTimer) {
             // Validate local snapshot if backend didn't return an active session
@@ -428,7 +435,18 @@ export const useStore = create<StoreState>((set, get) => {
     startTimer: async (taskId) => {
       const now = Date.now();
       const opId = createOpId();
-      const res = await timerEngine.start(taskId, undefined, now);
+
+      // A different running/paused task is closed first (backend + offline queue)
+      // so only one session stays open across the whole workspace.
+      const currentTaskId = timerEngine.getSnapshot().taskId;
+      if (currentTaskId && currentTaskId !== taskId) {
+        await get().stopTimer(currentTaskId);
+      }
+
+      // Resuming a task continues from its accumulated time (display continuity).
+      const resumeFromMs = get().tasks.find(t => t.id === taskId)?.totalTime ?? 0;
+
+      const res = await timerEngine.start(taskId, undefined, now, resumeFromMs);
       if (!res.success) {
         if (res.error) toast.error('Timer Error', res.error);
         return;

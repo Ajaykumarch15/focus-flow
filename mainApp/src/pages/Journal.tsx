@@ -6,6 +6,11 @@ import { Markdown } from '../lib';
 import { useStore } from '../store/useStore';
 import { MOOD_EMOJIS } from '../lib/config';
 import { PageHeader } from '../components/ui/PageHeader';
+import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Textarea } from '../components/ui/Textarea';
+import { EmptyState } from '../components/ui/EmptyState';
 import type { Mood } from '../types';
 
 export function Journal() {
@@ -82,7 +87,7 @@ export function Journal() {
     <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <PageHeader title="Journal" description={`${journals.length} Entries Logged`}
         icon={<span className="text-xl">📖</span>} iconColor="#f59e0b"
-        actions={<button onClick={() => setShowAdd(!showAdd)} className="btn-primary"><Plus size={18} /> New Entry</button>} />
+        actions={<Button onClick={() => setShowAdd(!showAdd)} leftIcon={<Plus size={18} />}>New Entry</Button>} />
 
       {/* Search */}
       <div className="relative mb-8">
@@ -91,8 +96,8 @@ export function Journal() {
           className="absolute left-4 top-1/2 -translate-y-1/2 text-surface-400"
         />
 
-        <input
-          className="input pl-11 h-12 rounded-[14px]"
+        <Input
+          className="pl-11 h-12 rounded-[14px]"
           placeholder="Search journal entries..."
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -113,8 +118,8 @@ export function Journal() {
             </h3>
 
             {/* Task Select */}
-            <select
-              className="input mb-3"
+            <Select
+              className="mb-3"
               value={taskId}
               onChange={e => setTaskId(e.target.value)}
             >
@@ -125,7 +130,7 @@ export function Journal() {
                   {t.title}
                 </option>
               ))}
-            </select>
+            </Select>
 
             {/* Toolbar */}
             <div className="flex items-center gap-2 mb-3 border border-surface-700 bg-surface-900/80 rounded-xl p-2">
@@ -149,10 +154,9 @@ export function Journal() {
             </div>
 
             {/* Auto Growing Textarea */}
-            <textarea
+            <Textarea
               ref={textareaRef}
               className="
-                input
                 resize-none
                 overflow-hidden
                 min-h-[160px]
@@ -201,20 +205,21 @@ export function Journal() {
 
             {/* Actions */}
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowAdd(false)}
-                className="btn-secondary flex-1"
+                className="flex-1"
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button
+              <Button
                 onClick={handleAdd}
                 disabled={!content.trim()}
-                className="btn-primary flex-1"
+                className="flex-1"
               >
                 Save Entry
-              </button>
+              </Button>
             </div>
           </motion.div>
         )}
@@ -225,20 +230,13 @@ export function Journal() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="card p-10 text-center"
+          className="card"
         >
-          <BookOpen
-            size={36}
-            className="text-surface-600 mx-auto mb-3"
+          <EmptyState
+            icon={<BookOpen size={36} className="text-surface-600" />}
+            title="No journal entries yet"
+            description="Start writing to track your progress and reflections"
           />
-
-          <p className="text-surface-300 font-medium">
-            No journal entries yet
-          </p>
-
-          <p className="text-surface-500 text-sm mt-1">
-            Start writing to track your progress and reflections
-          </p>
         </motion.div>
       ) : (
         <div className="space-y-4">

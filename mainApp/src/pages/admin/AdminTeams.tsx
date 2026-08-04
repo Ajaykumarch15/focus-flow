@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Search, Loader2, Edit2, Trash2, Plus, X, Check, ArrowLeft,
+  Users, Search, Edit2, Trash2, Plus, X, Check, ArrowLeft,
   Globe,
 } from 'lucide-react';
 import {
@@ -12,6 +12,10 @@ import { toast } from '../../store/useToastStore';
 import { runMutation } from '../../utils/mutation';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
+import { Textarea } from '../../components/ui/Textarea';
+import { Card } from '../../components/ui/Card';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
@@ -39,16 +43,16 @@ function TeamModal({ editing, users, onClose, onSave }: {
         className="w-full max-w-lg rounded-2xl border border-surface-800 bg-surface-900 p-6 shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-display font-bold text-surface-50">{editing ? 'Edit Team' : 'New Team'}</h3>
-          <button onClick={onClose} aria-label="Close team dialog" className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-400"><X size={16} /></button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close team dialog"><X size={16} /></Button>
         </div>
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
           <div><label htmlFor="admin-team-name" className="text-xs text-surface-400 font-medium mb-1 block">Team Name</label>
-            <input id="admin-team-name" className="input w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Frontend Team" /></div>
+            <Input id="admin-team-name" className="w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Frontend Team" /></div>
           <div><label htmlFor="admin-team-desc" className="text-xs text-surface-400 font-medium mb-1 block">Description</label>
-            <textarea id="admin-team-desc" className="input w-full rounded-xl text-sm resize-none" rows={2} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional..." /></div>
+            <Textarea id="admin-team-desc" className="w-full rounded-xl text-sm resize-none" rows={2} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional..." /></div>
           <div className="flex-1 overflow-hidden flex flex-col">
             <label className="text-xs text-surface-400 font-medium mb-1 block">Members ({members.length})</label>
-            <input className="input w-full rounded-xl text-sm mb-2" placeholder="Search users..." aria-label="Search users" value={search} onChange={e => setSearch(e.target.value)} />
+            <Input className="w-full rounded-xl text-sm mb-2" placeholder="Search users..." aria-label="Search users" value={search} onChange={e => setSearch(e.target.value)} />
             <div className="flex-1 overflow-y-auto space-y-1 scrollbar-thin max-h-48">
               {filtered.map(u => (
                 <button key={u._id} onClick={() => setMembers(prev => prev.includes(u._id) ? prev.filter(x => x !== u._id) : [...prev, u._id])}
@@ -62,12 +66,14 @@ function TeamModal({ editing, users, onClose, onSave }: {
           </div>
         </div>
         <div className="flex gap-3 mt-5 pt-4 border-t border-surface-800">
-          <button onClick={onClose} className="btn-secondary flex-1 py-2.5 rounded-xl text-sm">Cancel</button>
-          <button onClick={async () => { setSaving(true); try { await onSave({ name, description: desc, members }); onClose(); } catch {} finally { setSaving(false); } }}
+          <Button variant="secondary" size="lg" onClick={onClose} className="flex-1 py-2.5 text-sm">Cancel</Button>
+          <Button onClick={async () => { setSaving(true); try { await onSave({ name, description: desc, members }); onClose(); } catch {} finally { setSaving(false); } }}
             disabled={saving || !name.trim()}
-            className="btn-primary flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2">
-            {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editing ? 'Update' : 'Create'}
-          </button>
+            loading={saving}
+            leftIcon={<Check size={14} />}
+            className="flex-1 py-2.5 text-sm">
+            {editing ? 'Update' : 'Create'}
+          </Button>
         </div>
       </motion.div>
     </motion.div>
@@ -93,20 +99,20 @@ function TeamDetailPanel({ team, onBack }: { team: Team; onBack: () => void }) {
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} aria-label="Back to teams" className="p-2 rounded-xl hover:bg-surface-800 text-surface-400"><ArrowLeft size={18} /></button>
+        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to teams"><ArrowLeft size={18} /></Button>
         <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center"><Users size={20} className="text-purple-400" /></div>
         <div><h2 className="text-lg font-display font-bold text-surface-50">{team.name}</h2><p className="text-xs text-surface-400">{team.members.length} members</p></div>
       </div>
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{(s?.totalTimeMs || 0) / 3600000}h</p><p className="text-xs text-surface-400">Total Focus</p></div>
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{s?.completedTasks || 0}</p><p className="text-xs text-surface-400">Tasks Done</p></div>
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{s?.activeMembers || team.members.length}</p><p className="text-xs text-surface-400">Active Members</p></div>
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{formatMs((s?.totalTimeMs || 0) / Math.max(s?.activeMembers || 1, 1))}</p><p className="text-xs text-surface-400">Avg / User</p></div>
+        <Card className="p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{(s?.totalTimeMs || 0) / 3600000}h</p><p className="text-xs text-surface-400">Total Focus</p></Card>
+        <Card className="p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{s?.completedTasks || 0}</p><p className="text-xs text-surface-400">Tasks Done</p></Card>
+        <Card className="p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{s?.activeMembers || team.members.length}</p><p className="text-xs text-surface-400">Active Members</p></Card>
+        <Card className="p-5"><p className="text-2xl font-display font-extrabold text-surface-50">{formatMs((s?.totalTimeMs || 0) / Math.max(s?.activeMembers || 1, 1))}</p><p className="text-xs text-surface-400">Avg / User</p></Card>
       </motion.div>
 
       {chartData.length > 0 && (
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 mb-6">
+        <Card className="p-5 mb-6">
           <h3 className="text-sm font-bold text-surface-100 mb-4">Team Contributions</h3>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
@@ -119,11 +125,11 @@ function TeamDetailPanel({ team, onBack }: { team: Team; onBack: () => void }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </Card>
       )}
 
       {analytics?.memberBreakdown?.length > 0 && (
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+        <Card className="p-5">
           <h3 className="text-sm font-bold text-surface-100 mb-3">Member Activity</h3>
           <div className="space-y-2">
             {analytics.memberBreakdown.map((m: any) => (
@@ -134,7 +140,7 @@ function TeamDetailPanel({ team, onBack }: { team: Team; onBack: () => void }) {
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -200,16 +206,16 @@ export function AdminTeams() {
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
       <PageHeader title="Teams" description="Manage organization teams and groups"
         icon={<Globe size={18} className="text-purple-400" />}
-        actions={<button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm"><Plus size={14} /> New Team</button>} />
+        actions={<Button onClick={() => { setEditing(null); setShowModal(true); }} size="lg" className="px-4 py-2.5 text-sm" leftIcon={<Plus size={14} />}>New Team</Button>} />
 
       <div className="flex items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-          <input className="input h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search teams..." aria-label="Search teams" value={search} onChange={e => setSearch(e.target.value)} />
+          <Input className="h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search teams..." aria-label="Search teams" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm">
-          <Plus size={14} /> New Team
-        </button>
+        <Button onClick={() => { setEditing(null); setShowModal(true); }} size="lg" className="px-4 py-2.5 text-sm" leftIcon={<Plus size={14} />}>
+          New Team
+        </Button>
       </div>
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -233,8 +239,8 @@ export function AdminTeams() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setSelectedTeam(t)} className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-surface-800 text-surface-300 hover:text-surface-100 transition-all">Analytics</button>
-              <button onClick={() => { setEditing(t); setShowModal(true); }} aria-label={`Edit team ${t.name}`} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-surface-200 transition-all"><Edit2 size={13} /></button>
-              <button onClick={() => handleDelete(t._id)} aria-label={`Delete team ${t.name}`} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-red-400 transition-all"><Trash2 size={13} /></button>
+              <Button variant="ghost" size="icon-sm" onClick={() => { setEditing(t); setShowModal(true); }} aria-label={`Edit team ${t.name}`}><Edit2 size={13} /></Button>
+              <Button variant="danger" size="icon-sm" onClick={() => handleDelete(t._id)} aria-label={`Delete team ${t.name}`}><Trash2 size={13} /></Button>
             </div>
           </motion.div>
         ))}

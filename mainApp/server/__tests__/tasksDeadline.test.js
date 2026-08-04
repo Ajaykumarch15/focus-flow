@@ -98,6 +98,10 @@ describe('POST/PATCH /api/tasks · IES-P1-06 deadline encoding', () => {
   });
 
   it('PATCH with deadline: null clears the deadline', async () => {
+    // IES-R1: PATCH pre-loads the task to check the workspace editor gate.
+    vi.spyOn(Task, 'findOne').mockClear().mockReturnValue({
+      select: () => Promise.resolve({ _id: TASK_ID }),
+    });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate').mockClear()
       .mockResolvedValue({ _id: TASK_ID, deadline: null });
 

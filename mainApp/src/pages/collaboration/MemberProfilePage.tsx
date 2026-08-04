@@ -5,8 +5,12 @@ import {
   Activity, ArrowLeft, Edit3, Save
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { MemberRole } from '../../types/collaboration';
+import { MemberRole, MemberStatus } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { Badge, type BadgeTone } from '../../components/ui/Badge';
+import { Select } from '../../components/ui/Select';
 
 export function MemberProfilePage() {
   const { workspaceId, memberId } = useParams<{ workspaceId: string; memberId: string }>();
@@ -32,12 +36,12 @@ export function MemberProfilePage() {
     ? `${Math.floor(selectedMember.currentFocusTimeMs / 3600000)}h ${Math.floor((selectedMember.currentFocusTimeMs % 3600000) / 60000)}m`
     : '—';
 
-  const statusColorMap = {
-    in_focus: 'bg-amber-400 text-amber-950',
-    available: 'bg-emerald-400 text-emerald-950',
-    in_meeting: 'bg-purple-400 text-purple-950',
-    away: 'bg-yellow-400 text-yellow-950',
-    offline: 'bg-surface-500 text-surface-950',
+  const statusToneMap: Record<MemberStatus, BadgeTone> = {
+    in_focus: 'warning',
+    available: 'success',
+    in_meeting: 'brand',
+    away: 'warning',
+    offline: 'neutral',
   };
 
   const handleSaveRole = () => {
@@ -49,14 +53,14 @@ export function MemberProfilePage() {
   if (!selectedMember) {
     return (
       <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
-        <button onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
-          className="flex items-center gap-2 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
-          <ArrowLeft size={14} /> Back to Member Roster
-        </button>
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-12 text-center space-y-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
+          className="text-surface-400 hover:text-surface-100" leftIcon={<ArrowLeft size={14} />}>
+          Back to Member Roster
+        </Button>
+        <Card className="p-12 text-center space-y-3">
           <h1 className="font-display font-extrabold text-surface-100 text-lg">Member not found</h1>
           <p className="text-xs text-surface-400">This member does not exist in the active workspace.</p>
-        </div>
+        </Card>
       </div>
     );
   }
@@ -65,13 +69,13 @@ export function MemberProfilePage() {
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
       
       {/* Back link */}
-      <button onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
-        className="flex items-center gap-2 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
-        <ArrowLeft size={14} /> Back to Member Roster
-      </button>
+      <Button variant="ghost" size="sm" onClick={() => navigate(`/w/${workspaceId || activeWorkspaceId}/members`)}
+        className="text-surface-400 hover:text-surface-100" leftIcon={<ArrowLeft size={14} />}>
+        Back to Member Roster
+      </Button>
 
       {/* Header Profile Card */}
-      <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 lg:p-8 space-y-6">
+      <Card className="p-6 lg:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
             <div className="relative">
@@ -86,18 +90,18 @@ export function MemberProfilePage() {
             <div>
               <div className="flex items-center gap-3">
                 <h1 className="text-2xl font-display font-extrabold text-surface-50">{selectedMember.name}</h1>
-                <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-md ${statusColorMap[selectedMember.status]}`}>
+                <Badge tone={statusToneMap[selectedMember.status]} className="text-[10px] font-extrabold uppercase tracking-wider">
                   {selectedMember.status.replace('_', ' ')}
-                </span>
+                </Badge>
               </div>
               <p className="text-xs text-surface-400 mt-1">{selectedMember.email} · Joined {selectedMember.joinedAt}</p>
               
               {/* Teams Pills */}
               <div className="flex items-center gap-1.5 mt-2">
                 {selectedMember.teams.map((t) => (
-                  <span key={t} className="text-[10px] font-bold bg-brand-500/10 text-brand-400 px-2 py-0.5 rounded-md border border-brand-500/20">
+                  <Badge key={t} tone="brand" className="text-[10px] font-bold">
                     Team: {t}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             </div>
@@ -107,26 +111,27 @@ export function MemberProfilePage() {
           <div className="flex items-center gap-3">
             {isEditing ? (
               <div className="flex items-center gap-2">
-                <select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as MemberRole)}
-                  className="bg-surface-850 border border-surface-700 text-xs text-surface-50 rounded-xl px-3 py-2 outline-none">
-                  <option value="Owner">Owner</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Developer">Developer</option>
-                  <option value="Viewer">Viewer</option>
-                </select>
-                <button onClick={handleSaveRole} className="btn-primary px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1">
-                  <Save size={13} /> Save
-                </button>
+                <div className="w-44">
+                  <Select aria-label="Role" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as MemberRole)}
+                    className="bg-surface-850 border-surface-700 text-xs text-surface-50 rounded-xl px-3 py-2">
+                    <option value="Owner">Owner</option>
+                    <option value="Admin">Admin</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Developer">Developer</option>
+                    <option value="Viewer">Viewer</option>
+                  </Select>
+                </div>
+                <Button onClick={handleSaveRole} size="sm" leftIcon={<Save size={13} />}>Save</Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
                 <div className="px-4 py-2 rounded-xl bg-surface-850 border border-surface-750 text-xs font-bold text-surface-200 flex items-center gap-1.5">
                   <Shield size={14} className="text-brand-400" /> Role: {selectedMember.role}
                 </div>
-                <button onClick={() => setIsEditing(true)} aria-label="Edit role" className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-400 hover:text-white transition-colors">
+                <Button variant="ghost" size="icon-sm" onClick={() => setIsEditing(true)} aria-label="Edit role"
+                  className="bg-surface-800 hover:bg-surface-700 text-surface-400 hover:text-white">
                   <Edit3 size={14} />
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -156,13 +161,13 @@ export function MemberProfilePage() {
             <p className="text-xl font-display font-extrabold text-purple-400 mt-1">{activeSprint?.name || '—'}</p>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Grid Details: Assigned Features vs Activity Timeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
         {/* Assigned Features */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
             <CheckCircle2 size={18} className="text-brand-400" /> Assigned Features & Tasks
           </h3>
@@ -171,9 +176,9 @@ export function MemberProfilePage() {
               <div key={t.id} className="p-4 rounded-2xl bg-surface-850 border border-surface-800 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-bold text-surface-100">{t.title}</span>
-                  <span className="text-[10px] uppercase font-bold text-brand-400 bg-brand-500/10 px-2 py-0.5 rounded border border-brand-500/20">
+                  <Badge tone="brand" className="text-[10px] uppercase font-bold">
                     {t.sprintStatus.replace('_', ' ')}
-                  </span>
+                  </Badge>
                 </div>
                 <p className="text-xs text-surface-400">{t.description}</p>
                 {t.gitContext?.branch && (
@@ -189,10 +194,10 @@ export function MemberProfilePage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Member Activity Timeline */}
-        <div className="rounded-3xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+        <Card className="p-6 space-y-4">
           <h3 className="font-display font-extrabold text-surface-50 text-base flex items-center gap-2">
             <Activity size={18} className="text-pink-400" /> Activity Timeline
           </h3>
@@ -211,7 +216,7 @@ export function MemberProfilePage() {
               </div>
             )}
           </div>
-        </div>
+        </Card>
 
       </div>
 

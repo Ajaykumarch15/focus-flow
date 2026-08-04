@@ -1,4 +1,6 @@
 import { Component, type ReactNode } from 'react';
+import { Button } from './Button';
+import { Card } from './Card';
 
 // IES-P0-24: top-level error boundary so an uncaught render error (or a failed
 // lazy chunk load) shows a recovery UI instead of a blank page.
@@ -20,14 +22,14 @@ type ErrorBoundaryState = { error: Error | null };
 function DefaultFallback({ error, reset, reload }: FallbackProps) {
   return (
     <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center p-6">
-      <div className="card max-w-md w-full p-8 text-center">
+      <Card className="max-w-md w-full p-8 text-center">
         <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
         <p className="text-sm text-surface-400 mb-6 break-words">{error.message}</p>
         <div className="flex gap-3 justify-center">
-          <button className="btn-primary" onClick={reset} type="button">Try again</button>
-          <button className="btn-secondary" onClick={reload} type="button">Reload app</button>
+          <Button onClick={reset} type="button">Try again</Button>
+          <Button variant="secondary" onClick={reload} type="button">Reload app</Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

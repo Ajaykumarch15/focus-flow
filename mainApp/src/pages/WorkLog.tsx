@@ -4,7 +4,7 @@ import {
   GitBranch, AlertCircle, CheckCircle2, Plus, Trash2,
   ExternalLink, Link2, Lightbulb, Pencil, BookMarked,
   Zap, Loader2, ChevronDown, ChevronRight, Save,
-  CheckCheck, RotateCcw, X, Sparkles, Clock,
+  CheckCheck, RotateCcw, X, Clock,
   Calendar, TrendingUp, Play, Pause, Square, Timer, FolderOpen,
   Search, BarChart3, Flame, ArrowUpRight, AlertOctagon, Layers, Eye,
   Download,
@@ -21,6 +21,13 @@ import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format, subDays, isToday as dfIsToday } from 'date-fns';
 import { Skeleton } from '../components/ui/Skeleton';
 import { isToday as isTodayCentral } from '../utils/time';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Input } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Field } from '../components/ui/Field';
+import { Dialog } from '../components/ui/Dialog';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS: {
@@ -93,7 +100,7 @@ function AutoInput({ logId, field, placeholder, value: initial, mono = false, ar
   }, [debounced]);
   return (
     <div className="relative group">
-      <input className={`input text-sm w-full pr-8 rounded-xl ${mono ? 'font-mono' : ''}`}
+      <Input className={`text-sm w-full pr-8 rounded-xl ${mono ? 'font-mono' : ''}`}
         placeholder={placeholder} value={val} aria-label={ariaLabel}
         onChange={e => { setVal(e.target.value); setSaved(false); }} />
       <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
@@ -107,12 +114,11 @@ function AutoInput({ logId, field, placeholder, value: initial, mono = false, ar
 function TimerPanel({ log }: { log: WorkLog }) {
   const { startTimer, pauseTimer, resumeTimer, stopTimer, tasks } = useStore();
   const { syncTime } = useWorkLogStore();
-  const { activeTaskId, activeTimerState, elapsedMs } = useActiveTimer();
+  const { activeTaskId, activeTimerState, display } = useActiveTimer();
   const linkedTaskId = log.taskRef?._id;
   const isThisActive = activeTaskId === linkedTaskId;
   const isRunning    = isThisActive && activeTimerState === 'running';
   const isPaused     = isThisActive && activeTimerState === 'paused';
-  const elapsed      = isThisActive ? elapsedMs : 0;
   const liveTask = tasks.find(t => t.id === linkedTaskId);
   const liveSession = liveTask?.sessions[liveTask.sessions.length - 1];
 
@@ -183,7 +189,7 @@ function TimerPanel({ log }: { log: WorkLog }) {
             <div className={`font-mono text-3xl lg:text-4xl font-extrabold tracking-wider ${
               isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/80' : 'text-surface-300'
             }`}>
-              {isThisActive ? formatClock(elapsed) : formatClock(log.totalActiveMs)}
+              {isThisActive ? display : formatClock(log.totalActiveMs)}
             </div>
             <p className="text-xs mt-1.5">
               {isRunning ? (
@@ -211,32 +217,34 @@ function TimerPanel({ log }: { log: WorkLog }) {
           )}
 
           {!isThisActive && (!activeTaskId || activeTaskId === linkedTaskId) && (
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+            <Button
               onClick={() => startTimer(linkedTaskId)}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
-              <Play size={15} fill="white" /> Start
-            </motion.button>
+              className="bg-none shadow-lg shadow-blue-500/25"
+              style={{ backgroundColor: '#2563eb' }}
+              leftIcon={<Play size={15} fill="currentColor" />}
+            >
+              {(liveTask?.totalTime ?? 0) > 0 ? 'Resume' : 'Start'}
+            </Button>
           )}
           {isRunning && (
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => pauseTimer(linkedTaskId)}
-              className="btn-secondary rounded-xl">
-              <Pause size={15} /> Pause
-            </motion.button>
+            <Button variant="secondary" leftIcon={<Pause size={15} />} onClick={() => pauseTimer(linkedTaskId)}>
+              Pause
+            </Button>
           )}
           {isPaused && (
-            <motion.button whileTap={{ scale: 0.97 }}
+            <Button
               onClick={() => resumeTimer(linkedTaskId)}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
-              <Play size={15} fill="white" /> Resume
-            </motion.button>
+              className="bg-none shadow-lg shadow-blue-500/25"
+              style={{ backgroundColor: '#2563eb' }}
+              leftIcon={<Play size={15} fill="currentColor" />}
+            >
+              Resume
+            </Button>
           )}
           {isThisActive && (
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={handleStop}
-              className="btn-danger rounded-xl">
-              <Square size={14} fill="currentColor" /> Stop
-            </motion.button>
+            <Button variant="danger" leftIcon={<Square size={14} fill="currentColor" />} onClick={handleStop}>
+              Stop
+            </Button>
           )}
         </div>
       </div>
@@ -321,7 +329,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
   const activeEntries = entries.filter(e => e.activeMs > 0);
 
   return (
-    <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 mb-5">
+    <Card className="p-5 mb-5">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
           <BarChart3 size={14} className="text-brand-400" />
@@ -368,7 +376,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -376,7 +384,7 @@ function TimeSummaryPanel({ log }: { log: WorkLog }) {
 function WorkHistorySection({ log }: { log: WorkLog }) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden mb-5">
+    <Card className="overflow-hidden mb-5">
       <button onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2.5 p-4 hover:bg-surface-850/50 transition-colors">
         <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
@@ -414,7 +422,7 @@ function WorkHistorySection({ log }: { log: WorkLog }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </Card>
   );
 }
 
@@ -444,19 +452,23 @@ function TaskLinkControl({ log }: { log: WorkLog }) {
           <label htmlFor="worklog-linked-task" className="flex items-center gap-1.5 text-xs text-surface-300 font-semibold mb-1.5">
             <Timer size={12} className="text-brand-400" /> Linked Task
           </label>
-          <select id="worklog-linked-task" className="input text-sm rounded-xl" value={selected} onChange={e => setSelected(e.target.value)}>
+          <Select id="worklog-linked-task" className="text-sm rounded-xl" value={selected} onChange={e => setSelected(e.target.value)}>
             <option value="">No task link</option>
             {activeTasks.map(task => (
               <option key={task.id} value={task.id}>{task.title}</option>
             ))}
-          </select>
+          </Select>
         </div>
-        <button type="button" onClick={save}
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={save}
           disabled={saving || selected === (log.taskRef?._id || '')}
-          role="status"
-          className="btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl">
-          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Link
-        </button>
+          loading={saving}
+          leftIcon={saving ? undefined : <Save size={14} />}
+        >
+          Save Link
+        </Button>
       </div>
       <p className="text-xs text-surface-500 mt-2">Changing the linked task refreshes this log's daily time history.</p>
     </div>
@@ -701,41 +713,56 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
         {/* Right actions */}
         <div className="flex items-center gap-1.5 flex-wrap ml-2" onClick={e => e.stopPropagation()}>
           {log.googleDocUrl && (
-            <button onClick={() => window.open(log.googleDocUrl, '_blank', 'noopener,noreferrer')}
-              title="Open Google Doc" aria-label="Open Google Doc"
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-xs font-medium transition-all border border-blue-500/20">
-              <ExternalLink size={11} />
-            </button>
+            <Button
+              size="sm"
+              className="px-2.5 text-blue-400 border-blue-500/20 bg-blue-500/10 hover:bg-blue-500/20 hover:text-blue-400"
+              variant="outline"
+              onClick={() => window.open(log.googleDocUrl, '_blank', 'noopener,noreferrer')}
+              title="Open Google Doc"
+              aria-label="Open Google Doc"
+              leftIcon={<ExternalLink size={11} />}
+            />
           )}
-          <button onClick={() => navigate(`/worklog/${log._id}`)}
+          <Button
+            size="sm"
+            className="text-brand-400 border-brand-500/20 bg-brand-500/10 hover:bg-brand-500/20 hover:text-brand-400"
+            variant="outline"
+            onClick={() => navigate(`/worklog/${log._id}`)}
             title="View full details"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
-            <Eye size={12} /> Details
-          </button>
-          <button onClick={() => setShowExport(true)}
-            title="Export" aria-label="Export work log"
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-surface-800 hover:bg-surface-700 text-surface-400 rounded-lg text-xs transition-all border border-surface-700">
-            <Download size={12} />
-          </button>
+            leftIcon={<Eye size={12} />}
+          >
+            Details
+          </Button>
+          <Button variant="ghost" size="sm" className="px-2.5 text-surface-400 hover:text-surface-200"
+            onClick={() => setShowExport(true)} title="Export" aria-label="Export work log"
+            leftIcon={<Download size={12} />} />
           {log.isActive ? (
-            <button onClick={async () => { setClosing(true); try { await closeLog(log._id); } finally { setClosing(false); } }}
+            <Button
+              variant="success"
+              size="sm"
+              onClick={async () => { setClosing(true); try { await closeLog(log._id); } finally { setClosing(false); } }}
               disabled={closing}
-              role="status"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg text-xs font-semibold transition-all border border-emerald-500/20">
-              {closing ? <Loader2 size={11} className="animate-spin" /> : <CheckCheck size={11} />} Done
-            </button>
+              loading={closing}
+              leftIcon={closing ? undefined : <CheckCheck size={11} />}
+            >
+              Done
+            </Button>
           ) : (
-            <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
               disabled={continuing}
-              role="status"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
-              {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
-            </button>
+              loading={continuing}
+              leftIcon={continuing ? undefined : <RotateCcw size={11} />}
+            >
+              Continue
+            </Button>
           )}
           {confirmDelete ? (
             <div className="flex items-center gap-1">
-              <button onClick={() => deleteLog(log._id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold">Yes</button>
-              <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
+              <Button size="xs" variant="danger" className="text-white bg-danger-500 hover:bg-danger-400" onClick={() => deleteLog(log._id)}>Yes</Button>
+              <Button size="xs" variant="secondary" className="text-surface-50 bg-surface-700 hover:bg-surface-600" onClick={() => setConfirmDelete(false)}>No</Button>
             </div>
           ) : (
             <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors" aria-label="Delete work log">
@@ -914,12 +941,10 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                             </AnimatePresence>
                           </div>
                           <form onSubmit={handleAddCompleted} className="flex gap-2">
-                            <input className="input flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..." aria-label="New completed item"
+                            <Input className="flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..." aria-label="New completed item"
                               value={newItem} onChange={e => setNewItem(e.target.value)} />
-                            <button type="submit" disabled={!newItem.trim()}
-                              className="btn-primary px-3 py-2 rounded-xl" aria-label="Add completed item">
-                              <Plus size={13} />
-                            </button>
+                            <Button type="submit" disabled={!newItem.trim()}
+                              size="sm" className="rounded-xl px-3" aria-label="Add completed item" leftIcon={<Plus size={13} />} />
                           </form>
                         </div>
 
@@ -945,13 +970,13 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
                             {showLinkForm ? (
                               <motion.form initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                                 onSubmit={handleAddLink} className="space-y-1.5">
-                                <input className="input text-xs py-2 rounded-xl" placeholder="Label (PR #42...)" aria-label="Link label"
+                                <Input className="text-xs py-2 rounded-xl" placeholder="Label (PR #42...)" aria-label="Link label"
                                   value={newLink.label} onChange={e => setNewLink(p => ({ ...p, label: e.target.value }))} />
-                                <input className="input text-xs py-2 rounded-xl" type="url" placeholder="https://..." aria-label="Link URL"
+                                <Input className="text-xs py-2 rounded-xl" type="url" placeholder="https://..." aria-label="Link URL"
                                   value={newLink.url} onChange={e => setNewLink(p => ({ ...p, url: e.target.value }))} />
                                 <div className="flex gap-2">
-                                  <button type="button" onClick={() => setShowLinkForm(false)} className="btn-secondary flex-1 text-xs py-2 rounded-xl">Cancel</button>
-                                  <button type="submit" className="btn-primary flex-1 text-xs py-2 rounded-xl">Add</button>
+                                  <Button type="button" variant="secondary" size="sm" className="flex-1 rounded-xl" onClick={() => setShowLinkForm(false)}>Cancel</Button>
+                                  <Button type="submit" size="sm" className="flex-1 rounded-xl">Add</Button>
                                 </div>
                               </motion.form>
                             ) : (
@@ -1019,16 +1044,21 @@ function ClosedLogCard({ log }: { log: WorkLog }) {
           className="p-1.5 text-surface-500 hover:text-brand-400 rounded-lg transition-colors" title="View details" aria-label="View details">
           <Eye size={13} />
         </button>
-        <button onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-brand-400 border-brand-500/20 bg-brand-500/10 hover:bg-brand-500/20 hover:text-brand-400"
+          onClick={async () => { setContinuing(true); try { await continueLog(log._id); } finally { setContinuing(false); } }}
           disabled={continuing}
-          role="status"
-          className="flex items-center gap-1 px-2.5 py-1.5 bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 rounded-lg text-xs font-semibold transition-all border border-brand-500/20">
-          {continuing ? <Loader2 size={11} className="animate-spin" /> : <RotateCcw size={11} />} Continue
-        </button>
+          loading={continuing}
+          leftIcon={continuing ? undefined : <RotateCcw size={11} />}
+        >
+          Continue
+        </Button>
         {confirmDelete ? (
           <div className="flex items-center gap-1">
-            <button onClick={() => deleteLog(log._id)} className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold">Yes</button>
-            <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 bg-surface-700 text-surface-50 rounded-lg text-xs">No</button>
+            <Button size="xs" variant="danger" className="text-white bg-danger-500 hover:bg-danger-400" onClick={() => deleteLog(log._id)}>Yes</Button>
+            <Button size="xs" variant="secondary" className="text-surface-50 bg-surface-700 hover:bg-surface-600" onClick={() => setConfirmDelete(false)}>No</Button>
           </div>
         ) : (
           <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-surface-600 hover:text-red-400 rounded-lg transition-colors" aria-label="Delete closed log">
@@ -1067,60 +1097,56 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-      onClick={onClose}>
-      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-surface-900 border border-surface-700 rounded-2xl p-6 w-full max-w-md shadow-2xl"
-        onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-brand-500/15 flex items-center justify-center">
-            <Sparkles size={18} className="text-brand-400" />
-          </div>
-          <div>
-            <h2 className="text-base font-display font-bold text-surface-50">New Work Log</h2>
-            <p className="text-xs text-surface-400">Link a task for Start/Pause/Stop controls</p>
-          </div>
+    <Dialog
+      open
+      onClose={onClose}
+      title="New Work Log"
+      description="Link a task to enable Start/Pause/Stop timer controls."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            form="create-worklog-form"
+            type="submit"
+            disabled={creating || !title.trim()}
+            loading={creating}
+            leftIcon={creating ? undefined : <Plus size={15} />}
+          >
+            Create
+          </Button>
+        </>
+      }
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-danger-500/10 border border-danger-500/20 rounded-xl text-sm text-danger-500">
+          {error}
         </div>
-        {error && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm text-red-400">{error}</div>}
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label htmlFor="create-log-title" className="block text-sm text-surface-300 font-medium mb-1.5">Work Item Title *</label>
-            <input id="create-log-title" className="input rounded-xl" placeholder="e.g. Fix login bug, Build profile page…"
-              value={title} onChange={e => setTitle(e.target.value)} autoFocus />
-          </div>
-          <div>
-            <label htmlFor="create-log-project" className="block text-sm text-surface-300 font-medium mb-1.5">Link to Project</label>
-            <select id="create-log-project" className="input rounded-xl" value={projectId} onChange={e => setProjectId(e.target.value)}>
-              <option value="">— Standalone (No project) —</option>
-              {projects.map(p => (<option key={p._id} value={p._id}>{p.name}</option>))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="create-log-task" className="block text-sm text-surface-300 font-medium mb-1.5">
-              Link to Task <span className="text-surface-500 text-xs">(enables timer controls)</span>
-            </label>
-            <select id="create-log-task" className="input rounded-xl" value={taskRefId} onChange={e => handleTaskChange(e.target.value)}>
-              <option value="">— No task link —</option>
-              {activeTasks.map(t => (<option key={t.id} value={t.id}>{t.title}</option>))}
-            </select>
-            {taskRefId && (
-              <p className="text-xs text-brand-400 mt-1.5 flex items-center gap-1">
-                <Play size={11} /> Timer controls will appear in the work log
-              </p>
-            )}
-          </div>
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="btn-secondary flex-1 rounded-xl">Cancel</button>
-            <button type="submit" disabled={creating || !title.trim()}
-              className="btn-primary flex-1 flex items-center justify-center gap-2 rounded-xl">
-              {creating ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Create
-            </button>
-          </div>
-        </form>
-      </motion.div>
-    </motion.div>
+      )}
+      <form id="create-worklog-form" onSubmit={handleCreate} className="space-y-4">
+        <Field label="Work Item Title" htmlFor="create-log-title" required>
+          <Input id="create-log-title" placeholder="e.g. Fix login bug, Build profile page…"
+            value={title} onChange={e => setTitle(e.target.value)} autoFocus />
+        </Field>
+        <Field label="Link to Project" htmlFor="create-log-project">
+          <Select id="create-log-project" value={projectId} onChange={e => setProjectId(e.target.value)}>
+            <option value="">— Standalone (No project) —</option>
+            {projects.map(p => (<option key={p._id} value={p._id}>{p.name}</option>))}
+          </Select>
+        </Field>
+        <Field label="Link to Task" htmlFor="create-log-task"
+          hint="Selecting a task enables timer controls in the work log.">
+          <Select id="create-log-task" value={taskRefId} onChange={e => handleTaskChange(e.target.value)}>
+            <option value="">— No task link —</option>
+            {activeTasks.map(t => (<option key={t.id} value={t.id}>{t.title}</option>))}
+          </Select>
+          {taskRefId && (
+            <p className="text-xs text-brand-400 mt-1.5 flex items-center gap-1">
+              <Play size={11} /> Timer controls will appear in the work log
+            </p>
+          )}
+        </Field>
+      </form>
+    </Dialog>
   );
 }
 
@@ -1155,7 +1181,7 @@ function ActivityHeatmap({ allLogs }: { allLogs: WorkLog[] }) {
   };
 
   return (
-    <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+    <Card className="p-5">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-8 h-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
           <Flame size={14} className="text-brand-400" />
@@ -1186,7 +1212,7 @@ function ActivityHeatmap({ allLogs }: { allLogs: WorkLog[] }) {
         ))}
         <span className="text-[10px] text-surface-600">More</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -1360,17 +1386,16 @@ export function WorkLogPage() {
               {activeLogs.length} active · {formatMs(totalActiveMs)} tracked · {closedLogs.length} completed
             </p>
           </div>
-          <button onClick={() => setShowCreate(true)}
-            className="btn-primary flex items-center gap-2 px-5 py-2.5 rounded-xl shadow-lg shadow-brand-500/20 self-start sm:self-auto">
-            <Plus size={16} /> New Work Log
-          </button>
+          <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreate(true)} className="self-start sm:self-auto">
+            New Work Log
+          </Button>
         </div>
 
         {/* Search + Filter */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-sm">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-            <input className="input h-10 pl-9 pr-9 rounded-xl text-sm"
+            <Input className="h-10 pl-9 pr-9 rounded-xl text-sm"
               placeholder="Search logs, tasks, branches…" value={search} onChange={e => setSearch(e.target.value)} aria-label="Search work logs" />
             {search && (
               <button onClick={() => setSearch('')}
@@ -1451,25 +1476,29 @@ export function WorkLogPage() {
             </div>
           ) : filteredActive.length === 0 && !search ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 p-14 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/10 flex items-center justify-center mx-auto mb-4 border border-brand-500/20">
-                <BookMarked size={28} className="text-brand-400" />
-              </div>
-              <h3 className="font-display font-bold text-surface-100 text-lg mb-2">No work logs yet</h3>
-              <p className="text-sm text-surface-400 max-w-sm mx-auto mb-6">
-                Create a work log for any feature, bug, or task. Link it to a task to unlock timer controls and automatic time tracking.
-              </p>
-              <button onClick={() => setShowCreate(true)}
-                className="btn-primary mx-auto flex items-center gap-2 px-6 py-3 rounded-xl shadow-lg shadow-brand-500/20">
-                <Plus size={15} /> Create First Work Log
-              </button>
+              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
+              <EmptyState
+                icon={<BookMarked size={28} className="text-brand-400" />}
+                title="No work logs yet"
+                description="Create a work log for any feature, bug, or task. Link it to a task to unlock timer controls and automatic time tracking."
+                action={
+                  <Button leftIcon={<Plus size={15} />} onClick={() => setShowCreate(true)}>
+                    Create First Work Log
+                  </Button>
+                }
+              />
             </motion.div>
           ) : filteredActive.length === 0 && search ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 p-10 text-center">
-              <Search size={24} className="text-surface-600 mx-auto mb-3" />
-              <p className="text-sm text-surface-400">No logs matching <span className="text-surface-200 font-medium">"{search}"</span></p>
-              <button onClick={() => setSearch('')} className="text-xs text-brand-400 hover:text-brand-300 mt-2 transition-colors">Clear search</button>
+              className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
+              <EmptyState
+                icon={<Search size={24} className="text-surface-500" />}
+                title="No matching logs"
+                description={`No logs match "${search}".`}
+                action={
+                  <Button variant="secondary" onClick={() => setSearch('')}>Clear search</Button>
+                }
+              />
             </motion.div>
           ) : (
             <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
@@ -1482,17 +1511,17 @@ export function WorkLogPage() {
           {/* Closed logs section */}
           {filteredClosed.length > 0 && (
             <div className="mt-6">
-              <button onClick={() => setShowClosed(!showClosed)}
-                className="flex items-center gap-2 text-surface-400 hover:text-surface-50 text-sm font-semibold transition-colors mb-3 group">
-                <CheckCheck size={15} className="text-emerald-400" />
+              <Button variant="ghost" size="sm"
+                leftIcon={<CheckCheck size={15} className="text-emerald-400" />}
+                onClick={() => setShowClosed(!showClosed)}>
                 Completed
-                <span className="text-xs text-surface-500 bg-surface-800 px-2 py-0.5 rounded-full font-normal group-hover:bg-surface-700 transition-colors">
+                <span className="text-xs text-surface-500 bg-surface-800 px-2 py-0.5 rounded-full font-normal">
                   {filteredClosed.length}
                 </span>
                 <motion.div animate={{ rotate: showClosed ? 180 : 0 }} transition={{ duration: 0.2 }}>
                   <ChevronDown size={14} />
                 </motion.div>
-              </button>
+              </Button>
               <AnimatePresence>
                 {showClosed && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}

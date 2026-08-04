@@ -8,6 +8,9 @@ import {
 import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
 import { useStore } from '../store/useStore';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -60,7 +63,7 @@ export function TeamProjects() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-950 text-surface-50 relative overflow-y-auto">
+    <div className="min-h-screen bg-surface-950 text-surface-50 relative overflow-x-hidden overflow-y-auto">
 
       {/* Background Gradients */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-cyan-500/8 rounded-full blur-3xl pointer-events-none" />
@@ -136,40 +139,35 @@ export function TeamProjects() {
               </button>
             </div>
 
-            <button onClick={() => setShowCreateModal(true)}
-              className="btn-primary flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold">
-              <Plus size={14} /> New Workspace
-            </button>
+            <Button onClick={() => setShowCreateModal(true)}
+              className="text-xs font-bold" leftIcon={<Plus size={14} />}>
+              New Workspace
+            </Button>
           </div>
         </div>
 
         {/* Workspaces */}
         {filteredWorkspaces.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center space-y-4">
-            <Building2 size={40} className="mx-auto text-surface-500" />
-            <div>
-              <h3 className="font-display font-bold text-surface-200 text-lg">
-                {workspacesLoading
-                  ? 'Loading workspaces…'
-                  : search
-                    ? 'No matching workspaces'
-                    : 'No workspaces yet'}
-              </h3>
-              <p className="text-xs text-surface-400 mt-1 max-w-sm mx-auto">
-                {workspacesLoading
-                  ? 'Fetching your engineering workspaces.'
-                  : search
-                    ? 'Try a different search term or create a new workspace.'
-                    : 'Create your first engineering workspace to start collaborating with your team.'}
-              </p>
-            </div>
-            {!search && !workspacesLoading && (
-              <button onClick={() => setShowCreateModal(true)}
-                className="btn-primary px-5 py-2.5 rounded-xl text-xs font-bold mt-2 inline-flex items-center gap-1.5">
-                <Plus size={14} /> Create Workspace
-              </button>
-            )}
+            className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60">
+            <EmptyState
+              icon={<Building2 size={40} className="text-surface-500" />}
+              title={workspacesLoading
+                ? 'Loading workspaces…'
+                : search
+                  ? 'No matching workspaces'
+                  : 'No workspaces yet'}
+              description={workspacesLoading
+                ? 'Fetching your engineering workspaces.'
+                : search
+                  ? 'Try a different search term or create a new workspace.'
+                  : 'Create your first engineering workspace to start collaborating with your team.'}
+              action={!search && !workspacesLoading ? (
+                <Button size="lg" className="text-xs font-bold" onClick={() => setShowCreateModal(true)} leftIcon={<Plus size={14} />}>
+                  Create Workspace
+                </Button>
+              ) : undefined}
+            />
           </motion.div>
         ) : (
           <motion.div variants={containerVariants} initial="hidden" animate="show"
@@ -194,9 +192,9 @@ export function TeamProjects() {
                           <h4 className="font-display font-bold text-surface-50 text-sm group-hover:text-cyan-300 transition-colors truncate">
                             {ws.name}
                           </h4>
-                          <span className="text-[9px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-400 px-1.5 py-0.5 rounded border border-cyan-500/20 flex-shrink-0">
+                          <Badge tone="info" className="text-[9px] uppercase tracking-wider border border-cyan-500/20 flex-shrink-0">
                             {ws.type}
-                          </span>
+                          </Badge>
                         </div>
                         <p className="text-[11px] text-surface-400 mt-0.5 truncate">{ws.description}</p>
                       </div>
@@ -240,9 +238,9 @@ export function TeamProjects() {
                   <div className="space-y-3 relative z-10">
                     <div className="flex items-start justify-between">
                       <span className="text-3xl">{ws.icon}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-400 px-2 py-0.5 rounded border border-cyan-500/20">
+                      <Badge tone="info" className="text-[9px] uppercase tracking-wider border border-cyan-500/20">
                         {ws.type}
-                      </span>
+                      </Badge>
                     </div>
                     <div>
                       <h4 className="font-display font-bold text-surface-50 text-base group-hover:text-cyan-300 transition-colors">
@@ -344,9 +342,9 @@ export function TeamProjects() {
                     className="px-4 py-2.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
                     Cancel
                   </button>
-                  <button type="submit" className="btn-primary px-5 py-2.5 rounded-xl text-xs font-bold">
+                  <Button type="submit" size="lg" className="text-xs font-bold">
                     Create & Enter →
-                  </button>
+                  </Button>
                 </div>
               </form>
             </motion.div>

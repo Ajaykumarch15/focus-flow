@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  Workspace, WorkspaceTeam, WorkspaceMember, Project,
+  Workspace, WorkspaceTeam, WorkspaceMember, Project, Feature,
   Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
   SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole
@@ -8,6 +8,17 @@ import {
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
 import { runMutation } from '../utils/mutation';
+import { useAuthStore } from './useAuthStore';
+
+// IES-R1 (P5-T4): real authenticated user identity — replaces the hardcoded
+// `'m1'` mock owner/author ids. Empty string when offline / not signed in.
+function currentUserId(): string {
+  return useAuthStore.getState().user?._id ?? '';
+}
+
+function currentUserName(): string {
+  return useAuthStore.getState().user?.name ?? 'Unknown';
+}
 
 // ── API → frontend shape mappers (IES-P2-07: server docs → client models) ─────
 const DEFAULT_WORKSPACE_SETTINGS: Workspace['settings'] = {
@@ -90,6 +101,73 @@ function toProject(raw: any): Project {
   };
 }
 
+// ── IES-R1 (P5-T1): sprint/feature/collab-task mappers (mirror toProject) ──────
+function toSprint(raw: any): Sprint {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    name: raw.name ?? 'Untitled Sprint',
+    startDate: raw.startDate ? new Date(raw.startDate).toISOString().slice(0, 10) : '',
+    endDate: raw.endDate ? new Date(raw.endDate).toISOString().slice(0, 10) : '',
+    goal: raw.goal ?? '',
+    status: raw.status ?? 'future',
+    capacityHours: Number(raw.capacityHours ?? 0),
+    targetVelocity: Number(raw.targetVelocity ?? 0),
+    actualVelocity: raw.actualVelocity != null ? Number(raw.actualVelocity) : undefined,
+  };
+}
+
+function toFeature(raw: any): Feature {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    sprintId: raw.sprintRef ? String(raw.sprintRef) : undefined,
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Feature',
+    description: raw.description ?? '',
+    type: raw.type ?? 'feature',
+    labels: (raw.labels ?? []).map(String),
+    ownerId: raw.ownerId ? String(raw.ownerId) : undefined,
+    estimatedHours: Number(raw.estimatedHours ?? 0),
+    status: raw.status ?? 'backlog',
+    order: Number(raw.order ?? 0),
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toCollabTask(raw: any): CollaborativeTask {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    sprintId: raw.sprintRef ? String(raw.sprintRef) : undefined,
+    featureId: raw.featureRef ? String(raw.featureRef) : undefined,
+    title: raw.title ?? 'Untitled Task',
+    description: raw.description ?? '',
+    sprintStatus: raw.sprintStatus ?? 'backlog',
+    priority: raw.priority ?? 'medium',
+    ownerId: String(raw.ownerId ?? raw.userId ?? ''),
+    assigneeId: raw.assigneeId ? String(raw.assigneeId) : undefined,
+    reviewerId: raw.reviewerId ? String(raw.reviewerId) : undefined,
+    followerIds: (raw.followerIds ?? []).map(String),
+    labels: (raw.labels ?? []).map(String),
+    dependencies: (raw.dependencies ?? []).map(String),
+    estimatedHours: Number(raw.estimatedHours ?? 0),
+    actualHours: Number(raw.actualHours ?? 0),
+    gitContext: raw.gitContext ?? undefined,
+    subtasks: Array.isArray(raw.subtasks)
+      ? raw.subtasks.map((s: any) => ({
+          id: String(s._id ?? s.id ?? ''),
+          title: s.title ?? '',
+          completed: Boolean(s.completed),
+        }))
+      : [],
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    updatedAt: raw.updatedAt ? new Date(raw.updatedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
 // ── Interface & State ──────────────────────────────────────────────────────────
 interface CollaborationStore {
   workspaces: Workspace[];
@@ -99,6 +177,7 @@ interface CollaborationStore {
   teams: WorkspaceTeam[];
   projects: Project[];
   sprints: Sprint[];
+  features: Feature[];
   tasks: CollaborativeTask[];
   activities: WorkspaceActivity[];
   activityLoading: boolean;
@@ -118,6 +197,9 @@ interface CollaborationStore {
   loadMembers: (workspaceId: string) => Promise<void>;
   loadTeams: () => Promise<void>;
   loadProjects: () => Promise<void>;
+  loadSprints: () => Promise<void>;
+  loadFeatures: () => Promise<void>;
+  loadTasks: () => Promise<void>;
   loadCollabData: () => Promise<void>;
 
   // Actions
@@ -130,10 +212,14 @@ interface CollaborationStore {
 
   // Project & Sprint Actions
   createProject: (data: Partial<Project>) => Promise<Project | undefined>;
-  createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string) => void;
-  createTask: (data: Partial<CollaborativeTask>) => CollaborativeTask;
-  updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => void;
-  updateGitContext: (taskId: string, gitData: Partial<CollaborativeTask['gitContext']>) => void;
+  createFeature: (data: Partial<Feature>) => Promise<Feature | undefined>;
+  createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string, opts?: { capacityHours?: number; targetVelocity?: number }) => Promise<Sprint | undefined>;
+  createTask: (data: Partial<CollaborativeTask>) => Promise<CollaborativeTask | undefined>;
+  updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => Promise<void>;
+  // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
+  // `null` un-tethers the feature (back to the Project Backlog).
+  moveFeature: (featureId: string, sprintId: string | null) => Promise<void>;
+  updateGitContext: (taskId: string, gitData: Partial<CollaborativeTask['gitContext']>) => Promise<void>;
 
   // Discussions & Comments
   addComment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, content: string, parentCommentId?: string) => void;
@@ -164,6 +250,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   teams: [],
   projects: [],
   sprints: [],
+  features: [],
   tasks: [],
   activities: [],
   activityLoading: false,
@@ -240,12 +327,64 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
+  // ── IES-R1 (P5-T2): sprint/feature/task loaders (workspace-keyed, offline-safe).
+  loadSprints: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ sprints: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.sprints.list(p.id).catch(() => [] as Sprint[])),
+      );
+      set({ sprints: lists.flat().map(toSprint) });
+    } catch {
+      set({ sprints: [] });
+    }
+  },
+
+  loadFeatures: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ features: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.features.list({ projectId: p.id }).catch(() => [] as Feature[])),
+      );
+      set({ features: lists.flat().map(toFeature) });
+    } catch {
+      set({ features: [] });
+    }
+  },
+
+  loadTasks: async () => {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) {
+      set({ tasks: [] });
+      return;
+    }
+    try {
+      const rawList = await api.tasks.list({ workspaceId });
+      set({ tasks: (Array.isArray(rawList) ? rawList : []).map(toCollabTask) });
+    } catch {
+      set({ tasks: [] });
+    }
+  },
+
   loadCollabData: async () => {
     await get().loadWorkspaces();
     await Promise.all([
       get().loadMembers(get().activeWorkspaceId),
       get().loadTeams(),
-      get().loadProjects(),
+    ]);
+    await get().loadProjects();
+    await Promise.all([
+      get().loadSprints(),
+      get().loadFeatures(),
+      get().loadTasks(),
     ]);
   },
 
@@ -405,76 +544,230 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     return project;
   },
 
-  createSprint: (projectId, name, startDate, endDate, goal) => {
+  // IES-R1 (P6-T5/UX-R1): create a backlog feature (sprintRef stays null). Real
+  // owner comes from the modal's member picker; falls back to the auth user.
+  createFeature: async (data) => {
     const activeWsId = get().activeWorkspaceId;
-    const newSprint: Sprint = {
-      id: `sp-${Date.now()}`,
+    const tempId = `ft-${Date.now()}`;
+    const prevFeatures = get().features;
+    const temp: Feature = {
+      id: tempId,
+      workspaceId: activeWsId,
+      projectId: data.projectId || '',
+      name: data.name || 'Untitled Feature',
+      description: data.description || '',
+      type: data.type || 'feature',
+      labels: data.labels || [],
+      ownerId: data.ownerId || currentUserId(),
+      estimatedHours: data.estimatedHours || 0,
+      status: data.status || 'backlog',
+      order: data.order ?? 0,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ features: [temp, ...state.features] }));
+        return () => set({ features: prevFeatures });
+      },
+      () => api.features.create({
+        projectId: temp.projectId,
+        name: temp.name,
+        description: temp.description,
+        type: temp.type,
+        labels: temp.labels,
+        ownerId: temp.ownerId || undefined,
+        estimatedHours: temp.estimatedHours,
+        status: temp.status,
+        order: temp.order,
+      }),
+      { errorTitle: 'Feature creation failed' },
+    );
+    if (!created) return undefined;
+    const feature = toFeature(created);
+    set((state) => ({ features: state.features.map((f) => (f.id === tempId ? feature : f)) }));
+    toast.success('Feature created', feature.name);
+    return feature;
+  },
+
+  createSprint: async (projectId, name, startDate, endDate, goal, opts) => {
+    const activeWsId = get().activeWorkspaceId;
+    const capacityHours = opts?.capacityHours ?? 160;
+    const targetVelocity = opts?.targetVelocity ?? 80;
+    const tempId = `sp-${Date.now()}`;
+    const prevSprints = get().sprints;
+    const temp: Sprint = {
+      id: tempId,
       workspaceId: activeWsId,
       projectId,
       name,
       startDate,
       endDate,
       goal,
-      status: 'active',
-      capacityHours: 160,
-      targetVelocity: 80,
+      status: 'future',
+      capacityHours,
+      targetVelocity,
     };
-    set((state) => ({ sprints: [...state.sprints, newSprint] }));
-    toast.success('Sprint created', `Sprint "${name}" is active.`);
+    const created = await runMutation(
+      () => {
+        set((state) => ({ sprints: [...state.sprints, temp] }));
+        return () => set({ sprints: prevSprints });
+      },
+      () => api.sprints.create({ projectId, name, startDate, endDate, goal, capacityHours, targetVelocity }),
+      { errorTitle: 'Sprint creation failed' },
+    );
+    if (!created) return undefined;
+    const sprint = toSprint(created);
+    set((state) => ({ sprints: state.sprints.map((s) => (s.id === tempId ? sprint : s)) }));
+    toast.success('Sprint created', name);
+    return sprint;
   },
 
-  createTask: (data) => {
+  createTask: async (data) => {
     const activeWsId = get().activeWorkspaceId;
-    const newTask: CollaborativeTask = {
-      id: `ct-${Date.now()}`,
+    const ownerId = currentUserId();
+    const tempId = `ct-${Date.now()}`;
+    const prevTasks = get().tasks;
+    const tempTask: CollaborativeTask = {
+      id: tempId,
       workspaceId: activeWsId,
       projectId: data.projectId || '',
       sprintId: data.sprintId || get().sprints[0]?.id,
+      featureId: data.featureId,
       title: data.title || 'Untitled Task',
       description: data.description || '',
       sprintStatus: data.sprintStatus || 'backlog',
       priority: data.priority || 'medium',
-      ownerId: 'm1',
-      assigneeId: data.assigneeId || 'm1',
+      ownerId,
+      assigneeId: data.assigneeId || ownerId,
       reviewerId: data.reviewerId,
-      followerIds: ['m1'],
+      followerIds: ownerId ? [ownerId] : [],
       labels: data.labels || ['General'],
-      dependencies: [],
+      dependencies: data.dependencies || [],
       estimatedHours: data.estimatedHours || 8,
-      actualHours: 0,
-      subtasks: [],
+      actualHours: data.actualHours || 0,
+      gitContext: data.gitContext,
+      subtasks: data.subtasks || [],
       createdAt: new Date().toISOString().slice(0, 10),
       updatedAt: new Date().toISOString().slice(0, 10),
     };
-    set((state) => ({ tasks: [newTask, ...state.tasks] }));
-    toast.success('Task created', newTask.title);
-    return newTask;
+    const created = await runMutation(
+      () => {
+        set((state) => ({ tasks: [tempTask, ...state.tasks] }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.create({
+        title: tempTask.title,
+        description: tempTask.description,
+        priority: tempTask.priority,
+        status: 'todo',
+        category: 'Work',
+        color: '#0ea5e9',
+        tags: [],
+        subtasks: [],
+        workspaceId: activeWsId || undefined,
+        projectId: tempTask.projectId || undefined,
+        sprintId: tempTask.sprintId || undefined,
+        featureId: tempTask.featureId || undefined,
+        assigneeId: tempTask.assigneeId || undefined,
+        reviewerId: tempTask.reviewerId || undefined,
+        followerIds: tempTask.followerIds,
+        labels: tempTask.labels,
+        dependencies: tempTask.dependencies,
+        estimatedHours: tempTask.estimatedHours,
+        actualHours: tempTask.actualHours,
+        sprintStatus: tempTask.sprintStatus,
+      }),
+      { errorTitle: 'Task creation failed' },
+    );
+    if (!created) return undefined;
+    const task = toCollabTask(created);
+    set((state) => ({ tasks: state.tasks.map((t) => (t.id === tempId ? task : t)) }));
+    toast.success('Task created', task.title);
+    return task;
   },
 
-  updateTaskStatus: (taskId, sprintStatus) => {
-    set((state) => {
-      const task = state.tasks.find((t) => t.id === taskId);
-      if (!task) return state;
-
-      return {
-        tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, sprintStatus, updatedAt: new Date().toISOString() } : t)),
-      };
-    });
+  updateTaskStatus: async (taskId, sprintStatus) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, sprintStatus, updatedAt: new Date().toISOString() } : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, sprintStatus: prevTask.sprintStatus, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.update(taskId, { sprintStatus }),
+      { errorTitle: 'Status update failed' },
+    );
     toast.info('Status updated', `Task moved to ${sprintStatus.replace('_', ' ').toUpperCase()}`);
   },
 
-  updateGitContext: (taskId, gitData) => {
-    set((state) => ({
-      tasks: state.tasks.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              gitContext: { ...t.gitContext, ...gitData },
-              updatedAt: new Date().toISOString(),
-            }
-          : t
-      ),
-    }));
+  // IES-R1 (P6-T3): moveFeature persists the sprintRef change via
+  // `PATCH /features/:id { sprintId }` (server validates same-project). Dropping
+  // back onto the Backlog sends `sprintId: null` (explicit un-tether).
+  moveFeature: async (featureId, sprintId) => {
+    const prevFeature = get().features.find((f) => f.id === featureId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          features: state.features.map((f) =>
+            f.id === featureId
+              ? { ...f, sprintId: sprintId ?? undefined }
+              : f
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            features: state.features.map((f) =>
+              f.id === featureId && prevFeature
+                ? { ...f, sprintId: prevFeature.sprintId }
+                : f
+            ),
+          }));
+        };
+      },
+      () => api.features.update(featureId, { sprintId }),
+      { errorTitle: 'Feature move failed' },
+    );
+  },
+
+  updateGitContext: async (taskId, gitData) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  gitContext: { ...t.gitContext, ...gitData },
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, gitContext: prevTask.gitContext, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.patchGit(taskId, gitData ?? {}),
+      { errorTitle: 'Git details save failed' },
+    );
     toast.success('Git details linked');
   },
 
@@ -484,7 +777,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       workspaceId: get().activeWorkspaceId,
       targetType,
       targetId,
-      author: { id: 'm1', name: 'Ajay Kumar' },
+      author: { id: currentUserId(), name: currentUserName() },
       content,
       createdAt: new Date().toISOString(),
       reactions: {},
@@ -505,13 +798,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   },
 
   addReaction: (commentId, emoji) => {
+    const me = currentUserId();
     set((state) => ({
       discussions: state.discussions.map((c) => {
         if (c.id === commentId) {
           const current = c.reactions[emoji] || [];
-          const updated = current.includes('m1')
-            ? current.filter((id) => id !== 'm1')
-            : [...current, 'm1'];
+          const updated = current.includes(me)
+            ? current.filter((id) => id !== me)
+            : [...current, me];
           return {
             ...c,
             reactions: { ...c.reactions, [emoji]: updated },
@@ -599,7 +893,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       title,
       category,
       content,
-      authorId: 'm1',
+      authorId: currentUserId(),
       version: 1,
       tags,
       createdAt: new Date().toISOString().slice(0, 10),
@@ -635,8 +929,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       taskId,
       title,
       severity,
-      ownerId: 'm1',
-      reporterId: 'm1',
+      ownerId: currentUserId(),
+      reporterId: currentUserId(),
       status: 'open',
       impactDescription,
       createdAt: new Date().toISOString(),

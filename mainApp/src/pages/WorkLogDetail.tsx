@@ -15,6 +15,9 @@ import { api } from '../utils/api';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Markdown } from '../lib';
 import { Skeleton } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { Badge, type BadgeTone } from '../components/ui/Badge';
+import { EmptyState } from '../components/ui/EmptyState';
 import type { WorkLog } from '../store/useWorkLogStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { TimelineView } from '../components/worklog/TimelineView';
@@ -52,6 +55,14 @@ const DETAIL_TABS = [
   { id: 'resources',  label: 'Resources',  icon: Paperclip,    color: 'text-purple-400' },
   { id: 'reading',    label: 'Read Mode',  icon: Eye,          color: 'text-emerald-400' },
 ];
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  planning: 'info',
+  'in-progress': 'brand',
+  reviewing: 'brand',
+  blocked: 'danger',
+  done: 'success',
+};
 
 export function WorkLogDetail() {
   const { id } = useParams<{ id: string }>();
@@ -100,14 +111,16 @@ export function WorkLogDetail() {
   if (error || !log) {
     return (
       <div className="max-w-5xl mx-auto p-6">
-        <button onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 mb-6 transition-colors">
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 p-16 text-center">
-          <BookMarked size={40} className="text-surface-600 mx-auto mb-3" />
-          <p className="text-lg font-semibold text-surface-200">Work log not found</p>
-          <p className="text-sm text-surface-500 mt-1">{error || 'This work log may have been deleted.'}</p>
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}
+          className="mb-6" leftIcon={<ArrowLeft size={16} />}>
+          Back
+        </Button>
+        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
+          <EmptyState
+            icon={<BookMarked size={40} className="text-surface-600" />}
+            title="Work log not found"
+            description={error || 'This work log may have been deleted.'}
+          />
         </div>
       </div>
     );
@@ -138,14 +151,14 @@ export function WorkLogDetail() {
             <div className="flex-1 min-w-0">
               <h1 className="font-display font-bold text-surface-50 text-xl">{log.title}</h1>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${status.color} ${status.bg} ${status.border}`}>
-                  {status.emoji} {status.label}
-                </span>
+                <Badge tone={STATUS_TONE[log.status] ?? 'neutral'} icon={<span>{status.emoji}</span>} className="rounded-lg">
+                  {status.label}
+                </Badge>
                 <span className="text-lg">{MOOD_EMOJIS[(log.mood || 3) - 1]}</span>
                 {log.gitBranch && (
-                  <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                    <GitBranch size={11} /> {log.gitBranch}
-                  </span>
+                  <Badge tone="success" icon={<GitBranch size={11} />} className="font-mono">
+                    {log.gitBranch}
+                  </Badge>
                 )}
                 {log.taskRef && (
                   <span className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
@@ -154,9 +167,9 @@ export function WorkLogDetail() {
                   </span>
                 )}
                 {log.projectRef && (
-                  <span className="flex items-center gap-1 text-[11px] text-surface-400 bg-surface-800 px-2.5 py-1 rounded-lg">
-                    <FolderOpen size={11} /> {log.projectRef.name}
-                  </span>
+                  <Badge tone="neutral" icon={<FolderOpen size={11} />}>
+                    {log.projectRef.name}
+                  </Badge>
                 )}
               </div>
               <p className="text-xs text-surface-500 mt-2">
@@ -167,12 +180,11 @@ export function WorkLogDetail() {
             </div>
           </div>
           {/* Export button */}
-          <button
-            onClick={() => setShowExport(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 border border-brand-500/20 transition-all flex-shrink-0"
-          >
-            <Download size={14} /> Export
-          </button>
+          <Button variant="outline" size="sm" onClick={() => setShowExport(true)}
+            className="bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 border-brand-500/20 flex-shrink-0"
+            leftIcon={<Download size={14} />}>
+            Export
+          </Button>
         </div>
       </motion.div>
 
@@ -290,9 +302,12 @@ export function WorkLogDetail() {
               )}
 
               {!log.problem && !log.currentWork && !log.blockers && !log.plan && !log.designNotes && (
-                <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 p-10 text-center">
-                  <BookMarked size={28} className="text-surface-600 mx-auto mb-2" />
-                  <p className="text-sm text-surface-400">No context fields filled in yet</p>
+                <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
+                  <EmptyState
+                    icon={<BookMarked size={28} className="text-surface-600" />}
+                    title="No context fields filled in yet"
+                    description=""
+                  />
                 </div>
               )}
             </motion.div>
@@ -306,20 +321,14 @@ export function WorkLogDetail() {
                   <span className="text-[11px] text-surface-400 font-semibold uppercase tracking-wider">Export</span>
                 </div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setShowDocPreview(true)}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all
-                      bg-brand-500 text-white hover:bg-brand-400"
-                  >
-                    <FileText size={12} /> Preview
-                  </button>
-                  <button
-                    onClick={() => setShowExport(true)}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-semibold transition-all
-                      bg-surface-800 text-surface-300 border border-surface-700 hover:bg-surface-700"
-                  >
-                    <Download size={12} /> .MD / JSON
-                  </button>
+                  <Button size="sm" className="flex-1" onClick={() => setShowDocPreview(true)}
+                    leftIcon={<FileText size={12} />}>
+                    Preview
+                  </Button>
+                  <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowExport(true)}
+                    leftIcon={<Download size={12} />}>
+                    .MD / JSON
+                  </Button>
                 </div>
               </motion.div>
 

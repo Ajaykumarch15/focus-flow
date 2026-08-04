@@ -1,13 +1,11 @@
 const express = require('express');
 const Session = require('../models/Session');
 const Task    = require('../models/Task');
-const User    = require('../models/User');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { serverTime } = require('../utils/sessionTime');
-const { syncTaskWorkLogs } = require('../utils/worklogSync');
-const { dayKey, localDateToUtc, userTimezone } = require('../utils/dates');
+const { finalizeSessionDoc, rewardAndSync, finalizeAndReward } = require('../utils/sessionFinalize');
 const { logger } = require('../utils/logger');
 const { z, objectId, timestamp, opId, validate } = require('../utils/validation');
 
@@ -105,32 +103,16 @@ router.post('/', validate(sessionCreateSchema), async (req, res, next) => {
       return res.status(200).json(existingSameTaskSession);
     }
 
+    // Model 1: orphan closes are full finalizations now (points/streak/task
+    // total/worklog sync), identical to an explicit stop — a task switch is
+    // never a silent close that skips accounting.
     const orphanedSessions = await Session.find({ userId: req.user._id, isActive: true });
-    const orphanedTaskIds = [...new Set(orphanedSessions.map(s => s.taskId.toString()))];
 
-    await Promise.all(orphanedSessions.map(async (activeSession) => {
-      const lastPause = [...activeSession.pauseLog].reverse().find(p => !p.resumeTime);
-      if (lastPause) {
-        lastPause.resumeTime = now;
-        activeSession.totalPauseDuration += now - lastPause.pauseStart;
-      }
-      activeSession.endTime = now;
-      activeSession.isActive = false;
-      activeSession.activeTime = Math.max(
-        0,
-        now - activeSession.startTime - activeSession.totalPauseDuration
-      );
+    for (const activeSession of orphanedSessions) {
+      finalizeSessionDoc(activeSession, now);
       await activeSession.save();
-    }));
-
-    await Promise.all(orphanedTaskIds.map(async (orphanedTaskId) => {
-      const allSessions = await Session.find({ taskId: orphanedTaskId, userId: req.user._id, isActive: false });
-      const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
-      await Task.findOneAndUpdate(
-        { _id: orphanedTaskId, userId: req.user._id },
-        { totalTime, status: 'todo' }
-      );
-    }));
+      await rewardAndSync({ user: req.user, session: activeSession });
+    }
 
     let session;
     try {
@@ -249,86 +231,9 @@ router.patch('/:id/stop', validate(sessionStopSchema, { params: sessionParamsSch
 
     const now = serverTime(endTime, { min: session.startTime });
 
-    const lastPause = [...session.pauseLog].reverse().find(p => !p.resumeTime);
-    if (lastPause) {
-      lastPause.resumeTime = now;
-      session.totalPauseDuration += Math.max(0, now - lastPause.pauseStart);
-    }
-
-    session.endTime = now;
-    session.isActive = false;
-    session.activeTime = Math.max(0, now - session.startTime - session.totalPauseDuration);
-    session.lastHeartbeat = now; // IES-P1-26
-
-    let score = 100;
-    score -= (session.pauseCount || 0) * 5;
-    if (session.activeTime > 0) {
-      const pauseRatio = session.totalPauseDuration / session.activeTime;
-      score -= Math.min(50, pauseRatio * 20);
-    }
-    // IES-P1-07: focusScore is bounded [0, 100] in the schema too.
-    session.focusScore = Math.max(0, Math.min(100, Math.round(score)));
-
     markApplied(session, opId);
-    await session.save();
+    await finalizeAndReward({ user: req.user, session, endTime: now });
 
-    const user = req.user;
-    // IES-P1-06: the day key and the start-of-day boundary both come from the
-    // user's timezone — a UTC key over a server-local boundary used to drift
-    // by one day near midnight.
-    const timeZone = userTimezone(user);
-    const todayStr = dayKey(Date.now(), timeZone);
-    const todayStart = localDateToUtc(todayStr, timeZone).getTime();
-
-    const todaySessions = await Session.find({
-      userId: user._id,
-      isActive: false,
-      startTime: { $gte: todayStart }
-    });
-    const todayTotalMs = todaySessions.reduce((acc, s) => acc + s.activeTime, 0);
-    const goalMs = (user.settings?.dailyGoal ?? 8) * 3600000;
-
-    const sessionPoints = Math.round((session.activeTime / 60000) * (session.focusScore / 100));
-
-    // IES-P1-08: points use an atomic $inc and the streak day-gate is a
-    // conditional update, so concurrent stops can never lose an increment or
-    // double-count a day. The continue/reset filters both encode "today not yet
-    // counted", which only one racing stop can win.
-    await User.updateOne({ _id: user._id }, { $inc: { totalPoints: sessionPoints } });
-
-    if (todayTotalMs >= goalMs) {
-      const yesterdayStr = dayKey(todayStart - 1, timeZone);
-
-      const continued = await User.updateOne(
-        { _id: user._id, 'streak.lastDate': yesterdayStr },
-        { $inc: { 'streak.current': 1 }, $set: { 'streak.lastDate': todayStr } }
-      );
-      if (!continued.modifiedCount) {
-        await User.updateOne(
-          { _id: user._id, 'streak.lastDate': { $nin: [yesterdayStr, todayStr] } },
-          { $set: { 'streak.current': 1, 'streak.lastDate': todayStr } }
-        );
-      }
-      // best = max(best, current) — atomic pipeline update (MongoDB 4.2+).
-      await User.updateOne(
-        { _id: user._id },
-        [{ $set: { 'streak.best': { $max: ['$streak.best', '$streak.current'] } } }]
-      );
-    }
-
-    const allSessions = await Session.find({ taskId: session.taskId, userId: req.user._id, isActive: false });
-    const totalTime = allSessions.reduce((acc, s) => acc + s.activeTime, 0);
-    await Task.findByIdAndUpdate(session.taskId, { totalTime, status: 'todo' });
-
-    // Sync to WorkLog automatically + auto timeline entry.
-    // IES-P1-02: session-stop is the single writer for linked worklogs.
-    try {
-      await syncTaskWorkLogs(req.user._id, session.taskId, {
-        timeZone: userTimezone(req.user),
-      });
-    } catch (err) {
-      logger.warn('WorkLog sync failed');
-    }
     const mins = Math.round(session.activeTime / 60000);
     await addTimelineEntryToWorkLogs(req.user._id, session.taskId, 'timer_stop', `■ Stopped Focus Session (${mins}m logged)`);
 

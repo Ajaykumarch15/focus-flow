@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare, Send, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { Button } from '../ui/Button';
+import { EmptyState } from '../ui/EmptyState';
+import { Textarea } from '../ui/Textarea';
 
 export function DiscussionsModal({
   isOpen,
@@ -56,19 +59,20 @@ export function DiscussionsModal({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg transition-colors">
+          <Button variant="ghost" size="icon-sm" onClick={onClose} className="p-1.5 text-surface-500 hover:text-surface-200 rounded-lg transition-colors">
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         {/* Body — Comment list */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {targetDiscussions.length === 0 ? (
-            <div className="text-center py-10 border border-dashed border-surface-800 rounded-xl p-6">
-              <Sparkles size={24} className="text-surface-600 mx-auto mb-2" />
-              <p className="text-sm font-semibold text-surface-300">No discussions yet</p>
-              <p className="text-xs text-surface-500 mt-1">Start an async thread by leaving a note or mentioning a teammate with @Name.</p>
-            </div>
+            <EmptyState
+              icon={<Sparkles size={24} className="text-surface-600" />}
+              title="No discussions yet"
+              description="Start an async thread by leaving a note or mentioning a teammate with @Name."
+              className="text-center py-10 border border-dashed border-surface-800 rounded-xl p-6"
+            />
           ) : (
             targetDiscussions.map((comment) => (
               <div key={comment.id}
@@ -133,13 +137,13 @@ export function DiscussionsModal({
         {/* Input Footer */}
         <form onSubmit={handleSubmit} className="p-4 border-t border-surface-800 bg-surface-850/80">
           <div className="relative">
-            <textarea rows={2} className="input text-sm rounded-xl pr-12 w-full resize-none"
+            <Textarea rows={2} className="text-sm rounded-xl pr-12 w-full resize-none"
               placeholder="Write a comment or mention (@Ajay, @Frontend)..."
               value={content} onChange={(e) => setContent(e.target.value)} />
-            <button type="submit" disabled={!content.trim()}
+            <Button type="submit" size="icon-sm" disabled={!content.trim()}
               className="absolute right-3 bottom-3 p-2 bg-brand-500 hover:bg-brand-400 disabled:opacity-40 text-white rounded-lg transition-all shadow-md">
               <Send size={14} />
-            </button>
+            </Button>
           </div>
           <div className="flex items-center gap-2 mt-2 text-[11px] text-surface-500">
             <span>Supports Markdown & code blocks</span>

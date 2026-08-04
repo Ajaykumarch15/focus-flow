@@ -146,6 +146,10 @@ describe('PATCH routes sanitize request bodies', () => {
   });
 
   it('PATCH /api/tasks/:id only persists allowlisted fields', async () => {
+    // IES-R1: PATCH pre-loads the task to check the workspace editor gate.
+    vi.spyOn(Task, 'findOne').mockClear().mockReturnValue({
+      select: () => Promise.resolve({ _id: 'task-1', title: 'Ship it' }),
+    });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate').mockClear().mockResolvedValue({
       _id: 'task-1', title: 'Ship it', status: 'todo',
     });

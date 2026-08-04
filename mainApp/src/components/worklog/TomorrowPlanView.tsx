@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Plus, Trash2, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
+import { Button } from '../../components/ui/Button';
+import { Card } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 
 interface TomorrowPlanViewProps {
   workLog: WorkLog;
@@ -60,50 +63,48 @@ export function TomorrowPlanView({ workLog }: TomorrowPlanViewProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Top Priority */}
-        <div className="card p-4 rounded-xl border border-brand-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-brand-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-bold text-brand-400 flex items-center gap-1.5 uppercase tracking-wider">
             <ArrowRight size={14} /> 1. First Task Tomorrow
           </label>
-          <input
-            className="input text-sm w-full rounded-lg"
+          <Input
+            className="text-sm w-full rounded-lg"
             placeholder="What single task should you tackle first tomorrow morning?"
             value={topPriority}
             onChange={e => setTopPriority(e.target.value)}
             onBlur={e => saveTopPriority(e.target.value)}
           />
-        </div>
+        </Card>
 
         {/* Attention Required */}
-        <div className="card p-4 rounded-xl border border-amber-500/20 bg-surface-900/60 space-y-2">
+        <Card className="p-4 rounded-xl border border-amber-500/20 bg-surface-900/60 space-y-2">
           <label className="text-xs font-bold text-amber-400 flex items-center gap-1.5 uppercase tracking-wider">
             <Target size={14} /> 2. Requires Attention / Follow-up
           </label>
-          <input
-            className="input text-sm w-full rounded-lg"
+          <Input
+            className="text-sm w-full rounded-lg"
             placeholder="PR reviews, team syncs, or pending emails requiring attention..."
             value={attentionRequired}
             onChange={e => setAttentionRequired(e.target.value)}
             onBlur={e => saveAttention(e.target.value)}
           />
-        </div>
+        </Card>
       </div>
 
       {/* Unfinished Items List */}
-      <div className="card p-4 rounded-xl border border-surface-800 bg-surface-900/60 space-y-3">
+      <Card className="p-4 rounded-xl border border-surface-800 bg-surface-900/60 space-y-3">
         <label className="text-xs font-semibold text-surface-200 block">
           3. Unfinished Deliverables (Carried Forward)
         </label>
 
         <form onSubmit={handleAddItem} className="flex gap-2">
-          <input
-            className="input text-sm flex-1 rounded-lg"
+          <Input
+            className="text-sm flex-1 rounded-lg"
             placeholder="Add an unfinished task to carry forward to tomorrow..."
             value={newItemText}
             onChange={e => setNewItemText(e.target.value)}
           />
-          <button type="submit" className="btn-primary text-xs px-3">
-            <Plus size={14} /> Add
-          </button>
+          <Button type="submit" size="xs" className="px-3" leftIcon={<Plus size={14} />}>Add</Button>
         </form>
 
         <div className="space-y-2">
@@ -123,7 +124,7 @@ export function TomorrowPlanView({ workLog }: TomorrowPlanViewProps) {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

@@ -6,6 +6,8 @@ import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../../utils/colors';
 import { formatHours, getDeadlineStatus } from '../../utils/time';
 import { useNavigate } from 'react-router-dom';
+import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
 
 interface TaskCardProps {
   task: Task;
@@ -68,19 +70,18 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <span className={`badge ${priority.bg} ${priority.color} border ${priority.border}`}>
+              <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'low' ? 'success' : 'warning'} className={`${priority.bg} ${priority.color} border ${priority.border}`}>
                 {priority.label}
-              </span>
+              </Badge>
               {task.category && (
-                <span className="badge bg-surface-700/50 text-surface-300">
+                <Badge tone="neutral" className="bg-surface-700/50 text-surface-300">
                   {task.category}
-                </span>
+                </Badge>
               )}
               {deadlineInfo && (
-                <span className={`badge ${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
-                  <Clock size={10} className="mr-1" />
+                <Badge tone={deadlineInfo.status === 'overdue' ? 'danger' : deadlineInfo.status === 'upcoming' ? 'brand' : 'warning'} icon={<Clock size={10} className="mr-1" />} className={`${DEADLINE_CONFIG[deadlineInfo.status].bg} ${DEADLINE_CONFIG[deadlineInfo.status].color} border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
                   {deadlineInfo.label}
-                </span>
+                </Badge>
               )}
             </div>
             <h3 className={`font-medium text-surface-50 truncate ${task.status === 'completed' ? 'line-through text-surface-400' : ''}`}>
@@ -123,41 +124,29 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
           <div className="flex items-center gap-1.5">
             {task.status !== 'completed' && (
               <>
-                {!isActive && (
-                  <button
-                    onClick={() => startTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
-                  >
-                    <Play size={12} />
-                    Start
-                  </button>
-                )}
+                    {!isActive && (
+                      <Button size="sm" onClick={() => startTimer(task.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent" leftIcon={<Play size={12} />}>
+                        {task.totalTime > 0 ? 'Resume' : 'Start'}
+                      </Button>
+                    )}
                 {isRunning && (
-                  <button
-                    onClick={() => pauseTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-yellow-400/15 dark:hover:bg-yellow-400/25 text-amber-700 dark:text-yellow-400 rounded-lg text-xs font-semibold transition-all border border-amber-200/60 dark:border-transparent"
-                  >
-                    <Pause size={12} />
+                  <Button size="sm" onClick={() => pauseTimer(task.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-yellow-400/15 dark:hover:bg-yellow-400/25 text-amber-700 dark:text-yellow-400 rounded-lg text-xs font-semibold transition-all border border-amber-200/60 dark:border-transparent" leftIcon={<Pause size={12} />}>
                     Pause
-                  </button>
+                  </Button>
                 )}
                 {isPaused && (
-                  <button
-                    onClick={() => resumeTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent"
-                  >
-                    <Play size={12} />
+                  <Button size="sm" onClick={() => resumeTimer(task.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-brand-500/15 dark:hover:bg-brand-500/25 text-sky-700 dark:text-brand-400 rounded-lg text-xs font-semibold transition-all border border-sky-200/60 dark:border-transparent" leftIcon={<Play size={12} />}>
                     Resume
-                  </button>
+                  </Button>
                 )}
                 {isActive && (
-                  <button
-                    onClick={() => stopTimer(task.id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-400/15 dark:hover:bg-red-400/25 text-red-700 dark:text-red-400 rounded-lg text-xs font-semibold transition-all border border-red-200/60 dark:border-transparent"
-                  >
-                    <Square size={12} />
+                  <Button variant="danger" size="sm" onClick={() => stopTimer(task.id)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-400/15 dark:hover:bg-red-400/25 text-red-700 dark:text-red-400 rounded-lg text-xs font-semibold transition-all border border-red-200/60 dark:border-transparent" leftIcon={<Square size={12} />}>
                     Stop
-                  </button>
+                  </Button>
                 )}
               </>
             )}
@@ -165,21 +154,21 @@ export function TaskCard({ task, compact = false }: TaskCardProps) {
 
           <div className="flex items-center gap-1">
             {task.status !== 'completed' && (
-              <button
+              <Button variant="ghost" size="icon-sm"
                 onClick={() => completeTask(task.id)}
                 className="p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-400/10 transition-all"
                 title="Mark complete"
               >
                 <CheckCircle size={15} />
-              </button>
+              </Button>
             )}
-            <button
+            <Button variant="danger" size="icon-sm"
               onClick={() => deleteTask(task.id)}
               className="p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100"
               title="Delete task"
             >
               <Trash2 size={14} />
-            </button>
+            </Button>
             <ChevronRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors" />
           </div>
         </div>

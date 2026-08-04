@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 import { Search, FolderOpen, CheckSquare, BookOpen, Hash, LayoutGrid, Loader2, ArrowRight, X } from 'lucide-react';
 import { api } from '../utils/api';
 import type { SearchResults, SearchResultItem } from '../types/collaboration';
+import { Input } from '../components/ui/Input';
+import { EmptyState } from '../components/ui/EmptyState';
 
 const SECTION_ICONS: Record<SearchResultItem['kind'], ReactNode> = {
   project: <FolderOpen size={14} className="text-brand-400" />,
@@ -87,7 +89,7 @@ export function SearchResultsPage() {
 
       <form onSubmit={submit} className="relative max-w-2xl">
         <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-400" />
-        <input
+        <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Search across your workspace..."
@@ -107,19 +109,25 @@ export function SearchResultsPage() {
       )}
 
       {!q ? (
-        <div className="text-center py-16 text-surface-500 text-xs">
-          Type a query above to search across your workspace.
-        </div>
+        <EmptyState
+          icon={<Search size={28} className="text-surface-500" />}
+          title="Start searching"
+          description="Type a query above to search across your workspace."
+        />
       ) : !loading && totalResults === 0 ? (
-        <div className="text-center py-16 text-surface-500 text-xs">
-          No results found for "{q}"
-        </div>
+        <EmptyState
+          icon={<Search size={28} className="text-surface-500" />}
+          title="No results found"
+          description={`No results found for "${q}".`}
+        />
       ) : (
         <div className="space-y-6">
           {facets.length === 0 && !loading && (
-            <div className="text-center py-16 text-surface-500 text-xs">
-              No results found for "{q}"
-            </div>
+            <EmptyState
+              icon={<Search size={28} className="text-surface-500" />}
+              title="No results found"
+              description={`No results found for "${q}".`}
+            />
           )}
           {facets.map((facet) => (
             <div key={facet.key}>
