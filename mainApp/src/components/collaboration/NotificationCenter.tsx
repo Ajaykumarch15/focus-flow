@@ -1,13 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, CheckCheck, User, MessageSquare, AlertOctagon, GitPullRequest, Zap, CheckCircle2, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, CheckCheck, MessageSquare, AlertOctagon, GitPullRequest, Zap, CheckCircle2, X, UserPlus, UserCog, UserMinus } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import type { NotificationItem } from '../../types/collaboration';
 
 export function NotificationCenter() {
-  const { notifications, markNotificationRead, markAllNotificationsRead } = useCollaborationStore();
+  const notifications = useCollaborationStore((s) => s.notifications);
+  const notificationsLoading = useCollaborationStore((s) => s.notificationsLoading);
+  const notificationsHasMore = useCollaborationStore((s) => s.notificationsHasMore);
+  const notificationsNextCursor = useCollaborationStore((s) => s.notificationsNextCursor);
+  const markNotificationRead = useCollaborationStore((s) => s.markNotificationRead);
+  const markAllNotificationsRead = useCollaborationStore((s) => s.markAllNotificationsRead);
+  const loadNotifications = useCollaborationStore((s) => s.loadNotifications);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const panelRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const filtered = notifications.filter((n) => (filter === 'unread' ? !n.read : true));
@@ -20,14 +29,32 @@ export function NotificationCenter() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const getIcon = (type: string) => {
+  // IES-P2-05: load on mount, then poll every 60s. The poll reads fresh store
+  // state via getState() — FE-8: no stale closures from mount-only effects.
+  useEffect(() => {
+    loadNotifications({ limit: 20 });
+    const interval = setInterval(() => {
+      useCollaborationStore.getState().loadNotifications({ limit: 20 });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [loadNotifications]);
+
+  const getIcon = (type: NotificationItem['type']) => {
     switch (type) {
       case 'mentioned': return <MessageSquare size={14} className="text-brand-400" />;
       case 'review_requested': return <GitPullRequest size={14} className="text-purple-400" />;
       case 'blocker_added': return <AlertOctagon size={14} className="text-red-400" />;
       case 'completed': return <CheckCircle2 size={14} className="text-emerald-400" />;
+      case 'invited': return <UserPlus size={14} className="text-brand-400" />;
+      case 'role_changed': return <UserCog size={14} className="text-purple-400" />;
+      case 'removed': return <UserMinus size={14} className="text-red-400" />;
       default: return <Zap size={14} className="text-amber-400" />;
     }
+  };
+
+  const handleClick = (item: NotificationItem) => {
+    markNotificationRead(item.id);
+    if (item.targetUrl) navigate(item.targetUrl);
   };
 
   return (
@@ -87,13 +114,17 @@ export function NotificationCenter() {
 
             {/* Items */}
             <div className="max-h-80 overflow-y-auto divide-y divide-surface-800/50">
-              {filtered.length === 0 ? (
+              {notificationsLoading && notifications.length === 0 ? (
+                <div className="text-center py-8 text-surface-500 text-xs">
+                  Loading notifications…
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="text-center py-8 text-surface-500 text-xs">
                   No {filter === 'unread' ? 'unread ' : ''}notifications
                 </div>
               ) : (
                 filtered.map((item) => (
-                  <div key={item.id} onClick={() => markNotificationRead(item.id)}
+                  <div key={item.id} onClick={() => handleClick(item)}
                     className={`p-3.5 flex items-start gap-3 hover:bg-surface-850/60 cursor-pointer transition-colors ${
                       !item.read ? 'bg-brand-500/5' : ''
                     }`}>
@@ -112,6 +143,13 @@ export function NotificationCenter() {
                     </div>
                   </div>
                 ))
+              )}
+              {notificationsHasMore && (
+                <button
+                  onClick={() => loadNotifications({ cursor: notificationsNextCursor || undefined, append: true, limit: 20 })}
+                  className="w-full py-2.5 text-xs font-semibold text-brand-400 hover:bg-surface-800 transition-colors">
+                  Load more notifications
+                </button>
               )}
             </div>
           </motion.div>

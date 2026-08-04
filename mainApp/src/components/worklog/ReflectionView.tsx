@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { HeartPulse, Sparkles, Star, Zap, Target, Shield, Flame } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { HeartPulse, Sparkles, Zap, Target, Shield, Flame } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '../../store/useWorkLogStore';
 
 interface ReflectionViewProps {

@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { runMutation } from '../utils/mutation';
+import { getTodayKey, dayKeyInTz, localDateToUtc, getTimezone } from '../utils/time';
 
 export type HabitFeeling = 'rough' | 'okay' | 'good' | 'great' | 'energized';
 
@@ -70,10 +72,11 @@ interface PersistedHabitTimer {
   baseMinutes: number;
 }
 
+// IES-P1-06: "today" for habit entries is the calendar day in the user's
+// timezone. The stored date is the tz-midnight instant (matches the server
+// encoding), so `dayKeyInTz(entry.date)` round-trips to the same day.
 function todayKey(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+  return new Date(localDateToUtc(getTodayKey(), getTimezone())).toISOString();
 }
 
 function normalizeHabit(doc: any): Habit {
@@ -143,13 +146,8 @@ function patchHabit(habits: Habit[], updated: Habit): Habit[] {
 }
 
 export function getTodayHabitEntry(habit: Habit): HabitEntry {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const existing = habit.entries.find(entry => {
-    const d = new Date(entry.date);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() === today.getTime();
-  });
+  const today = getTodayKey();
+  const existing = habit.entries.find(entry => dayKeyInTz(entry.date) === today);
 
   return existing || {
     _id: 'today',
@@ -175,13 +173,8 @@ function elapsedMs(timer: {
 function mergeTodayMinutes(habits: Habit[], id: string, minutes: number): Habit[] {
   return habits.map(habit => {
     if (habit._id !== id) return habit;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const existing = habit.entries.find(entry => {
-      const d = new Date(entry.date);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() === today.getTime();
-    });
+    const today = getTodayKey();
+    const existing = habit.entries.find(entry => dayKeyInTz(entry.date) === today);
 
     if (existing) {
       return {
@@ -251,31 +244,54 @@ export const useHabitStore = create<HabitState>((set, get) => ({
   },
 
   updateHabit: async (id, updates) => {
-    const habits = get().habits.map(h => h._id === id ? { ...h, ...updates } : h);
-    writeCache(habits);
-    set({ habits });
-    const doc = await api.habits.update(id, updates);
-    const refreshed = patchHabit(get().habits, normalizeHabit(doc));
-    writeCache(refreshed);
-    set({ habits: refreshed });
+    const prev = get().habits;
+    await runMutation(
+      () => {
+        const habits = get().habits.map(h => h._id === id ? { ...h, ...updates } : h);
+        writeCache(habits);
+        set({ habits });
+        return () => {
+          writeCache(prev);
+          set({ habits: prev });
+        };
+      },
+      async () => {
+        const doc = await api.habits.update(id, updates);
+        const refreshed = patchHabit(get().habits, normalizeHabit(doc));
+        writeCache(refreshed);
+        set({ habits: refreshed });
+      },
+      { errorTitle: 'Failed to update habit' },
+    );
   },
 
   deleteHabit: async (id) => {
-    if (get().activeHabitId === id) {
-      clearTimer();
-      set({
-        activeHabitId: null,
-        habitTimerState: 'idle',
-        habitTimerStartedAt: undefined,
-        habitTimerPausedAt: undefined,
-        habitTimerPausedMs: 0,
-        habitTimerBaseMinutes: 0,
-      });
-    }
-    const habits = get().habits.filter(h => h._id !== id);
-    writeCache(habits);
-    set({ habits });
-    await api.habits.delete(id);
+    const hadActiveTimer = get().activeHabitId === id;
+    const prev = get().habits;
+    await runMutation(
+      () => {
+        if (hadActiveTimer) {
+          clearTimer();
+          set({
+            activeHabitId: null,
+            habitTimerState: 'idle',
+            habitTimerStartedAt: undefined,
+            habitTimerPausedAt: undefined,
+            habitTimerPausedMs: 0,
+            habitTimerBaseMinutes: 0,
+          });
+        }
+        const habits = get().habits.filter(h => h._id !== id);
+        writeCache(habits);
+        set({ habits });
+        return () => {
+          writeCache(prev);
+          set({ habits: prev });
+        };
+      },
+      () => api.habits.delete(id),
+      { errorTitle: 'Failed to delete habit' },
+    );
   },
 
   addChecklistItem: async (id, text) => {
@@ -354,19 +370,55 @@ export const useHabitStore = create<HabitState>((set, get) => ({
 
   stopTimer: async (id) => {
     const minutes = get().getLiveMinutes(id);
-    clearTimer();
-    const habits = mergeTodayMinutes(get().habits, id, minutes);
-    writeCache(habits);
-    set({
-      habits,
-      activeHabitId: null,
-      habitTimerState: 'idle',
-      habitTimerStartedAt: undefined,
-      habitTimerPausedAt: undefined,
-      habitTimerPausedMs: 0,
-      habitTimerBaseMinutes: 0,
-    });
-    await get().updateToday(id, { minutes });
+    const prev = {
+      habits: get().habits,
+      activeHabitId: get().activeHabitId,
+      habitTimerState: get().habitTimerState,
+      habitTimerStartedAt: get().habitTimerStartedAt,
+      habitTimerPausedAt: get().habitTimerPausedAt,
+      habitTimerPausedMs: get().habitTimerPausedMs,
+      habitTimerBaseMinutes: get().habitTimerBaseMinutes,
+    };
+    await runMutation(
+      () => {
+        clearTimer();
+        const habits = mergeTodayMinutes(get().habits, id, minutes);
+        writeCache(habits);
+        set({
+          habits,
+          activeHabitId: null,
+          habitTimerState: 'idle',
+          habitTimerStartedAt: undefined,
+          habitTimerPausedAt: undefined,
+          habitTimerPausedMs: 0,
+          habitTimerBaseMinutes: 0,
+        });
+        return () => {
+          if (prev.habitTimerState !== 'idle' && prev.habitTimerStartedAt) {
+            writeTimer({
+              habitId: prev.activeHabitId || id,
+              state: prev.habitTimerState as 'running' | 'paused',
+              startedAt: prev.habitTimerStartedAt,
+              pausedAt: prev.habitTimerPausedAt,
+              pausedMs: prev.habitTimerPausedMs,
+              baseMinutes: prev.habitTimerBaseMinutes,
+            });
+          }
+          writeCache(prev.habits);
+          set({
+            habits: prev.habits,
+            activeHabitId: prev.activeHabitId,
+            habitTimerState: prev.habitTimerState,
+            habitTimerStartedAt: prev.habitTimerStartedAt,
+            habitTimerPausedAt: prev.habitTimerPausedAt,
+            habitTimerPausedMs: prev.habitTimerPausedMs,
+            habitTimerBaseMinutes: prev.habitTimerBaseMinutes,
+          });
+        };
+      },
+      () => get().updateToday(id, { minutes }),
+      { errorTitle: 'Failed to save habit timer' },
+    );
   },
 
   getLiveElapsedMs: (id) => {

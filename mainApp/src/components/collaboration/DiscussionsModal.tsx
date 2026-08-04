@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Send, CheckCircle2, ThumbsUp, Flame, Sparkles, X, User } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { MessageSquare, Send, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 
 export function DiscussionsModal({
@@ -16,7 +16,7 @@ export function DiscussionsModal({
   targetId: string;
   title: string;
 }) {
-  const { discussions, addComment, addReaction, resolveThread, members } = useCollaborationStore();
+  const { discussions, addComment, addReaction, resolveThread } = useCollaborationStore();
   const [content, setContent] = useState('');
 
   if (!isOpen) return null;

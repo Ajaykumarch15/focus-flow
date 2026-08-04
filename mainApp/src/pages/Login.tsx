@@ -64,6 +64,8 @@ export function Login() {
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   className="input pl-10"
                   placeholder="you@example.com"
                   value={form.email}
@@ -81,6 +83,8 @@ export function Login() {
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
                 <input
                   type={showPass ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="current-password"
                   className="input pl-10 pr-10"
                   placeholder="••••••••"
                   value={form.password}
@@ -90,6 +94,7 @@ export function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
                 >
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -100,6 +105,7 @@ export function Login() {
             <motion.button
               type="submit"
               disabled={loading}
+              aria-label={loading ? 'Signing in' : 'Sign In'}
               className="btn-primary w-full flex items-center justify-center gap-2 py-3 mt-2"
               whileTap={{ scale: 0.97 }}
             >

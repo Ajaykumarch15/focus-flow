@@ -2,18 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Clock, CheckCircle2, GitBranch, ExternalLink,
-  AlertTriangle, BookMarked, BarChart3, Target, Loader2,
+  Clock, CheckCircle2, GitBranch,
+  BookMarked, BarChart3, Target,
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { api } from '../utils/api';
 import { Skeleton, SkeletonStatCard } from '../components/ui/Skeleton';
-
-const MOOD_EMOJIS   = ['😔', '😐', '🙂', '😊', '🔥'];
-const STATUS_LABELS: Record<string, string> = {
-  planning: '🗺️ Planning', 'in-progress': '⚡ In Progress',
-  reviewing: '👀 Reviewing', blocked: '🚫 Blocked', done: '✅ Done',
-};
+import { STATUS_LABELS, MOOD_EMOJIS } from '../lib/config';
 
 function formatMs(ms: number): string {
   const h = Math.floor(ms / 3600000), m = Math.floor((ms % 3600000) / 60000);
@@ -22,25 +17,21 @@ function formatMs(ms: number): string {
 }
 
 export function ShareReportPage() {
-  const { userId, date, token } = useParams<{ userId?: string; date?: string; token?: string }>();
+  const { token } = useParams<{ token?: string }>();
   const [data, setData]   = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState('');
 
   useEffect(() => {
-    if (token) {
-      api.reports.shareToken(token)
-        .then(d => { if (d.message) throw new Error(d.message); setData(d); })
-        .catch(e => setError(e.message))
-        .finally(() => setLoading(false));
+    if (!token) {
+      setLoading(false);
       return;
     }
-    if (!userId || !date) return;
-    api.reports.share(userId, date)
+    api.reports.shareToken(token)
       .then(d => { if (d.message) throw new Error(d.message); setData(d); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [userId, date, token]);
+  }, [token]);
 
   if (loading) return (
     <div className="min-h-screen bg-surface-950 py-10 px-4">
@@ -94,7 +85,7 @@ export function ShareReportPage() {
     </div>
   );
 
-  const reportDate = data?.date || date || '';
+  const reportDate = data?.date || '';
   const dateLabel = reportDate ? format(parseISO(reportDate), 'EEEE, MMMM d, yyyy') : '';
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,40 +7,13 @@ import {
   Timer, Zap, BookOpen, ChevronDown,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
-import { PRIORITY_CONFIG, MOOD_LABELS, DEADLINE_CONFIG } from '../utils/colors';
+import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
+import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
-
-// ── Animated Timer Display ────────────────────────────────────────────────────
-function LiveTimer({ isRunning, isPaused, liveTime, totalTime, isActive }: {
-  isRunning: boolean; isPaused: boolean; liveTime: number; totalTime: number; isActive: boolean;
-}) {
-  const [elapsed, setElapsed] = useState(liveTime);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (isRunning) {
-      const tick = () => setElapsed(prev => prev + 1000);
-      intervalRef.current = setInterval(tick, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      setElapsed(liveTime);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, liveTime]);
-
-  const display = isRunning || isPaused ? elapsed : totalTime;
-
-  return (
-    <div className={`font-mono text-5xl lg:text-6xl font-extrabold tracking-wider transition-colors duration-300 ${
-      isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
-    }`}>
-      {formatDuration(display)}
-    </div>
-  );
-}
 
 export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
@@ -48,13 +21,14 @@ export function TaskDetail() {
   const {
     getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
     addSubtask, toggleSubtask, deleteSubtask, addJournal,
-    journals, activeTaskId, activeTimerState, updateTask,
+    journals, updateTask,
   } = useStore();
+  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
 
   const task = getTask(id!);
   const [newSubtask, setNewSubtask] = useState('');
   const [journalText, setJournalText] = useState('');
-  const [mood, setMood] = useState(3);
+  const [mood, setMood] = useState<Mood>(3);
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
   const [showSessions, setShowSessions] = useState(true);
@@ -86,9 +60,6 @@ export function TaskDetail() {
     ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
     : 0;
 
-  const lastSession = task.sessions[task.sessions.length - 1];
-  const liveTime = isActive && lastSession ? lastSession.activeTime : 0;
-
   const handleAddSubtask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubtask.trim()) return;
@@ -98,7 +69,7 @@ export function TaskDetail() {
 
   const handleAddJournal = () => {
     if (!journalText.trim()) return;
-    addJournal({ taskId: task.id, content: journalText, mood: mood as any, focusRating: mood });
+    addJournal({ taskId: task.id, content: journalText, mood, focusRating: mood });
     setJournalText('');
     setMood(3);
   };
@@ -221,8 +192,11 @@ export function TaskDetail() {
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
                 </>
               )}
-              <LiveTimer isRunning={isRunning} isPaused={isPaused} liveTime={liveTime}
-                totalTime={task.totalTime} isActive={isActive} />
+              <div className={`font-mono text-5xl lg:text-6xl font-extrabold tracking-wider transition-colors duration-300 ${
+                isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
+              }`}>
+                {isActive ? activeDisplay : formatDuration(task.totalTime)}
+              </div>
             </div>
 
             {/* Status label */}
@@ -429,7 +403,7 @@ export function TaskDetail() {
             <div className="flex items-center gap-4 mb-4">
               <span className="text-xs text-surface-400 font-medium">Mood</span>
               <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map(m => (
+                {([1, 2, 3, 4, 5] as const).map(m => (
                   <button key={m} onClick={() => setMood(m)}
                     className={`text-xl transition-all p-1 rounded-lg ${
                       mood >= m ? 'scale-110' : 'opacity-30 hover:opacity-60'

@@ -1,15 +1,15 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Clock, CheckCircle, Flame, TrendingUp, Plus, Play, Target, Zap,
-  AlertTriangle, BookOpen, ArrowRight, BarChart3, Trophy, Calendar,
+  Clock, CheckCircle, Flame, TrendingUp, Plus, Play, Zap,
+  AlertTriangle, BookOpen, BarChart3, Trophy, Calendar,
   Sparkles, ChevronRight, PenLine, Briefcase, Timer,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { api } from '../utils/api';
-import { formatHours, formatMs, formatHoursDecimal, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, dayKey, startOfDay } from '../utils/time';
+import { formatHours, formatMs, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, startOfDay } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -28,7 +28,6 @@ const scaleIn = { hidden: { opacity: 0, scale: 0.95 }, show: { opacity: 1, scale
 function AnimatedValue({ value, decimals = 0, duration = 800 }: { value: number; decimals?: number; duration?: number }) {
   const [display, setDisplay] = useState('0');
   const frameRef = useRef<number | null>(null);
-  const startRef = useRef<number | null>(null);
   const fromRef = useRef(0);
 
   useEffect(() => {
@@ -522,7 +521,7 @@ export function Dashboard() {
 // Sub-components
 // ══════════════════════════════════════════════════════════════════════════════
 
-function KPICard({ icon: Icon, label, value, sub, color, delay = 0 }: {
+function KPICard({ icon: Icon, label, value, sub, color, delay: _delay = 0 }: {
   icon: React.ElementType; label: string; value: string; sub?: string; color: string; delay?: number;
 }) {
   return (
@@ -542,7 +541,7 @@ function KPICard({ icon: Icon, label, value, sub, color, delay = 0 }: {
   );
 }
 
-function SmartInsights({ weekMs, todayMs, completedToday, overdueCount, streak, dailyGoalProgress, accent, sessions, tasks, activeTaskId }: {
+function SmartInsights({ weekMs, todayMs, completedToday, overdueCount: _overdueCount, streak, dailyGoalProgress, accent, sessions, tasks: _tasks, activeTaskId: _activeTaskId }: {
   weekMs: number; todayMs: number; completedToday: number; overdueCount: number; streak: number;
   dailyGoalProgress: number; accent: string; sessions: any[]; tasks: any[]; activeTaskId: string | null;
 }) {
@@ -550,10 +549,7 @@ function SmartInsights({ weekMs, todayMs, completedToday, overdueCount, streak, 
     const items: { icon: React.ElementType; text: string; color: string; bg: string }[] = [];
 
     if (weekMs > 0) {
-      const lastWeekMs = weekMs * 0.85;
-      const diff = weekMs - lastWeekMs;
-      if (diff > 0) items.push({ icon: TrendingUp, text: `+${Math.round(diff / 3600000 * 10) / 10}h ahead of last week`, color: '#22c55e', bg: 'bg-emerald-500/10' });
-      else items.push({ icon: TrendingUp, text: 'Consistent focus this week', color: accent, bg: 'bg-brand-500/10' });
+      items.push({ icon: TrendingUp, text: `${formatHours(weekMs)} focused this week`, color: accent, bg: 'bg-brand-500/10' });
     }
 
     if (completedToday > 0) {

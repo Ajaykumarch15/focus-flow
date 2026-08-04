@@ -1,19 +1,20 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Search, Loader2, Clock, CheckCircle2, BarChart3, BookMarked,
-  GitBranch, Calendar, ArrowLeft, TrendingUp, Zap, Activity,
-  Plus, Trash2, Edit2, X, Check, ShieldCheck, Globe, AlertTriangle,
-  Target, RefreshCw, UserX, UserCheck, Trash, RotateCcw, Star,
+  Users, Search, Loader2, BookMarked,
+  GitBranch, ArrowLeft,
+  Trash2, Edit2, X, Check, ShieldCheck, AlertTriangle,
+  Trash, RotateCcw,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { format, eachDayOfInterval, subDays } from 'date-fns';
+import { format } from 'date-fns';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { api } from '../../utils/api';
 import { toast } from '../../store/useToastStore';
-import { renderMarkdown } from '../../components/ui/proEditor';
+import { runMutation } from '../../utils/mutation';
+import { Markdown } from '../../lib';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../components/ui/PageHeader';
 
@@ -43,16 +44,16 @@ function EditUserModal({ user, onClose, onSave }: { user: UserSummary; onClose: 
         className="w-full max-w-md rounded-2xl border border-surface-800 bg-surface-900 p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-display font-bold text-surface-50">Edit User</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-400"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close edit user dialog" className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-400"><X size={16} /></button>
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-surface-400 font-medium mb-1 block">Name</label>
-            <input className="input w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} />
+            <label htmlFor="admin-edit-name" className="text-xs text-surface-400 font-medium mb-1 block">Name</label>
+            <input id="admin-edit-name" className="input w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-surface-400 font-medium mb-1 block">Email</label>
-            <input className="input w-full rounded-xl text-sm" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+            <label htmlFor="admin-edit-email" className="text-xs text-surface-400 font-medium mb-1 block">Email</label>
+            <input id="admin-edit-email" className="input w-full rounded-xl text-sm" type="email" value={email} onChange={e => setEmail(e.target.value)} />
           </div>
           <div>
             <label className="text-xs text-surface-400 font-medium mb-1 block">Role</label>
@@ -104,13 +105,13 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
     return Object.entries(map).slice(-7).map(([date, ms]) => ({ date: date.slice(5), hours: Math.round(ms / 3600000 * 10) / 10 }));
   }, [analytics]);
 
-  if (loading) return <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div>;
+  if (loading) return <div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div>;
 
   const s = analytics?.summary;
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 rounded-xl hover:bg-surface-800 text-surface-400 transition-colors"><ArrowLeft size={18} /></button>
+        <button onClick={onBack} aria-label="Back to people" className="p-2 rounded-xl hover:bg-surface-800 text-surface-400 transition-colors"><ArrowLeft size={18} /></button>
         <div className="w-12 h-12 rounded-xl bg-surface-800 flex items-center justify-center text-lg font-bold text-surface-300">{user.name.charAt(0).toUpperCase()}</div>
         <div className="flex-1">
           <h2 className="text-lg font-display font-bold text-surface-50">{user.name}</h2>
@@ -169,13 +170,15 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
       {tab === 'worklogs' && (
         <div className="space-y-3">
           {analytics?.workLogs?.length > 0 ? analytics.workLogs.map((log: any) => (
-            <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-5 cursor-pointer hover:border-surface-700 transition-all"
+            <div key={log._id} role="button" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter') navigate(`/worklog/${log._id}`); }}
+              className="rounded-2xl border border-surface-800 bg-surface-900 p-5 cursor-pointer hover:border-surface-700 transition-all"
               onClick={() => navigate(`/worklog/${log._id}`)}>
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-semibold text-surface-100">{log.title}</h4>
                 <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${log.status === 'done' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-brand-500/15 text-brand-400'}`}>{log.status}</span>
               </div>
-              {log.problem && <p className="text-xs text-surface-400 line-clamp-2 mb-2" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />}
+              {log.problem && <div className="text-xs text-surface-400 line-clamp-2 mb-2"><Markdown source={log.problem} /></div>}
               <div className="flex items-center gap-3 text-[11px] text-surface-500">
                 {log.gitBranch && <span className="flex items-center gap-1"><GitBranch size={10} /> {log.gitBranch}</span>}
                 <span>{log.completedItems?.length || 0} completed</span>
@@ -191,8 +194,14 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
 // ── Main People Page ──────────────────────────────────────────────────────────
 export function AdminPeople() {
   const [users, setUsers] = useState<UserSummary[]>([]);
+  const [usersCursor, setUsersCursor] = useState<string | null>(null);
+  const [usersHasMore, setUsersHasMore] = useState(false);
   const [deletedUsers, setDeletedUsers] = useState<UserSummary[]>([]);
+  const [deletedCursor, setDeletedCursor] = useState<string | null>(null);
+  const [deletedHasMore, setDeletedHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
+  const [loadingMoreDeleted, setLoadingMoreDeleted] = useState(false);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all');
   const [showTrash, setShowTrash] = useState(false);
@@ -202,9 +211,40 @@ export function AdminPeople() {
 
   useEffect(() => {
     Promise.all([api.admin.listUsers(), api.admin.listDeletedUsers()])
-      .then(([u, d]) => { setUsers(u); setDeletedUsers(d); })
+      .then(([u, d]) => {
+        setUsers(u.items);
+        setUsersHasMore(u.hasMore);
+        setUsersCursor(u.nextCursor);
+        setDeletedUsers(d.items);
+        setDeletedHasMore(d.hasMore);
+        setDeletedCursor(d.nextCursor);
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const loadMoreUsers = async () => {
+    if (!usersHasMore || loadingMoreUsers) return;
+    setLoadingMoreUsers(true);
+    try {
+      const data = await api.admin.listUsers(false, usersCursor ?? undefined);
+      setUsers(prev => [...prev, ...data.items]);
+      setUsersHasMore(data.hasMore);
+      setUsersCursor(data.nextCursor);
+    } catch {}
+    finally { setLoadingMoreUsers(false); }
+  };
+
+  const loadMoreDeleted = async () => {
+    if (!deletedHasMore || loadingMoreDeleted) return;
+    setLoadingMoreDeleted(true);
+    try {
+      const data = await api.admin.listDeletedUsers(deletedCursor ?? undefined);
+      setDeletedUsers(prev => [...prev, ...data.items]);
+      setDeletedHasMore(data.hasMore);
+      setDeletedCursor(data.nextCursor);
+    } catch {}
+    finally { setLoadingMoreDeleted(false); }
+  };
 
   const filtered = useMemo(() => {
     let list = users;
@@ -222,9 +262,21 @@ export function AdminPeople() {
 
   const handleDelete = async () => {
     if (!showDeleteConfirm) return;
-    await api.admin.deleteUser(showDeleteConfirm._id);
-    const deleted = users.find(u => u._id === showDeleteConfirm._id);
-    if (deleted) { setUsers(prev => prev.filter(u => u._id !== deleted._id)); setDeletedUsers(prev => [deleted, ...prev]); }
+    const target = showDeleteConfirm;
+    const deleted = users.find(u => u._id === target._id);
+    if (!deleted) return;
+    await runMutation(
+      () => {
+        setUsers(prev => prev.filter(u => u._id !== target._id));
+        setDeletedUsers(prev => [deleted, ...prev]);
+        return () => {
+          setUsers(prev => [deleted, ...prev]);
+          setDeletedUsers(prev => prev.filter(u => u._id !== target._id));
+        };
+      },
+      () => api.admin.deleteUser(target._id),
+      { errorTitle: 'Failed to delete user' },
+    );
     setShowDeleteConfirm(null);
     toast.success('User deleted');
   };
@@ -236,7 +288,7 @@ export function AdminPeople() {
     toast.success('User restored');
   };
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   if (selectedUser) return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
@@ -252,7 +304,7 @@ export function AdminPeople() {
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-          <input className="input h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="input h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search users..." aria-label="Search users" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="flex gap-1.5">
           {(['all', 'admin', 'user'] as const).map(r => (
@@ -282,12 +334,19 @@ export function AdminPeople() {
               ))}
             </div>
           )}
+          {deletedHasMore && (
+            <button onClick={loadMoreDeleted} disabled={loadingMoreDeleted}
+              className="mt-3 w-full py-2 rounded-lg text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800/60 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">
+              {loadingMoreDeleted ? <Loader2 size={12} className="animate-spin" /> : <Trash size={12} />} Load more deleted
+            </button>
+          )}
         </div>
       )}
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map(u => (
-          <motion.div key={u._id} variants={fadeUp} whileHover={{ y: -3 }}
+          <motion.div key={u._id} variants={fadeUp} whileHover={{ y: -3 }} role="button" tabIndex={0}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedUser(u); } }}
             className="rounded-2xl border border-surface-800 bg-surface-900 p-5 hover:border-surface-700 hover:shadow-lg transition-all cursor-pointer"
             onClick={() => setSelectedUser(u)}>
             <div className="flex items-start justify-between mb-3">
@@ -303,13 +362,20 @@ export function AdminPeople() {
             <div className="flex items-center justify-between">
               <span className="text-[11px] text-surface-500">Joined {format(new Date(u.createdAt), 'MMM d, yyyy')}</span>
               <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowEditUser(u)} className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-500 hover:text-surface-200 transition-all"><Edit2 size={13} /></button>
-                <button onClick={() => setShowDeleteConfirm(u)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-surface-500 hover:text-red-400 transition-all"><Trash2 size={13} /></button>
+                <button onClick={() => setShowEditUser(u)} aria-label={`Edit user ${u.name}`} className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-500 hover:text-surface-200 transition-all"><Edit2 size={13} /></button>
+                <button onClick={() => setShowDeleteConfirm(u)} aria-label={`Delete user ${u.name}`} className="p-1.5 rounded-lg hover:bg-red-500/10 text-surface-500 hover:text-red-400 transition-all"><Trash2 size={13} /></button>
               </div>
             </div>
           </motion.div>
         ))}
       </motion.div>
+
+      {usersHasMore && (
+        <button onClick={loadMoreUsers} disabled={loadingMoreUsers}
+          className="w-full py-2.5 rounded-xl text-xs font-semibold text-surface-400 hover:text-surface-200 bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all flex items-center justify-center gap-2">
+          {loadingMoreUsers ? <Loader2 size={13} className="animate-spin" /> : <Users size={13} />} Load more users
+        </button>
+      )}
 
       <AnimatePresence>
         {showEditUser && <EditUserModal user={showEditUser} onClose={() => setShowEditUser(null)} onSave={handleUpdate} />}

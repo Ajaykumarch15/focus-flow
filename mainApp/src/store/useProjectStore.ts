@@ -22,7 +22,7 @@ interface ProjectState {
   syncDrive: (id: string) => Promise<void>;
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
+export const useProjectStore = create<ProjectState>((set, _get) => ({
   projects: [],
   loading:  false,
   error:    null,
@@ -40,7 +40,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   createProject: async (name: string) => {
     set({ loading: true, error: null });
     try {
-      const newProject = await api.projects.create(name);
+      const newProject = await api.projects.create({ name });
       set(state => ({
         projects: [...state.projects, newProject].sort((a, b) => a.name.localeCompare(b.name)),
         loading: false,

@@ -1,4 +1,9 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+// IES-P0-22: VITE_API_URL is required — no silent localhost fallback.
+// The build fails loudly when it is missing (see vite.config.ts requireApiUrl)
+// and its type is declared in src/vite-env.d.ts.
+import type { WorkspaceActivity, NotificationItem, SearchResults } from '../types/collaboration';
+
+const BASE = import.meta.env.VITE_API_URL;
 
 type ApiUser = {
   _id: string;
@@ -9,17 +14,21 @@ type ApiUser = {
   settings: Record<string, any>;
 };
 
-function getToken(): string | null {
-  return localStorage.getItem('ff_token');
-}
+// IES-P1-18: admin list endpoints are cursor-paginated.
+type Paginated<T> = {
+  items: T[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
 
+// IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
+// makes the browser attach it to every request (cross-origin in dev).
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
   });
@@ -35,10 +44,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   auth: {
     register: (name: string, email: string, password: string) =>
-      request<{ token: string; user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
+      request<{ user: ApiUser }>('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }),
     login: (email: string, password: string) =>
-      request<{ token: string; user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+      request<{ user: ApiUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
     me: () => request<{ user: ApiUser }>('/auth/me'),
+    logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
   },
 
   tasks: {
@@ -56,17 +66,55 @@ export const api = {
 
   sessions: {
     list: (params?: { taskId?: string; active?: boolean }) => {
-      const qs = new URLSearchParams(params as any).toString();
+      const qs = params
+        ? new URLSearchParams(
+            Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            }, {}),
+          ).toString()
+        : '';
       return request<any[]>(`/sessions${qs ? '?' + qs : ''}`);
     },
-    start: (taskId: string, startTime: number) =>
-      request<any>('/sessions', { method: 'POST', body: JSON.stringify({ taskId, startTime }) }),
-    pause: (id: string, pauseTime: number) =>
-      request<any>(`/sessions/${id}/pause`, { method: 'PATCH', body: JSON.stringify({ pauseTime }) }),
-    resume: (id: string, resumeTime: number) =>
-      request<any>(`/sessions/${id}/resume`, { method: 'PATCH', body: JSON.stringify({ resumeTime }) }),
-    stop: (id: string, endTime: number) =>
-      request<any>(`/sessions/${id}/stop`, { method: 'PATCH', body: JSON.stringify({ endTime }) }),
+    // IES-P1-05: optional `opId` is the idempotency key offline replays reuse;
+    // omitting a timestamp lets the server clock govern (no fabricated time).
+    start: (taskId: string, startTime?: number, opId?: string) =>
+      request<any>('/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          taskId,
+          ...(startTime !== undefined ? { startTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    pause: (id: string, pauseTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/pause`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(pauseTime !== undefined ? { pauseTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    resume: (id: string, resumeTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/resume`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(resumeTime !== undefined ? { resumeTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    stop: (id: string, endTime?: number, opId?: string) =>
+      request<any>(`/sessions/${id}/stop`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(endTime !== undefined ? { endTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    // IES-P1-26: liveness beat so the server's reaper never closes a live timer
+    // as a zombie. Fire-and-forget; a dropped beat is retried on the next tick.
+    heartbeat: (id: string) =>
+      request<any>(`/sessions/${id}/heartbeat`, { method: 'PATCH' }),
   },
 
   journals: {
@@ -168,8 +216,6 @@ export const api = {
       const params = new URLSearchParams({ date });
       return request<any>(`/reports/day?${params}`);
     },
-    share: (userId: string, date: string) =>
-      request<any>(`/reports/share/${encodeURIComponent(userId)}/${encodeURIComponent(date)}`),
     createShare: (date: string, expiresInDays = 30) =>
       request<any>('/reports/share', { method: 'POST', body: JSON.stringify({ date, expiresInDays }) }),
     revokeShare: (token: string) =>
@@ -181,11 +227,21 @@ export const api = {
 
   admin: {
     getStats: () => request<any>('/admin/stats'),
-    listUsers: (includeDeleted?: boolean) => {
-      const qs = includeDeleted ? '?includeDeleted=true' : '';
-      return request<any[]>(`/admin/users${qs}`);
+    listUsers: (includeDeleted?: boolean, cursor?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (includeDeleted) params.set('includeDeleted', 'true');
+      if (cursor) params.set('cursor', cursor);
+      if (limit) params.set('limit', String(limit));
+      const qs = params.toString();
+      return request<Paginated<any>>(`/admin/users${qs ? '?' + qs : ''}`);
     },
-    listDeletedUsers: () => request<any[]>('/admin/users/deleted'),
+    listDeletedUsers: (cursor?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (cursor) params.set('cursor', cursor);
+      if (limit) params.set('limit', String(limit));
+      const qs = params.toString();
+      return request<Paginated<any>>(`/admin/users/deleted${qs ? '?' + qs : ''}`);
+    },
     updateUser: (userId: string, data: { name?: string; email?: string; role?: string }) =>
       request<any>(`/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deleteUser: (userId: string) =>
@@ -196,13 +252,14 @@ export const api = {
       const qs = period ? `?period=${period}` : '';
       return request<any>(`/admin/system-analytics${qs}`);
     },
-    getActivity: (limit?: number, before?: string, action?: string) => {
+    getActivity: (limit?: number, cursor?: string, action?: string, before?: string) => {
       const params = new URLSearchParams();
       if (limit) params.set('limit', String(limit));
-      if (before) params.set('before', before);
+      if (cursor) params.set('cursor', cursor);
+      else if (before) params.set('before', before);
       if (action) params.set('action', action);
       const qs = params.toString();
-      return request<any[]>(`/admin/activity${qs ? '?' + qs : ''}`);
+      return request<Paginated<any>>(`/admin/activity${qs ? '?' + qs : ''}`);
     },
     getUserAnalytics: (userId: string, from?: number, to?: number) => {
       const params = new URLSearchParams();
@@ -226,9 +283,9 @@ export const api = {
 
   teams: {
     list: () => request<any[]>('/teams'),
-    create: (data: { name: string; description?: string; members?: string[] }) => 
+    create: (data: { name: string; description?: string; members?: string[]; workspaceId?: string; leaderId?: string; color?: string }) => 
       request<any>('/teams', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; description?: string; members?: string[] }) => 
+    update: (id: string, data: { name?: string; description?: string; members?: string[]; leaderId?: string; color?: string }) => 
       request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => 
       request<any>(`/teams/${id}`, { method: 'DELETE' }),
@@ -242,9 +299,68 @@ export const api = {
   },
 
   projects: {
-    list: () => request<any[]>('/projects'),
-    create: (name: string) => request<any>('/projects', { method: 'POST', body: JSON.stringify({ name }) }),
+    list: (workspaceId?: string) => {
+      const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
+      return request<any[]>(`/projects${qs}`);
+    },
+    create: (data: { name: string; workspaceId?: string }) =>
+      request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
+  },
+
+  // IES-P2-01: real workspace CRUD + membership surface (IES-P2-07 wiring).
+  workspaces: {
+    list: () => request<any[]>('/workspaces'),
+    get: (id: string) => request<any>(`/workspaces/${id}`),
+    create: (data: { name: string; type?: string; icon?: string; description?: string; settings?: Record<string, any> }) =>
+      request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, any>) =>
+      request<any>(`/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id: string) => request<any>(`/workspaces/${id}`, { method: 'DELETE' }),
+    members: (id: string) => request<any[]>(`/workspaces/${id}/members`),
+    invite: (id: string, data: { userId?: string; email?: string; role?: string }) =>
+      request<any[]>(`/workspaces/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
+    join: (id: string) => request<any>(`/workspaces/${id}/join`, { method: 'POST' }),
+    setRole: (id: string, userId: string, role: string) =>
+      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+    removeMember: (id: string, userId: string) =>
+      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
+
+    // IES-P2-04: real, workspace-scoped activity feed.
+    activity: (id: string, limit?: number, cursor?: string) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', String(limit));
+      if (cursor) params.set('cursor', cursor);
+      const qs = params.toString();
+      return request<Paginated<WorkspaceActivity>>(`/workspaces/${id}/activity${qs ? '?' + qs : ''}`);
+    },
+  },
+
+  // IES-P2-05: real, per-user notifications (invite / role change / removal).
+  notifications: {
+    list: (opts?: { limit?: number; cursor?: string; unreadOnly?: boolean }) => {
+      const params = new URLSearchParams();
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.cursor) params.set('cursor', opts.cursor);
+      if (opts?.unreadOnly) params.set('unreadOnly', 'true');
+      const qs = params.toString();
+      return request<Paginated<NotificationItem>>(`/notifications${qs ? '?' + qs : ''}`);
+    },
+    unreadCount: () => request<{ count: number }>('/notifications/unread-count'),
+    markRead: (id: string) =>
+      request<NotificationItem>(`/notifications/${id}/read`, { method: 'PATCH' }),
+    markAllRead: () =>
+      request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
+  },
+
+  // IES-P2-06: global (personal) + workspace-scoped search.
+  search: {
+    run: (query: string, opts?: { workspaceId?: string; limit?: number }) => {
+      const params = new URLSearchParams({ q: query });
+      if (opts?.workspaceId) params.set('workspaceId', opts.workspaceId);
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      return request<SearchResults>(`/search?${params.toString()}`);
+    },
   },
 
   google: {

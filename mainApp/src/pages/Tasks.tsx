@@ -2,21 +2,21 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, CheckCircle, AlertTriangle, Circle,
-  Target, Flame, Zap, Filter, X,
+  Target, Flame, Zap, X,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Priority, TaskStatus } from '../types';
 import { CATEGORIES } from '../utils/colors';
-import { isOverdue, formatHours } from '../utils/time';
+import { isOverdue } from '../utils/time';
 import { PageHeader } from '../components/ui/PageHeader';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export function Tasks() {
-  const { tasks, profile, activeTaskId } = useStore();
+  const { tasks, profile } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
@@ -81,7 +81,7 @@ export function Tasks() {
         </div>
 
         {/* Quick stats */}
-        <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-3 gap-3 mt-5">
+        <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-5">
           {[
             { icon: Target, label: 'Active Tasks', value: String(totalActive), color: 'text-brand-400', bg: 'bg-brand-500/10' },
             { icon: Flame, label: 'Streak', value: `${profile.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10' },

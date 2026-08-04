@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Settings, Shield, ShieldCheck, Lock, Users, Key, Save, AlertTriangle } from 'lucide-react';
+import { Settings, ShieldCheck, Lock, Save } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 
 export function WorkspaceSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { workspaces, activeWorkspaceId } = useCollaborationStore();
+  const { workspaces, activeWorkspaceId, updateWorkspaceSettings } = useCollaborationStore();
 
   const activeWs = workspaces.find((w) => w.id === (workspaceId || activeWorkspaceId)) || workspaces[0];
 
@@ -17,6 +16,11 @@ export function WorkspaceSettingsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    updateWorkspaceSettings(activeWs.id, {
+      allowMemberInvites: allowInvites,
+      requireReviewForDone: requireReview,
+      autoSyncTimerWorkLogs: autoSyncWorkLogs,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -43,32 +47,32 @@ export function WorkspaceSettingsPage() {
 
           <div className="space-y-4 divide-y divide-surface-800">
             
-            <div className="pt-3 flex items-center justify-between">
+            <label className="pt-3 flex items-center justify-between cursor-pointer">
               <div>
                 <p className="text-xs font-bold text-surface-100">Allow Member Invitations</p>
                 <p className="text-[11px] text-surface-400">Permit developers and team leaders to invite external team members.</p>
               </div>
               <input type="checkbox" checked={allowInvites} onChange={(e) => setAllowInvites(e.target.checked)}
                 className="w-4 h-4 accent-brand-500 rounded cursor-pointer" />
-            </div>
+            </label>
 
-            <div className="pt-3 flex items-center justify-between">
+            <label className="pt-3 flex items-center justify-between cursor-pointer">
               <div>
                 <p className="text-xs font-bold text-surface-100">Mandatory QA Review for 'Done' Features</p>
                 <p className="text-[11px] text-surface-400">Require features to pass QA verification before being marked as Done.</p>
               </div>
               <input type="checkbox" checked={requireReview} onChange={(e) => setRequireReview(e.target.checked)}
                 className="w-4 h-4 accent-brand-500 rounded cursor-pointer" />
-            </div>
+            </label>
 
-            <div className="pt-3 flex items-center justify-between">
+            <label className="pt-3 flex items-center justify-between cursor-pointer">
               <div>
                 <p className="text-xs font-bold text-surface-100">Auto-Sync Timer Work Logs to Workspace</p>
                 <p className="text-[11px] text-surface-400">Automatically publish active focus session work logs to workspace activity feeds.</p>
               </div>
               <input type="checkbox" checked={autoSyncWorkLogs} onChange={(e) => setAutoSyncWorkLogs(e.target.checked)}
                 className="w-4 h-4 accent-brand-500 rounded cursor-pointer" />
-            </div>
+            </label>
 
           </div>
         </div>
@@ -119,7 +123,7 @@ export function WorkspaceSettingsPage() {
         </div>
 
         <div className="flex items-center justify-end gap-3">
-          {saved && <span className="text-xs text-emerald-400 font-semibold">Settings saved successfully!</span>}
+          {saved && <span role="status" aria-live="polite" className="text-xs text-emerald-400 font-semibold">Settings saved successfully!</span>}
           <button type="submit" className="btn-primary px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-brand-500/20">
             <Save size={14} /> Save Workspace Configuration
           </button>

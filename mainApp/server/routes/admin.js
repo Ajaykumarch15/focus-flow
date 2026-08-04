@@ -4,26 +4,133 @@ const Task = require('../models/Task');
 const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
+const Team = require('../models/Team');
+const ReportShare = require('../models/ReportShare');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const reportsRouter = require('./reports');
-const { buildDayReport, userTimezone, dayKey, isValidDateKey, localDateToUtc, dayRange } = reportsRouter.helpers;
+const { buildDayReport, buildSummaryDays, resolveSummaryRange, userTimezone, dayKey, isValidDateKey } = reportsRouter.helpers;
+const { runSystemAnalytics } = require('../utils/adminAnalytics');
+const { logger } = require('../utils/logger');
+const { z, objectId, email, validate } = require('../utils/validation');
 
 const router = express.Router();
+
+// IES-P0-16: body/param/query schemas.
+//
+// IES-P1-22: the `settings` object is whitelisted field-by-field so hostile or
+// misshapen values can't be persisted. Bounds mirror the User model settings
+// sub-schema and the Settings UI (dailyGoal 0–24h, pomodoro 1–120/1–60 min,
+// 6-digit hex accent, fixed enums). `.strict()` rejects unknown keys entirely.
+const settingsNumber = (label, { min, max, int = false } = {}) => {
+  let schema = z.coerce.number({ message: `${label} must be a number` });
+  if (int) schema = schema.int(`${label} must be an integer`);
+  if (min !== undefined) schema = schema.min(min, `${label} must be at least ${min}`);
+  if (max !== undefined) schema = schema.max(max, `${label} must be at most ${max}`);
+  // Number(null) === 0 and Number('') === 0 — pre-process those into NaN so a
+  // junk value is rejected instead of silently becoming the minimum.
+  return z.preprocess((value) => (value === null || value === '' ? NaN : value), schema);
+};
+
+const adminSettingsSchema = z.object({
+  mode: z.enum(['dark', 'light']),
+  dailyGoal: settingsNumber('dailyGoal', { min: 0, max: 24 }),
+  pomodoroWork: settingsNumber('pomodoroWork', { min: 1, max: 120, int: true }),
+  pomodoroBreak: settingsNumber('pomodoroBreak', { min: 1, max: 60, int: true }),
+  timezone: z.string().trim().min(1, 'Timezone cannot be empty').max(50, 'Timezone too long'),
+  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid accent color'),
+  fontSize: z.enum(['sm', 'md', 'lg']),
+  glassmorphism: z.boolean(),
+  animatedBg: z.boolean(),
+  reducedMotion: z.boolean(),
+}).partial().strict();
+
+const adminUserPatchSchema = z.object({
+  name: z.string().trim().min(1, 'Name cannot be empty').max(100, 'Name too long'),
+  email,
+  role: z.enum(['user', 'admin']),
+  settings: adminSettingsSchema,
+}).partial().passthrough();
+
+const userParamsSchema = z.object({ userId: objectId });
+const analyticsQuerySchema = z.object({
+  from: z.coerce.number().finite('from must be a valid timestamp'),
+  to: z.coerce.number().finite('to must be a valid timestamp'),
+}).partial();
+
+// ── Cursor pagination (IES-P1-18) ─────────────────────────────────────────────
+// Keyset pagination keeps admin lists bounded and the ordering stable:
+//   - `limit`  caps the page size (default 50, max 100).
+//   - `cursor` is an opaque base64url token encoding { t, id } — the last item's
+//     primary timestamp and _id — so the next page is fetched with
+//     (t < cursor.t) OR (t == cursor.t AND _id < cursor.id), which matches the
+//     (t: -1, _id: -1) sort exactly.
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+
+function parsePageSize(value) {
+  const n = parseInt(value, 10);
+  if (Number.isFinite(n) && n > 0) return Math.min(n, MAX_PAGE_SIZE);
+  return DEFAULT_PAGE_SIZE;
+}
+
+function encodeCursor(t, id) {
+  return Buffer.from(JSON.stringify({ t, id })).toString('base64url');
+}
+
+// Returns null when no cursor was provided, { t, id } when valid, or { error: true }.
+function decodeCursor(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
+    if (typeof parsed.t === 'number' && typeof parsed.id === 'string') return parsed;
+  } catch { /* fallthrough */ }
+  return { error: true };
+}
+
+// Mongo filter selecting docs strictly after (t, id) in a (t: -1, _id: -1) sort.
+function cursorFilter(tField, cursor) {
+  if (!cursor) return {};
+  return {
+    $or: [
+      { [tField]: { $lt: cursor.t } },
+      { [tField]: cursor.t, _id: { $lt: cursor.id } },
+    ],
+  };
+}
+
+async function paginateCursor({ model, filter, tField, limit, cursor, select }) {
+  let query = model.find({ ...filter, ...cursorFilter(tField, cursor) })
+    .sort({ [tField]: -1, _id: -1 })
+    .limit(limit + 1);
+  if (select) query = query.select(select);
+  const docs = await query;
+  const hasMore = docs.length > limit;
+  const items = hasMore ? docs.slice(0, limit) : docs;
+  const last = items[items.length - 1];
+  return {
+    items,
+    hasMore,
+    nextCursor: hasMore && last
+      ? encodeCursor(last[tField] instanceof Date ? last[tField].getTime() : Number(last[tField]), last._id.toString())
+      : null,
+  };
+}
 
 // Apply protect and admin middleware to all routes in this router
 router.use(protect);
 router.use(admin);
 
 // ── GET /api/admin/stats ──────────────────────────────────────────────────────
-router.get('/stats', async (req, res) => {
+router.get('/stats', async (req, res, next) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const ts = today.getTime();
 
     const [users, activeSessions, todaySessions] = await Promise.all([
-      User.countDocuments({}),
+      // IES-P1-23: soft-deleted accounts don't count as users in the headline stat.
+      User.countDocuments({ deletedAt: null }),
       Session.countDocuments({ isActive: true }),
       Session.find({ isActive: false, startTime: { $gte: ts } })
     ]);
@@ -37,33 +144,44 @@ router.get('/stats', async (req, res) => {
       todaySessionCount: todaySessions.length
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users ──────────────────────────────────────────────────────
-router.get('/users', async (req, res) => {
+router.get('/users', async (req, res, next) => {
   try {
+    const limit = parsePageSize(req.query.limit);
+    const cursor = decodeCursor(req.query.cursor);
+    if (cursor && cursor.error) return res.status(400).json({ message: 'Invalid cursor' });
     const filter = req.query.includeDeleted ? {} : { deletedAt: null };
-    const users = await User.find(filter).sort({ createdAt: -1 });
-    res.json(users);
+    res.json(await paginateCursor({ model: User, filter, tField: 'createdAt', limit, cursor, select: '-googleTokens' }));
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/deleted ─────────────────────────────────────────────
-router.get('/users/deleted', async (req, res) => {
+router.get('/users/deleted', async (req, res, next) => {
   try {
-    const users = await User.find({ deletedAt: { $ne: null } }).sort({ deletedAt: -1 });
-    res.json(users);
+    const limit = parsePageSize(req.query.limit);
+    const cursor = decodeCursor(req.query.cursor);
+    if (cursor && cursor.error) return res.status(400).json({ message: 'Invalid cursor' });
+    res.json(await paginateCursor({
+      model: User,
+      filter: { deletedAt: { $ne: null } },
+      tField: 'deletedAt',
+      limit,
+      cursor,
+      select: '-googleTokens',
+    }));
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── PATCH /api/admin/users/:userId ──────────────────────────────────────────
-router.patch('/users/:userId', async (req, res) => {
+router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { name, email, role, settings } = req.body;
@@ -77,13 +195,24 @@ router.patch('/users/:userId', async (req, res) => {
       }
       update.role = role;
     }
-    if (settings !== undefined) update.settings = settings;
+    // IES-P1-22: write only the whitelisted fields as dotted paths, so an admin
+    // editing one setting doesn't wipe the user's other settings (e.g. timezone
+    // drives report day boundaries).
+    if (settings !== undefined) {
+      for (const [key, value] of Object.entries(settings)) {
+        update[`settings.${key}`] = value;
+      }
+    }
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
-    const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
+    const ops = { $set: update };
+    // Role change invalidates any previously-issued tokens (IES-P0-08).
+    if (role !== undefined) ops.$inc = { tokenVersion: 1 };
+
+    const user = await User.findByIdAndUpdate(userId, ops, { new: true, runValidators: true }).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     const details = { targetUserId: userId, targetName: user.name };
@@ -99,12 +228,12 @@ router.patch('/users/:userId', async (req, res) => {
     if (err.code === 11000) {
       return res.status(409).json({ message: 'Email already in use' });
     }
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── DELETE /api/admin/users/:userId (soft delete) ───────────────────────────
-router.delete('/users/:userId', async (req, res) => {
+router.delete('/users/:userId', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     if (userId === req.user._id.toString()) {
@@ -112,36 +241,53 @@ router.delete('/users/:userId', async (req, res) => {
     }
     const user = await User.findByIdAndUpdate(
       userId,
-      { $set: { deletedAt: new Date() } },
+      // Soft-delete also bumps tokenVersion so the deleted user's sessions die immediately.
+      { $set: { deletedAt: new Date() }, $inc: { tokenVersion: 1 } },
       { new: true }
-    );
+    ).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // IES-P1-23 · soft-delete cascade + data retention. A deleted user is
+    // scrubbed from shared surfaces so they can't keep showing up in team
+    // analytics or token-gated reports:
+    //   - pulled out of every Team.members array (membership is dissolved),
+    //   - all their report shares are revoked (they stay until the TTL index
+    //     retires them, but can never render again).
+    // The account row, its child data (sessions/tasks/worklogs), and audit
+    // history are retained for forensic/audit purposes; a deleted user is
+    // excluded from every aggregate query via `deletedAt: null` filters and
+    // can never authenticate (protect + login both reject `deletedAt` set).
+    await Promise.all([
+      Team.updateMany({ members: userId }, { $pull: { members: userId } }),
+      ReportShare.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } }),
+    ]);
+
     res.json({ message: 'User soft-deleted', user });
     Activity.create({ userId: req.user._id, action: 'user.deleted', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/admin/users/:userId/restore ────────────────────────────────────
-router.post('/users/:userId/restore', async (req, res) => {
+router.post('/users/:userId/restore', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findByIdAndUpdate(
       userId,
       { $set: { deletedAt: null } },
       { new: true }
-    );
+    ).select('-googleTokens');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     Activity.create({ userId: req.user._id, action: 'user.restored', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/analytics ──────────────────────────────────
-router.get('/users/:userId/analytics', async (req, res) => {
+router.get('/users/:userId/analytics', validate(null, { params: userParamsSchema, query: analyticsQuerySchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const { from, to } = req.query;
@@ -201,89 +347,30 @@ router.get('/users/:userId/analytics', async (req, res) => {
       workLogs
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/reports/summary ──────────────────────────────────
-router.get('/users/:userId/reports/summary', async (req, res) => {
+// IES-P1-17: the per-day summary is the shared `buildSummaryDays` implementation
+// (same as GET /reports/summary), so the admin copy inherits the IES-P1-14
+// completed-item-per-day attribution instead of its old per-log "length" bug.
+router.get('/users/:userId/reports/summary', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const timeZone = userTimezone(user);
-    const today = dayKey(Date.now(), timeZone);
-    const fromKey = isValidDateKey(req.query.from)
-      ? req.query.from
-      : (() => {
-        const d = localDateToUtc(today, timeZone);
-        d.setUTCDate(d.getUTCDate() - 29);
-        return dayKey(d.getTime(), timeZone);
-      })();
-    const toKey = isValidDateKey(req.query.to) ? req.query.to : today;
-    const from = dayRange(fromKey, timeZone).start;
-    const to = dayRange(toKey, timeZone).end;
-
-    const [sessions, workLogs] = await Promise.all([
-      Session.find({
-        userId,
-        startTime: { $gte: from.getTime(), $lt: to.getTime() },
-        isActive: false,
-      }).populate('taskId', 'title color category'),
-      WorkLog.find({
-        userId,
-        $or: [
-          { createdAt: { $gte: from, $lt: to } },
-          { updatedAt: { $gte: from, $lt: to } },
-          { 'workEntries.date': { $gte: from, $lt: to } },
-        ],
-      }),
-    ]);
-
-    const dayMap = {};
-    for (const session of sessions) {
-      const day = dayKey(session.startTime, timeZone);
-      if (!dayMap[day]) {
-        dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
-      }
-      dayMap[day].totalMs += session.activeTime || 0;
-      dayMap[day].sessionCount += 1;
-      if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());
-    }
-
-    for (const log of workLogs) {
-      const entryDays = (log.workEntries || [])
-        .filter(entry => entry.date >= from && entry.date < to)
-        .map(entry => dayKey(entry.date.getTime(), timeZone));
-      const days = entryDays.length > 0 ? [...new Set(entryDays)] : [dayKey(log.updatedAt.getTime(), timeZone)];
-
-      for (const day of days) {
-        if (!dayMap[day]) {
-          dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
-        }
-        dayMap[day].workLogCount += 1;
-        dayMap[day].completedCount += log.completedItems.length;
-      }
-    }
-
-    res.json(Object.values(dayMap).map(day => ({
-      date: day.date,
-      totalMs: day.totalMs,
-      totalHours: Math.round(day.totalMs / 3600000 * 10) / 10,
-      sessionCount: day.sessionCount,
-      taskCount: day.taskIds.size,
-      workLogCount: day.workLogCount,
-      completedCount: day.completedCount,
-    })));
+    const { fromKey, toKey } = resolveSummaryRange(req.query, timeZone);
+    res.json(await buildSummaryDays({ userId, fromKey, toKey, timeZone }));
   } catch (err) {
-    console.error('GET /admin/users/:userId/reports/summary error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/users/:userId/reports/day ──────────────────────────────────────
-router.get('/users/:userId/reports/day', async (req, res) => {
+router.get('/users/:userId/reports/day', validate(null, { params: userParamsSchema }), async (req, res, next) => {
   try {
     const { userId } = req.params;
     const user = await User.findById(userId);
@@ -295,117 +382,54 @@ router.get('/users/:userId/reports/day', async (req, res) => {
     }
     res.json(await buildDayReport(userId, requestedDate, userTimezone(user)));
   } catch (err) {
-    console.error('GET /admin/users/:userId/reports/day error:', err);
-    res.status(err.status || 500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/system-analytics ─────────────────────────────────────────
-router.get('/system-analytics', async (req, res) => {
+// IES-P1-17: aggregation pipelines in server/utils/adminAnalytics.js replace the
+// old find()-based, in-memory aggregation (no full-collection loads into JS).
+router.get('/system-analytics', async (req, res, next) => {
   try {
     const period = req.query.period || 'month';
-    const now = Date.now();
-    const periodMs = { week: 7 * 86400000, month: 30 * 86400000, quarter: 90 * 86400000 };
-    const fromMs = now - (periodMs[period] || periodMs.month);
-
-    const [totalUsers, newUsers, sessions, tasks, activeSessions] = await Promise.all([
-      User.countDocuments({ deletedAt: null }),
-      User.countDocuments({ deletedAt: null, createdAt: { $gte: new Date(fromMs) } }),
-      Session.find({ startTime: { $gte: fromMs }, isActive: false }).select('userId activeTime focusScore startTime'),
-      Task.find({ createdAt: { $gte: new Date(fromMs) } }).select('userId status category totalTime'),
-      Session.find({ isActive: true }).select('userId startTime totalPauseDuration'),
-    ]);
-
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
-    const totalFocusMs = sessions.reduce((a, s) => a + (s.activeTime || 0), 0);
-    const avgFocusScore = sessions.length > 0
-      ? Math.round(sessions.reduce((a, s) => a + (s.focusScore || 0), 0) / sessions.length)
-      : 0;
-    const taskCompletionRate = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
-
-    const uniqueActiveUsers = new Set(sessions.map(s => s.userId.toString())).size;
-
-    const now2 = Date.now();
-    activeSessions.forEach(s => {
-      const live = Math.max(0, now2 - s.startTime - (s.totalPauseDuration || 0));
-      sessions.push({ activeTime: live, focusScore: 0, userId: s.userId });
-    });
-
-    const dailyMap = {};
-    const thirtyDaysAgo = now - 30 * 86400000;
-    for (const s of sessions) {
-      if (!s.startTime || s.startTime < thirtyDaysAgo) continue;
-      const d = new Date(s.startTime);
-      if (isNaN(d.getTime())) continue;
-      const dk = d.toISOString().slice(0, 10);
-      if (!dailyMap[dk]) dailyMap[dk] = { date: dk, totalMs: 0, sessionCount: 0, activeUsers: new Set() };
-      dailyMap[dk].totalMs += s.activeTime || 0;
-      dailyMap[dk].sessionCount += 1;
-      dailyMap[dk].activeUsers.add(s.userId.toString());
-    }
-    const dailyFocus = Object.values(dailyMap)
-      .map(d => ({ ...d, activeUsers: d.activeUsers.size }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-
-    const categoryMap = {};
-    for (const t of tasks) {
-      const cat = t.category || 'Uncategorized';
-      if (!categoryMap[cat]) categoryMap[cat] = { category: cat, totalTimeMs: 0, taskCount: 0 };
-      categoryMap[cat].totalTimeMs += t.totalTime || 0;
-      categoryMap[cat].taskCount += 1;
-    }
-    const topCategories = Object.values(categoryMap).sort((a, b) => b.totalTimeMs - a.totalTimeMs).slice(0, 10);
-
-    const dailySignups = {};
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date(now - i * 86400000).toISOString().slice(0, 10);
-      dailySignups[d] = 0;
-    }
-    const allNewUsers = await User.find({ createdAt: { $gte: new Date(thirtyDaysAgo) } }).select('createdAt');
-    for (const u of allNewUsers) {
-      if (!u.createdAt) continue;
-      const d = u.createdAt.toISOString().slice(0, 10);
-      if (dailySignups[d] !== undefined) dailySignups[d]++;
-    }
-    const userGrowth = Object.entries(dailySignups).map(([date, count]) => ({ date, count }));
-
-    res.json({
-      period,
-      totalUsers,
-      newUsers,
-      activeUsers: uniqueActiveUsers,
-      totalFocusMs,
-      totalSessions: sessions.length,
-      avgFocusScore,
-      taskCompletionRate,
-      totalTasks: tasks.length,
-      completedTasks,
-      dailyFocus,
-      topCategories,
-      userGrowth,
-    });
+    res.json(await runSystemAnalytics({ period }));
   } catch (err) {
-    console.error('GET /admin/system-analytics error:', err);
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── GET /api/admin/activity ─────────────────────────────────────────────────
-router.get('/activity', async (req, res) => {
+router.get('/activity', async (req, res, next) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
-    const query = {};
-    if (req.query.before) query.createdAt = { $lt: new Date(req.query.before) };
-    if (req.query.action) query.action = req.query.action;
+    const limit = parsePageSize(req.query.limit);
+    const cursor = decodeCursor(req.query.cursor);
+    if (cursor && cursor.error) return res.status(400).json({ message: 'Invalid cursor' });
 
-    const activities = await Activity.find(query)
+    const filter = {};
+    if (req.query.action) filter.action = req.query.action;
+    if (req.query.before && !req.query.cursor) {
+      let beforeTs = Number(req.query.before);
+      if (Number.isNaN(beforeTs)) beforeTs = new Date(req.query.before).getTime();
+      if (Number.isFinite(beforeTs)) filter.createdAt = { $lt: new Date(beforeTs) };
+    }
+
+    const docs = await Activity.find({ ...filter, ...cursorFilter('createdAt', cursor) })
       .populate('userId', 'name email avatar role')
-      .sort({ createdAt: -1 })
-      .limit(limit);
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1);
 
-    res.json(activities);
+    const hasMore = docs.length > limit;
+    const items = hasMore ? docs.slice(0, limit) : docs;
+    const last = items[items.length - 1];
+    res.json({
+      items,
+      hasMore,
+      nextCursor: hasMore && last
+        ? encodeCursor(last.createdAt instanceof Date ? last.createdAt.getTime() : Number(last.createdAt), last._id.toString())
+        : null,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 

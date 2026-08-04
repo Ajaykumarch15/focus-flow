@@ -4,6 +4,15 @@
  * Ensures timer operations (start, pause, resume, stop) are queued locally
  * whenever the network is offline or backend API requests fail/timeout.
  * Replays operations in sequence once connectivity is restored.
+ *
+ * IES-P1-05 reliability rules:
+ *  - Ops are NEVER dropped. A failed op stays persisted and is retried with
+ *    exponential backoff until it succeeds or the queue is cleared.
+ *  - Every op carries a client-generated `opId` so the server can deduplicate
+ *    replays (a START that was applied but whose response was lost won't create
+ *    a second session, and repeated pause/resume/stop side effects are skipped).
+ *  - Replays do NOT resend client timestamps; the server uses its own clock, so
+ *    a stale/fabricated offline time can never be applied.
  */
 
 import { api } from './api';
@@ -11,7 +20,7 @@ import { api } from './api';
 export type OfflineOpType = 'START_SESSION' | 'PAUSE_SESSION' | 'RESUME_SESSION' | 'STOP_SESSION';
 
 export interface OfflineOperation {
-  id: string;
+  opId: string;
   type: OfflineOpType;
   taskId: string;
   sessionId?: string;
@@ -21,10 +30,19 @@ export interface OfflineOperation {
 }
 
 const QUEUE_KEY = 'ff_offline_timer_queue';
+const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
 
-class OfflineQueue {
+export function createOpId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 10)}`;
+}
+
+export class OfflineQueue {
   private queue: OfflineOperation[] = [];
   private isProcessing: boolean = false;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.load();
@@ -48,9 +66,24 @@ class OfflineQueue {
     } catch { /* storage full */ }
   }
 
-  public enqueue(type: OfflineOpType, taskId: string, sessionId?: string, payload?: Record<string, any>): OfflineOperation {
+  private scheduleRetry(attempts: number): void {
+    if (this.retryTimer) return;
+    const delay = Math.min(1000 * 2 ** (attempts - 1), MAX_RETRY_DELAY_MS);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      this.processQueue();
+    }, delay);
+  }
+
+  public enqueue(
+    type: OfflineOpType,
+    taskId: string,
+    sessionId?: string,
+    payload?: Record<string, any>,
+    opId?: string,
+  ): OfflineOperation {
     const op: OfflineOperation = {
-      id: `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      opId: opId || createOpId(),
       type,
       taskId,
       sessionId,
@@ -79,56 +112,58 @@ class OfflineQueue {
     try {
       while (this.queue.length > 0) {
         const op = this.queue[0];
+        const replayed = op.attempts > 0;
         op.attempts += 1;
 
         try {
           let success = false;
+          // Replays must not resend client timestamps: the server validates and
+          // uses its own clock, so a fabricated offline time is never applied.
+          // The FIRST attempt may carry the enqueue wall-clock as the action time.
           switch (op.type) {
             case 'START_SESSION':
-              await api.sessions.start(op.taskId, op.payload?.startTime || op.timestamp);
+              await api.sessions.start(op.taskId, replayed ? undefined : (op.payload?.startTime ?? op.timestamp), op.opId);
               success = true;
               break;
 
             case 'PAUSE_SESSION':
               if (op.sessionId) {
-                await api.sessions.pause(op.sessionId, op.payload?.pauseTime || op.timestamp);
+                await api.sessions.pause(op.sessionId, replayed ? undefined : (op.payload?.pauseTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;
 
             case 'RESUME_SESSION':
               if (op.sessionId) {
-                await api.sessions.resume(op.sessionId, op.payload?.resumeTime || op.timestamp);
+                await api.sessions.resume(op.sessionId, replayed ? undefined : (op.payload?.resumeTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;
 
             case 'STOP_SESSION':
               if (op.sessionId) {
-                await api.sessions.stop(op.sessionId, op.payload?.endTime || op.timestamp);
+                await api.sessions.stop(op.sessionId, replayed ? undefined : (op.payload?.endTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;
           }
 
-          if (success || op.attempts > 5) {
-            // Dequeue item on success or if retried too many times to prevent infinite blocking
+          if (success) {
+            // Dequeue only on success — a failed op is never dropped.
             this.queue.shift();
             this.save();
           }
         } catch (err: any) {
           console.warn(`[OfflineQueue] Operation ${op.type} failed (attempt ${op.attempts}):`, err?.message);
-          if (!navigator.onLine) {
-            // Stop processing if network lost mid-loop
+          // Persist the incremented attempts so a reload knows this op was
+          // already sent and will not resend a client timestamp.
+          this.save();
+          if (typeof navigator !== 'undefined' && !navigator.onLine) {
             break;
           }
-          if (op.attempts >= 3) {
-            // Shift failed item after max attempts
-            this.queue.shift();
-            this.save();
-          } else {
-            break;
-          }
+          // Keep the op queued and retry with exponential backoff.
+          this.scheduleRetry(op.attempts);
+          break;
         }
       }
     } finally {
@@ -143,6 +178,10 @@ class OfflineQueue {
   public clear(): void {
     this.queue = [];
     this.save();
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
   }
 }
 

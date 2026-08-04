@@ -1,8 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Square, RotateCcw, Minimize2, Coffee, Zap, X } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Coffee, Zap } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration } from '../utils/time';
+import { pomodoroTimeLeft, pomodoroProgress, isPomodoroComplete } from '../utils/pomodoro';
 import { getNotificationSettings } from '../hooks/useNotifications';
 import { toast } from '../store/useToastStore';
 
@@ -15,92 +17,156 @@ const QUOTES = [
 ];
 
 export function FocusMode() {
-  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer, activeTaskId, activeTimerState } = useStore();
+  const { profile, theme, tasks, startTimer, pauseTimer, resumeTimer, stopTimer } = useStore();
+  const { activeTaskId, activeTimerState, elapsedMs } = useActiveTimer();
+
   const [mode, setMode] = useState<'pomodoro' | 'break'>('pomodoro');
-  const [timeLeft, setTimeLeft] = useState(profile.pomodoroWork * 60);
-  const [isRunning, setIsRunning] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [quoteIdx, setQuoteIdx] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const totalTime = mode === 'pomodoro' ? profile.pomodoroWork * 60 : profile.pomodoroBreak * 60;
-  const progress = ((totalTime - timeLeft) / totalTime) * 100;
+  // Break countdown — a break is not task time so it cannot run through the
+  // engine; it is a timestamp-based countdown (no per-tick accumulation drift).
+  const [breakEndAt, setBreakEndAt] = useState<number | null>(null);
+  const [breakRemainingMs, setBreakRemainingMs] = useState(profile.pomodoroBreak * 60000);
+
+  const workDurationMs = profile.pomodoroWork * 60000;
+  const breakDurationMs = profile.pomodoroBreak * 60000;
+
+  // Focus (pomodoro) sessions run through the timerEngine and record a real
+  // session. The countdown is derived from engine elapsed time.
+  const engineOnTask = selectedTaskId !== '' && activeTaskId === selectedTaskId;
+  const focusElapsedMs = engineOnTask ? elapsedMs : 0;
+  const timeLeftMs = pomodoroTimeLeft(workDurationMs, focusElapsedMs);
+  const progress = pomodoroProgress(workDurationMs, focusElapsedMs);
+  const focusRunning = engineOnTask && activeTimerState === 'running';
+  const focusPaused = engineOnTask && activeTimerState === 'paused';
+
+  const breakRunning = breakEndAt !== null;
+  const breakPaused = breakEndAt === null && breakRemainingMs < breakDurationMs;
+
   const activeTasks = tasks.filter(t => t.status !== 'completed');
-  const selectedTask = tasks.find(t => t.id === selectedTaskId);
+  const completionHandledRef = useRef(false);
 
+  const notify = (title: string, body: string, tag: string, kind: 'success' | 'info') => {
+    const prefs = getNotificationSettings();
+    if (!prefs.pomodoroAlerts) return;
+    try {
+      new Notification(title, { body, tag, icon: '/favicon.svg' });
+    } catch { /* ignore */ }
+    if (kind === 'success') toast.success(title, body);
+    else toast.info(title, body);
+  };
+
+  const startBreak = useCallback(() => {
+    setMode('break');
+    setBreakRemainingMs(breakDurationMs);
+    setBreakEndAt(Date.now() + breakDurationMs);
+  }, [breakDurationMs]);
+
+  const pauseBreak = useCallback(() => {
+    if (breakEndAt === null) return;
+    setBreakRemainingMs(Math.max(0, breakEndAt - Date.now()));
+    setBreakEndAt(null);
+  }, [breakEndAt]);
+
+  const resumeBreak = useCallback(() => {
+    setBreakEndAt(Date.now() + breakRemainingMs);
+  }, [breakRemainingMs]);
+
+  const resetBreak = useCallback(() => {
+    setBreakEndAt(null);
+    setBreakRemainingMs(breakDurationMs);
+  }, [breakDurationMs]);
+
+  const enterPomodoro = useCallback(() => {
+    setMode('pomodoro');
+    resetBreak();
+    completionHandledRef.current = false;
+  }, [resetBreak]);
+
+  // Auto-complete the focus session when engine elapsed reaches the work duration.
   useEffect(() => {
-    setTimeLeft(mode === 'pomodoro' ? profile.pomodoroWork * 60 : profile.pomodoroBreak * 60);
-    setIsRunning(false);
-  }, [mode, profile]);
+    if (mode !== 'pomodoro' || !engineOnTask || activeTimerState !== 'running') return;
+    if (!isPomodoroComplete(workDurationMs, elapsedMs)) return;
+    if (completionHandledRef.current) return;
+    completionHandledRef.current = true;
+    notify('Focus Session Complete', 'Time for a break! Great work.', 'pomodoro-break', 'success');
+    stopTimer(selectedTaskId).finally(() => {
+      completionHandledRef.current = false;
+      startBreak();
+    });
+  }, [mode, engineOnTask, activeTimerState, workDurationMs, elapsedMs, selectedTaskId]);
 
+  // Break countdown ticker.
   useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        setTimeLeft(t => {
-          if (t <= 1) {
-            setIsRunning(false);
-            const prefs = getNotificationSettings();
-            if (prefs.pomodoroAlerts) {
-              if (mode === 'pomodoro') {
-                try {
-                  new Notification('Focus Session Complete', {
-                    body: 'Time for a break! Great work.',
-                    tag: 'pomodoro-break',
-                    icon: '/favicon.svg',
-                  });
-                } catch { /* ignore */ }
-                toast.success('Focus Session Complete', 'Time for a break! Great work.');
-              } else {
-                try {
-                  new Notification('Break Over', {
-                    body: 'Ready for the next focus session?',
-                    tag: 'pomodoro-work',
-                    icon: '/favicon.svg',
-                  });
-                } catch { /* ignore */ }
-                toast.info('Break Over', 'Ready for the next focus session?');
-              }
-            }
-            if (mode === 'pomodoro') setMode('break');
-            else setMode('pomodoro');
-            return 0;
-          }
-          return t - 1;
-        });
-      }, 1000);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, mode]);
+    if (mode !== 'break' || breakEndAt === null) return;
+    const id = window.setInterval(() => {
+      setBreakRemainingMs(Math.max(0, breakEndAt - Date.now()));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [mode, breakEndAt]);
 
+  // Break completion.
+  useEffect(() => {
+    if (mode !== 'break' || breakEndAt === null) return;
+    if (breakRemainingMs > 0) return;
+    notify('Break Over', 'Ready for the next focus session?', 'pomodoro-work', 'info');
+    enterPomodoro();
+  }, [mode, breakEndAt, breakRemainingMs]);
+
+  // Quote rotation.
   useEffect(() => {
     const qi = setInterval(() => setQuoteIdx(i => (i + 1) % QUOTES.length), 8000);
     return () => clearInterval(qi);
   }, []);
 
-  const handleToggle = () => {
-    setIsRunning(!isRunning);
-    if (selectedTaskId) {
-      if (!isRunning) {
-        if (activeTaskId !== selectedTaskId) startTimer(selectedTaskId);
-        else resumeTimer(selectedTaskId);
-      } else {
-        pauseTimer(selectedTaskId);
-      }
+  // Switching to break stops the engine, recording any partial focus session.
+  const handleModeChange = async (m: 'pomodoro' | 'break') => {
+    if (m === mode) return;
+    if (m === 'break') {
+      if (engineOnTask) await stopTimer(selectedTaskId);
+      startBreak();
+    } else {
+      enterPomodoro();
     }
   };
 
-  const handleReset = () => {
-    setIsRunning(false);
-    setTimeLeft(mode === 'pomodoro' ? profile.pomodoroWork * 60 : profile.pomodoroBreak * 60);
-    if (selectedTaskId && activeTaskId === selectedTaskId) stopTimer(selectedTaskId);
+  const handleMainToggle = async () => {
+    if (mode === 'pomodoro') {
+      if (!selectedTaskId) return;
+      if (focusRunning) pauseTimer(selectedTaskId);
+      else if (focusPaused) resumeTimer(selectedTaskId);
+      else await startTimer(selectedTaskId);
+    } else {
+      if (breakRunning) pauseBreak();
+      else if (breakPaused) resumeBreak();
+      else startBreak();
+    }
+  };
+
+  const handleReset = async () => {
+    if (mode === 'pomodoro') {
+      if (engineOnTask) await stopTimer(selectedTaskId);
+    } else {
+      resetBreak();
+    }
+  };
+
+  const handleStop = async () => {
+    if (!selectedTaskId) return;
+    await stopTimer(selectedTaskId);
+    setSelectedTaskId('');
   };
 
   // Circle math
   const r = 120;
   const circumference = 2 * Math.PI * r;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
+  const displayedMs = mode === 'pomodoro' ? timeLeftMs : breakRemainingMs;
+  const displayedProgress = mode === 'pomodoro'
+    ? progress
+    : pomodoroProgress(breakDurationMs, breakDurationMs - breakRemainingMs);
+  const strokeDashoffset = circumference - (displayedProgress / 100) * circumference;
+  const isRunning = mode === 'pomodoro' ? focusRunning : breakRunning;
 
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center p-6 relative overflow-hidden">
@@ -120,7 +186,7 @@ export function FocusMode() {
           {(['pomodoro', 'break'] as const).map(m => (
             <button
               key={m}
-              onClick={() => setMode(m)}
+              onClick={() => handleModeChange(m)}
               className={`px-6 py-2.5 rounded-[10px] text-xs font-semibold transition-all ${mode === m ? 'bg-brand-500 text-white shadow-sm' : 'text-surface-400 hover:text-surface-50'}`}
             >
               {m === 'pomodoro' ? <span className="flex items-center gap-1.5"><Zap size={14} /> Focus Session</span> : <span className="flex items-center gap-1.5"><Coffee size={14} /> Break Session</span>}
@@ -131,7 +197,7 @@ export function FocusMode() {
         {/* Timer Elevated Card */}
         <div className="card p-8 rounded-[22px] shadow-sm border border-surface-800 flex flex-col items-center mb-8 w-full bg-[#FFFDF5] dark:bg-surface-900">
           <div className="relative mb-6">
-            <svg width="280" height="280" className="-rotate-90">
+            <svg viewBox="0 0 280 280" width="100%" style={{ maxWidth: 280 }} className="-rotate-90">
               <circle cx="140" cy="140" r={r} fill="none" stroke="var(--color-surface-800)" strokeWidth="8" />
               <motion.circle
                 cx="140" cy="140" r={r}
@@ -146,10 +212,12 @@ export function FocusMode() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <div className="timer-display text-5xl lg:text-6xl font-extrabold text-surface-50 mb-1">
-                {formatDuration(timeLeft * 1000)}
+                {formatDuration(displayedMs)}
               </div>
               <div className={`text-xs font-bold uppercase tracking-wider ${mode === 'pomodoro' ? 'text-amber-500' : 'text-emerald-500'}`}>
-                {mode === 'pomodoro' ? 'Focusing' : 'Break Time'}
+                {mode === 'pomodoro'
+                  ? focusRunning ? 'Focusing' : focusPaused ? 'Paused' : 'Ready to Focus'
+                  : breakRunning ? 'Break Time' : breakPaused ? 'Break Paused' : 'Break Ready'}
               </div>
             </div>
           </div>
@@ -164,17 +232,20 @@ export function FocusMode() {
               <RotateCcw size={18} />
             </button>
             <button
-              onClick={handleToggle}
+              onClick={handleMainToggle}
+              disabled={mode === 'pomodoro' && !selectedTaskId}
               className={`btn-primary px-8 text-base font-semibold ${
                 isRunning ? 'bg-amber-500 text-white' : ''
-              }`}
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               {isRunning ? <span className="flex items-center gap-2"><Pause size={18} /> Pause</span>
-                         : <span className="flex items-center gap-2"><Play size={18} fill="white" /> Start Focus</span>}
+                         : <span className="flex items-center gap-2"><Play size={18} fill="white" />
+                             {mode === 'pomodoro' ? (focusPaused ? 'Resume Focus' : 'Start Focus')
+                                                  : (breakPaused ? 'Resume Break' : 'Start Break')}</span>}
             </button>
-            {selectedTaskId && activeTaskId === selectedTaskId && (
+            {mode === 'pomodoro' && selectedTaskId && activeTaskId === selectedTaskId && (
               <button
-                onClick={() => { stopTimer(selectedTaskId); setSelectedTaskId(''); }}
+                onClick={handleStop}
                 className="btn-danger px-4"
                 title="Stop Timer"
               >
@@ -190,10 +261,16 @@ export function FocusMode() {
             className="input h-12 rounded-[14px] text-center font-medium"
             value={selectedTaskId}
             onChange={e => setSelectedTaskId(e.target.value)}
+            disabled={focusRunning || focusPaused}
           >
             <option value="">— Select a task to focus on —</option>
             {activeTasks.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
           </select>
+          {mode === 'pomodoro' && !selectedTaskId && (
+            <p className="text-center text-xs text-surface-500 mt-2">
+              Select a task to record your focus time to your work log.
+            </p>
+          )}
         </div>
 
         {/* Quote */}

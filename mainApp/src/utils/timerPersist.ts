@@ -7,11 +7,12 @@
  *    never resets to 0 when a new task starts or the page refreshes.
  */
 
-import { getToday } from './time';
+import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, getTimezone } from './time';
 
 // ── Active timer ──────────────────────────────────────────────────────────────
 const TIMER_KEY = 'ff_active_timer';
-const TODAY_KEY = 'ff_today_ms';
+const DAY_CACHE_KEY = 'ff_day_cache';
+const LEGACY_TODAY_KEY = 'ff_today_ms';
 
 export interface PersistedTimer {
   taskId: string;
@@ -51,27 +52,59 @@ export function calcElapsed(t: PersistedTimer): number {
   return Math.max(0, Date.now() - t.sessionStartTime - t.totalPauseDuration);
 }
 
-// ── Today's completed sessions cache ─────────────────────────────────────────
-// Stores the SUM of activeMs for all sessions stopped today.
-// Read by getTodayTime() so daily progress never resets on new task start.
+// ── Per-day completed-session cache ──────────────────────────────────────────
+// Stores the SUM of activeMs for all sessions stopped, keyed by YYYY-MM-DD day.
+// Read by getTodayTime() so daily progress never resets on new task start, and
+// summed across the ISO week for real weekly totals (IES-P1-19).
 
-interface TodayCache {
+interface LegacyTodayCache {
   date: string;   // YYYY-MM-DD
   ms: number;
 }
 
 function todayKey(): string {
-  return getToday();
+  return getTodayKey();
 }
 
-/** Load today's completed-session total (0 if none or a different day). */
-export function loadTodayMs(): number {
+function readDayCache(): Record<string, number> {
   try {
-    const raw = localStorage.getItem(TODAY_KEY);
-    if (!raw) return 0;
-    const { date, ms } = JSON.parse(raw) as TodayCache;
-    return date === todayKey() ? ms : 0;
-  } catch { return 0; }
+    const raw = localStorage.getItem(DAY_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, number>;
+      }
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+function writeDayCache(cache: Record<string, number>): void {
+  try { localStorage.setItem(DAY_CACHE_KEY, JSON.stringify(cache)); }
+  catch { /* storage full */ }
+}
+
+/** One-time migration: fold a legacy ff_today_ms snapshot into the day cache. */
+function migrateLegacyToday(): void {
+  try {
+    const raw = localStorage.getItem(LEGACY_TODAY_KEY);
+    if (!raw) return;
+    const { date, ms } = JSON.parse(raw) as LegacyTodayCache;
+    if (date && typeof ms === 'number' && ms > 0) {
+      const cache = readDayCache();
+      if (!(date in cache)) {
+        cache[date] = ms;
+        writeDayCache(cache);
+      }
+    }
+    localStorage.removeItem(LEGACY_TODAY_KEY);
+  } catch { /* ignore */ }
+}
+
+/** Load today's completed-session total (0 if none). */
+export function loadTodayMs(): number {
+  migrateLegacyToday();
+  return readDayCache()[todayKey()] || 0;
 }
 
 /**
@@ -79,21 +112,41 @@ export function loadTodayMs(): number {
  * Call this inside stopTimer BEFORE wiping store state.
  */
 export function addCompletedSession(activeMs: number): void {
-  try {
-    const existing = loadTodayMs();
-    const updated: TodayCache = { date: todayKey(), ms: existing + activeMs };
-    localStorage.setItem(TODAY_KEY, JSON.stringify(updated));
-  } catch { /* ignore */ }
+  migrateLegacyToday();
+  const cache = readDayCache();
+  cache[todayKey()] = (cache[todayKey()] || 0) + activeMs;
+  writeDayCache(cache);
 }
 
 /** Overwrite today's total (used after full recalculation). */
 export function saveTodayMs(ms: number): void {
-  try {
-    localStorage.setItem(TODAY_KEY, JSON.stringify({ date: todayKey(), ms }));
-  } catch { /* ignore */ }
+  migrateLegacyToday();
+  const cache = readDayCache();
+  cache[todayKey()] = ms;
+  writeDayCache(cache);
 }
 
-/** Clear today's cache (call on logout). */
+/** Load a specific day's completed total (0 if unknown). */
+export function loadDayMs(dayKey: string): number {
+  migrateLegacyToday();
+  return readDayCache()[dayKey] || 0;
+}
+
+/** Sum of completed sessions across the current ISO week (Mon–Sun). */
+export function loadWeekMs(timeZone = getTimezone()): number {
+  migrateLegacyToday();
+  const cache = readDayCache();
+  const startKey = getIsoWeekStartKey(timeZone);
+  const endKey = getIsoWeekEndKey(timeZone);
+  let total = 0;
+  for (const [key, ms] of Object.entries(cache)) {
+    if (key >= startKey && key <= endKey) total += ms;
+  }
+  return total;
+}
+
+/** Clear the day cache (call on logout). */
 export function clearTodayMs(): void {
-  localStorage.removeItem(TODAY_KEY);
+  localStorage.removeItem(DAY_CACHE_KEY);
+  localStorage.removeItem(LEGACY_TODAY_KEY);
 }

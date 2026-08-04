@@ -48,6 +48,7 @@ export function NotificationPermissionBanner() {
             </button>
             <button
               onClick={handleDismiss}
+              aria-label="Dismiss notification permission prompt"
               className="p-1.5 text-surface-400 hover:text-surface-50 rounded-lg transition-all"
             >
               <X size={14} />

@@ -1,21 +1,21 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+﻿import { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle,
   ExternalLink, Link2, BookMarked, Timer, FolderOpen,
-  Loader2, Flame, TrendingUp, Calendar, Zap,
-  FileText, Download, FileCode2,
+  Flame, TrendingUp, Calendar, Zap,
+  FileText, Download,
   LayoutList, Lightbulb, AlertOctagon, Target, HeartPulse,
-  Paperclip, BookOpen, Eye, Bug,
+  Paperclip, Eye, Bug,
 } from 'lucide-react';
 
 const DocumentationPreview = lazy(() => import('../components/DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { formatDistanceToNow, format } from 'date-fns';
-import { renderMarkdown } from '../components/ui/proEditor';
+import { Markdown } from '../lib';
 import { Skeleton } from '../components/ui/Skeleton';
-import type { WorkLog, WorkLogStatus } from '../store/useWorkLogStore';
+import type { WorkLog } from '../store/useWorkLogStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { TimelineView } from '../components/worklog/TimelineView';
 import { ProblemFlowEditor } from '../components/worklog/ProblemFlowEditor';
@@ -27,16 +27,8 @@ import { AttachmentsView } from '../components/worklog/AttachmentsView';
 import { ReadingModeView } from '../components/worklog/ReadingModeView';
 import { WorkLogExporterModal } from '../components/worklog/WorkLogExporterModal';
 import { calculateWorkLogMetrics } from '../utils/workLogMetrics';
-
-const STATUS_OPTIONS: Record<WorkLogStatus, { label: string; color: string; bg: string; border: string; emoji: string }> = {
-  'planning':    { label: 'Planning',    color: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/20',    emoji: '🗺️' },
-  'in-progress': { label: 'In Progress', color: 'text-sky-400',     bg: 'bg-sky-500/10',     border: 'border-sky-500/20',     emoji: '⚡' },
-  'reviewing':   { label: 'Reviewing',   color: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/20',  emoji: '👀' },
-  'blocked':     { label: 'Blocked',     color: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/20',     emoji: '🚫' },
-  'done':        { label: 'Done',         color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', emoji: '✅' },
-};
-
-const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
+import { STATUS_MAP, MOOD_EMOJIS } from '../lib/config';
+import { mapLog } from '../lib/dataMapper';
 
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -73,145 +65,13 @@ export function WorkLogDetail() {
   const [showExport, setShowExport] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Map raw API doc → WorkLog shape with all Phase X sub-documents
-  const mapDoc = (doc: any): WorkLog => ({
-    _id: doc._id,
-    title: doc.title || 'Untitled Work Item',
-    taskRef: doc.taskRef ? {
-      _id: doc.taskRef._id,
-      title: doc.taskRef.title,
-      color: doc.taskRef.color || '#0ea5e9',
-      category: doc.taskRef.category || 'Work',
-      totalTime: doc.taskRef.totalTime || 0,
-    } : undefined,
-    projectRef: doc.projectRef ? {
-      _id: doc.projectRef._id,
-      name: doc.projectRef.name,
-      googleFolderId: doc.projectRef.googleFolderId,
-      workLogsFolderId: doc.projectRef.workLogsFolderId,
-    } : undefined,
-    googleDocId: doc.googleDocId || '',
-    googleDocUrl: doc.googleDocUrl || '',
-    problem: doc.problem || '',
-    gitBranch: doc.gitBranch || doc.gitRef?.branch || '',
-    currentWork: doc.currentWork || '',
-    plan: doc.plan || '',
-    designNotes: doc.designNotes || '',
-    blockers: doc.blockers || '',
-    problemFlow: {
-      problem: doc.problemFlow?.problem || doc.problem || '',
-      investigation: doc.problemFlow?.investigation || '',
-      rootCause: doc.problemFlow?.rootCause || '',
-      solution: doc.problemFlow?.solution || '',
-      lessonsLearned: doc.problemFlow?.lessonsLearned || '',
-    },
-    gitRef: {
-      repository: doc.gitRef?.repository || '',
-      branch: doc.gitRef?.branch || doc.gitBranch || '',
-      commitIds: doc.gitRef?.commitIds || [],
-      prNumber: doc.gitRef?.prNumber || '',
-      issueNumber: doc.gitRef?.issueNumber || '',
-    },
-    timelineEntries: (doc.timelineEntries || []).map((t: any) => ({
-      _id: t._id,
-      timestamp: t.timestamp || Date.now(),
-      type: t.type || 'note',
-      title: t.title || 'Event',
-      description: t.description || '',
-      category: t.category || 'General',
-      metadata: t.metadata,
-    })).sort((a: any, b: any) => b.timestamp - a.timestamp),
-    decisions: (doc.decisions || []).map((d: any) => ({
-      _id: d._id,
-      title: d.title || '',
-      context: d.context || '',
-      decision: d.decision || '',
-      alternatives: d.alternatives || '',
-      rationale: d.rationale || '',
-      timestamp: d.timestamp || Date.now(),
-    })),
-    blockerList: (doc.blockerList || []).map((b: any) => ({
-      _id: b._id,
-      title: b.title || '',
-      severity: b.severity || 'medium',
-      status: b.status || 'open',
-      notes: b.notes || '',
-      resolvedAt: b.resolvedAt,
-      createdAt: b.createdAt || Date.now(),
-    })),
-    progressSnapshots: (doc.progressSnapshots || []).map((ps: any) => ({
-      _id: ps._id,
-      period: ps.period || 'Morning',
-      text: ps.text || '',
-      timestamp: ps.timestamp || Date.now(),
-    })),
-    completedItems: (doc.completedItems || []).map((i: any) => ({
-      _id: i._id,
-      text: i.text,
-      category: i.category || 'feature',
-      done: i.done ?? true,
-      completedAt: new Date(i.completedAt || Date.now()).getTime(),
-      createdAt: new Date(i.createdAt || Date.now()).getTime(),
-    })),
-    links: (doc.links || []).map((l: any) => ({
-      _id: l._id,
-      label: l.label,
-      url: l.url,
-      category: l.category || 'General',
-    })),
-    attachments: (doc.attachments || []).map((a: any) => ({
-      _id: a._id,
-      name: a.name,
-      type: a.type || 'file',
-      url: a.url,
-      sizeBytes: a.sizeBytes || 0,
-      uploadDate: a.uploadDate || Date.now(),
-      description: a.description || '',
-    })),
-    workEntries: (doc.workEntries || []).map((e: any) => ({
-      _id: e._id,
-      date: e.date,
-      what: e.what || '',
-      startedAt: e.startedAt,
-      endedAt: e.endedAt,
-      activeMs: e.activeMs || 0,
-    })).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-    tomorrowPlan: {
-      topPriority: doc.tomorrowPlan?.topPriority || '',
-      unfinishedItems: doc.tomorrowPlan?.unfinishedItems || [],
-      attentionRequired: doc.tomorrowPlan?.attentionRequired || '',
-    },
-    reflection: {
-      wentWell: doc.reflection?.wentWell || '',
-      slowedDown: doc.reflection?.slowedDown || '',
-      learned: doc.reflection?.learned || '',
-      improvement: doc.reflection?.improvement || '',
-      rating: doc.reflection?.rating || 4,
-    },
-    moodMetrics: {
-      energy: doc.moodMetrics?.energy || 3,
-      focus: doc.moodMetrics?.focus || 4,
-      stress: doc.moodMetrics?.stress || 2,
-      confidence: doc.moodMetrics?.confidence || 4,
-      motivation: doc.moodMetrics?.motivation || 4,
-    },
-    totalActiveMs: doc.totalActiveMs || 0,
-    status: doc.status || 'in-progress',
-    isActive: doc.isActive ?? true,
-    closedAt: doc.closedAt,
-    reopenedAt: doc.reopenedAt,
-    mood: doc.mood || 3,
-    tags: doc.tags || [],
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
-  });
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setError('');
     api.workLogs.get(id)
-      .then(doc => setLog(mapDoc(doc)))
+      .then(doc => setLog(mapLog(doc)))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [id]);
@@ -253,7 +113,7 @@ export function WorkLogDetail() {
     );
   }
 
-  const status = STATUS_OPTIONS[log.status] || STATUS_OPTIONS['in-progress'];
+  const status = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
   const totalDays = log.workEntries.length;
   const avgPerDay = totalDays > 0 ? (log.totalActiveMs / totalDays / 3600000).toFixed(1) : '0';
   const metrics = calculateWorkLogMetrics(log);
@@ -301,7 +161,7 @@ export function WorkLogDetail() {
               </div>
               <p className="text-xs text-surface-500 mt-2">
                 Created {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
-                {' · '}
+                {' Â· '}
                 {log.isActive ? 'Active' : `Closed ${log.closedAt ? formatDistanceToNow(new Date(log.closedAt), { addSuffix: true }) : ''}`}
               </p>
             </div>
@@ -363,11 +223,11 @@ export function WorkLogDetail() {
 
       {/* Tab Content */}
       <AnimatePresence mode="wait">
-        {/* ── Overview (original 2-col layout) ── */}
+        {/* â”€â”€ Overview (original 2-col layout) â”€â”€ */}
         {activeTab === 'overview' && (
           <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left — Context */}
+            {/* Left â€” Context */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-3 space-y-4">
               {log.problem && (
                 <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -377,7 +237,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-red-400 font-semibold uppercase tracking-wider">Problem I'm Solving</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
+                  <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.problem} /></div>
                 </motion.div>
               )}
 
@@ -389,7 +249,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I Did</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200 leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
+                  <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.currentWork} /></div>
                 </motion.div>
               )}
 
@@ -401,7 +261,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-yellow-400 font-semibold uppercase tracking-wider">Blockers</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
+                  <div className="prose-editor text-sm text-surface-200"><Markdown source={log.blockers} /></div>
                 </motion.div>
               )}
 
@@ -413,7 +273,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider">Plan</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
+                  <div className="prose-editor text-sm text-surface-300"><Markdown source={log.plan} /></div>
                 </motion.div>
               )}
 
@@ -425,7 +285,7 @@ export function WorkLogDetail() {
                     </div>
                     <span className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">Design & Architecture</span>
                   </div>
-                  <div className="prose-editor text-sm text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
+                  <div className="prose-editor text-sm text-surface-300"><Markdown source={log.designNotes} /></div>
                 </motion.div>
               )}
 
@@ -437,7 +297,7 @@ export function WorkLogDetail() {
               )}
             </motion.div>
 
-            {/* Right — Sessions, Checklist, Links, Export */}
+            {/* Right â€” Sessions, Checklist, Links, Export */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-4">
               {/* Export Documentation */}
               <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
@@ -529,8 +389,9 @@ export function WorkLogDetail() {
                             )}
                           </div>
                           {entry.what && (
-                            <div className="text-xs text-surface-400 leading-relaxed line-clamp-3"
-                              dangerouslySetInnerHTML={{ __html: renderMarkdown(entry.what) }} />
+                            <div className="text-xs text-surface-400 leading-relaxed line-clamp-3">
+                              <Markdown source={entry.what} />
+                            </div>
                           )}
                         </div>
                       </div>
@@ -542,7 +403,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Timeline Tab ── */}
+        {/* â”€â”€ Timeline Tab â”€â”€ */}
         {activeTab === 'timeline' && (
           <motion.div key="timeline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -550,7 +411,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Problem Flow Tab ── */}
+        {/* â”€â”€ Problem Flow Tab â”€â”€ */}
         {activeTab === 'problem' && (
           <motion.div key="problem" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -558,7 +419,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Decisions Tab ── */}
+        {/* â”€â”€ Decisions Tab â”€â”€ */}
         {activeTab === 'decisions' && (
           <motion.div key="decisions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -566,7 +427,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Blockers Tab ── */}
+        {/* â”€â”€ Blockers Tab â”€â”€ */}
         {activeTab === 'blockers' && (
           <motion.div key="blockers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -574,7 +435,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Tomorrow Plan Tab ── */}
+        {/* â”€â”€ Tomorrow Plan Tab â”€â”€ */}
         {activeTab === 'tomorrow' && (
           <motion.div key="tomorrow" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -582,7 +443,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Reflection Tab ── */}
+        {/* â”€â”€ Reflection Tab â”€â”€ */}
         {activeTab === 'reflection' && (
           <motion.div key="reflection" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -590,7 +451,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Attachments & Links Tab ── */}
+        {/* â”€â”€ Attachments & Links Tab â”€â”€ */}
         {activeTab === 'resources' && (
           <motion.div key="resources" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -598,7 +459,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* ── Reading Mode Tab ── */}
+        {/* â”€â”€ Reading Mode Tab â”€â”€ */}
         {activeTab === 'reading' && (
           <motion.div key="reading" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <ReadingModeView workLog={log} />

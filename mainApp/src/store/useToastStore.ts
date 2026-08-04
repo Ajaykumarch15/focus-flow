@@ -29,6 +29,8 @@ export const toast = {
     useToastStore.getState().addToast({ type: 'warning', title, message, duration: 5000 }),
 };
 
+const timers = new Map<string, ReturnType<typeof setTimeout>>();
+
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
 
@@ -36,14 +38,26 @@ export const useToastStore = create<ToastState>((set) => ({
     const id = `toast_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     set((s) => ({ toasts: [...s.toasts, { ...toastData, id }] }));
 
-    // Auto-dismiss after duration
-    setTimeout(() => {
+    // Auto-dismiss after duration; tracked so manual dismiss can cancel it.
+    const timer = setTimeout(() => {
+      timers.delete(id);
       useToastStore.getState().removeToast(id);
     }, toastData.duration);
+    timers.set(id, timer);
   },
 
-  removeToast: (id) =>
-    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
+  removeToast: (id) => {
+    const timer = timers.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timers.delete(id);
+    }
+    set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+  },
 
-  clearAll: () => set({ toasts: [] }),
+  clearAll: () => {
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    set({ toasts: [] });
+  },
 }));

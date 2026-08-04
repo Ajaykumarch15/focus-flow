@@ -1,12 +1,17 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { MotionConfig } from 'framer-motion';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
 import { clearTimer }      from './utils/timerPersist';
+import { ErrorBoundary }  from './components/ui/ErrorBoundary';
 
 import { AppLayout }       from './components/layout/AppLayout';
 import { AdminLayout }     from './components/layout/AdminLayout';
 import { ProtectedRoute, AdminRoute } from './components/auth/ProtectedRoute';
+import { Card }            from './components/ui/Card';
+import { Button }          from './components/ui/Button';
+import { Spinner }         from './components/ui/Spinner';
 
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
@@ -30,6 +35,7 @@ const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ d
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
 
 // Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
@@ -51,7 +57,22 @@ const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(mo
 function RouteFallback() {
   return (
     <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center">
-      <div className="h-10 w-10 rounded-full border-2 border-brand-500/30 border-t-brand-500 animate-spin" aria-label="Loading" />
+      <Spinner size={40} className="text-brand-500" />
+    </div>
+  );
+}
+
+// IES-P0-24: dedicated fallback when a lazy chunk fails to load.
+function ChunkLoadFallback() {
+  return (
+    <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center p-6">
+      <Card className="max-w-md w-full p-8 text-center">
+        <h1 className="text-lg font-semibold mb-2">This page failed to load</h1>
+        <p className="text-sm text-surface-400 mb-6">A chunk failed to download. Try reloading.</p>
+        <Button onClick={() => window.location.reload()} type="button">
+          Reload
+        </Button>
+      </Card>
     </div>
   );
 }
@@ -69,7 +90,7 @@ function PersonalWorkspaceRouter() {
 }
 
 export default function App() {
-  const { user, token, loading, restoreSession } = useAuthStore();
+  const { user, loading, restoreSession } = useAuthStore();
   const { loadAll }                              = useStore();
 
   useEffect(() => {
@@ -79,96 +100,94 @@ export default function App() {
   useEffect(() => {
     if (user) {
       loadAll();
-    } else if (!loading && !token) {
+    } else if (!loading) {
       clearTimer();
     }
-  }, [user?._id, token, loading]);
+  }, [user?._id, loading]);
 
   return (
-    <BrowserRouter>
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/"                            element={<Landing />} />
-          <Route path="/login"                       element={<Login />} />
-          <Route path="/register"                    element={<Register />} />
-          <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
-          <Route path="/reports/share/:userId/:date" element={<ShareReportPage />} />
+    <MotionConfig reducedMotion="user">
+      <BrowserRouter>
+        <Suspense fallback={<RouteFallback />}>
+          <ErrorBoundary fallback={<ChunkLoadFallback />}>
+            <Routes>
+            <Route path="/"                            element={<Landing />} />
+            <Route path="/login"                       element={<Login />} />
+            <Route path="/register"                    element={<Register />} />
+            <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
 
-          {/* Post-Login Workspace Hub */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/hub" element={<WorkspaceHub />} />
-            <Route path="/team" element={<TeamProjects />} />
-          </Route>
-
-          {/* Dedicated Engineering Workspace Architecture */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
-              <Route path="overview hover" element={<TeamWorkspace />} />
-              <Route path="overview" element={<TeamWorkspace />} />
-              <Route path="projects" element={<TeamWorkspace />} />
-              <Route path="sprints" element={<TeamWorkspace />} />
-              <Route path="teams" element={<TeamWorkspace />} />
-              <Route path="members" element={<MemberProfilePage />} />
-              <Route path="members/:memberId" element={<MemberProfilePage />} />
-              <Route path="features" element={<FeaturesPage />} />
-              <Route path="qa" element={<QADashboardPage />} />
-              <Route path="activity" element={<ActivityFeedPage />} />
-              <Route path="reports" element={<ReportsAnalyticsPage />} />
-              <Route path="analytics" element={<ReportsAnalyticsPage />} />
-              <Route path="knowledge" element={<TeamWorkspace />} />
-              <Route path="calendar" element={<TeamWorkspace />} />
-              <Route path="settings" element={<WorkspaceSettingsPage />} />
-              <Route path="" element={<Navigate to="overview" replace />} />
+            {/* Post-Login Workspace Hub */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/hub" element={<WorkspaceHub />} />
+              <Route path="/team" element={<TeamProjects />} />
             </Route>
-          </Route>
 
-          {/* Workspace Selector (admin users only) */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/workspace" element={
-              user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/hub" replace />
-            } />
-          </Route>
-
-          {/* Personal Workspace */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<PersonalWorkspaceRouter />}>
-              <Route path="/dashboard"   element={<Dashboard />} />
-              <Route path="/team text"   element={<TeamWorkspace />} />
-              <Route path="/team"        element={<TeamWorkspace />} />
-              <Route path="/worklog text" element={<WorkLogPage />} />
-              <Route path="/worklog"     element={<WorkLogPage />} />
-              <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
-              <Route path="/reports"     element={<ReportsPage />} />
-              <Route path="/tasks"       element={<Tasks />} />
-              <Route path="/tasks/:id"   element={<TaskDetail />} />
-              <Route path="/analytics text" element={<Analytics />} />
-              <Route path="/analytics font" element={<Analytics />} />
-              <Route path="/analytics"   element={<Analytics />} />
-              <Route path="/journal"     element={<Journal />} />
-              <Route path="/habits"      element={<Habits />} />
-              <Route path="/leaderboard" element={<Leaderboard />} />
-              <Route path="/focus"       element={<FocusMode />} />
-              <Route path="/settings text" element={<Settings />} />
-              <Route path="/settings"    element={<Settings />} />
+            {/* Dedicated Engineering Workspace Architecture */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
+                <Route path="overview" element={<TeamWorkspace />} />
+                <Route path="projects" element={<TeamWorkspace />} />
+                <Route path="sprints" element={<TeamWorkspace />} />
+                <Route path="teams" element={<TeamWorkspace />} />
+                <Route path="members" element={<MemberProfilePage />} />
+                <Route path="members/:memberId" element={<MemberProfilePage />} />
+                <Route path="features" element={<FeaturesPage />} />
+                <Route path="qa" element={<QADashboardPage />} />
+                <Route path="activity" element={<ActivityFeedPage />} />
+                <Route path="reports" element={<ReportsAnalyticsPage />} />
+                <Route path="analytics" element={<ReportsAnalyticsPage />} />
+                <Route path="knowledge" element={<TeamWorkspace />} />
+                <Route path="calendar" element={<TeamWorkspace />} />
+                <Route path="settings" element={<WorkspaceSettingsPage />} />
+                <Route path="" element={<Navigate to="overview" replace />} />
+              </Route>
             </Route>
-          </Route>
 
-          {/* Admin Workspace */}
-          <Route element={<ProtectedRoute />}>
-            <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
-              <Route path="/admin/overview"  element={<AdminOverview />} />
-              <Route path="/admin/people"    element={<AdminPeople />} />
-              <Route path="/admin/teams"     element={<AdminTeams />} />
-              <Route path="/admin/analytics" element={<AdminAnalytics />} />
-              <Route path="/admin/activity"  element={<AdminActivity />} />
-              <Route path="/admin/settings"  element={<AdminSettings />} />
-              <Route path="/admin"           element={<Navigate to="/admin/overview" replace />} />
+            {/* Workspace Selector (admin users only) */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/workspace" element={
+                user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/hub" replace />
+              } />
             </Route>
-          </Route>
 
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+            {/* Personal Workspace */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/dashboard"   element={<Dashboard />} />
+                <Route path="/team"        element={<TeamWorkspace />} />
+                <Route path="/worklog"     element={<WorkLogPage />} />
+                <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
+                <Route path="/search"      element={<SearchResultsPage />} />
+                <Route path="/reports"     element={<ReportsPage />} />
+                <Route path="/tasks"       element={<Tasks />} />
+                <Route path="/tasks/:id"   element={<TaskDetail />} />
+                <Route path="/analytics"   element={<Analytics />} />
+                <Route path="/journal"     element={<Journal />} />
+                <Route path="/habits"      element={<Habits />} />
+                <Route path="/leaderboard" element={<Leaderboard />} />
+                <Route path="/focus"       element={<FocusMode />} />
+                <Route path="/settings"    element={<Settings />} />
+              </Route>
+            </Route>
+
+            {/* Admin Workspace */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
+                <Route path="/admin/overview"  element={<AdminOverview />} />
+                <Route path="/admin/people"    element={<AdminPeople />} />
+                <Route path="/admin/teams"     element={<AdminTeams />} />
+                <Route path="/admin/analytics" element={<AdminAnalytics />} />
+                <Route path="/admin/activity"  element={<AdminActivity />} />
+                <Route path="/admin/settings"  element={<AdminSettings />} />
+                <Route path="/admin"           element={<Navigate to="/admin/overview" replace />} />
+              </Route>
+            </Route>
+
+            <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </ErrorBoundary>
+        </Suspense>
+      </BrowserRouter>
+    </MotionConfig>
   );
 }

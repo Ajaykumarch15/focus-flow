@@ -17,13 +17,17 @@ export function WorkspaceSelector() {
   const { tasks } = useStore();
   const navigate = useNavigate();
   const [adminStats, setAdminStats] = useState<any>(null);
+  const [adminStatsError, setAdminStatsError] = useState(false);
 
   useEffect(() => {
-    api.admin.getStats().then(setAdminStats).catch(() => {});
+    api.admin.getStats()
+      .then(setAdminStats)
+      .catch(() => setAdminStatsError(true));
   }, []);
 
   const activeTasks = tasks.filter(t => t.status === 'active' || t.status === 'paused');
   const completedTasks = tasks.filter(t => t.status === 'completed');
+  const todoTasks = tasks.filter(t => t.status === 'todo');
 
   const handleSelect = (workspace: 'personal' | 'admin') => {
     setWorkspace(workspace);
@@ -72,8 +76,8 @@ export function WorkspaceSelector() {
               </div>
               <div className="rounded-xl bg-surface-850 p-3 text-center">
                 <Zap size={14} className="text-amber-400 mx-auto mb-1" />
-                <p className="text-lg font-bold text-surface-100">{activeTasks.length}</p>
-                <p className="text-[10px] text-surface-500">In Progress</p>
+                <p className="text-lg font-bold text-surface-100">{todoTasks.length}</p>
+                <p className="text-[10px] text-surface-500">To Do</p>
               </div>
             </div>
             <div className="flex items-center gap-2 text-brand-400 font-semibold text-sm group-hover:gap-3 transition-all">
@@ -92,23 +96,30 @@ export function WorkspaceSelector() {
             <p className="text-sm text-surface-400 mb-5 leading-relaxed">
               Manage users, teams, organization analytics, and system activity.
             </p>
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="rounded-xl bg-surface-850 p-3 text-center">
-                <Users size={14} className="text-purple-400 mx-auto mb-1" />
-                <p className="text-lg font-bold text-surface-100">{adminStats?.totalUsers || 0}</p>
-                <p className="text-[10px] text-surface-500">Total Users</p>
+            {adminStatsError ? (
+              <div className="rounded-xl bg-surface-850 p-4 mb-6 text-center">
+                <p className="text-xs text-red-400 font-semibold">Admin stats unavailable</p>
+                <p className="text-[10px] text-surface-500 mt-1">Could not load organization analytics.</p>
               </div>
-              <div className="rounded-xl bg-surface-850 p-3 text-center">
-                <Activity size={14} className="text-emerald-400 mx-auto mb-1" />
-                <p className="text-lg font-bold text-surface-100">{adminStats?.activeUsers || 0}</p>
-                <p className="text-[10px] text-surface-500">Active Now</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 mb-6">
+                <div className="rounded-xl bg-surface-850 p-3 text-center">
+                  <Users size={14} className="text-purple-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-surface-100">{adminStats?.totalUsers || 0}</p>
+                  <p className="text-[10px] text-surface-500">Total Users</p>
+                </div>
+                <div className="rounded-xl bg-surface-850 p-3 text-center">
+                  <Activity size={14} className="text-emerald-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-surface-100">{adminStats?.activeUsers || 0}</p>
+                  <p className="text-[10px] text-surface-500">Active Now</p>
+                </div>
+                <div className="rounded-xl bg-surface-850 p-3 text-center">
+                  <BarChart3 size={14} className="text-amber-400 mx-auto mb-1" />
+                  <p className="text-lg font-bold text-surface-100">{adminStats?.todaySessionCount || 0}</p>
+                  <p className="text-[10px] text-surface-500">Sessions</p>
+                </div>
               </div>
-              <div className="rounded-xl bg-surface-850 p-3 text-center">
-                <BarChart3 size={14} className="text-amber-400 mx-auto mb-1" />
-                <p className="text-lg font-bold text-surface-100">{adminStats?.todaySessionCount || 0}</p>
-                <p className="text-[10px] text-surface-500">Sessions</p>
-              </div>
-            </div>
+            )}
             <div className="flex items-center gap-2 text-purple-400 font-semibold text-sm group-hover:gap-3 transition-all">
               Open Admin Console <ArrowRight size={16} />
             </div>

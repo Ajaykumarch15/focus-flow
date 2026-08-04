@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertOctagon, Plus, Trash2, CheckCircle, ShieldAlert } from 'lucide-react';
+import { AlertOctagon, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import { WorkLog, StructuredBlocker, useWorkLogStore } from '../../store/useWorkLogStore';
 
 interface StructuredBlockersViewProps {
@@ -79,7 +79,7 @@ export function StructuredBlockersView({ workLog }: StructuredBlockersViewProps)
               />
               <select
                 className="input text-sm rounded-lg"
-                value={severity} onChange={e => setSeverity(e.target.value as any)}
+                value={severity} onChange={e => setSeverity(e.target.value as StructuredBlocker['severity'])}
               >
                 <option value="low">Low Severity</option>
                 <option value="medium">Medium Severity</option>
@@ -135,7 +135,7 @@ export function StructuredBlockersView({ workLog }: StructuredBlockersViewProps)
                   <select
                     className="input text-xs py-1 px-2 rounded-lg"
                     value={b.status}
-                    onChange={e => updateBlocker(workLog._id, b._id, { status: e.target.value as any })}
+                    onChange={e => updateBlocker(workLog._id, b._id, { status: e.target.value as StructuredBlocker['status'] })}
                   >
                     <option value="open">Open</option>
                     <option value="investigating">Investigating</option>

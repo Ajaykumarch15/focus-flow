@@ -26,20 +26,11 @@ export const PRIORITY_CONFIG = {
   urgent: { label: 'Urgent', color: 'text-red-400', bg: 'bg-red-400/10', border: 'border-red-400/30' },
 };
 
-export const STATUS_CONFIG = {
-  todo: { label: 'To Do', color: 'text-surface-300', bg: 'bg-surface-700/50' },
-  active: { label: 'Active', color: 'text-brand-400', bg: 'bg-brand-400/10' },
-  paused: { label: 'Paused', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-  completed: { label: 'Done', color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-};
+export { STATUS_CONFIG, MOOD_LABELS_WITH_EMOJI as MOOD_LABELS } from '../lib/config';
 
 export const CATEGORIES = [
   'Work', 'Personal', 'Learning', 'Health', 'Finance', 'Creative', 'Social', 'Other'
 ];
-
-export const MOOD_LABELS: Record<number, string> = {
-  1: '😔 Low', 2: '😐 Okay', 3: '🙂 Good', 4: '😊 Great', 5: '🔥 Excellent'
-};
 
 export const DEADLINE_CONFIG = {
   overdue: { label: 'Overdue', color: 'text-red-400', bg: 'bg-red-400/15', border: 'border-red-400/30', bar: '#ef4444' },

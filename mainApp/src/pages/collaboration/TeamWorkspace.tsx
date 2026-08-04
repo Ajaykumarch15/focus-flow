@@ -1,13 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
-  ShieldCheck, Plus, Search, Filter, GitBranch, GitPullRequest, Timer, Clock,
-  CheckCircle2, Sparkles, ChevronDown, MessageSquare, Play, Flame, ExternalLink,
-  Zap, ArrowRight, Eye, Edit3, Trash2, CheckCheck, RefreshCw, UserCheck, Shield
+  ShieldCheck, Plus, Search, GitBranch, Clock,
+  CheckCircle2, ChevronDown, MessageSquare, Flame,
+  Zap, Edit3, UserCheck
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { WorkspaceMember, CollaborativeTask, SprintStatus, BlockerSeverity, MemberRole } from '../../types/collaboration';
+import { SprintStatus, MemberRole } from '../../types/collaboration';
+import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { CreateBlockerModal } from '../../components/collaboration/CreateBlockerModal';
@@ -16,13 +17,15 @@ import { GlobalCommandPalette } from '../../components/collaboration/GlobalComma
 
 // ── Motion Variants ────────────────────────────────────────────────────────────
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
-const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
+
+type TeamTab = 'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin';
 
 export function TeamWorkspace() {
   const {
-    workspaces, activeWorkspaceId, setActiveWorkspace, createWorkspace,
-    members, teams, projects, sprints, tasks, activities,
-    docs, blockers, events, updateTaskStatus, updateMemberRole, resolveBlocker
+    workspaces, activeWorkspaceId, setActiveWorkspace,
+    members, projects, sprints, tasks, activities,
+    docs, blockers, events, updateTaskStatus, updateMemberRole, resolveBlocker,
+    loadWorkspaceActivity, activityLoading, activityHasMore, activityNextCursor
   } = useCollaborationStore();
 
   const activeWs = useMemo(
@@ -30,14 +33,19 @@ export function TeamWorkspace() {
     [workspaces, activeWorkspaceId]
   );
 
+  // IES-P2-04: load the real, workspace-scoped activity feed whenever the
+  // active workspace changes (demo workspace ids have no backend activity and
+  // simply render the empty state).
+  useEffect(() => {
+    if (activeWs) loadWorkspaceActivity(activeWs.id);
+  }, [activeWs?.id, loadWorkspaceActivity]);
+
   // Tabs
-  const [activeTab, setActiveTab] = useState<
-    'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin'
-  >('dashboard');
+  const [activeTab, setActiveTab] = useState<TeamTab>('dashboard');
 
   // Modals & States
   const [showWsMenu, setShowWsMenu] = useState(false);
-  const [showNewWsModal, setShowNewWsModal] = useState(false);
+  const [, setShowNewWsModal] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateBlocker, setShowCreateBlocker] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
@@ -49,31 +57,37 @@ export function TeamWorkspace() {
     open: false, targetType: 'task', targetId: '', title: ''
   });
 
-  // New Workspace form state
-  const [newWsName, setNewWsName] = useState('');
-  const [newWsType, setNewWsType] = useState('Startup');
-  const [newWsDesc, setNewWsDesc] = useState('');
-
   // ── Helper computations ──────────────────────────────────────────────────────
-  const wsTasks = useMemo(() => tasks.filter((t) => t.workspaceId === activeWs.id), [tasks, activeWs.id]);
-  const wsBlockers = useMemo(() => blockers.filter((b) => b.workspaceId === activeWs.id), [blockers, activeWs.id]);
-  const wsDocs = useMemo(() => docs.filter((d) => d.workspaceId === activeWs.id), [docs, activeWs.id]);
-  const wsProjects = useMemo(() => projects.filter((p) => p.workspaceId === activeWs.id), [projects, activeWs.id]);
-  const wsActivities = useMemo(() => activities.filter((a) => a.workspaceId === activeWs.id), [activities, activeWs.id]);
+  const wsTasks = useMemo(() => activeWs ? tasks.filter((t) => t.workspaceId === activeWs.id) : [], [tasks, activeWs?.id]);
+  const wsBlockers = useMemo(() => activeWs ? blockers.filter((b) => b.workspaceId === activeWs.id) : [], [blockers, activeWs?.id]);
+  const wsDocs = useMemo(() => activeWs ? docs.filter((d) => d.workspaceId === activeWs.id) : [], [docs, activeWs?.id]);
+  const wsProjects = useMemo(() => activeWs ? projects.filter((p) => p.workspaceId === activeWs.id) : [], [projects, activeWs?.id]);
+  const wsActivities = useMemo(() => activeWs ? activities.filter((a) => a.workspaceId === activeWs.id) : [], [activities, activeWs?.id]);
 
-  const activeSprint = useMemo(() => sprints.find((s) => s.workspaceId === activeWs.id && s.status === 'active'), [sprints, activeWs.id]);
+  const activeSprint = useMemo(() => activeWs ? sprints.find((s) => s.workspaceId === activeWs.id && s.status === 'active') : undefined, [sprints, activeWs?.id]);
 
   // Presence counters
   const onlineMembers = members.filter((m) => m.status !== 'offline');
   const focusingMembers = members.filter((m) => m.status === 'in_focus');
   const openBlockers = wsBlockers.filter((b) => b.status !== 'resolved');
 
+  if (!activeWs) {
+    return (
+      <div className="p-6 lg:p-8 flex items-center justify-center text-surface-500">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-surface-700 border-t-brand-500 rounded-full animate-spin" />
+          <p className="text-sm font-semibold">Loading workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
 
       {/* ═══ Top Workspace Switcher Header ═══ */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-800 pb-5">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
 
           {/* Workspace Dropdown */}
           <div className="relative">
@@ -99,7 +113,7 @@ export function TeamWorkspace() {
               {showWsMenu && (
                 <motion.div initial={{ opacity: 0, y: 8, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }} transition={{ duration: 0.15 }}
-                  className="absolute left-0 top-full mt-2 w-80 rounded-2xl border border-surface-800 bg-surface-900 shadow-2xl overflow-hidden z-40 p-2 space-y-1">
+                  className="absolute left-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-surface-800 bg-surface-900 shadow-2xl overflow-hidden z-40 p-2 space-y-1">
                   <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-surface-500">
                     Workspaces ({workspaces.length})
                   </div>
@@ -161,7 +175,7 @@ export function TeamWorkspace() {
         ].map((tab) => {
           const isActive = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as TeamTab)}
               className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 isActive ? 'text-surface-50 bg-surface-900 border border-surface-700/80 shadow-md' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-850/50'
               }`}>
@@ -214,11 +228,11 @@ export function TeamWorkspace() {
 
             <div className="rounded-2xl border border-surface-800 bg-gradient-to-br from-purple-500/10 to-surface-900 p-5">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-surface-400">Sprint 24 Velocity</span>
+                <span className="text-xs font-semibold text-surface-400">Active Sprint Velocity</span>
                 <BarChart3 size={16} className="text-purple-400" />
               </div>
-              <p className="text-2xl font-display font-extrabold text-purple-400">{activeSprint?.actualVelocity || 62} pts</p>
-              <p className="text-[11px] text-purple-400/80 mt-1 font-medium">Target: {activeSprint?.targetVelocity || 85} pts</p>
+              <p className="text-2xl font-display font-extrabold text-purple-400">{activeSprint?.actualVelocity ?? '—'} pts</p>
+              <p className="text-[11px] text-purple-400/80 mt-1 font-medium">Target: {activeSprint?.targetVelocity ?? '—'} pts</p>
             </div>
           </div>
 
@@ -267,6 +281,9 @@ export function TeamWorkspace() {
                   );
                 })}
               </div>
+              {members.length === 0 && (
+                <p className="text-xs text-surface-500 italic py-4 text-center">No members in this workspace yet.</p>
+              )}
             </div>
 
             {/* Live Engineering Activity Feed */}
@@ -275,18 +292,33 @@ export function TeamWorkspace() {
                 <Clock size={18} className="text-purple-400" /> Engineering Activity
               </h3>
               <div className="space-y-3">
+                {activityLoading && wsActivities.length === 0 && (
+                  <p className="text-xs text-surface-500 italic">Loading activity…</p>
+                )}
+                {!activityLoading && wsActivities.length === 0 && (
+                  <p className="text-xs text-surface-500 italic">No activity yet.</p>
+                )}
                 {wsActivities.map((act) => (
                   <div key={act.id} className="p-3 rounded-xl border border-surface-800 bg-surface-850/40 text-xs">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-bold text-surface-100">{act.actor.name}</span>
-                      <span className="text-surface-400 font-semibold">{act.title}</span>
+                      <span className="text-surface-400 font-semibold">{activityActionLabel(act.action)}</span>
                     </div>
-                    <p className="text-surface-300">{act.detail}</p>
+                    <p className="text-surface-300">{activityDetail(act)}</p>
                     <p className="text-[10px] text-surface-500 mt-1 font-mono">
                       {new Date(act.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 ))}
+                {activityHasMore && (
+                  <button
+                    type="button"
+                    onClick={() => loadWorkspaceActivity(activeWs.id, { cursor: activityNextCursor ?? undefined, append: true })}
+                    className="w-full text-xs font-semibold text-brand-300 hover:text-brand-200 py-2 rounded-lg border border-surface-800 hover:border-brand-500/40 transition-colors"
+                  >
+                    Load more activity
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -368,7 +400,7 @@ export function TeamWorkspace() {
                           </button>
 
                           {/* Quick Status Move */}
-                          <select className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
+                          <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
                             value={task.sprintStatus} onChange={(e) => updateTaskStatus(task.id, e.target.value as SprintStatus)}>
                             <option value="backlog">Backlog</option>
                             <option value="ready">Ready</option>
@@ -424,10 +456,18 @@ export function TeamWorkspace() {
                       </span>
                     </div>
                   ))}
+                  {proj.milestones.length === 0 && (
+                    <p className="text-xs text-surface-500 italic">No milestones set.</p>
+                  )}
                 </div>
               </div>
             ))}
           </div>
+          {wsProjects.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
+              No projects yet. Create your first project from the "New Project" button.
+            </div>
+          )}
         </div>
       )}
 
@@ -468,11 +508,12 @@ export function TeamWorkspace() {
                 </div>
               ))}
             </div>
+            {wsBlockers.length === 0 && (
+              <p className="text-xs text-surface-500 italic py-4 text-center">No blockers reported.</p>
+            )}
           </div>
         </div>
       )}
-
-      {/* ── TAB 5: KNOWLEDGE BASE (ENGINEERING DOCS) ── */}
       {activeTab === 'docs' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -493,7 +534,7 @@ export function TeamWorkspace() {
                     {doc.category} · v{doc.version}
                   </span>
                   <button onClick={() => { setEditingDoc(doc); setShowCreateDoc(true); }}
-                    className="p-1 text-surface-500 hover:text-surface-200">
+                    aria-label={`Edit document ${doc.title}`} className="p-1 text-surface-500 hover:text-surface-200">
                     <Edit3 size={14} />
                   </button>
                 </div>
@@ -505,6 +546,9 @@ export function TeamWorkspace() {
               </div>
             ))}
           </div>
+          {wsDocs.length === 0 && (
+            <p className="text-xs text-surface-500 italic py-4 text-center">No knowledge docs yet.</p>
+          )}
         </div>
       )}
 
@@ -523,6 +567,9 @@ export function TeamWorkspace() {
               </div>
             ))}
           </div>
+          {events.length === 0 && (
+            <p className="text-xs text-surface-500 italic py-4 text-center">No calendar events yet.</p>
+          )}
         </div>
       )}
 
@@ -534,18 +581,19 @@ export function TeamWorkspace() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
             <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-sky-400">1.4 days</p>
+              <p className="text-2xl font-bold text-sky-400">—</p>
               <p className="text-xs text-surface-400 mt-1">Average Task Cycle Time</p>
             </div>
             <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-emerald-400">3.8 hours</p>
+              <p className="text-2xl font-bold text-emerald-400">—</p>
               <p className="text-xs text-surface-400 mt-1">Daily Focus Time per Developer</p>
             </div>
             <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-purple-400">94%</p>
+              <p className="text-2xl font-bold text-purple-400">—</p>
               <p className="text-xs text-surface-400 mt-1">PR Merge Rate within 24h</p>
             </div>
           </div>
+          <p className="text-xs text-surface-500 italic">Cycle-time and focus metrics appear once the workspace has sprint history.</p>
         </div>
       )}
 
@@ -568,7 +616,7 @@ export function TeamWorkspace() {
                       <p className="text-[11px] text-surface-500">{m.email}</p>
                     </div>
                   </div>
-                  <select className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
+                  <select aria-label="Member role" className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
                     value={m.role} onChange={(e) => updateMemberRole(m.id, e.target.value as MemberRole)}>
                     <option value="Owner">Owner</option>
                     <option value="Admin">Admin</option>
@@ -579,6 +627,9 @@ export function TeamWorkspace() {
                 </div>
               ))}
             </div>
+            {members.length === 0 && (
+              <p className="text-xs text-surface-500 italic py-4 text-center">No members in this workspace yet.</p>
+            )}
           </div>
         </div>
       )}

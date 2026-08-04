@@ -1,20 +1,21 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
   Share2, Copy, Check, ChevronLeft, ChevronRight,
-  BarChart3, Zap, BookMarked, AlertTriangle, Link2,
+  BarChart3, BookMarked, AlertTriangle, Link2,
   Loader2, TrendingUp, ArrowLeft, Download, RotateCcw,
-  Search, Flame, Target, ArrowUpRight,
+  Flame, Target,
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
-         isSameDay, isToday, subMonths, addMonths, parseISO } from 'date-fns';
+         isToday, subMonths, addMonths, parseISO } from 'date-fns';
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
-import { renderMarkdown } from '../components/ui/proEditor';
+import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
 import { useNavigate } from 'react-router-dom';
+import { MOOD_EMOJIS } from '../lib/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DaySummary {
@@ -68,8 +69,6 @@ function formatMs(ms: number): string {
   return `${m}m`;
 }
 
-const MOOD_EMOJIS = ['😔', '😐', '🙂', '😊', '🔥'];
-
 const STATUS_COLOR: Record<string, string> = {
   planning:    'text-purple-400 bg-purple-400/10 border-purple-400/20',
   'in-progress':'text-brand-400 bg-brand-400/10 border-brand-400/20',
@@ -98,38 +97,13 @@ const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 // ── Animated counter ──────────────────────────────────────────────────────────
-function AnimatedValue({ value, decimals = 0 }: { value: number; decimals?: number }) {
-  const [display, setDisplay] = useState('0');
-  const frameRef = useRef<number | null>(null);
-  const fromRef = useRef(0);
-  useEffect(() => {
-    const from = fromRef.current;
-    const to = value;
-    if (from === to) { setDisplay(to.toFixed(decimals)); return; }
-    const start = performance.now();
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const progress = Math.min(elapsed / 700, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay((from + (to - from) * eased).toFixed(decimals));
-      if (progress < 1) frameRef.current = requestAnimationFrame(tick);
-      else fromRef.current = to;
-    };
-    frameRef.current = requestAnimationFrame(tick);
-    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current); };
-  }, [value, decimals]);
-  return <>{display}</>;
-}
-
 // ── Share link button ─────────────────────────────────────────────────────────
-function ShareButton({ userId, date }: { userId: string; date: string }) {
+function ShareButton({ date }: { date: string }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(false);
-  const url = token
-    ? `${window.location.origin}/reports/share/token/${token}`
-    : `${window.location.origin}/reports/share/${userId}/${date}`;
+  const url = token ? `${window.location.origin}/reports/share/token/${token}` : '';
 
   const generate = async () => {
     setLoading(true);
@@ -329,7 +303,7 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
             <p className="text-xs text-brand-300 mb-3 flex items-center gap-1.5 font-medium">
               <Link2 size={12} /> Share this link with your lead — no login required
             </p>
-            <ShareButton userId={user._id} date={date} />
+            <ShareButton date={date} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -400,13 +374,13 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                 {log.problem && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-red-400 font-semibold mb-1 uppercase tracking-wider">Problem</p>
-                    <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.problem) }} />
+                    <div className="prose-editor text-sm text-surface-200"><Markdown source={log.problem} /></div>
                   </div>
                 )}
                 {log.currentWork && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-brand-400 font-semibold mb-1 uppercase tracking-wider">What I Did</p>
-                    <div className="prose-editor text-sm text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.currentWork) }} />
+                    <div className="prose-editor text-sm text-surface-200"><Markdown source={log.currentWork} /></div>
                   </div>
                 )}
                 {log.completedItems.length > 0 && (
@@ -426,19 +400,19 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                     <p className="text-[11px] text-yellow-400 mb-1 flex items-center gap-1 font-semibold uppercase tracking-wider">
                       <AlertTriangle size={10} /> Blockers
                     </p>
-                    <div className="prose-editor text-xs text-surface-200" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.blockers) }} />
+                    <div className="prose-editor text-xs text-surface-200"><Markdown source={log.blockers} /></div>
                   </div>
                 )}
                 {log.plan && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-amber-400 font-semibold mb-1 uppercase tracking-wider">Plan</p>
-                    <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.plan) }} />
+                    <div className="prose-editor text-xs text-surface-300"><Markdown source={log.plan} /></div>
                   </div>
                 )}
                 {log.designNotes && (
                   <div className="p-3 rounded-xl bg-surface-850 border border-surface-800">
                     <p className="text-[11px] text-purple-400 font-semibold mb-1 uppercase tracking-wider">Design / Architecture</p>
-                    <div className="prose-editor text-xs text-surface-300" dangerouslySetInnerHTML={{ __html: renderMarkdown(log.designNotes) }} />
+                    <div className="prose-editor text-xs text-surface-300"><Markdown source={log.designNotes} /></div>
                   </div>
                 )}
               </div>
@@ -560,7 +534,6 @@ function CalendarHeatmap({
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 export function ReportsPage() {
   const { user } = useAuthStore();
-  const navigate = useNavigate();
   const isAdmin = user?.role === 'admin';
   const [month, setMonth]             = useState(new Date());
   const [summary, setSummary]         = useState<DaySummary[]>([]);
@@ -579,7 +552,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     if (isAdmin) {
-      api.admin.listUsers().then(setAdminUsers).catch(() => {});
+      api.admin.listUsers().then(d => setAdminUsers(d.items)).catch(() => {});
     }
   }, [isAdmin]);
 

@@ -1,33 +1,104 @@
 const express = require('express');
 const Project = require('../models/Project');
+const Workspace = require('../models/Workspace');
+const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
-const { getAuthorizedClient, createProjectFolders } = require('../utils/googleDrive');
+const { findMember } = require('../middleware/workspace');
+const { getAuthorizedClient, createProjectFolders, setDriveError, clearDriveError } = require('../utils/googleDrive');
+const { logger } = require('../utils/logger');
+const { z, objectId, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
 router.use(protect);
 
+// IES-P0-16: body/param/query schemas.
+const projectCreateSchema = z.object({
+  name: requiredString(100, 'name', 'Project name is required'),
+  workspaceId: objectId.optional(),
+});
+const projectParamsSchema = z.object({ id: objectId });
+const projectQuerySchema = z.object({ workspaceId: objectId.optional() });
+
+// ── IES-P2-01 / IES-P2-03 workspace access helpers ─────────────────────────────
+// Reads require membership; creating requires any role except Viewer. Role checks
+// reuse the shared member lookup from middleware/workspace.js (SAD §10.3).
+async function canAccessWorkspace(workspaceId, user) {
+  if (user.role === 'admin') return true;
+  const ws = await Workspace.findById(workspaceId).select('members');
+  return !!ws && !!findMember(ws, user._id);
+}
+
+async function canCreateInWorkspace(workspaceId, user) {
+  if (user.role === 'admin') return true;
+  const ws = await Workspace.findById(workspaceId).select('members');
+  const m = ws && findMember(ws, user._id);
+  return !!m && m.role !== 'Viewer';
+}
+
 // ── GET /api/projects ──────────────────────────────────────────────────────────
-router.get('/', async (req, res) => {
+router.get('/', validate(null, { query: projectQuerySchema }), async (req, res, next) => {
   try {
-    const projects = await Project.find({ userId: req.user._id }).sort({ name: 1 });
+    // IES-P2-01: ?workspaceId= returns that workspace's projects (member-scoped);
+    // otherwise the caller's personal projects.
+    if (req.query.workspaceId) {
+      if (!(await canAccessWorkspace(req.query.workspaceId, req.user))) {
+        return res.status(403).json({ message: 'You are not a member of this workspace' });
+      }
+      const projects = await Project.find({ workspaceRef: req.query.workspaceId }).sort({ name: 1 });
+      return res.json(projects);
+    }
+    const projects = await Project.find({ userId: req.user._id, workspaceRef: null }).sort({ name: 1 });
     res.json(projects);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/projects ─────────────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', validate(projectCreateSchema), async (req, res, next) => {
   try {
-    const { name } = req.body;
+    const { name, workspaceId } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Project name is required' });
     }
 
     const trimmedName = name.trim();
 
-    // Check if project already exists for this user
-    const existing = await Project.findOne({ userId: req.user._id, name: { $regex: new RegExp(`^${trimmedName}$`, 'i') } });
+    // IES-P2-01: workspace project — unique per workspace (workspaceRef + nameKey).
+    if (workspaceId) {
+      if (!(await canCreateInWorkspace(workspaceId, req.user))) {
+        return res.status(403).json({ message: 'Only workspace members (non-viewers) can create projects' });
+      }
+      const existing = await Project.findOne({ workspaceRef: workspaceId, nameKey: trimmedName.toLowerCase() });
+      if (existing) {
+        return res.status(400).json({ message: 'A project with this name already exists in the workspace' });
+      }
+      try {
+        const project = await Project.create({
+          userId: req.user._id,
+          name: trimmedName,
+          workspaceRef: workspaceId,
+        });
+        Activity.create({
+          userId: req.user._id,
+          action: 'project.created',
+          workspaceRef: workspaceId,
+          details: { projectName: trimmedName },
+        }).catch(() => {});
+        return res.status(201).json(project);
+      } catch (err) {
+        if (err && err.code === 11000) {
+          return res.status(400).json({ message: 'A project with this name already exists in the workspace' });
+        }
+        throw err;
+      }
+    }
+
+    // IES-P1-12: exact-match pre-check on the lowercased `nameKey` (never a
+    // `$regex` over user input). The DB unique index `{ userId, nameKey }` is
+    // the authoritative guard — the E11000 catch below keeps the same friendly
+    // 400 for the race where two creates slip past this check simultaneously.
+    const existing = await Project.findOne({ userId: req.user._id, workspaceRef: null, nameKey: trimmedName.toLowerCase() });
     if (existing) {
       return res.status(400).json({ message: 'A project with this name already exists' });
     }
@@ -39,28 +110,38 @@ router.post('/', async (req, res) => {
       try {
         const oauth2Client = await getAuthorizedClient(req.user);
         folderIds = await createProjectFolders(oauth2Client, trimmedName);
+        await clearDriveError(req.user); // IES-P1-24: Drive worked — reset the flag.
       } catch (driveErr) {
-        console.error('⚠️ Google Drive folder creation failed during project setup:', driveErr.message);
-        // Continue creating project in DB even if Drive fails, so user experience isn't blocked completely
+        logger.warn('Google Drive folder creation failed during project setup');
+        // IES-P1-24: surface the failure so the client can prompt a reconnect.
+        await setDriveError(req.user, 'Drive folder creation failed. Please reconnect in settings.');
       }
     }
 
-    const project = await Project.create({
-      userId: req.user._id,
-      name: trimmedName,
-      ...folderIds,
-    });
+    let project;
+    try {
+      project = await Project.create({
+        userId: req.user._id,
+        name: trimmedName,
+        ...folderIds,
+      });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        return res.status(400).json({ message: 'A project with this name already exists' });
+      }
+      throw err;
+    }
 
-    console.log(`✅ Project created: "${project.name}" (Google Folder: ${project.googleFolderId || 'not connected'})`);
+    logger.debug('project created');
     res.status(201).json(project);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    next(err);
   }
 });
 
 // ── POST /api/projects/:id/sync-drive ──────────────────────────────────────────
 // Manual trigger to create folders if Google Drive was connected AFTER project creation
-router.post('/:id/sync-drive', async (req, res) => {
+router.post('/:id/sync-drive', validate(null, { params: projectParamsSchema }), async (req, res, next) => {
   try {
     const project = await Project.findOne({ _id: req.params.id, userId: req.user._id });
     if (!project) {
@@ -85,11 +166,14 @@ router.post('/:id/sync-drive', async (req, res) => {
     project.reportsFolderId = folderIds.reportsFolderId;
 
     await project.save();
+    await clearDriveError(req.user); // IES-P1-24: sync succeeded — reset the flag.
 
-    console.log(`✅ Manually synced Drive folders for project "${project.name}"`);
+    logger.debug('project drive folders synced');
     res.json(project);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    // IES-P1-24: sync-drive failures reach the client as a 500 AND set the flag.
+    await setDriveError(req.user, 'Drive sync failed. Please reconnect in settings.').catch(() => {});
+    next(err);
   }
 });
 

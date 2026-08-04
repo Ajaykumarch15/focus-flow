@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { api } from '../utils/api';
 import { toast } from '../store/useToastStore';
-import { formatHours, getWeekDays, isToday, isThisWeek } from '../utils/time';
+import { formatHours } from '../utils/time';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area, Legend, ReferenceLine,
@@ -13,7 +13,7 @@ import {
   Activity, Trophy, ArrowUpRight, ArrowDownRight, Lightbulb,
   Star, Flame, Timer, AlertTriangle, Brain, Rocket, Pause,
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Skeleton, SkeletonStatCard, SkeletonChart } from '../components/ui/Skeleton';
 
 const COLORS = ['#0ea5e9', '#8b5cf6', '#22c55e', '#f97316', '#ec4899', '#eab308', '#06b6d4', '#ef4444'];
@@ -45,15 +45,6 @@ function docId(value: any): string {
   return String(value?._id ?? value ?? '');
 }
 
-function dayRange(offsetFromToday: number) {
-  const start = new Date();
-  start.setDate(start.getDate() - offsetFromToday);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(23, 59, 59, 999);
-  return { start: start.getTime(), end: end.getTime() };
-}
-
 function toChartHours(ms: number): number {
   return Math.round(ms / 3600000 * 10) / 10;
 }
@@ -61,25 +52,8 @@ function toChartHours(ms: number): number {
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
-// ── Animated Counter ──────────────────────────────────────────────────────────
-function AnimatedCounter({ value, suffix = '', prefix = '' }: { value: number; suffix?: string; prefix?: string }) {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const duration = 800;
-    const start = performance.now();
-    const animate = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(value * eased));
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    requestAnimationFrame(animate);
-  }, [value]);
-  return <>{prefix}{display}{suffix}</>;
-}
-
 export function Analytics() {
-  const { tasks, activeTaskId, profile, theme } = useStore();
+  const { tasks, theme } = useStore();
   const [apiSessions, setApiSessions] = useState<AnalyticsSession[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -279,16 +253,6 @@ export function Analytics() {
     return prevTotalTasks > 0 ? Math.round(prevCompletedTasks / prevTotalTasks * 100) : 0;
   }, [prevCompletedTasks, prevTotalTasks]);
 
-  function formatComparison(current: number, prev: number, isPercent = false) {
-    if (prev <= 0) return 'No comparison data';
-    const percentChange = Math.round(((current - prev) / prev) * 100);
-    const sign = percentChange > 0 ? '+' : '';
-    if (isPercent) {
-      return `${sign}${percentChange}% vs last period`;
-    }
-    return `${sign}${percentChange}% (${formatHours(prev)} last period)`;
-  }
-
   function getComparisonDelta(current: number, prev: number) {
     if (prev <= 0) return { pct: 0, up: true };
     const pct = Math.round(((current - prev) / prev) * 100);
@@ -362,12 +326,6 @@ export function Analytics() {
       .sort((a, b) => b.analyticsTime - a.analyticsTime)
       .slice(0, 5);
   }, [tasks, currentSessions, liveSessions, rangeBounds]);
-
-  const totalToday = useMemo(() => {
-    return sessions
-      .filter(session => isToday(session.startTime))
-      .reduce((acc, session) => acc + session.activeTime, 0);
-  }, [sessions]);
 
   // ── Derived Insights ──────────────────────────────────────────────────────
   const avgDailyFocus = useMemo(() => {
@@ -594,7 +552,7 @@ export function Analytics() {
             { icon: Pause, label: 'Paused Time', value: formatHours(selectedPaused), delta: pausedDelta, prevLabel: formatHours(prevPaused), color: '#8b5cf6', bg: '#8b5cf610', desc: 'Time spent on pause' },
             { icon: Zap, label: 'Focus Quality', value: `${selectedFocusScore}%`, delta: qualityDelta, prevLabel: `${prevFocusScore}%`, color: '#f97316', bg: '#f9731610', desc: 'Average focus score' },
             { icon: CheckCircle2, label: 'Completion Rate', value: `${selectedCompletionRate}%`, delta: completionDelta, prevLabel: `${prevCompletionRate}%`, color: '#10b981', bg: '#10b98110', desc: 'Tasks completed' },
-          ].map(({ icon: Icon, label, value, delta, prevLabel, color, bg, desc }, i) => (
+          ].map(({ icon: Icon, label, value, delta, color, bg, desc }, _i) => (
             <motion.div key={label} variants={fadeUp}
               className="rounded-2xl border border-surface-800/60 bg-surface-900 p-5 relative overflow-hidden hover:border-surface-700 hover:shadow-lg transition-all duration-200 group">
               <div className="absolute top-0 right-0 w-24 h-24 opacity-5 pointer-events-none rounded-bl-full"
@@ -859,7 +817,7 @@ export function Analytics() {
             <span className="text-sm font-bold text-surface-100">Recommendations</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {recommendations.map(({ icon: Icon, title, desc, color, bg }, i) => (
+            {recommendations.map(({ icon: Icon, title, desc, color, bg }, _i) => (
               <motion.div key={title} variants={fadeUp}
                 className="flex items-start gap-3 p-4 rounded-xl bg-surface-850/50 border border-surface-800 hover:border-surface-700 transition-all">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ backgroundColor: bg }}>

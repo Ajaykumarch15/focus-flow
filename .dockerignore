@@ -1,0 +1,11 @@
+.git
+**/node_modules
+**/dist
+**/.vite
+**/.env
+**/*.log
+.opencode
+scripts
+.github
+*.md
+!mainApp/README.md

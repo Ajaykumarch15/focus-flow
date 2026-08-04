@@ -1,34 +1,23 @@
 import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Plus, Search, Filter, GitBranch, GitPullRequest, Timer, Clock,
-  CheckCircle2, Flame, ChevronDown, MessageSquare, ShieldCheck, User, CheckSquare
+  Sparkles, Search, GitBranch,
+  MessageSquare, CheckSquare
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { CollaborativeTask, SprintStatus } from '../../types/collaboration';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 
 export function FeaturesPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { tasks, members, updateTaskStatus, createTask } = useCollaborationStore();
+  const { tasks, members } = useCollaborationStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPriority, setSelectedPriority] = useState<string>('all');
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
     open: false, targetType: 'task', targetId: '', title: ''
   });
 
   // Personal task subtask creation form state inside feature detail view
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
-
-  // Form state for creating new Feature
-  const [newTitle, setNewTitle] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('high');
-  const [newEstHours, setNewEstHours] = useState(12);
 
   const wsTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -37,21 +26,6 @@ export function FeaturesPage() {
       return matchSearch && matchPriority;
     });
   }, [tasks, searchQuery, selectedPriority]);
-
-  const handleCreateFeature = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-    createTask({
-      title: newTitle.trim(),
-      description: newDesc.trim(),
-      priority: newPriority,
-      estimatedHours: Number(newEstHours),
-      sprintStatus: 'in_progress',
-    });
-    setShowCreateModal(false);
-    setNewTitle('');
-    setNewDesc('');
-  };
 
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -71,13 +45,13 @@ export function FeaturesPage() {
           {/* Search */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-            <input type="text" placeholder="Filter features..."
+            <input type="text" placeholder="Filter features..." aria-label="Filter features"
               value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-surface-900 border border-surface-750 focus:border-brand-500 text-xs text-surface-50 rounded-xl pl-9 pr-4 py-2.5 outline-none transition-all w-60" />
           </div>
 
           {/* Priority filter */}
-          <select value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}
+          <select aria-label="Filter by priority" value={selectedPriority} onChange={(e) => setSelectedPriority(e.target.value)}
             className="bg-surface-900 border border-surface-750 text-xs text-surface-300 rounded-xl px-3 py-2.5 outline-none">
             <option value="all">All Priorities</option>
             <option value="urgent">Urgent</option>
@@ -85,10 +59,6 @@ export function FeaturesPage() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
-
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
-            <Plus size={15} /> New Feature
-          </button>
         </div>
       </div>
 
@@ -201,6 +171,12 @@ export function FeaturesPage() {
           );
         })}
       </div>
+
+      {wsTasks.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
+          No features match this workspace yet.
+        </div>
+      )}
 
       {/* Discussion Modal */}
       <DiscussionsModal

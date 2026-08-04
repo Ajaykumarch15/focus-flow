@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -22,8 +22,13 @@ const itemVariants = {
 export function TeamProjects() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { workspaces, setActiveWorkspace, createWorkspace, tasks } = useCollaborationStore();
+  const { workspaces, workspacesLoading, setActiveWorkspace, loadWorkspaces, createWorkspace, tasks } = useCollaborationStore();
   const { theme } = useStore();
+
+  // IES-P2-07: real workspace list replaces the removed seed data.
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
@@ -44,14 +49,14 @@ export function TeamProjects() {
     navigate(`/w/${workspaceId}/overview`);
   };
 
-  const handleCreateWorkspace = (e: React.FormEvent) => {
+  const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWsName.trim()) return;
-    const ws = createWorkspace(newWsName.trim(), newWsType, newWsDesc.trim() || 'Engineering Workspace');
+    const ws = await createWorkspace(newWsName.trim(), newWsType, newWsDesc.trim() || 'Engineering Workspace');
     setShowCreateModal(false);
     setNewWsName('');
     setNewWsDesc('');
-    handleSelectCollaborative(ws.id);
+    if (ws) handleSelectCollaborative(ws.id);
   };
 
   return (
@@ -145,15 +150,21 @@ export function TeamProjects() {
             <Building2 size={40} className="mx-auto text-surface-500" />
             <div>
               <h3 className="font-display font-bold text-surface-200 text-lg">
-                {search ? 'No matching workspaces' : 'No workspaces yet'}
+                {workspacesLoading
+                  ? 'Loading workspaces…'
+                  : search
+                    ? 'No matching workspaces'
+                    : 'No workspaces yet'}
               </h3>
               <p className="text-xs text-surface-400 mt-1 max-w-sm mx-auto">
-                {search
-                  ? 'Try a different search term or create a new workspace.'
-                  : 'Create your first engineering workspace to start collaborating with your team.'}
+                {workspacesLoading
+                  ? 'Fetching your engineering workspaces.'
+                  : search
+                    ? 'Try a different search term or create a new workspace.'
+                    : 'Create your first engineering workspace to start collaborating with your team.'}
               </p>
             </div>
-            {!search && (
+            {!search && !workspacesLoading && (
               <button onClick={() => setShowCreateModal(true)}
                 className="btn-primary px-5 py-2.5 rounded-xl text-xs font-bold mt-2 inline-flex items-center gap-1.5">
                 <Plus size={14} /> Create Workspace
@@ -169,7 +180,7 @@ export function TeamProjects() {
             {filteredWorkspaces.map((ws) => {
               const wsTasks = tasks.filter((t) => t.workspaceId === ws.id);
               const completedTasks = wsTasks.filter((t) => t.sprintStatus === 'done').length;
-              const progressPct = wsTasks.length > 0 ? Math.round((completedTasks / wsTasks.length) * 100) : 72;
+              const progressPct = wsTasks.length > 0 ? Math.round((completedTasks / wsTasks.length) * 100) : 0;
 
               if (viewMode === 'list') {
                 return (
@@ -197,10 +208,16 @@ export function TeamProjects() {
                           <Users size={12} className="text-brand-400" /> {ws.membersCount}
                         </span>
                         <div className="flex items-center gap-1.5">
-                          <div className="w-14 bg-surface-800 h-1.5 rounded-full overflow-hidden">
-                            <div className="bg-gradient-to-r from-cyan-500 to-brand-500 h-full rounded-full" style={{ width: `${progressPct}%` }} />
-                          </div>
-                          <span className="text-[10px] font-mono font-bold text-surface-200">{progressPct}%</span>
+                          {wsTasks.length > 0 ? (
+                            <>
+                              <div className="w-14 bg-surface-800 h-1.5 rounded-full overflow-hidden">
+                                <div className="bg-gradient-to-r from-cyan-500 to-brand-500 h-full rounded-full" style={{ width: `${progressPct}%` }} />
+                              </div>
+                              <span className="text-[10px] font-mono font-bold text-surface-200">{progressPct}%</span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-mono font-semibold text-surface-500">—</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-cyan-400 group-hover:text-white bg-cyan-500/10 group-hover:bg-cyan-500 px-3 py-1.5 rounded-xl transition-all">
@@ -249,10 +266,16 @@ export function TeamProjects() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 bg-surface-800 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-gradient-to-r from-cyan-500 to-brand-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
-                      </div>
-                      <span className="text-[10px] font-mono font-bold text-surface-200">{progressPct}%</span>
+                      {wsTasks.length > 0 ? (
+                        <>
+                          <div className="flex-1 bg-surface-800 h-1.5 rounded-full overflow-hidden">
+                            <div className="bg-gradient-to-r from-cyan-500 to-brand-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
+                          </div>
+                          <span className="text-[10px] font-mono font-bold text-surface-200">{progressPct}%</span>
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-mono font-semibold text-surface-500">No sprint data</span>
+                      )}
                     </div>
 
                     <button className="w-full flex items-center justify-center gap-1.5 py-2.5 bg-surface-800 group-hover:bg-cyan-500 text-surface-200 group-hover:text-white font-bold text-xs rounded-xl transition-all duration-200">
@@ -296,7 +319,7 @@ export function TeamProjects() {
                   <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-1.5">
                     Workspace Type
                   </label>
-                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as any)}
+                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as typeof newWsType)}
                     className="w-full bg-surface-850 border border-surface-700 focus:border-brand-500 rounded-xl px-4 py-2.5 text-sm text-surface-50 outline-none transition-colors">
                     <option value="Startup">Startup</option>
                     <option value="Personal">Personal Sandbox</option>

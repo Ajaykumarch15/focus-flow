@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, Play, Pause, Square, Plus, Sparkles, CheckCircle2, AlertTriangle, Lightbulb, FileText, ChevronRight } from 'lucide-react';
+import { Clock, Play, Pause, Square, Plus, Sparkles, CheckCircle2, AlertTriangle, Lightbulb, FileText } from 'lucide-react';
 import { WorkLog, TimelineEntry, useWorkLogStore } from '../../store/useWorkLogStore';
 import { format } from 'date-fns';
 

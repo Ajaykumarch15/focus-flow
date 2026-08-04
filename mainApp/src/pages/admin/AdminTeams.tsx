@@ -2,14 +2,14 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search, Loader2, Edit2, Trash2, Plus, X, Check, ArrowLeft,
-  TrendingUp, Clock, CheckCircle2, Globe,
+  Globe,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { api } from '../../utils/api';
 import { toast } from '../../store/useToastStore';
+import { runMutation } from '../../utils/mutation';
 import { SkeletonStatCard } from '../../components/ui/Skeleton';
 import { PageHeader } from '../../components/ui/PageHeader';
 
@@ -39,16 +39,16 @@ function TeamModal({ editing, users, onClose, onSave }: {
         className="w-full max-w-lg rounded-2xl border border-surface-800 bg-surface-900 p-6 shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-5">
           <h3 className="font-display font-bold text-surface-50">{editing ? 'Edit Team' : 'New Team'}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-400"><X size={16} /></button>
+          <button onClick={onClose} aria-label="Close team dialog" className="p-1.5 rounded-lg hover:bg-surface-800 text-surface-400"><X size={16} /></button>
         </div>
         <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          <div><label className="text-xs text-surface-400 font-medium mb-1 block">Team Name</label>
-            <input className="input w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Frontend Team" /></div>
-          <div><label className="text-xs text-surface-400 font-medium mb-1 block">Description</label>
-            <textarea className="input w-full rounded-xl text-sm resize-none" rows={2} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional..." /></div>
+          <div><label htmlFor="admin-team-name" className="text-xs text-surface-400 font-medium mb-1 block">Team Name</label>
+            <input id="admin-team-name" className="input w-full rounded-xl text-sm" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Frontend Team" /></div>
+          <div><label htmlFor="admin-team-desc" className="text-xs text-surface-400 font-medium mb-1 block">Description</label>
+            <textarea id="admin-team-desc" className="input w-full rounded-xl text-sm resize-none" rows={2} value={desc} onChange={e => setDesc(e.target.value)} placeholder="Optional..." /></div>
           <div className="flex-1 overflow-hidden flex flex-col">
             <label className="text-xs text-surface-400 font-medium mb-1 block">Members ({members.length})</label>
-            <input className="input w-full rounded-xl text-sm mb-2" placeholder="Search users..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input className="input w-full rounded-xl text-sm mb-2" placeholder="Search users..." aria-label="Search users" value={search} onChange={e => setSearch(e.target.value)} />
             <div className="flex-1 overflow-y-auto space-y-1 scrollbar-thin max-h-48">
               {filtered.map(u => (
                 <button key={u._id} onClick={() => setMembers(prev => prev.includes(u._id) ? prev.filter(x => x !== u._id) : [...prev, u._id])}
@@ -87,13 +87,13 @@ function TeamDetailPanel({ team, onBack }: { team: Team; onBack: () => void }) {
     return analytics.memberBreakdown.map((m: any) => ({ name: m.name, hours: Math.round(m.totalTimeMs / 3600000 * 10) / 10 })).sort((a: any, b: any) => b.hours - a.hours);
   }, [analytics]);
 
-  if (loading) return <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div>;
+  if (loading) return <div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div>;
 
   const s = analytics?.summary;
   return (
     <div>
       <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 rounded-xl hover:bg-surface-800 text-surface-400"><ArrowLeft size={18} /></button>
+        <button onClick={onBack} aria-label="Back to teams" className="p-2 rounded-xl hover:bg-surface-800 text-surface-400"><ArrowLeft size={18} /></button>
         <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center"><Users size={20} className="text-purple-400" /></div>
         <div><h2 className="text-lg font-display font-bold text-surface-50">{team.name}</h2><p className="text-xs text-surface-400">{team.members.length} members</p></div>
       </div>
@@ -151,7 +151,7 @@ export function AdminTeams() {
 
   useEffect(() => {
     Promise.all([api.teams.list(), api.admin.listUsers()])
-      .then(([t, u]) => { setTeams(t); setUsers(u); })
+      .then(([t, u]) => { setTeams(t); setUsers(u.items); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -174,12 +174,21 @@ export function AdminTeams() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this team?')) return;
-    await api.teams.delete(id);
-    setTeams(prev => prev.filter(t => t._id !== id));
+    const target = teams.find(t => t._id === id);
+    await runMutation(
+      () => {
+        setTeams(prev => prev.filter(t => t._id !== id));
+        return () => {
+          if (target) setTeams(prev => [target, ...prev]);
+        };
+      },
+      () => api.teams.delete(id),
+      { errorTitle: 'Failed to delete team' },
+    );
     toast.success('Team deleted');
   };
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   if (selectedTeam) return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
@@ -196,7 +205,7 @@ export function AdminTeams() {
       <div className="flex items-center gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-          <input className="input h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search teams..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="input h-10 pl-9 pr-4 rounded-xl text-sm" placeholder="Search teams..." aria-label="Search teams" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm">
           <Plus size={14} /> New Team
@@ -208,22 +217,24 @@ export function AdminTeams() {
           <motion.div key={t._id} variants={fadeUp} whileHover={{ y: -3 }}
             className="rounded-2xl border border-surface-800 bg-surface-900 p-5 hover:border-surface-700 hover:shadow-lg transition-all">
             <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-3 cursor-pointer" onClick={() => setSelectedTeam(t)}>
+              <div role="button" tabIndex={0} className="flex items-center gap-3 cursor-pointer"
+                onClick={() => setSelectedTeam(t)}
+                onKeyDown={e => { if (e.key === 'Enter') setSelectedTeam(t); }}>
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center"><Users size={16} className="text-purple-400" /></div>
                 <div><p className="text-sm font-semibold text-surface-100">{t.name}</p>
                   {t.description && <p className="text-[11px] text-surface-500 truncate max-w-[180px]">{t.description}</p>}</div>
               </div>
             </div>
             <div className="flex items-center gap-1 mb-3">
-              {t.members.slice(0, 5).map((m, i) => (
+              {t.members.slice(0, 5).map((m, _i) => (
                 <div key={m._id} className="w-6 h-6 rounded-full bg-surface-800 flex items-center justify-center text-[9px] font-bold text-surface-400 -ml-1 first:ml-0 border border-surface-900">{m.name.charAt(0).toUpperCase()}</div>
               ))}
               {t.members.length > 5 && <span className="text-[10px] text-surface-500 ml-1">+{t.members.length - 5}</span>}
             </div>
             <div className="flex gap-2">
               <button onClick={() => setSelectedTeam(t)} className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-surface-800 text-surface-300 hover:text-surface-100 transition-all">Analytics</button>
-              <button onClick={() => { setEditing(t); setShowModal(true); }} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-surface-200 transition-all"><Edit2 size={13} /></button>
-              <button onClick={() => handleDelete(t._id)} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-red-400 transition-all"><Trash2 size={13} /></button>
+              <button onClick={() => { setEditing(t); setShowModal(true); }} aria-label={`Edit team ${t.name}`} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-surface-200 transition-all"><Edit2 size={13} /></button>
+              <button onClick={() => handleDelete(t._id)} aria-label={`Delete team ${t.name}`} className="p-1.5 rounded-lg bg-surface-800 text-surface-400 hover:text-red-400 transition-all"><Trash2 size={13} /></button>
             </div>
           </motion.div>
         ))}

@@ -10,14 +10,6 @@ const STATUS_LABELS: Record<string, string> = {
   'done': 'Done',
 };
 
-function formatMs(ms: number): string {
-  if (!ms || ms < 0) return '0h 0m';
-  const h = Math.floor(ms / 3600000);
-  const m = Math.floor((ms % 3600000) / 60000);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
-}
-
 function buildSections(log: WorkLog): DocSection[] {
   return [
     {

@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Target, Zap, BarChart3, BookOpen, Play, CheckCircle, Clock, ArrowRight,
-  Timer, Flame, Trophy, Star, Users, TrendingUp, ChevronRight,
-  LayoutDashboard, CheckSquare, LineChart, Sparkles, Shield, Globe,
+  Timer, Flame, Trophy, TrendingUp, ChevronRight,
+  LayoutDashboard, CheckSquare, LineChart, Sparkles,
 } from 'lucide-react';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 const features = [
-  { icon: Timer, title: 'Smart Timer', desc: 'Track work sessions with automatic pause detection, session history, and focus scoring.', color: '#0ea5e9', bg: 'bg-sky-500/10' },
+  { icon: Timer, title: 'Smart Timer', desc: 'Track focus sessions with Pomodoro and manual timers, session history, streaks, and focus scoring.', color: '#0ea5e9', bg: 'bg-sky-500/10' },
   { icon: BarChart3, title: 'Analytics', desc: 'Beautiful charts showing your productivity trends, time distribution, and performance insights.', color: '#8b5cf6', bg: 'bg-purple-500/10' },
-  { icon: BookOpen, title: 'Work Journal', desc: 'Keep daily logs and reflections tied to each task session with rich text editing.', color: '#22c55e', bg: 'bg-emerald-500/10' },
-  { icon: Zap, title: 'Focus Mode', desc: 'Distraction-free Pomodoro timer with motivational quotes and ambient sound.', color: '#f97316', bg: 'bg-orange-500/10' },
+  { icon: BookOpen, title: 'Work Journal', desc: 'Keep daily logs and reflections tied to each task session with Markdown editing.', color: '#22c55e', bg: 'bg-emerald-500/10' },
+  { icon: Zap, title: 'Focus Mode', desc: 'Distraction-free Pomodoro timer with motivational quotes.', color: '#f97316', bg: 'bg-orange-500/10' },
   { icon: CheckSquare, title: 'Subtasks', desc: 'Break down complex tasks into manageable checklist items with progress tracking.', color: '#ec4899', bg: 'bg-pink-500/10' },
   { icon: Target, title: 'Daily Goals', desc: 'Set and track your daily productivity goals with visual progress rings.', color: '#eab308', bg: 'bg-yellow-500/10' },
 ];
@@ -25,17 +25,17 @@ const steps = [
   { num: '03', icon: LineChart, title: 'Review Insights', desc: 'See where your time goes and optimize your productivity with real data.' },
 ];
 
-const testimonials = [
-  { name: 'Sarah K.', role: 'Software Engineer', text: 'FocusFlow completely changed how I approach my workday. The analytics alone helped me reclaim 2 hours of deep focus daily.', rating: 5 },
-  { name: 'Marcus T.', role: 'Product Designer', text: 'Finally a productivity tool that looks as good as it works. The journal feature keeps me accountable and the timers keep me sharp.', rating: 5 },
-  { name: 'Priya M.', role: 'Project Manager', text: 'I manage 3 teams and FocusFlow gives me clarity on where my time actually goes. The category breakdown is a game-changer.', rating: 5 },
+const valueProps = [
+  { icon: Timer, title: 'Focus session → Work log', desc: 'Start a timer on any task and the completed session is written to your work log automatically.' },
+  { icon: BarChart3, title: 'Work log → Reports', desc: 'Daily, weekly, and monthly reports build themselves from your real sessions — no manual data entry.' },
+  { icon: CheckCircle, title: 'Proof of work', desc: 'Focus scores, streaks, and heatmaps show exactly where your time goes.' },
 ];
 
 const stats = [
-  { value: '10K+', label: 'Focus Hours Tracked' },
-  { value: '50K+', label: 'Tasks Completed' },
-  { value: '98%', label: 'User Satisfaction' },
-  { value: '4.9', label: 'Average Rating', icon: Star },
+  { value: '2', label: 'Timer modes — Pomodoro & manual' },
+  { value: '1', label: 'Source of truth — sessions feed work logs' },
+  { value: '0', label: 'Manual transcription needed' },
+  { value: '100%', label: 'Private — your data stays yours' },
 ];
 
 export function Landing() {
@@ -99,7 +99,7 @@ export function Landing() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
             <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 mb-8">
               <Sparkles size={14} className="text-brand-400" />
-              <span className="text-sm text-brand-300 font-semibold">Premium Productivity Tracker</span>
+              <span className="text-sm text-brand-300 font-semibold">Pomodoro Productivity Tracker</span>
             </div>
           </motion.div>
 
@@ -201,10 +201,9 @@ export function Landing() {
       <motion.section initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
         variants={stagger} className="border-y border-surface-800/60 bg-surface-900/50">
         <div className="max-w-5xl mx-auto px-6 py-10 grid grid-cols-2 lg:grid-cols-4 gap-8">
-          {stats.map(({ value, label, icon: Icon }) => (
+          {stats.map(({ value, label }) => (
             <motion.div key={label} variants={fadeUp} className="text-center">
               <div className="flex items-center justify-center gap-1.5 mb-1">
-                {Icon && <Icon size={16} className="text-amber-400" />}
                 <p className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50">{value}</p>
               </div>
               <p className="text-xs text-surface-400 font-medium">{label}</p>
@@ -227,7 +226,7 @@ export function Landing() {
 
         <motion.div initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
           variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map(({ icon: Icon, title, desc, color, bg }, i) => (
+          {features.map(({ icon: Icon, title, desc, color, bg }) => (
             <motion.div key={title} variants={fadeUp}
               whileHover={{ y: -4, borderColor: 'rgba(255,255,255,0.1)' }}
               className="rounded-2xl border border-surface-800/60 bg-surface-900 p-6 transition-all duration-200 group cursor-default">
@@ -348,37 +347,27 @@ export function Landing() {
         </div>
       </section>
 
-      {/* ═══ Testimonials ═══ */}
+      {/* ═══ Value Prop ═══ */}
       <section className="border-y border-surface-800/60 bg-surface-900/30">
         <div className="max-w-5xl mx-auto px-6 py-24">
           <motion.div initial="hidden" whileInView="show" viewport={{ once: true, margin: '-80px' }}
             variants={fadeUp} className="text-center mb-14">
             <h2 className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 mb-4 tracking-tight">
-              Loved by focused people
+              From focus session to proof of work
             </h2>
-            <p className="text-surface-400 text-lg">See what our users have to say</p>
+            <p className="text-surface-400 text-lg">Your data flows automatically — no manual transcription.</p>
           </motion.div>
 
           <motion.div initial="hidden" whileInView="show" viewport={{ once: true, margin: '-50px' }}
             variants={stagger} className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {testimonials.map(({ name, role, text, rating }, i) => (
-              <motion.div key={name} variants={fadeUp}
-                className="rounded-2xl border border-surface-800/60 bg-surface-900 p-6 flex flex-col">
-                <div className="flex gap-0.5 mb-4">
-                  {Array.from({ length: rating }).map((_, j) => (
-                    <Star key={j} size={14} className="text-amber-400 fill-amber-400" />
-                  ))}
+            {valueProps.map(({ icon: Icon, title, desc }) => (
+              <motion.div key={title} variants={fadeUp}
+                className="rounded-2xl border border-surface-800/60 bg-surface-900 p-6">
+                <div className="w-11 h-11 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
+                  <Icon size={20} className="text-brand-400" />
                 </div>
-                <p className="text-sm text-surface-300 leading-relaxed flex-1 mb-5">"{text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-surface-800 flex items-center justify-center text-xs font-bold text-surface-300">
-                    {name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-surface-200">{name}</p>
-                    <p className="text-[10px] text-surface-500">{role}</p>
-                  </div>
-                </div>
+                <h3 className="text-base font-display font-bold text-surface-50 mb-2">{title}</h3>
+                <p className="text-sm text-surface-400 leading-relaxed">{desc}</p>
               </motion.div>
             ))}
           </motion.div>
@@ -396,7 +385,7 @@ export function Landing() {
               Ready to take control of your time?
             </h2>
             <p className="text-surface-400 text-lg max-w-lg mx-auto mb-8">
-              Join thousands of productive people who use FocusFlow to do their best work every day.
+              Start with a single focus session — your work logs and reports build themselves.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <motion.button onClick={() => navigate('/register')}

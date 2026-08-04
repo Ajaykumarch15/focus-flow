@@ -8,15 +8,21 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [repositoryUrl, setRepositoryUrl] = useState('');
-  const [selectedTeams, setSelectedTeams] = useState<string[]>(['t1']);
-  const [milestones, setMilestones] = useState<{ title: string; dueDate: string }[]>([
-    { title: 'MVP Release & Kickoff', dueDate: '2026-08-30' },
-  ]);
+  // IES-P2-08: no fabricated defaults — teams/milestones start empty and are
+  // only attached if the user actually picks them.
+  const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [milestones, setMilestones] = useState<{ title: string; dueDate: string }[]>([]);
 
   if (!isOpen) return null;
 
+  const defaultMilestoneDate = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  };
+
   const handleAddMilestone = () => {
-    setMilestones([...milestones, { title: '', dueDate: '2026-09-15' }]);
+    setMilestones([...milestones, { title: '', dueDate: defaultMilestoneDate() }]);
   };
 
   const handleRemoveMilestone = (idx: number) => {

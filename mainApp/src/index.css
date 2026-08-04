@@ -31,6 +31,60 @@
     --color-brand-700: #075985;
     --color-brand-800: #0c4a6e;
     --color-brand-900: #082f49;
+
+    /* Semantic status colors (light) */
+    --color-success-50: #ecfdf5;
+    --color-success-100: #d1fae5;
+    --color-success-200: #a7f3d0;
+    --color-success-300: #6ee7b7;
+    --color-success-400: #34d399;
+    --color-success-500: #10b981;
+    --color-success-600: #059669;
+    --color-success-700: #047857;
+    --color-success-800: #065f46;
+    --color-success-900: #064e3b;
+
+    --color-warning-50: #fffbeb;
+    --color-warning-100: #fef3c7;
+    --color-warning-200: #fde68a;
+    --color-warning-300: #fcd34d;
+    --color-warning-400: #fbbf24;
+    --color-warning-500: #f59e0b;
+    --color-warning-600: #d97706;
+    --color-warning-700: #b45309;
+    --color-warning-800: #92400e;
+    --color-warning-900: #78350f;
+
+    --color-danger-50: #fef2f2;
+    --color-danger-100: #fee2e2;
+    --color-danger-200: #fecaca;
+    --color-danger-300: #fca5a5;
+    --color-danger-400: #f87171;
+    --color-danger-500: #ef4444;
+    --color-danger-600: #dc2626;
+    --color-danger-700: #b91c1c;
+    --color-danger-800: #991b1b;
+    --color-danger-900: #7f1d1d;
+
+    --color-info-50: #f0f9ff;
+    --color-info-100: #e0f2fe;
+    --color-info-200: #bae6fd;
+    --color-info-300: #7dd3fc;
+    --color-info-400: #38bdf8;
+    --color-info-500: #0ea5e9;
+    --color-info-600: #0284c7;
+    --color-info-700: #0369a1;
+    --color-info-800: #075985;
+    --color-info-900: #0c4a6e;
+
+    /* Elevation scale (light) */
+    --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-sm: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+    --shadow-md: 0 8px 24px -4px rgba(15, 23, 42, 0.10), 0 4px 8px -4px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 16px 36px -6px rgba(15, 23, 42, 0.14), 0 6px 12px -6px rgba(15, 23, 42, 0.08);
+    --shadow-xl: 0 24px 48px -8px rgba(15, 23, 42, 0.20), 0 8px 16px -8px rgba(15, 23, 42, 0.10);
+
+    color-scheme: light;
   }
 
   html.dark {
@@ -60,6 +114,60 @@
     --color-brand-700: #0369a1;
     --color-brand-800: #075985;
     --color-brand-900: #0c4a6e;
+
+    /* Semantic status colors (dark — brightened mid-stops for text on dark) */
+    --color-success-50: #d1fae5;
+    --color-success-100: #a7f3d0;
+    --color-success-200: #6ee7b7;
+    --color-success-300: #34d399;
+    --color-success-400: #10b981;
+    --color-success-500: #059669;
+    --color-success-600: #047857;
+    --color-success-700: #065f46;
+    --color-success-800: #064e3b;
+    --color-success-900: #022c22;
+
+    --color-warning-50: #fef3c7;
+    --color-warning-100: #fde68a;
+    --color-warning-200: #fcd34d;
+    --color-warning-300: #fbbf24;
+    --color-warning-400: #f59e0b;
+    --color-warning-500: #d97706;
+    --color-warning-600: #b45309;
+    --color-warning-700: #92400e;
+    --color-warning-800: #78350f;
+    --color-warning-900: #451a03;
+
+    --color-danger-50: #fee2e2;
+    --color-danger-100: #fecaca;
+    --color-danger-200: #fca5a5;
+    --color-danger-300: #f87171;
+    --color-danger-400: #ef4444;
+    --color-danger-500: #dc2626;
+    --color-danger-600: #b91c1c;
+    --color-danger-700: #991b1b;
+    --color-danger-800: #7f1d1d;
+    --color-danger-900: #450a0a;
+
+    --color-info-50: #e0f2fe;
+    --color-info-100: #bae6fd;
+    --color-info-200: #7dd3fc;
+    --color-info-300: #38bdf8;
+    --color-info-400: #0ea5e9;
+    --color-info-500: #0284c7;
+    --color-info-600: #0369a1;
+    --color-info-700: #075985;
+    --color-info-800: #0c4a6e;
+    --color-info-900: #082f49;
+
+    /* Elevation scale (dark) */
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 4px 12px -2px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 8px -4px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 16px 36px -6px rgba(0, 0, 0, 0.6), 0 6px 12px -6px rgba(0, 0, 0, 0.4);
+    --shadow-xl: 0 24px 48px -8px rgba(0, 0, 0, 0.7), 0 8px 16px -8px rgba(0, 0, 0, 0.5);
+
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; }
@@ -111,12 +219,17 @@
   }
   .input::placeholder { color: var(--color-surface-500); }
   .input:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    border-color: var(--color-brand-500);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 15%, transparent);
+  }
+  .input-error { border-color: var(--color-danger-500); }
+  .input-error:focus {
+    border-color: var(--color-danger-500);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger-500) 15%, transparent);
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #FF4D6D 0%, #FF2D55 100%);
+    background: linear-gradient(135deg, var(--color-brand-500) 0%, var(--color-brand-600) 100%);
     color: white;
     font-weight: 600;
     padding: 0.75rem 1.25rem;
@@ -124,14 +237,14 @@
     border-radius: 0.875rem;
     transition: all 0.2s ease;
     cursor: pointer;
-    box-shadow: 0 4px 14px 0 rgba(255, 45, 85, 0.25);
+    box-shadow: 0 4px 14px 0 color-mix(in srgb, var(--color-brand-500) 25%, transparent);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
   }
   .btn-primary:hover {
-    box-shadow: 0 6px 20px 0 rgba(255, 45, 85, 0.35);
+    box-shadow: 0 6px 20px 0 color-mix(in srgb, var(--color-brand-600) 35%, transparent);
     transform: translateY(-1px);
   }
   .btn-primary:active { transform: scale(0.98); }
@@ -314,7 +427,7 @@
     font-variant-numeric: tabular-nums;
   }
   .gradient-text {
-    background: linear-gradient(135deg, #FF4D6D 0%, #FF2D55 100%);
+    background: linear-gradient(135deg, var(--color-brand-400) 0%, var(--color-brand-600) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -338,4 +451,43 @@
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+/* ── Accessibility & Overflow Protection ─────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-brand-400);
+  outline-offset: 2px;
+}
+
+html, body {
+  overflow-x: clip;
+}
+
+/* ── Skeleton shimmer (cheap, GPU-friendly) ──────────────────────────────── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-surface-800);
+  border-radius: 0.5rem;
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-surface-600) 35%, transparent), transparent);
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
+
+/* ── Respect reduced-motion preference ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

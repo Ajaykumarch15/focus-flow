@@ -1,7 +1,7 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ShieldCheck, LayoutDashboard, Users, BarChart3, Activity,
+  LayoutDashboard, Users, BarChart3, Activity,
   Settings, ChevronLeft, ChevronRight, LogOut,
   Globe, ArrowLeft,
 } from 'lucide-react';

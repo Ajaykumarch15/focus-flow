@@ -1,411 +1,135 @@
 import { create } from 'zustand';
 import {
   Workspace, WorkspaceTeam, WorkspaceMember, Project,
-  Sprint, CollaborativeTask, EngineeringActivity, DiscussionComment,
+  Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
   SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole
 } from '../types/collaboration';
 import { toast } from './useToastStore';
+import { api } from '../utils/api';
+import { runMutation } from '../utils/mutation';
 
-const WORKSPACE_CACHE_KEY = 'ff_collaborative_workspaces_v1';
+// ── API → frontend shape mappers (IES-P2-07: server docs → client models) ─────
+const DEFAULT_WORKSPACE_SETTINGS: Workspace['settings'] = {
+  allowMemberInvites: true,
+  requireReviewForDone: false,
+  autoSyncTimerWorkLogs: true,
+  defaultVisibility: 'Workspace',
+};
 
-// ── Default Initial Mock Data ──────────────────────────────────────────────────
-const INITIAL_WORKSPACES: Workspace[] = [
-  {
-    id: 'ws-acme-dev',
-    name: 'Acme AI Engineering',
-    type: 'Startup',
-    icon: '⚡',
-    description: 'Core platform engineering workspace for Acme AI',
-    membersCount: 8,
-    projectsCount: 3,
-    createdAt: '2026-01-15T00:00:00.000Z',
+function workspaceIconFor(type: string): string {
+  switch (type) {
+    case 'Personal': return '🚀';
+    case 'Startup': return '⚡';
+    case 'Enterprise': return '🏢';
+    case 'Open Source': return '🌐';
+    case 'College Project': return '🎓';
+    case 'Internship': return '💼';
+    default: return '🚀';
+  }
+}
+
+function toWorkspace(raw: any): Workspace {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    name: raw.name ?? 'Untitled Workspace',
+    type: raw.type ?? 'Startup',
+    icon: raw.icon ?? '🚀',
+    description: raw.description ?? '',
+    membersCount: Number(raw.membersCount ?? 0),
+    projectsCount: Number(raw.projectsCount ?? 0),
+    createdAt: raw.createdAt ?? new Date().toISOString(),
     settings: {
-      allowMemberInvites: true,
-      requireReviewForDone: true,
-      autoSyncTimerWorkLogs: true,
-      defaultVisibility: 'Workspace',
+      allowMemberInvites: raw.settings?.allowMemberInvites ?? DEFAULT_WORKSPACE_SETTINGS.allowMemberInvites,
+      requireReviewForDone: raw.settings?.requireReviewForDone ?? DEFAULT_WORKSPACE_SETTINGS.requireReviewForDone,
+      autoSyncTimerWorkLogs: raw.settings?.autoSyncTimerWorkLogs ?? DEFAULT_WORKSPACE_SETTINGS.autoSyncTimerWorkLogs,
+      defaultVisibility: raw.settings?.defaultVisibility ?? DEFAULT_WORKSPACE_SETTINGS.defaultVisibility,
     },
-  },
-  {
-    id: 'ws-personal-dev',
-    name: 'Personal Sandbox',
-    type: 'Personal',
-    icon: '🚀',
-    description: 'Personal side-projects & continuous learning',
-    membersCount: 1,
-    projectsCount: 2,
-    createdAt: '2026-02-01T00:00:00.000Z',
-    settings: {
-      allowMemberInvites: false,
-      requireReviewForDone: false,
-      autoSyncTimerWorkLogs: true,
-      defaultVisibility: 'Private',
-    },
-  },
-  {
-    id: 'ws-open-source',
-    name: 'FocusFlow Open Source',
-    type: 'Open Source',
-    icon: '🌐',
-    description: 'Community-driven tools for deep focus & developer productivity',
-    membersCount: 14,
-    projectsCount: 4,
-    createdAt: '2026-03-10T00:00:00.000Z',
-    settings: {
-      allowMemberInvites: true,
-      requireReviewForDone: true,
-      autoSyncTimerWorkLogs: false,
-      defaultVisibility: 'Workspace',
-    },
-  },
-];
+  };
+}
 
-const INITIAL_MEMBERS: WorkspaceMember[] = [
-  { id: 'm1', name: 'Ajay Kumar', email: 'ajay@focusflow.io', role: 'Owner', teams: ['Frontend', 'AI'], status: 'in_focus', currentFocusTask: 'Refactoring Work Log Kanban Engine', currentFocusTimeMs: 4200000, joinedAt: '2026-01-15' },
-  { id: 'm2', name: 'Rahul Sharma', email: 'rahul@focusflow.io', role: 'Admin', teams: ['Backend', 'DevOps'], status: 'available', currentFocusTask: undefined, joinedAt: '2026-01-16' },
-  { id: 'm3', name: 'Sneha Patel', email: 'sneha@focusflow.io', role: 'Manager', teams: ['AI', 'Frontend'], status: 'in_meeting', currentFocusTask: 'Sprint 24 Planning & Roadmapping', joinedAt: '2026-01-20' },
-  { id: 'm4', name: 'Ravi Teja', email: 'ravi@focusflow.io', role: 'Developer', teams: ['Backend'], status: 'in_focus', currentFocusTask: 'gRPC Microservice API Optimization', currentFocusTimeMs: 2700000, joinedAt: '2026-02-01' },
-  { id: 'm5', name: 'Priya Sundaram', email: 'priya@focusflow.io', role: 'Developer', teams: ['QA', 'DevOps'], status: 'away', joinedAt: '2026-02-05' },
-  { id: 'm6', name: 'David Chen', email: 'david@focusflow.io', role: 'Developer', teams: ['Design', 'Frontend'], status: 'available', joinedAt: '2026-02-12' },
-];
+function toMember(raw: any): WorkspaceMember {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    name: raw.name ?? 'Unknown Member',
+    email: raw.email ?? '',
+    avatar: raw.avatar,
+    role: raw.role ?? 'Developer',
+    teams: raw.teams ?? [],
+    status: 'available',
+    currentFocusTask: undefined,
+    currentFocusTimeMs: undefined,
+    joinedAt: raw.joinedAt ? new Date(raw.joinedAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
 
-const INITIAL_TEAMS: WorkspaceTeam[] = [
-  { id: 't1', name: 'Frontend', description: 'React, Vite, UI components & design system', memberIds: ['m1', 'm3', 'm6'], color: '#0ea5e9', leaderId: 'm1' },
-  { id: 't2', name: 'Backend', description: 'Node.js, PostgreSQL, Redis & API gateway', memberIds: ['m2', 'm4'], color: '#8b5cf6', leaderId: 'm2' },
-  { id: 't3', name: 'AI', description: 'LLM agents, vector embeddings & smart automation', memberIds: ['m1', 'm3'], color: '#f59e0b', leaderId: 'm3' },
-  { id: 't4', name: 'DevOps', description: 'Docker, Kubernetes, CI/CD pipelines & telemetry', memberIds: ['m2', 'm5'], color: '#10b981', leaderId: 'm2' },
-];
+function toTeam(raw: any): WorkspaceTeam {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    name: raw.name ?? 'Untitled Team',
+    description: raw.description ?? '',
+    memberIds: (raw.members ?? []).map((m: any) => String(m._id ?? m.id ?? m)),
+    color: raw.color ?? '#0ea5e9',
+    leaderId: raw.leaderId ? String(raw.leaderId) : undefined,
+  };
+}
 
-const INITIAL_PROJECTS: Project[] = [
-  {
-    id: 'p1',
-    workspaceId: 'ws-acme-dev',
-    name: 'FocusFlow Core Web App',
-    key: 'FF',
-    description: 'Next-gen developer operating system with live time tracking & collaboration',
-    repositoryUrl: 'https://github.com/focusflow/focusflow-web',
-    members: ['m1', 'm2', 'm3', 'm4', 'm5', 'm6'],
-    teamIds: ['t1', 't2', 't3', 't4'],
-    status: 'active',
-    milestones: [
-      { id: 'ms1', title: 'Phase X Team Collaboration Release', dueDate: '2026-08-15', status: 'active', targetPoints: 120 },
-      { id: 'ms2', title: 'AI Code Review Assistant v2', dueDate: '2026-09-01', status: 'planning', targetPoints: 80 },
-    ],
-    createdAt: '2026-01-16',
-  },
-  {
-    id: 'p2',
-    workspaceId: 'ws-acme-dev',
-    name: 'AI Agent Service',
-    key: 'AG',
-    description: 'High-throughput Rust microservice for real-time code analysis & auto-standups',
-    repositoryUrl: 'https://github.com/focusflow/ai-agent-engine',
-    members: ['m1', 'm2', 'm4'],
-    teamIds: ['t2', 't3'],
-    status: 'active',
-    milestones: [
-      { id: 'ms3', title: 'gRPC Pipeline Optimization', dueDate: '2026-08-10', status: 'active', targetPoints: 60 },
-    ],
-    createdAt: '2026-02-10',
-  },
-];
-
-const INITIAL_SPRINTS: Sprint[] = [
-  {
-    id: 'sp-24',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    name: 'Sprint 24 — Developer Workspace & Team Hub',
-    startDate: '2026-07-27',
-    endDate: '2026-08-10',
-    goal: 'Ship Phase X Collaboration engine: Live presence, Kanban, Knowledge Base, and Blocker management',
-    status: 'active',
-    capacityHours: 160,
-    targetVelocity: 85,
-    actualVelocity: 62,
-  },
-  {
-    id: 'sp-25',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    name: 'Sprint 25 — Git Integrations & Deep Telemetry',
-    startDate: '2026-08-11',
-    endDate: '2026-08-25',
-    goal: 'Enable 1-click GitHub OAuth sync and automatic PR status updates',
-    status: 'future',
-    capacityHours: 160,
-    targetVelocity: 90,
-  },
-];
-
-const INITIAL_TASKS: CollaborativeTask[] = [
-  {
-    id: 'ct-101',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    sprintId: 'sp-24',
-    title: 'Implement Phase X Team Workspace Architecture',
-    description: 'Build central collaboration state, workspace switcher, and role-based permissions model.',
-    sprintStatus: 'in_progress',
-    priority: 'urgent',
-    ownerId: 'm1',
-    assigneeId: 'm1',
-    reviewerId: 'm3',
-    followerIds: ['m2', 'm5'],
-    labels: ['Architecture', 'Frontend', 'PhaseX'],
-    dependencies: [],
-    estimatedHours: 18,
-    actualHours: 12,
-    gitContext: {
-      repository: 'focusflow/focusflow-web',
-      branch: 'feature/phase-x-team-collaboration',
-      commitHash: 'a78f91c',
-      prNumber: 142,
-      prUrl: 'https://github.com/focusflow/focusflow-web/pull/142',
-      reviewStatus: 'approved',
-      reviewerName: 'Sneha Patel',
-      mergeStatus: 'open',
-      deploymentStatus: 'staging',
-    },
-    subtasks: [
-      { id: 'st1', title: 'Define workspace & member schemas', completed: true },
-      { id: 'st2', title: 'Create team dashboard presence widgets', completed: true },
-      { id: 'st3', title: 'Build interactive Kanban & Burndown', completed: false },
-    ],
-    createdAt: '2026-07-28',
-    updatedAt: '2026-08-01',
-  },
-  {
-    id: 'ct-102',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    sprintId: 'sp-24',
-    title: 'gRPC Gateway & OAuth token refreshing',
-    description: 'Optimize user session persistence and handle cross-workspace token rotation cleanly.',
-    sprintStatus: 'review',
-    priority: 'high',
-    ownerId: 'm2',
-    assigneeId: 'm4',
-    reviewerId: 'm2',
-    followerIds: ['m1'],
-    labels: ['Backend', 'Security'],
-    dependencies: [],
-    estimatedHours: 12,
-    actualHours: 14,
-    gitContext: {
-      repository: 'focusflow/ai-agent-engine',
-      branch: 'fix/grpc-auth-rotation',
-      commitHash: '891c3ef',
-      prNumber: 98,
-      prUrl: 'https://github.com/focusflow/ai-agent-engine/pull/98',
-      reviewStatus: 'approved',
-      reviewerName: 'Rahul Sharma',
-      mergeStatus: 'merged',
-      deploymentStatus: 'production',
-    },
-    subtasks: [
-      { id: 'st4', title: 'Unit test auth interceptor', completed: true },
-      { id: 'st5', title: 'Verify benchmark performance', completed: true },
-    ],
-    createdAt: '2026-07-29',
-    updatedAt: '2026-08-01',
-  },
-  {
-    id: 'ct-103',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    sprintId: 'sp-24',
-    title: 'Notion-style Engineering Knowledge Base',
-    description: 'Create markdown editor with version history, category tagging, and instant search.',
-    sprintStatus: 'ready',
-    priority: 'medium',
-    ownerId: 'm3',
-    assigneeId: 'm6',
-    reviewerId: 'm1',
-    followerIds: ['m3'],
-    labels: ['Documentation', 'UI'],
-    dependencies: ['ct-101'],
-    estimatedHours: 16,
-    actualHours: 4,
-    subtasks: [],
-    createdAt: '2026-07-30',
-    updatedAt: '2026-08-01',
-  },
-  {
-    id: 'ct-104',
-    workspaceId: 'ws-acme-dev',
-    projectId: 'p1',
-    sprintId: 'sp-24',
-    title: 'Central Blocker Matrix & Resolution Workflow',
-    description: 'Enable team members to flag blockers with impact assessment and manager notifications.',
-    sprintStatus: 'done',
-    priority: 'urgent',
-    ownerId: 'm2',
-    assigneeId: 'm2',
-    reviewerId: 'm3',
-    followerIds: ['m1', 'm4'],
-    labels: ['Manager', 'Workflow'],
-    dependencies: [],
-    estimatedHours: 10,
-    actualHours: 9,
-    subtasks: [
-      { id: 'st6', title: 'Design blocker severity matrix', completed: true },
-      { id: 'st7', title: 'Add resolution audit logs', completed: true },
-    ],
-    createdAt: '2026-07-27',
-    updatedAt: '2026-07-31',
-  },
-];
-
-const INITIAL_ACTIVITIES: EngineeringActivity[] = [
-  { id: 'act-1', workspaceId: 'ws-acme-dev', actor: { id: 'm1', name: 'Ajay Kumar' }, type: 'focus_session_start', title: 'started Focus Session', detail: 'Task: Implement Phase X Team Workspace Architecture', timestamp: '2026-08-01T10:15:00.000Z' },
-  { id: 'act-2', workspaceId: 'ws-acme-dev', actor: { id: 'm2', name: 'Rahul Sharma' }, type: 'pr_merged', title: 'merged PR #98', detail: 'gRPC Gateway & OAuth token refreshing into main', timestamp: '2026-08-01T09:40:00.000Z' },
-  { id: 'act-3', workspaceId: 'ws-acme-dev', actor: { id: 'm4', name: 'Ravi Teja' }, type: 'blocker_resolved', title: 'resolved blocker', detail: 'Redis Cluster Memory Spike in Staging Environment', timestamp: '2026-08-01T08:20:00.000Z' },
-  { id: 'act-4', workspaceId: 'ws-acme-dev', actor: { id: 'm3', name: 'Sneha Patel' }, type: 'doc_created', title: 'published engineering doc', detail: 'Architecture — FocusFlow Phase X System Design', timestamp: '2026-07-31T16:00:00.000Z' },
-  { id: 'act-5', workspaceId: 'ws-acme-dev', actor: { id: 'm1', name: 'Ajay Kumar' }, type: 'task_completed', title: 'completed task', detail: 'WorkLog Home Visual & UX Polish', timestamp: '2026-07-31T14:30:00.000Z' },
-];
-
-const INITIAL_DISCUSSIONS: DiscussionComment[] = [
-  {
-    id: 'disc-1',
-    workspaceId: 'ws-acme-dev',
-    targetType: 'task',
-    targetId: 'ct-101',
-    author: { id: 'm3', name: 'Sneha Patel' },
-    content: 'Approved PR #142! The state management structure looks clean. Let’s make sure we test cross-tab notifications with `@Frontend` team.',
-    createdAt: '2026-08-01T09:30:00.000Z',
-    reactions: { '👍': ['m1', 'm2'], '🚀': ['m1'] },
-    isResolved: true,
-    replies: [
-      {
-        id: 'disc-1-reply-1',
-        workspaceId: 'ws-acme-dev',
-        targetType: 'task',
-        targetId: 'ct-101',
-        author: { id: 'm1', name: 'Ajay Kumar' },
-        content: 'Thanks @Sneha! Adding the notification listener now.',
-        createdAt: '2026-08-01T09:35:00.000Z',
-        reactions: { '🙌': ['m3'] },
-        replies: [],
-      },
-    ],
-  },
-];
-
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  { id: 'n1', workspaceId: 'ws-acme-dev', recipientId: 'm1', actor: { id: 'm3', name: 'Sneha Patel' }, type: 'mentioned', title: 'Sneha mentioned you in PR #142', body: 'Let’s make sure we test cross-tab notifications with @Frontend team.', createdAt: '2026-08-01T09:30:00.000Z', read: false },
-  { id: 'n2', workspaceId: 'ws-acme-dev', recipientId: 'm1', actor: { id: 'm2', name: 'Rahul Sharma' }, type: 'review_requested', title: 'Review requested on PR #98', body: 'gRPC Gateway & OAuth token refreshing', createdAt: '2026-08-01T08:10:00.000Z', read: true },
-  { id: 'n3', workspaceId: 'ws-acme-dev', recipientId: 'm1', actor: { id: 'm4', name: 'Ravi Teja' }, type: 'blocker_added', title: 'New Blocker Reported', body: 'Redis Cluster Memory Spike in Staging Environment', createdAt: '2026-07-31T18:00:00.000Z', read: true },
-];
-
-const INITIAL_DOCS: KnowledgeDoc[] = [
-  {
-    id: 'doc-1',
-    workspaceId: 'ws-acme-dev',
-    title: 'FocusFlow Developer Workspace Architecture',
-    category: 'Architecture',
-    content: `# FocusFlow Developer Workspace Architecture
-
-## Overview
-FocusFlow expands from personal productivity into a **Developer Operating System** combining asynchronous planning, live engineering telemetry, and focus-preserving collaboration.
-
-### Core Domain Hierarchy
-\`\`\`
-Workspace → Teams → Members → Projects → Milestones → Tasks → Work Logs → Knowledge Base
-\`\`\`
-
-## Key Guidelines
-1. **Asynchronous First**: Automatic activity logs eliminate manual status update meetings.
-2. **Focus-Preserving**: No aggressive real-time chat popups during Active Focus Sessions.
-3. **Role-Based Access**: Owner, Admin, Manager, Developer, Viewer.
-4. **Git Context Native**: Deep integration with branch names, PRs, review statuses, and deployments.
-`,
-    authorId: 'm1',
-    version: 3,
-    tags: ['Architecture', 'PhaseX', 'System Design'],
-    createdAt: '2026-07-25',
-    updatedAt: '2026-08-01',
-  },
-  {
-    id: 'doc-2',
-    workspaceId: 'ws-acme-dev',
-    title: 'Engineering Onboarding & Code Review Standards',
-    category: 'Coding Standards',
-    content: `# Code Review & Engineering Standards
-
-1. Keep PRs smaller than 400 lines of code.
-2. Link every PR to a FocusFlow Collaborative Task.
-3. Ensure \`npx tsc --noEmit\` passes with zero errors before requesting review.
-4. Record key design decisions in the Work Log before merging.
-`,
-    authorId: 'm2',
-    version: 1,
-    tags: ['Onboarding', 'CodeReview', 'Standards'],
-    createdAt: '2026-07-20',
-    updatedAt: '2026-07-20',
-  },
-];
-
-const INITIAL_BLOCKERS: CentralBlocker[] = [
-  {
-    id: 'blk-1',
-    workspaceId: 'ws-acme-dev',
-    taskId: 'ct-101',
-    title: 'Redis Cluster Memory Spike in Staging',
-    severity: 'high',
-    ownerId: 'm4',
-    reporterId: 'm2',
-    status: 'resolved',
-    impactDescription: 'Delayed staging deploy for 2 hours during cache eviction testing.',
-    createdAt: '2026-07-31T18:00:00.000Z',
-    resolvedAt: '2026-08-01T08:20:00.000Z',
-  },
-  {
-    id: 'blk-2',
-    workspaceId: 'ws-acme-dev',
-    taskId: 'ct-103',
-    title: 'Staging API Rate Limit Throttling',
-    severity: 'medium',
-    ownerId: 'm2',
-    reporterId: 'm6',
-    status: 'investigating',
-    impactDescription: 'Intermittent 429 responses during automated integration testing.',
-    createdAt: '2026-08-01T09:10:00.000Z',
-  },
-];
-
-const INITIAL_EVENTS: TeamCalendarEvent[] = [
-  { id: 'ev-1', workspaceId: 'ws-acme-dev', title: 'Sprint 24 Launch & Kickoff', type: 'sprint', date: '2026-07-27', endDate: '2026-08-10', color: '#0ea5e9' },
-  { id: 'ev-2', workspaceId: 'ws-acme-dev', title: 'Phase X Team Collaboration Release', type: 'release', date: '2026-08-15', color: '#10b981' },
-  { id: 'ev-3', workspaceId: 'ws-acme-dev', title: 'Team Architecture Review', type: 'focus_block', date: '2026-08-05', color: '#8b5cf6' },
-];
+function toProject(raw: any): Project {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Project',
+    key: raw.nameKey ? raw.nameKey.toUpperCase() : (raw.name || 'PRJ').substring(0, 3).toUpperCase(),
+    description: raw.description ?? '',
+    repositoryUrl: raw.repositoryUrl,
+    members: (raw.members ?? []).map((m: any) => String(m._id ?? m.id ?? m)),
+    teamIds: (raw.teamIds ?? []).map(String),
+    status: raw.status ?? 'active',
+    milestones: raw.milestones ?? [],
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
 
 // ── Interface & State ──────────────────────────────────────────────────────────
 interface CollaborationStore {
   workspaces: Workspace[];
+  workspacesLoading: boolean;
   activeWorkspaceId: string;
   members: WorkspaceMember[];
   teams: WorkspaceTeam[];
   projects: Project[];
   sprints: Sprint[];
   tasks: CollaborativeTask[];
-  activities: EngineeringActivity[];
+  activities: WorkspaceActivity[];
+  activityLoading: boolean;
+  activityHasMore: boolean;
+  activityNextCursor: string | null;
   discussions: DiscussionComment[];
   notifications: NotificationItem[];
+  notificationsLoading: boolean;
+  notificationsHasMore: boolean;
+  notificationsNextCursor: string | null;
   docs: KnowledgeDoc[];
   blockers: CentralBlocker[];
   events: TeamCalendarEvent[];
 
+  // Loaders (IES-P2-07: real data replaces the removed seed).
+  loadWorkspaces: () => Promise<void>;
+  loadMembers: (workspaceId: string) => Promise<void>;
+  loadTeams: () => Promise<void>;
+  loadProjects: () => Promise<void>;
+  loadCollabData: () => Promise<void>;
+
   // Actions
   setActiveWorkspace: (id: string) => void;
-  createWorkspace: (name: string, type: any, description: string) => Workspace;
-  createTeam: (name: string, description: string, color: string, memberIds: string[]) => void;
-  updateMemberRole: (memberId: string, role: MemberRole) => void;
+  updateWorkspaceSettings: (workspaceId: string, settings: Partial<Workspace['settings']>) => Promise<void>;
+  createWorkspace: (name: string, type: any, description: string) => Promise<Workspace | undefined>;
+  createTeam: (name: string, description: string, color: string, memberIds: string[]) => Promise<void>;
+  updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
   updateMemberStatus: (memberId: string, status: any, currentTask?: string) => void;
 
   // Project & Sprint Actions
-  createProject: (data: Partial<Project>) => Project;
+  createProject: (data: Partial<Project>) => Promise<Project | undefined>;
   createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string) => void;
   createTask: (data: Partial<CollaborativeTask>) => CollaborativeTask;
   updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => void;
@@ -416,9 +140,10 @@ interface CollaborationStore {
   addReaction: (commentId: string, emoji: string) => void;
   resolveThread: (commentId: string) => void;
 
-  // Notifications
-  markNotificationRead: (id: string) => void;
-  markAllNotificationsRead: () => void;
+  // Notifications (IES-P2-05: real, user-scoped — no more seed data)
+  loadNotifications: (opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 
   // Knowledge Base & Blockers & Calendar
   createDoc: (title: string, category: DocCategory, content: string, tags: string[]) => KnowledgeDoc;
@@ -427,80 +152,215 @@ interface CollaborationStore {
   resolveBlocker: (id: string) => void;
   createEvent: (title: string, type: EventType, date: string, color: string) => void;
 
-  // Search
-  globalSearch: (query: string) => {
-    projects: Project[];
-    tasks: CollaborativeTask[];
-    members: WorkspaceMember[];
-    docs: KnowledgeDoc[];
-    blockers: CentralBlocker[];
-  };
+  // IES-P2-04: real workspace activity feed
+  loadWorkspaceActivity: (workspaceId: string, opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
 }
 
 export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
-  workspaces: INITIAL_WORKSPACES,
-  activeWorkspaceId: 'ws-acme-dev',
-  members: INITIAL_MEMBERS,
-  teams: INITIAL_TEAMS,
-  projects: INITIAL_PROJECTS,
-  sprints: INITIAL_SPRINTS,
-  tasks: INITIAL_TASKS,
-  activities: INITIAL_ACTIVITIES,
-  discussions: INITIAL_DISCUSSIONS,
-  notifications: INITIAL_NOTIFICATIONS,
-  docs: INITIAL_DOCS,
-  blockers: INITIAL_BLOCKERS,
-  events: INITIAL_EVENTS,
+  workspaces: [],
+  workspacesLoading: false,
+  activeWorkspaceId: '',
+  members: [],
+  teams: [],
+  projects: [],
+  sprints: [],
+  tasks: [],
+  activities: [],
+  activityLoading: false,
+  activityHasMore: false,
+  activityNextCursor: null,
+  discussions: [],
+  notifications: [],
+  notificationsLoading: false,
+  notificationsHasMore: false,
+  notificationsNextCursor: null,
+  docs: [],
+  blockers: [],
+  events: [],
 
+  // ── Loaders ─────────────────────────────────────────────────────────────────
+  loadWorkspaces: async () => {
+    set({ workspacesLoading: true });
+    try {
+      const rawList = await api.workspaces.list();
+      const workspaces = (Array.isArray(rawList) ? rawList : []).map(toWorkspace);
+      set((state) => {
+        const stillValid = workspaces.some((w) => w.id === state.activeWorkspaceId);
+        return {
+          workspaces,
+          activeWorkspaceId: stillValid ? state.activeWorkspaceId : workspaces[0]?.id ?? '',
+        };
+      });
+    } catch {
+      // IES-P2-07: a failed fetch must never crash the workspace pages (offline).
+      set({ workspaces: [], activeWorkspaceId: '' });
+    } finally {
+      set({ workspacesLoading: false });
+    }
+  },
+
+  loadMembers: async (workspaceId) => {
+    if (!workspaceId) {
+      set({ members: [] });
+      return;
+    }
+    try {
+      const rawList = await api.workspaces.members(workspaceId);
+      set({ members: (Array.isArray(rawList) ? rawList : []).map(toMember) });
+    } catch {
+      set({ members: [] });
+    }
+  },
+
+  loadTeams: async () => {
+    const workspaceId = get().activeWorkspaceId;
+    try {
+      const rawList = await api.teams.list();
+      set({
+        teams: (Array.isArray(rawList) ? rawList : [])
+          .filter((t: any) => !workspaceId || String(t.workspaceRef ?? t.workspaceId ?? '') === workspaceId)
+          .map(toTeam),
+      });
+    } catch {
+      set({ teams: [] });
+    }
+  },
+
+  loadProjects: async () => {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) {
+      set({ projects: [] });
+      return;
+    }
+    try {
+      const rawList = await api.projects.list(workspaceId);
+      set({ projects: (Array.isArray(rawList) ? rawList : []).map(toProject) });
+    } catch {
+      set({ projects: [] });
+    }
+  },
+
+  loadCollabData: async () => {
+    await get().loadWorkspaces();
+    await Promise.all([
+      get().loadMembers(get().activeWorkspaceId),
+      get().loadTeams(),
+      get().loadProjects(),
+    ]);
+  },
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
   setActiveWorkspace: (id) => {
     set({ activeWorkspaceId: id });
     const ws = get().workspaces.find(w => w.id === id);
     if (ws) toast.info(`Switched to workspace: ${ws.name}`);
   },
 
-  createWorkspace: (name, type, description) => {
-    const newWs: Workspace = {
-      id: `ws-${Date.now()}`,
+  updateWorkspaceSettings: async (workspaceId, settings) => {
+    const prev = get().workspaces.find((w) => w.id === workspaceId)?.settings;
+    await runMutation(
+      () => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) =>
+            w.id === workspaceId ? { ...w, settings: { ...w.settings, ...settings } } : w
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            workspaces: state.workspaces.map((w) =>
+              w.id === workspaceId && prev ? { ...w, settings: prev } : w
+            ),
+          }));
+        };
+      },
+      () => api.workspaces.update(workspaceId, { settings }),
+      { errorTitle: 'Settings save failed' },
+    );
+  },
+
+  createWorkspace: async (name, type, description) => {
+    const tempId = `ws-tmp-${Date.now()}`;
+    const prevActive = get().activeWorkspaceId;
+    const temp: Workspace = {
+      id: tempId,
       name,
       type,
-      icon: type === 'Startup' ? '⚡' : type === 'Personal' ? '🚀' : '🌐',
+      icon: workspaceIconFor(type),
       description,
       membersCount: 1,
       projectsCount: 0,
       createdAt: new Date().toISOString(),
-      settings: {
-        allowMemberInvites: true,
-        requireReviewForDone: false,
-        autoSyncTimerWorkLogs: true,
-        defaultVisibility: 'Workspace',
-      },
+      settings: { ...DEFAULT_WORKSPACE_SETTINGS },
     };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ workspaces: [temp, ...state.workspaces], activeWorkspaceId: tempId }));
+        return () => {
+          set((state) => ({
+            workspaces: state.workspaces.filter((w) => w.id !== tempId),
+            activeWorkspaceId: prevActive,
+          }));
+        };
+      },
+      () => api.workspaces.create({ name, type, description }),
+      { errorTitle: 'Workspace creation failed' },
+    );
+    if (!created) return undefined;
+    const ws = toWorkspace(created);
     set((state) => ({
-      workspaces: [newWs, ...state.workspaces],
-      activeWorkspaceId: newWs.id,
+      workspaces: state.workspaces.map((w) => (w.id === tempId ? ws : w)),
+      activeWorkspaceId: ws.id,
     }));
-    toast.success('Workspace created', `You are now in ${name}`);
-    return newWs;
+    toast.success('Workspace created', `You are now in ${ws.name}`);
+    return ws;
   },
 
-  createTeam: (name, description, color, memberIds) => {
-    const newTeam: WorkspaceTeam = {
-      id: `team-${Date.now()}`,
+  createTeam: async (name, description, color, memberIds) => {
+    const tempId = `team-${Date.now()}`;
+    const temp: WorkspaceTeam = {
+      id: tempId,
       name,
       description,
       memberIds,
       color,
       leaderId: memberIds[0],
     };
-    set((state) => ({ teams: [...state.teams, newTeam] }));
-    toast.success(`Team ${name} created`);
+    const created = await runMutation(
+      () => {
+        set((state) => ({ teams: [...state.teams, temp] }));
+        return () => set((state) => ({ teams: state.teams.filter((t) => t.id !== tempId) }));
+      },
+      () => api.teams.create({ name, description, members: memberIds, color, workspaceId: get().activeWorkspaceId || undefined }),
+      { errorTitle: 'Team creation failed' },
+    );
+    if (!created) return;
+    const team = toTeam(created);
+    set((state) => ({
+      teams: state.teams.map((t) => (t.id === tempId ? team : t)),
+    }));
+    toast.success(`Team ${team.name} created`);
   },
 
-  updateMemberRole: (memberId, role) => {
-    set((state) => ({
-      members: state.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
-    }));
-    toast.success('Role updated', `Member role changed to ${role}`);
+  updateMemberRole: async (memberId, role) => {
+    const workspaceId = get().activeWorkspaceId;
+    if (!workspaceId) return;
+    const prevRole = get().members.find((m) => m.id === memberId)?.role;
+    await runMutation(
+      () => {
+        set((state) => ({
+          members: state.members.map((m) => (m.id === memberId ? { ...m, role } : m)),
+        }));
+        return () => {
+          set((state) => ({
+            members: state.members.map((m) =>
+              m.id === memberId && prevRole ? { ...m, role: prevRole } : m
+            ),
+          }));
+        };
+      },
+      () => api.workspaces.setRole(workspaceId, memberId, role),
+      { errorTitle: 'Role update failed' },
+    );
   },
 
   updateMemberStatus: (memberId, status, currentTask) => {
@@ -511,24 +371,38 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }));
   },
 
-  createProject: (data) => {
+  createProject: async (data) => {
     const activeWsId = get().activeWorkspaceId;
-    const newProj: Project = {
-      id: `proj-${Date.now()}`,
+    const tempId = `proj-${Date.now()}`;
+    const prevProjects = get().projects;
+    const temp: Project = {
+      id: tempId,
       workspaceId: activeWsId,
       name: data.name || 'New Engineering Project',
       key: (data.name || 'PROJ').substring(0, 3).toUpperCase(),
       description: data.description || '',
       repositoryUrl: data.repositoryUrl || '',
-      members: data.members || ['m1'],
-      teamIds: data.teamIds || ['t1'],
+      members: data.members || [],
+      teamIds: data.teamIds || [],
       status: 'active',
       milestones: data.milestones || [],
-      createdAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().slice(0, 10),
     };
-    set((state) => ({ projects: [newProj, ...state.projects] }));
-    toast.success('Project created', `${newProj.name} is ready for tracking.`);
-    return newProj;
+    const created = await runMutation(
+      () => {
+        set((state) => ({ projects: [temp, ...state.projects] }));
+        return () => set({ projects: prevProjects });
+      },
+      () => api.projects.create({ name: temp.name, workspaceId: activeWsId || undefined }),
+      { errorTitle: 'Project creation failed' },
+    );
+    if (!created) return undefined;
+    const project = toProject(created);
+    set((state) => ({
+      projects: state.projects.map((p) => (p.id === tempId ? project : p)),
+    }));
+    toast.success('Project created', `${project.name} is ready for tracking.`);
+    return project;
   },
 
   createSprint: (projectId, name, startDate, endDate, goal) => {
@@ -554,7 +428,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     const newTask: CollaborativeTask = {
       id: `ct-${Date.now()}`,
       workspaceId: activeWsId,
-      projectId: data.projectId || get().projects[0]?.id || 'p1',
+      projectId: data.projectId || '',
       sprintId: data.sprintId || get().sprints[0]?.id,
       title: data.title || 'Untitled Task',
       description: data.description || '',
@@ -569,8 +443,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       estimatedHours: data.estimatedHours || 8,
       actualHours: 0,
       subtasks: [],
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10),
     };
     set((state) => ({ tasks: [newTask, ...state.tasks] }));
     toast.success('Task created', newTask.title);
@@ -582,22 +456,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return state;
 
-      const newActivities = [...state.activities];
-      if (sprintStatus === 'done') {
-        newActivities.unshift({
-          id: `act-${Date.now()}`,
-          workspaceId: state.activeWorkspaceId,
-          actor: { id: 'm1', name: 'Ajay Kumar' },
-          type: 'task_completed',
-          title: 'completed task',
-          detail: task.title,
-          timestamp: new Date().toISOString(),
-        });
-      }
-
       return {
         tasks: state.tasks.map((t) => (t.id === taskId ? { ...t, sprintStatus, updatedAt: new Date().toISOString() } : t)),
-        activities: newActivities,
       };
     });
     toast.info('Status updated', `Task moved to ${sprintStatus.replace('_', ' ').toUpperCase()}`);
@@ -671,17 +531,65 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.info('Discussion thread updated');
   },
 
-  markNotificationRead: (id) => {
+  loadNotifications: async (opts) => {
+    set({ notificationsLoading: true });
+    try {
+      const page = await api.notifications.list({
+        limit: opts?.limit,
+        cursor: opts?.cursor,
+        unreadOnly: opts?.append ? undefined : false,
+      });
+      const items: NotificationItem[] = page.items.map((it: any) => ({
+        id: String(it.id),
+        workspaceId: it.workspaceId ?? '',
+        recipientId: it.recipientId ?? '',
+        actor: {
+          id: String(it.actor?.id ?? ''),
+          name: it.actor?.name ?? 'Unknown',
+          avatar: it.actor?.avatar,
+        },
+        type: it.type,
+        title: it.title,
+        body: it.body ?? '',
+        targetUrl: it.targetUrl,
+        createdAt: it.createdAt,
+        read: Boolean(it.read),
+      }));
+      set((state) => ({
+        notifications: opts?.append ? [...state.notifications, ...items] : items,
+        notificationsHasMore: page.hasMore,
+        notificationsNextCursor: page.nextCursor,
+      }));
+    } catch {
+      // IES-P2-05: a failed feed must never crash the header (demo/offline).
+      if (!opts?.append) set({ notifications: [], notificationsHasMore: false, notificationsNextCursor: null });
+    } finally {
+      set({ notificationsLoading: false });
+    }
+  },
+
+  markNotificationRead: async (id) => {
+    // Optimistic local flip; the server round-trip is fire-and-forget so the UI
+    // reflects the read state immediately and heals on the next poll.
     set((state) => ({
       notifications: state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
     }));
+    try {
+      await api.notifications.markRead(id);
+    } catch {
+      // Re-sync on the next poll — never block the UI on a failed mark.
+    }
   },
 
-  markAllNotificationsRead: () => {
+  markAllNotificationsRead: async () => {
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
     }));
-    toast.info('All notifications marked as read');
+    try {
+      await api.notifications.markAllRead();
+    } catch {
+      // Re-sync on the next poll — never block the UI on a failed mark.
+    }
   },
 
   createDoc: (title, category, content, tags) => {
@@ -694,8 +602,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       authorId: 'm1',
       version: 1,
       tags,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0],
+      createdAt: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString().slice(0, 10),
     };
     set((state) => ({ docs: [newDoc, ...state.docs] }));
     toast.success('Doc created', title);
@@ -712,7 +620,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
               content,
               tags,
               version: d.version + 1,
-              updatedAt: new Date().toISOString().split('T')[0],
+              updatedAt: new Date().toISOString().slice(0, 10),
             }
           : d
       ),
@@ -761,33 +669,33 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.success('Calendar event added');
   },
 
-  globalSearch: (query) => {
-    const q = query.toLowerCase().trim();
-    if (!q) return { projects: [], tasks: [], members: [], docs: [], blockers: [] };
-
-    const state = get();
-    const wsId = state.activeWorkspaceId;
-
-    return {
-      projects: state.projects.filter(
-        (p) => p.workspaceId === wsId && (p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
-      ),
-      tasks: state.tasks.filter(
-        (t) =>
-          t.workspaceId === wsId &&
-          (t.title.toLowerCase().includes(q) ||
-            t.description.toLowerCase().includes(q) ||
-            t.gitContext?.branch?.toLowerCase().includes(q))
-      ),
-      members: state.members.filter(
-        (m) => m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q) || m.teams.some((t) => t.toLowerCase().includes(q))
-      ),
-      docs: state.docs.filter(
-        (d) => d.workspaceId === wsId && (d.title.toLowerCase().includes(q) || d.content.toLowerCase().includes(q))
-      ),
-      blockers: state.blockers.filter(
-        (b) => b.workspaceId === wsId && (b.title.toLowerCase().includes(q) || b.impactDescription.toLowerCase().includes(q))
-      ),
-    };
+  loadWorkspaceActivity: async (workspaceId, opts) => {
+    set({ activityLoading: true });
+    try {
+      const page = await api.workspaces.activity(workspaceId, opts?.limit, opts?.cursor);
+      const items: WorkspaceActivity[] = page.items.map((it: any) => ({
+        id: String(it._id),
+        workspaceId: String(it.workspaceRef),
+        actor: {
+          id: String(it.userId?._id ?? ''),
+          name: it.userId?.name ?? 'Unknown',
+          email: it.userId?.email,
+          avatar: it.userId?.avatar,
+        },
+        action: it.action,
+        details: it.details ?? {},
+        timestamp: it.createdAt,
+      }));
+      set((state) => ({
+        activities: opts?.append ? [...state.activities, ...items] : items,
+        activityHasMore: page.hasMore,
+        activityNextCursor: page.nextCursor,
+      }));
+    } catch {
+      // IES-P2-04: a failed feed must never crash the page (demo/offline).
+      if (!opts?.append) set({ activities: [], activityHasMore: false, activityNextCursor: null });
+    } finally {
+      set({ activityLoading: false });
+    }
   },
 }));
