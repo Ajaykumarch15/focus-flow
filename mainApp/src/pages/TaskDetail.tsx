@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { TaskContinuationPanel } from '../components/continuation/TaskContinuationPanel';
 import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
@@ -161,6 +162,9 @@ export function TaskDetail() {
           </div>
         </div>
       </motion.div>
+
+      {/* ═══ Continuation (S2-T1) ═══ */}
+      <TaskContinuationPanel taskId={task.id} />
 
       {/* ═══ Two-Column Layout ═══ */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
