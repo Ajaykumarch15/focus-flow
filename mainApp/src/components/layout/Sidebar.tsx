@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, CheckSquare, BarChart3, BookOpen,
+  LayoutDashboard, CheckSquare, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
   LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Users, History, Library,
 } from 'lucide-react';
@@ -18,7 +18,6 @@ const NAV_ITEMS = [
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },
   { to: '/leaderboard', icon: Trophy,        label: 'Leaderboard'},
-  { to: '/analytics', icon: BarChart3,       label: 'Analytics'  },
   { to: '/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },

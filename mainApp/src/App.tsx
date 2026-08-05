@@ -24,7 +24,6 @@ const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout')
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
-const Analytics       = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({ default: module.FocusMode })));
 const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
@@ -162,9 +161,9 @@ export default function App() {
                 <Route path="/knowledge"  element={<KnowledgePage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
+                <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
-                <Route path="/analytics"   element={<Analytics />} />
                 <Route path="/journal"     element={<Journal />} />
                 <Route path="/habits"      element={<Habits />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
