@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
@@ -6,10 +7,16 @@ import {
   CheckCircle2, ChevronDown, MessageSquare, Flame,
   Zap, Edit3, UserCheck, Rocket, Gauge, ListChecks, CalendarClock, FileWarning
 } from 'lucide-react';
+import { useStore } from '../../store/useStore';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { SprintStatus, MemberRole, CollaborativeTask } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
+import { selectNowStrip } from '../../lib/nowSelectors';
+import { selectTeamToday } from '../../lib/missionControlSelectors';
+import { useActiveTimer } from '../../hooks/useActiveTimer';
+import { formatHours } from '../../utils/time';
+import { TeamTodaySection } from '../../components/collaboration/TeamTodaySection';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { CreateBlockerModal } from '../../components/collaboration/CreateBlockerModal';
@@ -169,6 +176,43 @@ export function TeamWorkspace() {
       : Math.round((activeSprintTasks.filter((t) => t.sprintStatus === 'done').length / activeSprintTasks.length) * 100)),
     [activeSprintTasks],
   );
+
+  // S3-T4: Mission Control leads with today's work + resume + the running timer.
+  // The active session is resolved across the personal + collab spine by the
+  // same pure selector the NowStrip uses (no duplicated derivation); the team
+  // "today" facts come from the live collab store via selectTeamToday.
+  const navigate = useNavigate();
+  const {
+    tasks: personalTasks, activeTaskId, activeSessionId, activeTimerState,
+    dataLoading, dataError, getTodayTime, profile, theme,
+    pauseTimer, resumeTimer,
+  } = useStore();
+  const { display: timerDisplay } = useActiveTimer();
+
+  const now = useMemo(
+    () => selectNowStrip({
+      tasks: personalTasks, collabTasks: tasks, workspaces, projects, sprints, features,
+      activeTaskId, activeSessionId, activeTimerState,
+    }),
+    [personalTasks, tasks, workspaces, projects, sprints, features,
+      activeTaskId, activeSessionId, activeTimerState],
+  );
+  const teamToday = useMemo(
+    () => selectTeamToday(wsTasks, members, currentUserId),
+    [wsTasks, members, currentUserId],
+  );
+
+  const todayMs = getTodayTime();
+  const dailyGoalMs = profile.dailyGoal * 3600000;
+  const goalPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : null;
+  const accent = theme?.accentColor || '#0ea5e9';
+  const dateLabel = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const openFocus = () => navigate('/focus');
+  const startToday = () => navigate('/dashboard');
+  const openTask = () => setActiveTab('sprints');
+  const pauseActive = () => { if (activeTaskId) pauseTimer(activeTaskId); };
+  const resumeActive = () => { if (activeTaskId) resumeTimer(activeTaskId); };
 
   // Presence counters
   const onlineMembers = members.filter((m) => m.status !== 'offline');
@@ -341,6 +385,25 @@ export function TeamWorkspace() {
               Open Sprint Board
             </Button>
           </div>
+
+          {/* S3-T4: lead with today's work + resume + the running timer */}
+          <TeamTodaySection
+            loading={dataLoading}
+            error={dataError}
+            running={now.state === 'none' ? null : now}
+            timerLabel={timerDisplay}
+            todayLabel={formatHours(todayMs)}
+            goalPct={goalPct}
+            view={teamToday}
+            accent={accent}
+            workspaceName={activeWs.name}
+            dateLabel={dateLabel}
+            onResume={resumeActive}
+            onPause={pauseActive}
+            onOpenFocus={openFocus}
+            onStartToday={startToday}
+            onOpenTask={openTask}
+          />
 
           {/* Stat Cards — all derived from live store data */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
