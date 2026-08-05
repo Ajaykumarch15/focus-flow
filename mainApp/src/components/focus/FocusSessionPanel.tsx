@@ -9,6 +9,7 @@ import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { selectFocusSession, type FocusSessionView } from '../../lib/focusSelectors';
+import { PauseCapturePanel } from './PauseCapturePanel';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { StatusBadge } from '../ui/StatusBadge';
@@ -297,6 +298,13 @@ export function FocusSessionPanel() {
           </div>
         </div>
       </section>
+
+      {/* ═══════════ PAUSE CAPTURE (S2-T2) ═══════════ */}
+      <PauseCapturePanel
+        paused={paused}
+        workLogId={linkedLog ? linkedLog.id : null}
+        workLogTitle={linkedLog ? linkedLog.title : null}
+      />
 
       {/* ═══════════ METRICS ═══════════ */}
       <dl className="grid grid-cols-2 lg:grid-cols-4 gap-4">
