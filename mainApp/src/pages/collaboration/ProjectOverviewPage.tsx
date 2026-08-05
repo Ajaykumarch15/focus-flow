@@ -106,9 +106,14 @@ export function ProjectOverviewPage() {
         eyebrow={`${overview.project.key} · ${overview.project.status}`}
         icon={<Rocket size={18} className="text-cyan-400" />}
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(projectsUrl)} leftIcon={<ArrowLeft size={14} />}>
-            Back to Projects
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="sm" onClick={() => navigate(`${projectsUrl}/${overview.project.id}/timeline`)} leftIcon={<History size={14} />}>
+              View Timeline
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate(projectsUrl)} leftIcon={<ArrowLeft size={14} />}>
+              Back to Projects
+            </Button>
+          </div>
         }
       />
 

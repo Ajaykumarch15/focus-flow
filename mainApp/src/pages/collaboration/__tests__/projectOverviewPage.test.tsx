@@ -167,6 +167,7 @@ describe('ProjectOverviewPage (P1-T1)', () => {
     const { container, root } = renderAt('/w/ws-1/projects/p1', <ProjectOverviewPage />);
     const text = container.textContent ?? '';
     expect(text).toContain('AI Copilot');
+    expect(text).toContain('View Timeline');
     expect(text).toContain('Current Sprint');
     expect(text).toContain('Sprint 12 — Ship Copilot');
     expect(text).toContain('Inline completions');

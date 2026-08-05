@@ -167,3 +167,37 @@ describe('P1-T1 regression: actionable project overview', () => {
     expect(breadcrumbs).toMatch(/projectId:\s*'Project'/);
   });
 });
+
+describe('P1-T2 regression: project timeline deep-link', () => {
+  it('declares the timeline route once, backed by ProjectTimelinePage', () => {
+    const timelineRoutes = appSource.match(/<Route\s+path="projects\/:projectId\/timeline"/g) ?? [];
+    expect(timelineRoutes).toHaveLength(1);
+    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId\/timeline"\s+element={<ProjectTimelinePage \/>}/);
+    expect(routePaths).toContain('projects/:projectId/timeline');
+  });
+
+  it('lazy-loads ProjectTimelinePage', () => {
+    expect(appSource).toMatch(/const ProjectTimelinePage = lazy\(\(\) => import\('\.\/pages\/collaboration\/ProjectTimelinePage'\)/);
+  });
+
+  it('Breadcrumbs label the timeline segment', () => {
+    const breadcrumbs = readFileSync(resolve(process.cwd(), 'src/components/ui/Breadcrumbs.tsx'), 'utf8');
+    expect(breadcrumbs).toContain('/w/:workspaceId/projects/:projectId/timeline');
+    expect(breadcrumbs).toMatch(/timeline:\s*'Timeline'/);
+  });
+
+  it('the project overview page links to the timeline', () => {
+    const overview = readFileSync(resolve(process.cwd(), 'src/pages/collaboration/ProjectOverviewPage.tsx'), 'utf8');
+    expect(overview).toContain('View Timeline');
+    expect(overview).toContain('navigate(`${projectsUrl}/${overview.project.id}/timeline`)');
+  });
+
+  it('timeline page is responsive and filter state lives in the URL', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/collaboration/ProjectTimelinePage.tsx'), 'utf8');
+    expect(page).toMatch(/p-6\s+lg:p-8\s+max-w-\[1600px\]/);
+    expect(page).toContain('useSearchParams');
+    expect(page).toMatch(/flex\s+flex-wrap\s+items-center\s+gap-2/);
+    expect(page).toContain('aria-pressed');
+    expect(page).toContain('groupTimelineEventsByDay');
+  });
+});
