@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectDailyInsights, selectWeeklyInsights, type DailyInsight } from '../insightsSelectors';
+import { selectDailyInsights, selectWeeklyInsights, selectWorkPatternInsights, type DailyInsight } from '../insightsSelectors';
 import type { MemorySession } from '../memorySelectors';
 import type { Task, JournalEntry } from '../../types';
 import type { WorkLog } from '../../store/useWorkLogStore';
@@ -521,5 +521,130 @@ describe('selectWeeklyInsights (PI-1.2)', () => {
     expect(view.weekly).toEqual([]);
     expect(view.activeDays).toBe(0);
     expect(view.periodLabel).toBe('Week · Mon, Aug 3 – Sun, Aug 9');
+  });
+});
+
+// ── PI-1.3: pure Work Pattern selector tests (Phase PI) ───────────────────────
+// Patterns must be volume-gated and dominance-gated so a claim is only emitted
+// when the trailing 4-week window actually supports it.
+
+const PATTERN_START = WEEK_START - 21 * 86400000; // Mon Jul 13 2026
+
+function patternSession(id: string, dayOffset: number, hourUtc: number, activeMs: number, overrides: Partial<MemorySession> = {}): MemorySession {
+  return session(id, { startTime: PATTERN_START + dayOffset * MS_PER_DAY_WEEK + hourUtc * HOUR, activeTime: activeMs, ...overrides });
+}
+
+function patternBase(sessions: MemorySession[]) {
+  return { sessions, tasks: [], journals: [], workLogs: [], dailyGoalMs: 0, now: NOW, timeZone: TZ };
+}
+
+describe('selectWorkPatternInsights (PI-1.3)', () => {
+  it('labels the trailing 4-week window and stays empty without data', () => {
+    const view = selectWorkPatternInsights(patternBase([]));
+    expect(view.periodLabel).toBe('Last 4 weeks · Mon, Jul 13 – Sun, Aug 9');
+    expect(view.hasData).toBe(false);
+    expect(view.mostImportant).toBeNull();
+    expect(view.patterns).toEqual([]);
+    expect(view.sessionCount).toBe(0);
+    expect(view.focusedMs).toBe(0);
+  });
+
+  it('names the dominant time-of-day window with a clear lead', () => {
+    const sessions = [
+      ...Array.from({ length: 12 }, (_, i) => patternSession(`m-${i}`, i, 9, 30 * MIN)),
+      ...Array.from({ length: 4 }, (_, i) => patternSession(`a-${i}`, 12 + i, 14, 30 * MIN)),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.mostImportant?.id).toBe('pattern-time-of-day');
+    expect(view.mostImportant?.observation).toContain('morning');
+    expect(view.mostImportant?.observation).toContain('75%');
+    expect(view.mostImportant?.confidence).toBe('high');
+    expect(view.mostImportant?.action?.label).toBe('Protect this window');
+    expect(view.patterns.map((i) => i.id)).not.toContain('pattern-time-of-day');
+    expect(view.patterns.find((i) => i.id === 'pattern-session-length')).toBeDefined();
+  });
+
+  it('stays silent on a peak window when focus is spread evenly', () => {
+    const sessions = [
+      ...Array.from({ length: 5 }, (_, i) => patternSession(`m-${i}`, i, 9, 30 * MIN)),
+      ...Array.from({ length: 5 }, (_, i) => patternSession(`a-${i}`, 5 + i, 14, 30 * MIN)),
+      ...Array.from({ length: 5 }, (_, i) => patternSession(`e-${i}`, 10 + i, 18, 30 * MIN)),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.mostImportant?.id).toBe('pattern-session-length');
+    expect(view.patterns.find((i) => i.id === 'pattern-time-of-day')).toBeUndefined();
+  });
+
+  it('stays silent on a peak window with too few sessions', () => {
+    const sessions = [
+      patternSession('m-1', 0, 9, 30 * MIN),
+      patternSession('m-2', 1, 9, 30 * MIN),
+      patternSession('m-3', 2, 9, 30 * MIN),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.hasData).toBe(false);
+    expect(view.mostImportant).toBeNull();
+    expect(view.patterns).toEqual([]);
+  });
+
+  it('names the most focused weekday when it repeats across at least three weeks', () => {
+    const sessions = [
+      patternSession('tue-1', 1, 10, 2 * HOUR), // Tue Jul 14
+      patternSession('tue-2', 8, 10, 2 * HOUR), // Tue Jul 21
+      patternSession('tue-3', 15, 10, 2 * HOUR), // Tue Jul 28
+      patternSession('mon-1', 0, 15, 1 * HOUR), // Mon Jul 13
+      patternSession('mon-2', 7, 15, 1 * HOUR), // Mon Jul 20
+      patternSession('mon-3', 14, 15, 1 * HOUR), // Mon Jul 27
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.mostImportant?.id).toBe('pattern-weekday');
+    expect(view.mostImportant?.observation).toContain('Tuesdays');
+    expect(view.mostImportant?.observation).toContain('67%');
+    expect(view.mostImportant?.confidence).toBe('high');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Top day', value: 'Tuesdays' });
+  });
+
+  it('stays silent on a weekday pattern seen in only one week', () => {
+    const sessions = [
+      patternSession('tue', 22, 10, 4 * HOUR), // Tue Aug 4 (current week only)
+      patternSession('mon', 21, 9, 1 * HOUR),
+      patternSession('wed', 23, 9, 1 * HOUR),
+      patternSession('thu', 24, 9, 1 * HOUR),
+      patternSession('fri', 25, 9, 1 * HOUR),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.patterns.find((i) => i.id === 'pattern-weekday')).toBeUndefined();
+  });
+
+  it('reports the average focus block length and deep split', () => {
+    const sessions = [
+      ...Array.from({ length: 6 }, (_, i) => patternSession(`s-${i}`, i, 9, 20 * MIN)),
+      ...Array.from({ length: 2 }, (_, i) => patternSession(`d-${i}`, 10 + i, 9, 50 * MIN)),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    const insight = view.patterns.find((i) => i.id === 'pattern-session-length') ?? view.mostImportant;
+    expect(insight?.observation).toContain('focus blocks average 27m');
+    expect(insight?.metrics).toContainEqual({ label: 'Deep blocks', value: '2' });
+    expect(insight?.metrics).toContainEqual({ label: 'Deep share', value: '45%' });
+  });
+
+  it('ignores sessions outside the 4-week window', () => {
+    const sessions = [
+      ...Array.from({ length: 8 }, (_, i) => patternSession(`in-${i}`, i, 9, 30 * MIN)),
+      patternSession('out-old', -7, 9, 6 * HOUR),
+      patternSession('out-future', 28, 9, 6 * HOUR),
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.sessionCount).toBe(8);
+    expect(view.focusedMs).toBe(4 * HOUR);
+  });
+
+  it('includes sessions exactly at the window edges', () => {
+    const sessions = [
+      patternSession('first', 0, 0, 30 * MIN), // Jul 13 00:00
+      patternSession('last', 27, 23, 30 * MIN), // Aug 9 23:00
+    ];
+    const view = selectWorkPatternInsights(patternBase(sessions));
+    expect(view.sessionCount).toBe(2);
   });
 });

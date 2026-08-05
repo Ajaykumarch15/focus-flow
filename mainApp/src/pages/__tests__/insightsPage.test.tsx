@@ -252,11 +252,105 @@ describe('InsightsPage (PI-1.1)', () => {
     apiMock.sessions.list.mockResolvedValue([
       sessionDoc('s-1', { pauseCount: 2, totalPauseDuration: 10 * 60 * 1000 }),
       sessionDoc('s-2', { taskId: 't-2', startTime: DAY_START + 10 * HOUR, activeTime: 15 * 60 * 1000, pauseCount: 1 }),
+      ...patternSessions(),
     ]);
     const { container, root } = render(<InsightsPage />);
     await flush();
     const violations = await scan(container);
     expect(violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s)`)).toEqual([]);
+    act(() => root.unmount());
+  });
+});
+
+// ── PI-1.3: Work Pattern layer on the /insights page ──────────────────────────
+// Sessions are placed only in prior ISO weeks so the daily and weekly sections
+// stay quiet while the trailing 4-week window powers the pattern section.
+
+function patternSessions(): Record<string, any>[] {
+  const weekStart = startOfIsoWeekInTz(Date.now(), 'UTC');
+  const docs: Record<string, any>[] = [];
+  for (let w = 1; w <= 3; w++) {
+    const base = weekStart - w * 7 * 86400000;
+    for (const day of [0, 1, 2, 3]) {
+      docs.push(sessionDoc(`pm-${w}-${day}`, {
+        taskId: 't-1',
+        startTime: base + day * 86400000 + 9 * HOUR,
+        activeTime: 30 * 60 * 1000,
+      }));
+    }
+    docs.push(sessionDoc(`pa-${w}`, {
+      taskId: 't-2',
+      startTime: base + 4 * 86400000 + 14 * HOUR,
+      activeTime: 30 * 60 * 1000,
+    }));
+  }
+  docs.push(sessionDoc('pa-extra', {
+    taskId: 't-1',
+    startTime: weekStart - 7 * 86400000 + 4 * 86400000 + 14 * HOUR,
+    activeTime: 30 * 60 * 1000,
+  }));
+  return docs;
+}
+
+describe('InsightsPage (PI-1.3)', () => {
+  const originalStore = useStore.getState();
+  const originalWorkLogs = useWorkLogStore.getState();
+
+  beforeEach(() => {
+    apiMock.sessions.list.mockReset();
+    apiMock.sessions.list.mockResolvedValue([]);
+    seededStore();
+  });
+
+  afterEach(() => {
+    useStore.setState(originalStore);
+    useWorkLogStore.setState(originalWorkLogs);
+  });
+
+  it('renders the Work Pattern section with a featured Pattern Focus card', async () => {
+    apiMock.sessions.list.mockResolvedValue(patternSessions());
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Work Pattern Insights');
+    expect(text).toContain('Pattern Focus');
+    expect(text).toContain('Peak focus window');
+    expect(text).toContain('Protect this window');
+    expect(text).toContain('Last 4 weeks ·');
+    expect(container.querySelector('#insights-pattern-heading')).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it('shows the Work Pattern section alone when daily and weekly have no data', async () => {
+    apiMock.sessions.list.mockResolvedValue(patternSessions());
+    useStore.setState({ tasks: [], journals: [], profile: useStore.getState().profile });
+    useWorkLogStore.setState({ todayLog: null, activeLogs: [], closedLogs: [] });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Work Pattern Insights');
+    expect(text).not.toContain("Today's Insights");
+    expect(text).not.toContain("This Week's Insights");
+    expect(text).not.toContain('Not enough data yet.');
+    act(() => root.unmount());
+  });
+
+  it('places the Work Pattern section below the weekly section', async () => {
+    const weekStart = startOfIsoWeekInTz(Date.now(), 'UTC');
+    apiMock.sessions.list.mockResolvedValue([
+      sessionDoc('w-mon', { taskId: 't-1', startTime: weekStart + 9 * HOUR, activeTime: 2 * HOUR }),
+      ...patternSessions(),
+    ]);
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const weekHeading = container.querySelector('#insights-week-heading');
+    const patternHeading = container.querySelector('#insights-pattern-heading');
+    expect(weekHeading).toBeTruthy();
+    expect(patternHeading).toBeTruthy();
+    expect(weekHeading!.compareDocumentPosition(patternHeading!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     act(() => root.unmount());
   });
 });

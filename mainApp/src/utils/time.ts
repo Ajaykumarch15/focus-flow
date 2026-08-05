@@ -194,6 +194,23 @@ export function endOfIsoWeekInTz(timestamp: number | string, timeZone = getTimez
   return startOfIsoWeekInTz(timestamp, timeZone) + 7 * 86400000 - 1;
 }
 
+/**
+ * Hour of the day (0–23) a timestamp falls in, for a timezone. Uses the tz
+ * offset at that exact instant, so DST transitions do not skew the hour.
+ */
+export function hourOfDayInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  const ts = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+  return new Date(ts + getOffsetMs(new Date(ts), timeZone)).getUTCHours();
+}
+
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** Weekday short name ("Mon"–"Sun") of the calendar day a timestamp falls in, for a timezone. */
+export function weekdayInTz(timestamp: number | string, timeZone = getTimezone()): string {
+  const [y, m, d] = dayKeyInTz(timestamp, timeZone).split('-').map(Number);
+  return WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
 // ── Core date helpers (LOCAL TIME ONLY) ──────────────────────────────────────
 // Every function below uses local system time. No UTC. No toISOString().
 

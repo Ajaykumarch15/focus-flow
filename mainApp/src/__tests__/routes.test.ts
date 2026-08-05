@@ -266,3 +266,31 @@ describe('PI-1.2 regression: weekly insights on the same page', () => {
     expect(time).toContain('export function formatDateShortInTz');
   });
 });
+
+describe('PI-1.3 regression: work-pattern insights on the same page', () => {
+  it('insights page renders the Work Pattern section below the weekly section, not a KPI clone', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/InsightsPage.tsx'), 'utf8');
+    expect(page).toContain('Work Pattern Insights');
+    expect(page).toContain('selectWorkPatternInsights');
+    expect(page).toContain('Pattern Focus');
+    expect(page).toMatch(/grid-cols-1\s+md:grid-cols-2\s+xl:grid-cols-3/);
+    expect(page).not.toMatch(/AnalyticsSection|recharts|BarChart|PieChart/);
+  });
+
+  it('work-pattern insights come from a pure selector over a trailing 4-week window', () => {
+    const selectors = readFileSync(resolve(process.cwd(), 'src/lib/insightsSelectors.ts'), 'utf8');
+    expect(selectors).toContain('export function selectWorkPatternInsights');
+    expect(selectors).toContain('hourOfDayInTz');
+    expect(selectors).toContain('weekdayInTz');
+    expect(selectors).toContain('PATTERN_WINDOW_WEEKS');
+    expect(selectors).toContain('pattern-time-of-day');
+    expect(selectors).toContain('pattern-weekday');
+    expect(selectors).toContain('pattern-session-length');
+  });
+
+  it('the wall-clock hour and weekday helpers live in src/utils/time.ts', () => {
+    const time = readFileSync(resolve(process.cwd(), 'src/utils/time.ts'), 'utf8');
+    expect(time).toContain('export function hourOfDayInTz');
+    expect(time).toContain('export function weekdayInTz');
+  });
+});

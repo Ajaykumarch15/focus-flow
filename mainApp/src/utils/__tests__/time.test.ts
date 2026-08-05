@@ -34,6 +34,8 @@ import {
   getIsoWeekEndKey,
   startOfIsoWeekInTz,
   endOfIsoWeekInTz,
+  hourOfDayInTz,
+  weekdayInTz,
   getTimezone,
 } from '../time';
 
@@ -309,5 +311,18 @@ describe('date formatting', () => {
     expect(formatDateShortInTz(instant, 'UTC')).toBe('Sun, Aug 9');
     expect(formatDateShortInTz(instant, 'Asia/Kolkata')).toBe('Mon, Aug 10');
     expect(formatDateShortInTz(instant, 'America/New_York')).toBe('Sun, Aug 9');
+  });
+
+  it('hourOfDayInTz returns the wall-clock hour in the given timezone', () => {
+    expect(hourOfDayInTz('2026-08-05T03:30:00Z', 'UTC')).toBe(3);
+    expect(hourOfDayInTz('2026-08-05T03:30:00Z', 'Asia/Kolkata')).toBe(9); // 03:30Z = 09:00 IST
+    expect(hourOfDayInTz('2026-08-05T23:30:00Z', 'Asia/Kolkata')).toBe(5); // Aug 6 05:00 IST
+    expect(hourOfDayInTz('2026-08-05T23:30:00Z', 'America/New_York')).toBe(19); // EDT evening
+  });
+
+  it('weekdayInTz names the calendar day in the given timezone', () => {
+    expect(weekdayInTz('2026-08-05T18:30:00Z', 'UTC')).toBe('Wed');
+    expect(weekdayInTz('2026-08-05T18:30:00Z', 'Asia/Kolkata')).toBe('Thu'); // Aug 6 IST
+    expect(weekdayInTz('2026-08-09T23:59:00Z', 'America/New_York')).toBe('Sun');
   });
 });

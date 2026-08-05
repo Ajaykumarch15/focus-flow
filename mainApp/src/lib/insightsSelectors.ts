@@ -9,8 +9,10 @@ import {
   formatDateShortInTz,
   formatHours,
   formatTimeOfDay,
+  hourOfDayInTz,
   startOfDayInTz,
   startOfIsoWeekInTz,
+  weekdayInTz,
 } from '../utils/time';
 
 // ── PI-1.1: pure Daily Insights selectors (Phase PI · DCX) ─────────────────────
@@ -66,6 +68,7 @@ export interface DailyInsightsView {
 // A focus block counts as "deep work" at 25+ uninterrupted minutes.
 const DEEP_WORK_MIN_MS = 25 * 60 * 1000;
 const MS_PER_DAY = 86400000;
+const MS_PER_HOUR = 3600000;
 const MS_PER_WEEK = 7 * MS_PER_DAY;
 
 function confidenceFor(score: number, highAt: number, mediumAt = 1): Confidence {
@@ -696,5 +699,203 @@ export function selectWeeklyInsights(input: WeeklyInsightsInput): WeeklyInsights
     periodLabel,
     sessionCount: stats.sessionCount,
     activeDays,
+  };
+}
+
+// ── PI-1.3: pure Work Pattern selectors (Phase PI · DCX) ──────────────────────
+// Where the daily/weekly layers answer "how much", this layer answers "when and
+// how": the rhythm behind the totals. It looks at a trailing 4-ISO-week window
+// (the current week plus the three before it) so a pattern needs repetition, not
+// a single lucky day. Every pattern is gated by volume and dominance thresholds —
+// a claim is only emitted when the data actually supports it, and a weak signal
+// renders honest absence instead. All time-of-day / weekday math lives in
+// src/utils/time.ts; the selector only decides the rules.
+
+const PATTERN_WINDOW_WEEKS = 4;
+
+export interface WorkPatternInsight extends DailyInsight {}
+
+export interface WorkPatternInput extends DailyInsightsInput {}
+
+export interface WorkPatternView {
+  mostImportant: WorkPatternInsight | null;
+  patterns: WorkPatternInsight[];
+  hasData: boolean;
+  periodLabel: string;
+  sessionCount: number;
+  focusedMs: number;
+}
+
+/** Rough day-part buckets used to read the peak focus window. */
+function dayPartOfHour(hour: number): string {
+  if (hour >= 5 && hour <= 11) return 'Morning';
+  if (hour >= 12 && hour <= 16) return 'Afternoon';
+  if (hour >= 17 && hour <= 20) return 'Evening';
+  return 'Night';
+}
+
+/** Full plural weekday names so observations read naturally ("Tuesdays"). */
+const WEEKDAY_PLURALS: Record<string, string> = {
+  Sun: 'Sundays', Mon: 'Mondays', Tue: 'Tuesdays', Wed: 'Wednesdays',
+  Thu: 'Thursdays', Fri: 'Fridays', Sat: 'Saturdays',
+};
+
+// ── Work pattern builders ─────────────────────────────────────────────────────
+
+function buildPatternTimeOfDayInsight(
+  topPart: string,
+  sharePct: number,
+  sessionCount: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WorkPatternInsight {
+  const insight: WorkPatternInsight = {
+    id: 'pattern-time-of-day',
+    category: 'Work Habits',
+    title: 'Peak focus window',
+    observation: `Your focus peaks in the ${topPart.toLowerCase()} — ${sharePct}% of your recent focus falls there.`,
+    metrics: [
+      { label: 'Top window', value: topPart },
+      { label: 'Focus share', value: `${sharePct}%` },
+      { label: 'Sessions', value: String(sessionCount) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: sharePct >= 50 ? 'high' : 'medium',
+  };
+  if (sharePct >= 50) {
+    insight.action = {
+      label: 'Protect this window',
+      detail: 'Scheduling your hardest work in your peak window can raise your effective output.',
+    };
+  }
+  return insight;
+}
+
+function buildPatternWeekdayInsight(
+  dayName: string,
+  sharePct: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WorkPatternInsight {
+  const plural = WEEKDAY_PLURALS[dayName] ?? `${dayName}s`;
+  return {
+    id: 'pattern-weekday',
+    category: 'Consistency',
+    title: 'Most focused day',
+    observation: `${plural} carry the largest share of your focus — ${sharePct}% of your recent focus lands there.`,
+    metrics: [
+      { label: 'Top day', value: plural },
+      { label: 'Focus share', value: `${sharePct}%` },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: sharePct >= 40 ? 'high' : 'medium',
+  };
+}
+
+function buildPatternSessionLengthInsight(
+  avgMs: number,
+  sessionCount: number,
+  deepCount: number,
+  deepSharePct: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WorkPatternInsight {
+  return {
+    id: 'pattern-session-length',
+    category: 'Execution',
+    title: 'Focus block length',
+    observation: `Across ${sessionCount} sessions, your focus blocks average ${formatHours(avgMs)}.`,
+    metrics: [
+      { label: 'Avg session', value: formatHours(avgMs) },
+      { label: 'Deep blocks', value: String(deepCount) },
+      ...(deepSharePct > 0 ? [{ label: 'Deep share', value: `${deepSharePct}%` }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: sessionCount >= 12 ? 'high' : 'medium',
+  };
+}
+
+// ── Work Pattern Most Important selection (deterministic rule, first match) ───
+// 1) peak focus window → 2) most focused day → 3) focus block length → none.
+
+function pickPatternMostImportant(patterns: WorkPatternInsight[]): WorkPatternInsight | null {
+  return patterns.find((i) => i.id === 'pattern-time-of-day')
+    ?? patterns.find((i) => i.id === 'pattern-weekday')
+    ?? patterns.find((i) => i.id === 'pattern-session-length')
+    ?? null;
+}
+
+// ── selectWorkPatternInsights ─────────────────────────────────────────────────
+
+export function selectWorkPatternInsights(input: WorkPatternInput): WorkPatternView {
+  const now = input.now ?? Date.now();
+  const timeZone = input.timeZone ?? 'UTC';
+  const weekStart = startOfIsoWeekInTz(now, timeZone);
+  const start = weekStart - (PATTERN_WINDOW_WEEKS - 1) * MS_PER_WEEK;
+  const end = weekStart + MS_PER_WEEK - 1; // end of the current ISO week
+  const periodLabel = `Last 4 weeks · ${formatDateShortInTz(start, timeZone)} – ${formatDateShortInTz(end, timeZone)}`;
+
+  const windowSessions = input.sessions.filter((s) => s.startTime >= start && s.startTime <= end);
+  const sessionCount = windowSessions.length;
+  const focusedMs = windowSessions.reduce((acc, s) => acc + s.activeTime, 0);
+
+  const patterns: WorkPatternInsight[] = [];
+
+  // Peak focus window — needs enough sessions and a clear leader.
+  if (sessionCount >= 8 && focusedMs >= 2 * MS_PER_HOUR) {
+    const partMs = new Map<string, number>();
+    for (const s of windowSessions) {
+      const part = dayPartOfHour(hourOfDayInTz(s.startTime, timeZone));
+      partMs.set(part, (partMs.get(part) ?? 0) + s.activeTime);
+    }
+    const ranked = [...partMs.entries()].sort((a, b) => b[1] - a[1]);
+    const [topPart, topMs] = ranked[0];
+    const secondMs = ranked[1]?.[1] ?? 0;
+    const sharePct = Math.round((topMs / focusedMs) * 100);
+    if (topMs > secondMs && sharePct >= 40) {
+      patterns.push(buildPatternTimeOfDayInsight(topPart, sharePct, sessionCount, periodLabel, start, end));
+    }
+  }
+
+  // Most focused weekday — needs the pattern to repeat across at least 3 weeks.
+  if (focusedMs >= 4 * MS_PER_HOUR) {
+    const dayMs = new Map<string, number>();
+    const weeks = new Set<string>();
+    for (const s of windowSessions) {
+      const day = weekdayInTz(s.startTime, timeZone);
+      dayMs.set(day, (dayMs.get(day) ?? 0) + s.activeTime);
+      weeks.add(String(startOfIsoWeekInTz(s.startTime, timeZone)));
+    }
+    const ranked = [...dayMs.entries()].sort((a, b) => b[1] - a[1]);
+    const [topDay, topMs] = ranked[0];
+    const secondMs = ranked[1]?.[1] ?? 0;
+    const sharePct = Math.round((topMs / focusedMs) * 100);
+    if (weeks.size >= 3 && topMs > secondMs && sharePct >= 25) {
+      patterns.push(buildPatternWeekdayInsight(topDay, sharePct, periodLabel, start, end));
+    }
+  }
+
+  // Focus block length — a plain average over at least a handful of sessions.
+  if (sessionCount >= 6) {
+    const avgMs = Math.round(focusedMs / sessionCount);
+    const deepSessions = windowSessions.filter((s) => s.activeTime >= DEEP_WORK_MIN_MS);
+    const deepMs = deepSessions.reduce((acc, s) => acc + s.activeTime, 0);
+    const deepSharePct = deepMs > 0 ? Math.round((deepMs / focusedMs) * 100) : 0;
+    patterns.push(buildPatternSessionLengthInsight(avgMs, sessionCount, deepSessions.length, deepSharePct, periodLabel, start, end));
+  }
+
+  const mostImportant = pickPatternMostImportant(patterns);
+  const visible = patterns.filter((i) => i.id !== mostImportant?.id);
+
+  return {
+    mostImportant,
+    patterns: visible,
+    hasData: mostImportant !== null || visible.length > 0,
+    periodLabel,
+    sessionCount,
+    focusedMs,
   };
 }
