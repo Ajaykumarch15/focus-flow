@@ -31,6 +31,7 @@ const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').t
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
+const KnowledgePage   = lazy(() => import('./pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
@@ -45,6 +46,7 @@ const ActivityFeedPage  = lazy(() => import('./pages/collaboration/ActivityFeedP
 const ReportsAnalyticsPage = lazy(() => import('./pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
 const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
 const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
+const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
 
 // Admin workspace pages
 const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
@@ -136,7 +138,7 @@ export default function App() {
                 <Route path="activity" element={<ActivityFeedPage />} />
                 <Route path="reports" element={<ReportsAnalyticsPage />} />
                 <Route path="analytics" element={<ReportsAnalyticsPage />} />
-                <Route path="knowledge" element={<TeamWorkspace />} />
+                <Route path="knowledge" element={<TeamKnowledgePage />} />
                 <Route path="calendar" element={<TeamWorkspace />} />
                 <Route path="settings" element={<WorkspaceSettingsPage />} />
                 <Route path="" element={<Navigate to="overview" replace />} />
@@ -157,6 +159,7 @@ export default function App() {
                 <Route path="/team"        element={<TeamWorkspace />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
                 <Route path="/worklog/:id" element={<WorkLogPage />} />
+                <Route path="/knowledge"  element={<KnowledgePage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
                 <Route path="/tasks"       element={<Tasks />} />
