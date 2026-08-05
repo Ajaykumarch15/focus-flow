@@ -1,7 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { selectDailyInsights, selectWeeklyInsights, selectWorkPatternInsights, type DailyInsight } from '../insightsSelectors';
+import {
+  selectDailyInsights,
+  selectWeeklyInsights,
+  selectWorkPatternInsights,
+  selectTaskInsights,
+  selectKnowledgeInsights,
+  type DailyInsight,
+} from '../insightsSelectors';
 import type { MemorySession } from '../memorySelectors';
 import type { Task, JournalEntry } from '../../types';
+import type { KnowledgeDoc } from '../../types/collaboration';
 import type { WorkLog } from '../../store/useWorkLogStore';
 
 // ── PI-1.1: pure Daily Insights selector tests (Phase PI) ─────────────────────
@@ -646,5 +654,250 @@ describe('selectWorkPatternInsights (PI-1.3)', () => {
     ];
     const view = selectWorkPatternInsights(patternBase(sessions));
     expect(view.sessionCount).toBe(2);
+  });
+});
+
+// ── PI-1.4: pure Task Insights selector tests (Phase PI) ──────────────────────
+// Task insights read the task list as-of now: deadline pressure, stale tasks,
+// subtask progress, and priority load. They must be absent when the list does
+// not support them and honest when it does.
+
+function taskInsightsBase(tasks: Task[]) {
+  return { sessions: [], tasks, journals: [], workLogs: [], dailyGoalMs: 0, now: NOW, timeZone: TZ };
+}
+
+describe('selectTaskInsights (PI-1.4)', () => {
+  it('labels the snapshot and stays empty without open tasks', () => {
+    const view = selectTaskInsights(taskInsightsBase([]));
+    expect(view.periodLabel).toBe('Open tasks · Wed, Aug 5');
+    expect(view.hasData).toBe(false);
+    expect(view.mostImportant).toBeNull();
+    expect(view.tasks).toEqual([]);
+    expect(view.openCount).toBe(0);
+  });
+
+  it('features past-deadline tasks as Most Important with honest metrics', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', deadline: DAY_START - 2 * 86400000 }), // overdue by 2 days
+      task('t-2', { status: 'todo', deadline: DAY_START + 5 * 86400000 }), // future deadline
+      task('t-3', { status: 'completed', deadline: DAY_START - 10 * 86400000 }), // completed → ignored
+    ]));
+    expect(view.mostImportant?.id).toBe('task-overdue');
+    expect(view.mostImportant?.observation).toContain('1 task past their deadline');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Overdue', value: '1' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Oldest overdue', value: '2d' });
+    expect(view.mostImportant?.action).toBeUndefined();
+    expect(view.tasks.map((i) => i.id)).not.toContain('task-overdue');
+    expect(view.openCount).toBe(2);
+  });
+
+  it('suggests rescheduling once three or more tasks are overdue', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { deadline: DAY_START - 1 * 86400000 }),
+      task('t-2', { deadline: DAY_START - 2 * 86400000 }),
+      task('t-3', { deadline: DAY_START - 3 * 86400000 }),
+    ]));
+    expect(view.mostImportant?.id).toBe('task-overdue');
+    expect(view.mostImportant?.action?.label).toBe('Reschedule the oldest first');
+  });
+
+  it('emits nothing about deadlines when none have passed', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { deadline: DAY_START + 1 * 86400000 }),
+      task('t-2', { deadline: DAY_START + 2 * 86400000 }),
+    ]));
+    expect(view.tasks.find((i) => i.id === 'task-overdue')).toBeUndefined();
+    expect(view.mostImportant?.id).not.toBe('task-overdue');
+  });
+
+  it('reports stale tasks once at least two open tasks went quiet', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', updatedAt: NOW - 8 * 86400000 }),
+      task('t-2', { status: 'paused', updatedAt: NOW - 12 * 86400000 }),
+      task('t-3', { status: 'active', updatedAt: NOW - 20 * 86400000 }), // in progress → not stale
+    ]));
+    expect(view.mostImportant?.id).toBe('task-stale');
+    expect(view.mostImportant?.observation).toContain('2 open tasks have not been touched in 7+ days');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Stale', value: '2' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Oldest', value: '12d' });
+  });
+
+  it('stays silent on staleness for a single quiet task', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', updatedAt: NOW - 9 * 86400000 }),
+    ]));
+    expect(view.tasks.find((i) => i.id === 'task-stale')).toBeUndefined();
+  });
+
+  it('summarizes open high-priority work with an action when anything is urgent', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { priority: 'urgent', status: 'todo' }),
+      task('t-2', { priority: 'high', status: 'todo' }),
+      task('t-3', { priority: 'medium', status: 'todo' }),
+    ]));
+    expect(view.mostImportant?.id).toBe('task-priority');
+    expect(view.mostImportant?.observation).toContain('1 urgent and 1 high-priority open tasks');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Urgent', value: '1' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'High', value: '1' });
+    expect(view.mostImportant?.action?.label).toBe('Clear the urgent item');
+  });
+
+  it('reports subtask completion across open tasks with subtasks', () => {
+    const view = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', subtasks: [
+        { id: 's-1', title: 'A', completed: true, createdAt: DAY_START },
+        { id: 's-2', title: 'B', completed: false, createdAt: DAY_START },
+      ] }),
+      task('t-2', { status: 'todo', subtasks: [
+        { id: 's-3', title: 'C', completed: true, createdAt: DAY_START },
+        { id: 's-4', title: 'D', completed: false, createdAt: DAY_START },
+      ] }),
+    ]));
+    expect(view.mostImportant?.id).toBe('task-subtasks');
+    expect(view.mostImportant?.observation).toContain('50% of 4 subtasks are done');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Subtasks done', value: '2/4' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Tasks tracked', value: '2' });
+  });
+
+  it('orders Most Important as overdue → stale → priority → subtasks', () => {
+    const withAll = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', deadline: DAY_START - 1 * 86400000, priority: 'urgent' }),
+      task('t-2', { status: 'todo', updatedAt: NOW - 8 * 86400000 }),
+      task('t-3', { status: 'todo', priority: 'high' }),
+    ]));
+    expect(withAll.mostImportant?.id).toBe('task-overdue');
+    expect(withAll.tasks.map((i) => i.id)).not.toContain('task-overdue');
+
+    const staleFirst = selectTaskInsights(taskInsightsBase([
+      task('t-1', { status: 'todo', updatedAt: NOW - 9 * 86400000 }),
+      task('t-2', { status: 'todo', updatedAt: NOW - 8 * 86400000, priority: 'urgent' }),
+    ]));
+    expect(staleFirst.mostImportant?.id).toBe('task-stale');
+  });
+});
+
+// ── PI-1.5: pure Knowledge Insights selector tests (Phase PI) ─────────────────
+// Knowledge insights reuse selectKnowledge over docs + work logs + journals; the
+// base is cumulative ("all time") and an empty base stays honestly empty.
+
+function kDoc(id: string, overrides: Partial<KnowledgeDoc> = {}): KnowledgeDoc {
+  return {
+    id,
+    workspaceId: 'ws-1',
+    title: `Doc ${id}`,
+    category: 'Architecture',
+    content: '# Notes',
+    authorId: 'u-1',
+    version: 1,
+    tags: [],
+    createdAt: '2026-07-20T10:00:00.000Z',
+    updatedAt: '2026-07-20T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function knowledgeLog(id: string, overrides: Partial<WorkLog> = {}): WorkLog {
+  return {
+    _id: id,
+    title: `Log ${id}`,
+    status: 'done',
+    isActive: false,
+    updatedAt: '2026-08-04T10:00:00.000Z',
+    blockerList: [],
+    workEntries: [],
+    completedItems: [],
+    currentWork: '',
+    plan: '',
+    decisions: [],
+    lessonsLearned: [],
+    problemFlow: { lessonsLearned: '', problem: '', resolution: '' },
+    links: [],
+    ...overrides,
+  } as unknown as WorkLog;
+}
+
+describe('selectKnowledgeInsights (PI-1.5)', () => {
+  it('labels the cumulative period and stays empty without knowledge', () => {
+    const view = selectKnowledgeInsights({
+      docs: [], workLogs: [], journals: [journal('j-1', DAY_START + 10 * HOUR)],
+      now: NOW, timeZone: TZ,
+    });
+    expect(view.periodLabel).toBe('All time · Wed, Aug 5');
+    expect(view.hasData).toBe(false);
+    expect(view.mostImportant).toBeNull();
+    expect(view.knowledge).toEqual([]);
+    expect(view.total).toBe(0);
+  });
+
+  it('features the cumulative base and fills the grid with each type', () => {
+    const view = selectKnowledgeInsights({
+      docs: [
+        kDoc('d-1'),
+        kDoc('d-2', { category: 'Coding Standards' }),
+        kDoc('d-3', { category: 'Coding Standards' }),
+      ],
+      workLogs: [
+        knowledgeLog('l-1', {
+          decisions: [{
+            _id: 'dec-1', title: 'Use Postgres', context: '', decision: 'switch', alternatives: '', rationale: 'consistency',
+            timestamp: NOW - 2 * 86400000,
+          }],
+          problemFlow: { problem: '', investigation: '', rootCause: '', solution: '', lessonsLearned: 'Test migrations first' },
+          links: [{ _id: 'lk-1', label: 'RFC', url: 'https://rfc', category: 'GitHub' }],
+        }),
+      ],
+      journals: [],
+      now: NOW, timeZone: TZ,
+    });
+
+    expect(view.mostImportant?.id).toBe('knowledge-base');
+    expect(view.mostImportant?.observation).toContain('6 knowledge items');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Docs', value: '3' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Decisions', value: '1' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Lessons', value: '1' });
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Links', value: '1' });
+    expect(view.knowledge.map((i) => i.id)).not.toContain('knowledge-base');
+
+    const decisions = findById(view.knowledge, 'knowledge-decisions');
+    expect(decisions.metrics).toContainEqual({ label: 'Decisions', value: '1' });
+    expect(decisions.metrics).toContainEqual({ label: 'Latest', value: '2d ago' });
+
+    const lessons = findById(view.knowledge, 'knowledge-lessons');
+    expect(lessons.metrics).toContainEqual({ label: 'Lessons', value: '1' });
+
+    const links = findById(view.knowledge, 'knowledge-links');
+    expect(links.metrics).toContainEqual({ label: 'Top category', value: 'GitHub' });
+
+    const docs = findById(view.knowledge, 'knowledge-docs');
+    expect(docs.metrics).toContainEqual({ label: 'Docs', value: '3' });
+    expect(docs.metrics).toContainEqual({ label: 'Top category', value: 'Coding Standards' });
+  });
+
+  it('keeps journals out of the knowledge total', () => {
+    const view = selectKnowledgeInsights({
+      docs: [], workLogs: [],
+      journals: [journal('j-1', DAY_START + 10 * HOUR), journal('j-2', DAY_START + 11 * HOUR)],
+      now: NOW, timeZone: TZ,
+    });
+    expect(view.hasData).toBe(false);
+    expect(view.total).toBe(0);
+  });
+
+  it('scales confidence with the size of the base', () => {
+    const manyDocs = Array.from({ length: 10 }, (_, i) => kDoc(`d-${i}`));
+    const view = selectKnowledgeInsights({ docs: manyDocs, workLogs: [], journals: [], now: NOW, timeZone: TZ });
+    expect(view.mostImportant?.confidence).toBe('high');
+  });
+
+  it('reads lessons from the log problem flow', () => {
+    const view = selectKnowledgeInsights({
+      docs: [],
+      workLogs: [
+        knowledgeLog('l-1', { problemFlow: { problem: '', investigation: '', rootCause: '', solution: '', lessonsLearned: 'Rehearse the demo' } }),
+      ],
+      journals: [], now: NOW, timeZone: TZ,
+    });
+    expect(view.mostImportant?.id).toBe('knowledge-base');
+    expect(findById(view.knowledge, 'knowledge-lessons').metrics).toContainEqual({ label: 'Lessons', value: '1' });
   });
 });

@@ -1,13 +1,17 @@
 import type { Task, JournalEntry } from '../types';
+import type { KnowledgeDoc } from '../types/collaboration';
 import type { WorkLog } from '../store/useWorkLogStore';
 import type { MemorySession } from './memorySelectors';
 import { computeRangeStats, getComparisonDelta } from './reportsSelectors';
+import { selectKnowledge } from './knowledgeSelectors';
 import {
   dayKeyInTz,
+  daysBetweenKeys,
   endOfIsoWeekInTz,
   formatDateShort,
   formatDateShortInTz,
   formatHours,
+  formatRelativeTime,
   formatTimeOfDay,
   hourOfDayInTz,
   startOfDayInTz,
@@ -897,5 +901,430 @@ export function selectWorkPatternInsights(input: WorkPatternInput): WorkPatternV
     periodLabel,
     sessionCount,
     focusedMs,
+  };
+}
+
+// ── PI-1.4: pure Task Insights selectors (Phase PI · DCX) ─────────────────────
+// This layer reads the task list itself — not the session stream — and answers
+// "what does my to-do list say?". Deadline pressure, silently-stale tasks,
+// subtask progress, and priority load are all derived straight from Task[]
+// fields, never from invented numbers. The honesty contract holds: a claim is
+// only emitted when the list actually supports it, and a healthy or empty list
+// renders honest absence instead of a manufactured observation. The snapshot is
+// "as of now" — every date comparison uses day keys in the user's timezone.
+
+const TASK_STALE_DAYS = 7;
+
+export interface TaskInsight extends DailyInsight {}
+
+export interface TaskInsightsInput extends DailyInsightsInput {}
+
+export interface TaskInsightsView {
+  mostImportant: TaskInsight | null;
+  tasks: TaskInsight[];
+  hasData: boolean;
+  periodLabel: string;
+  openCount: number;
+}
+
+/** Whole calendar days between a past timestamp and now, never negative. */
+function daysSinceInTz(timestamp: number, now: number, timeZone: string): number {
+  return Math.max(0, daysBetweenKeys(dayKeyInTz(timestamp, timeZone), dayKeyInTz(now, timeZone)));
+}
+
+// ── Task insight builders ─────────────────────────────────────────────────────
+
+function buildTaskOverdueInsight(
+  overdueCount: number,
+  oldestOverdueDays: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): TaskInsight {
+  const insight: TaskInsight = {
+    id: 'task-overdue',
+    category: 'Tasks',
+    title: 'Overdue tasks',
+    observation: `You have ${overdueCount} task${overdueCount === 1 ? '' : 's'} past their deadline.`,
+    metrics: [
+      { label: 'Overdue', value: String(overdueCount) },
+      ...(oldestOverdueDays > 0 ? [{ label: 'Oldest overdue', value: `${oldestOverdueDays}d` }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: 'high',
+  };
+  if (overdueCount >= 3) {
+    insight.action = {
+      label: 'Reschedule the oldest first',
+      detail: 'Replan the oldest overdue task so the rest of the list stays accurate.',
+    };
+  }
+  return insight;
+}
+
+function buildTaskStaleInsight(
+  staleCount: number,
+  oldestStaleDays: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): TaskInsight {
+  const insight: TaskInsight = {
+    id: 'task-stale',
+    category: 'Consistency',
+    title: 'Stale tasks',
+    observation: `${staleCount} open task${staleCount === 1 ? '' : 's'} have not been touched in ${TASK_STALE_DAYS}+ days.`,
+    metrics: [
+      { label: 'Stale', value: String(staleCount) },
+      ...(oldestStaleDays > 0 ? [{ label: 'Oldest', value: `${oldestStaleDays}d` }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(staleCount, 5, 2),
+  };
+  if (staleCount >= 4) {
+    insight.action = {
+      label: 'Review or close them',
+      detail: 'Tasks that sit untouched tend to stay untouched; a quick review clears the list.',
+    };
+  }
+  return insight;
+}
+
+function buildTaskPriorityInsight(
+  urgentCount: number,
+  highCount: number,
+  openCount: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): TaskInsight {
+  const insight: TaskInsight = {
+    id: 'task-priority',
+    category: 'Tasks',
+    title: 'High-priority work',
+    observation: urgentCount > 0
+      ? `You have ${urgentCount} urgent and ${highCount} high-priority open task${urgentCount + highCount === 1 ? '' : 's'}.`
+      : `You have ${highCount} high-priority open task${highCount === 1 ? '' : 's'}.`,
+    metrics: [
+      { label: 'Urgent', value: String(urgentCount) },
+      { label: 'High', value: String(highCount) },
+      { label: 'Open tasks', value: String(openCount) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: 'high',
+  };
+  if (urgentCount > 0) {
+    insight.action = {
+      label: 'Clear the urgent item',
+      detail: 'Urgent open tasks first keeps deadlines from turning into crises.',
+    };
+  }
+  return insight;
+}
+
+function buildTaskSubtasksInsight(
+  trackedTasks: number,
+  doneSubtasks: number,
+  totalSubtasks: number,
+  pct: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): TaskInsight {
+  return {
+    id: 'task-subtasks',
+    category: 'Execution',
+    title: 'Subtask completion',
+    observation: `Across ${trackedTasks} open task${trackedTasks === 1 ? '' : 's'}, ${pct}% of ${totalSubtasks} subtasks are done.`,
+    metrics: [
+      { label: 'Subtasks done', value: `${doneSubtasks}/${totalSubtasks}` },
+      { label: 'Tasks tracked', value: String(trackedTasks) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(trackedTasks, 5, 2),
+  };
+}
+
+// ── Task Most Important selection (deterministic rule, first match wins) ──────
+// 1) overdue deadlines → 2) stale tasks → 3) high-priority load → 4) subtask
+// progress → none.
+
+function pickTaskMostImportant(taskInsights: TaskInsight[]): TaskInsight | null {
+  return taskInsights.find((i) => i.id === 'task-overdue')
+    ?? taskInsights.find((i) => i.id === 'task-stale')
+    ?? taskInsights.find((i) => i.id === 'task-priority')
+    ?? taskInsights.find((i) => i.id === 'task-subtasks')
+    ?? null;
+}
+
+// ── selectTaskInsights ────────────────────────────────────────────────────────
+
+export function selectTaskInsights(input: TaskInsightsInput): TaskInsightsView {
+  const now = input.now ?? Date.now();
+  const timeZone = input.timeZone ?? 'UTC';
+  const openTasks = input.tasks.filter((t) => t.status !== 'completed');
+  const periodLabel = `Open tasks · ${formatDateShortInTz(now, timeZone)}`;
+  const period = { label: periodLabel, start: 0, end: now };
+
+  const taskInsights: TaskInsight[] = [];
+
+  const overdue = openTasks.filter(
+    (t) => t.deadline !== undefined && dayKeyInTz(t.deadline, timeZone) < dayKeyInTz(now, timeZone),
+  );
+  if (overdue.length > 0) {
+    const oldestOverdueDays = overdue.reduce(
+      (max, t) => Math.max(max, daysSinceInTz(t.deadline ?? 0, now, timeZone)),
+      0,
+    );
+    taskInsights.push(buildTaskOverdueInsight(overdue.length, oldestOverdueDays, periodLabel, period.start, period.end));
+  }
+
+  const stale = openTasks.filter(
+    (t) => (t.status === 'todo' || t.status === 'paused') && daysSinceInTz(t.updatedAt, now, timeZone) >= TASK_STALE_DAYS,
+  );
+  if (stale.length >= 2) {
+    const oldestStaleDays = stale.reduce((max, t) => Math.max(max, daysSinceInTz(t.updatedAt, now, timeZone)), 0);
+    taskInsights.push(buildTaskStaleInsight(stale.length, oldestStaleDays, periodLabel, period.start, period.end));
+  }
+
+  const urgentCount = openTasks.filter((t) => t.priority === 'urgent').length;
+  const highCount = openTasks.filter((t) => t.priority === 'high').length;
+  if (urgentCount + highCount >= 1) {
+    taskInsights.push(buildTaskPriorityInsight(urgentCount, highCount, openTasks.length, periodLabel, period.start, period.end));
+  }
+
+  const withSubtasks = openTasks.filter((t) => t.subtasks.length > 0);
+  if (withSubtasks.length >= 2) {
+    const totalSubtasks = withSubtasks.reduce((acc, t) => acc + t.subtasks.length, 0);
+    const doneSubtasks = withSubtasks.reduce((acc, t) => acc + t.subtasks.filter((s) => s.completed).length, 0);
+    const pct = Math.round((doneSubtasks / totalSubtasks) * 100);
+    taskInsights.push(buildTaskSubtasksInsight(withSubtasks.length, doneSubtasks, totalSubtasks, pct, periodLabel, period.start, period.end));
+  }
+
+  const mostImportant = pickTaskMostImportant(taskInsights);
+  const visible = taskInsights.filter((i) => i.id !== mostImportant?.id);
+
+  return {
+    mostImportant,
+    tasks: visible,
+    hasData: mostImportant !== null || visible.length > 0,
+    periodLabel,
+    openCount: openTasks.length,
+  };
+}
+
+// ── PI-1.5: pure Knowledge Insights selectors (Phase PI · DCX) ────────────────
+// This layer answers "what have you actually learned?" over the cumulative
+// knowledge base. It reuses `selectKnowledge` as the single source of truth —
+// docs, decisions, lessons, and links are derived exactly as the Knowledge
+// surface derives them, never re-implemented — then adds the "what does it
+// mean" layer: how much knowledge exists, what kind, and when the latest item
+// was captured. The base is cumulative, so the period is "all time", and an
+// empty knowledge base renders honest absence instead of a manufactured claim.
+
+export interface KnowledgeInsight extends DailyInsight {}
+
+export interface KnowledgeInsightsInput {
+  docs: KnowledgeDoc[];
+  workLogs: WorkLog[];
+  journals: JournalEntry[];
+  now?: number;
+  timeZone?: string;
+}
+
+export interface KnowledgeInsightsView {
+  mostImportant: KnowledgeInsight | null;
+  knowledge: KnowledgeInsight[];
+  hasData: boolean;
+  periodLabel: string;
+  total: number;
+}
+
+// ── Knowledge insight builders ────────────────────────────────────────────────
+
+function buildKnowledgeBaseInsight(
+  docs: number,
+  decisions: number,
+  lessons: number,
+  links: number,
+  total: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): KnowledgeInsight {
+  return {
+    id: 'knowledge-base',
+    category: 'Knowledge',
+    title: 'Knowledge base',
+    observation: `You have captured ${total} knowledge item${total === 1 ? '' : 's'} across docs, decisions, lessons, and links.`,
+    metrics: [
+      { label: 'Docs', value: String(docs) },
+      { label: 'Decisions', value: String(decisions) },
+      { label: 'Lessons', value: String(lessons) },
+      { label: 'Links', value: String(links) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(total, 10, 4),
+  };
+}
+
+function buildKnowledgeDecisionsInsight(
+  count: number,
+  latestTimestamp: number,
+  now: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): KnowledgeInsight {
+  return {
+    id: 'knowledge-decisions',
+    category: 'Knowledge',
+    title: 'Decisions captured',
+    observation: `You logged ${count} engineering decision${count === 1 ? '' : 's'} across your work logs.`,
+    metrics: [
+      { label: 'Decisions', value: String(count) },
+      { label: 'Latest', value: formatRelativeTime(latestTimestamp, now) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(count, 5, 2),
+  };
+}
+
+function buildKnowledgeLessonsInsight(
+  count: number,
+  latestTimestamp: number,
+  now: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): KnowledgeInsight {
+  return {
+    id: 'knowledge-lessons',
+    category: 'Knowledge',
+    title: 'Lessons learned',
+    observation: `You captured ${count} lesson${count === 1 ? '' : 's'} learned across your work logs.`,
+    metrics: [
+      { label: 'Lessons', value: String(count) },
+      { label: 'Latest', value: formatRelativeTime(latestTimestamp, now) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(count, 5, 2),
+  };
+}
+
+function buildKnowledgeLinksInsight(
+  count: number,
+  topCategory: string | null,
+  periodLabel: string,
+  start: number,
+  end: number,
+): KnowledgeInsight {
+  return {
+    id: 'knowledge-links',
+    category: 'Knowledge',
+    title: 'Saved resources',
+    observation: `You have saved ${count} link${count === 1 ? '' : 's'} from your work logs.`,
+    metrics: [
+      { label: 'Links', value: String(count) },
+      ...(topCategory ? [{ label: 'Top category', value: topCategory }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(count, 5, 2),
+  };
+}
+
+function buildKnowledgeDocsInsight(
+  count: number,
+  topCategory: string | null,
+  periodLabel: string,
+  start: number,
+  end: number,
+): KnowledgeInsight {
+  return {
+    id: 'knowledge-docs',
+    category: 'Knowledge',
+    title: 'Knowledge docs',
+    observation: `You have ${count} knowledge doc${count === 1 ? '' : 's'} in your base.`,
+    metrics: [
+      { label: 'Docs', value: String(count) },
+      ...(topCategory ? [{ label: 'Top category', value: topCategory }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(count, 3, 1),
+  };
+}
+
+/** Most frequent category among items; null when there are none. */
+function topCategoryOf(items: { category: string }[]): string | null {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    counts.set(item.category, (counts.get(item.category) ?? 0) + 1);
+  }
+  let top: string | null = null;
+  let topCount = 0;
+  for (const [category, count] of counts) {
+    if (count > topCount) {
+      top = category;
+      topCount = count;
+    }
+  }
+  return top;
+}
+
+// ── Knowledge Most Important selection ────────────────────────────────────────
+// The cumulative base is the headline whenever any knowledge exists; the
+// per-type cards fill the grid.
+
+function pickKnowledgeMostImportant(knowledge: KnowledgeInsight[]): KnowledgeInsight | null {
+  return knowledge.find((i) => i.id === 'knowledge-base') ?? null;
+}
+
+// ── selectKnowledgeInsights ───────────────────────────────────────────────────
+
+export function selectKnowledgeInsights(input: KnowledgeInsightsInput): KnowledgeInsightsView {
+  const now = input.now ?? Date.now();
+  const timeZone = input.timeZone ?? 'UTC';
+  const view = selectKnowledge(input.docs, input.workLogs, input.journals);
+  const periodLabel = `All time · ${formatDateShortInTz(now, timeZone)}`;
+  const period = { label: periodLabel, start: 0, end: now };
+
+  const knowledge: KnowledgeInsight[] = [];
+
+  if (view.total > 0) {
+    knowledge.push(buildKnowledgeBaseInsight(
+      view.docs.length, view.decisions.length, view.lessons.length, view.links.length, view.total,
+      periodLabel, period.start, period.end,
+    ));
+  }
+  if (view.decisions.length > 0) {
+    knowledge.push(buildKnowledgeDecisionsInsight(
+      view.decisions.length, view.decisions[0].timestamp, now, periodLabel, period.start, period.end,
+    ));
+  }
+  if (view.lessons.length > 0) {
+    knowledge.push(buildKnowledgeLessonsInsight(
+      view.lessons.length, view.lessons[0].timestamp, now, periodLabel, period.start, period.end,
+    ));
+  }
+  if (view.links.length > 0) {
+    knowledge.push(buildKnowledgeLinksInsight(
+      view.links.length, topCategoryOf(view.links), periodLabel, period.start, period.end,
+    ));
+  }
+  if (view.docs.length > 0) {
+    knowledge.push(buildKnowledgeDocsInsight(
+      view.docs.length, topCategoryOf(view.docs), periodLabel, period.start, period.end,
+    ));
+  }
+
+  const mostImportant = pickKnowledgeMostImportant(knowledge);
+  const visible = knowledge.filter((i) => i.id !== mostImportant?.id);
+
+  return {
+    mostImportant,
+    knowledge: visible,
+    hasData: mostImportant !== null || visible.length > 0,
+    periodLabel,
+    total: view.total,
   };
 }

@@ -294,3 +294,50 @@ describe('PI-1.3 regression: work-pattern insights on the same page', () => {
     expect(time).toContain('export function weekdayInTz');
   });
 });
+
+describe('PI-1.4 regression: task insights on the same page', () => {
+  it('insights page renders the Task section below the weekly section, not a KPI clone', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/InsightsPage.tsx'), 'utf8');
+    expect(page).toContain('Task Insights');
+    expect(page).toContain('selectTaskInsights');
+    expect(page).toContain('Task Focus');
+    expect(page).toContain('insights-task-heading');
+    expect(page).toMatch(/grid-cols-1\s+md:grid-cols-2\s+xl:grid-cols-3/);
+    expect(page).not.toMatch(/AnalyticsSection|recharts|BarChart|PieChart/);
+  });
+
+  it('task insights come from a pure selector over the open task list', () => {
+    const selectors = readFileSync(resolve(process.cwd(), 'src/lib/insightsSelectors.ts'), 'utf8');
+    expect(selectors).toContain('export function selectTaskInsights');
+    expect(selectors).toContain('task-overdue');
+    expect(selectors).toContain('task-stale');
+    expect(selectors).toContain('task-priority');
+    expect(selectors).toContain('task-subtasks');
+    expect(selectors).toContain('TASK_STALE_DAYS');
+    expect(selectors).toContain('t.deadline');
+  });
+});
+
+describe('PI-1.5 regression: knowledge insights on the same page', () => {
+  it('insights page renders the Knowledge section below the task section, not a KPI clone', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/InsightsPage.tsx'), 'utf8');
+    expect(page).toContain('Knowledge Insights');
+    expect(page).toContain('selectKnowledgeInsights');
+    expect(page).toContain('Knowledge Focus');
+    expect(page).toContain('insights-knowledge-heading');
+    expect(page).toContain('useCollaborationStore');
+    expect(page).not.toMatch(/AnalyticsSection|recharts|BarChart|PieChart/);
+  });
+
+  it('knowledge insights derive from selectKnowledge as the single source of truth', () => {
+    const selectors = readFileSync(resolve(process.cwd(), 'src/lib/insightsSelectors.ts'), 'utf8');
+    expect(selectors).toContain('export function selectKnowledgeInsights');
+    expect(selectors).toContain('knowledge-base');
+    expect(selectors).toContain('knowledge-decisions');
+    expect(selectors).toContain('knowledge-lessons');
+    expect(selectors).toContain('knowledge-links');
+    expect(selectors).toContain('knowledge-docs');
+    expect(selectors).toMatch(/import[^;]*selectKnowledge/);
+    expect(selectors).toContain('selectKnowledge(input.docs, input.workLogs, input.journals)');
+  });
+});

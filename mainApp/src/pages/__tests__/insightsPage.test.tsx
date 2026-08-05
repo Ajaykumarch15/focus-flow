@@ -6,8 +6,10 @@ import axe from 'axe-core';
 import { InsightsPage } from '../InsightsPage';
 import { useStore } from '../../store/useStore';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
+import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { startOfDay, startOfIsoWeekInTz } from '../../utils/time';
 import type { Task, JournalEntry } from '../../types';
+import type { KnowledgeDoc } from '../../types/collaboration';
 import type { WorkLog } from '../../store/useWorkLogStore';
 
 // The page reads session docs through the existing api layer; the module is
@@ -351,6 +353,166 @@ describe('InsightsPage (PI-1.3)', () => {
     expect(weekHeading).toBeTruthy();
     expect(patternHeading).toBeTruthy();
     expect(weekHeading!.compareDocumentPosition(patternHeading!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    act(() => root.unmount());
+  });
+});
+
+// ── PI-1.4: Task layer on the /insights page ──────────────────────────────────
+// The Task section reads the open task list as-of now. Deadlines use Date.now()
+// so the live snapshot rules (today = Aug 5-like anchor, overdue = any day key
+// before today) apply without freezing a clock.
+
+describe('InsightsPage (PI-1.4)', () => {
+  const originalStore = useStore.getState();
+  const originalWorkLogs = useWorkLogStore.getState();
+
+  beforeEach(() => {
+    apiMock.sessions.list.mockReset();
+    apiMock.sessions.list.mockResolvedValue([]);
+    seededStore();
+  });
+
+  afterEach(() => {
+    useStore.setState(originalStore);
+    useWorkLogStore.setState(originalWorkLogs);
+  });
+
+  it('renders the Task Insights section with a featured Task Focus card for overdue work', async () => {
+    const now = Date.now();
+    useStore.setState({
+      tasks: [
+        mkTask('t-over', { deadline: now - 2 * 86400000 }),
+        mkTask('t-future', { deadline: now + 3 * 86400000 }),
+      ],
+      journals: [],
+    });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Task Insights');
+    expect(text).toContain('Task Focus');
+    expect(text).toContain('Overdue tasks');
+    expect(text).toContain('1 task past their deadline');
+    expect(text).toContain('open tasks');
+    expect(container.querySelector('#insights-task-heading')).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it('keeps the Task section hidden when there are no open tasks', async () => {
+    useStore.setState({ tasks: [], journals: [] });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).not.toContain('Task Insights');
+    expect(text).not.toContain('Task Focus');
+    expect(text).not.toContain('Overdue tasks');
+    act(() => root.unmount());
+  });
+});
+
+// ── PI-1.5: Knowledge layer on the /insights page ─────────────────────────────
+// The Knowledge section reuses the collaboration store's docs plus work-log
+// decisions/lessons/links. An empty base keeps the section honest and hidden.
+
+function mkDoc(id: string): KnowledgeDoc {
+  return {
+    id,
+    workspaceId: 'ws-1',
+    title: `Doc ${id}`,
+    category: 'Architecture',
+    content: '# Notes',
+    authorId: 'u-1',
+    version: 1,
+    tags: [],
+    createdAt: new Date(DAY_START - 5 * 86400000).toISOString(),
+    updatedAt: new Date(DAY_START - 5 * 86400000).toISOString(),
+  };
+}
+
+function seedLog(id: string): WorkLog {
+  return {
+    _id: id,
+    title: `Log ${id}`,
+    status: 'done',
+    isActive: false,
+    createdAt: new Date(DAY_START + 8 * HOUR).toISOString(),
+    updatedAt: new Date(DAY_START + 10 * HOUR).toISOString(),
+    blockerList: [],
+    workEntries: [],
+    completedItems: [],
+    currentWork: '',
+    plan: '',
+    decisions: [{
+      _id: 'dec-1', title: 'Use Postgres', context: '', decision: 'switch', alternatives: '',
+      rationale: 'consistency', timestamp: DAY_START + 5 * HOUR,
+    }],
+    problemFlow: { problem: '', investigation: '', rootCause: '', solution: '', lessonsLearned: 'Ship smaller batches' },
+    links: [{ _id: 'lk-1', label: 'RFC', url: 'https://rfc.example', category: 'GitHub' }],
+  } as unknown as WorkLog;
+}
+
+describe('InsightsPage (PI-1.5)', () => {
+  const originalStore = useStore.getState();
+  const originalWorkLogs = useWorkLogStore.getState();
+  const originalCollab = useCollaborationStore.getState();
+
+  beforeEach(() => {
+    apiMock.sessions.list.mockReset();
+    apiMock.sessions.list.mockResolvedValue([]);
+    seededStore();
+    useCollaborationStore.setState({ docs: [mkDoc('d-1')] });
+    useWorkLogStore.setState({ closedLogs: [seedLog('l-1')] });
+  });
+
+  afterEach(() => {
+    useStore.setState(originalStore);
+    useWorkLogStore.setState(originalWorkLogs);
+    useCollaborationStore.setState(originalCollab);
+  });
+
+  it('renders the Knowledge Insights section with a featured Knowledge Focus card', async () => {
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Knowledge Insights');
+    expect(text).toContain('Knowledge Focus');
+    expect(text).toContain('Knowledge base');
+    expect(text).toContain('Decisions captured');
+    expect(text).toContain('1 engineering decision');
+    expect(container.querySelector('#insights-knowledge-heading')).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it('keeps the Knowledge section hidden without docs or decision-bearing logs', async () => {
+    useCollaborationStore.setState({ docs: [] });
+    useWorkLogStore.setState({ closedLogs: [] });
+    useStore.setState({ tasks: [], journals: [] });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).not.toContain('Knowledge Insights');
+    expect(text).not.toContain('Knowledge Focus');
+    expect(text).not.toContain('Knowledge base');
+    act(() => root.unmount());
+  });
+
+  it('shows the five-way empty state when every insights layer has no data', async () => {
+    useCollaborationStore.setState({ docs: [] });
+    useWorkLogStore.setState({ todayLog: null, activeLogs: [], closedLogs: [] });
+    useStore.setState({ tasks: [], journals: [] });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain('Not enough data yet.');
+    expect(text).toContain('daily, weekly, work-pattern, task, and knowledge insights');
+    expect(text).not.toContain('Task Insights');
+    expect(text).not.toContain('Knowledge Insights');
+    expect(text).not.toContain("Today's Insights");
     act(() => root.unmount());
   });
 });
