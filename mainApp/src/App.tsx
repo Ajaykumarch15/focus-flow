@@ -31,7 +31,6 @@ const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').t
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
-const WorkLogDetailPage = lazy(() => import('./pages/WorkLogDetail').then(module => ({ default: module.WorkLogDetail })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
@@ -157,7 +156,7 @@ export default function App() {
                 <Route path="/dashboard"   element={<TodayPage />} />
                 <Route path="/team"        element={<TeamWorkspace />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
-                <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
+                <Route path="/worklog/:id" element={<WorkLogPage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
                 <Route path="/tasks"       element={<Tasks />} />

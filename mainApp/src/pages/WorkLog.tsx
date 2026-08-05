@@ -11,11 +11,12 @@ import {
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkEntry, WorkLogStatus } from '../store/useWorkLogStore';
 import { WorkLogExporterModal } from '../components/worklog/WorkLogExporterModal';
+import { WorkLogMasterDetail } from '../components/worklog/WorkLogMasterDetail';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { useProjectStore } from '../store/useProjectStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from '../store/useToastStore';
 import { AutoProEditor } from '../components/ui/proEditor.tsx';
 import { formatDistanceToNow, format, subDays, isToday as dfIsToday } from 'date-fns';
@@ -1326,6 +1327,8 @@ export function WorkLogPage() {
   const { activeLogs, closedLogs, loading, loadAll } = useWorkLogStore();
   const { profile } = useStore();
   const { user } = useAuthStore();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState('');
@@ -1360,6 +1363,22 @@ export function WorkLogPage() {
       l.taskRef?.title?.toLowerCase().includes(q)
     );
   }, [closedLogs, search]);
+
+  // S3-T1 master/detail merge: a selected work log renders inline within this
+  // single surface (IA §8.7-4, §8.8; ECIS §B.4). The standalone WorkLogDetail
+  // page is retired — /worklog/:id now resolves here.
+  if (id) {
+    return (
+      <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+        <WorkLogMasterDetail
+          logs={allLogs}
+          selectedId={id}
+          onSelect={logId => navigate(`/worklog/${logId}`)}
+          onBack={() => navigate('/worklog')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">

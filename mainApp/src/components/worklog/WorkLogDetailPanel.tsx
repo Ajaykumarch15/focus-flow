@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle,
@@ -6,32 +6,36 @@ import {
   Flame, TrendingUp, Calendar, Zap,
   FileText, Download,
   LayoutList, Lightbulb, AlertOctagon, Target, HeartPulse,
-  Paperclip, Eye, Bug,
+  Paperclip, Eye, Bug, MapPin,
 } from 'lucide-react';
 
-const DocumentationPreview = lazy(() => import('../components/DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
-import { useParams, useNavigate } from 'react-router-dom';
-import { api } from '../utils/api';
+const DocumentationPreview = lazy(() => import('../DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
+import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
-import { Markdown } from '../lib';
-import { Skeleton } from '../components/ui/Skeleton';
-import { Button } from '../components/ui/Button';
-import { Badge, type BadgeTone } from '../components/ui/Badge';
-import { EmptyState } from '../components/ui/EmptyState';
-import type { WorkLog } from '../store/useWorkLogStore';
-import { useWorkLogStore } from '../store/useWorkLogStore';
-import { TimelineView } from '../components/worklog/TimelineView';
-import { ProblemFlowEditor } from '../components/worklog/ProblemFlowEditor';
-import { TechnicalDecisionsView } from '../components/worklog/TechnicalDecisionsView';
-import { StructuredBlockersView } from '../components/worklog/StructuredBlockersView';
-import { TomorrowPlanView } from '../components/worklog/TomorrowPlanView';
-import { ReflectionView } from '../components/worklog/ReflectionView';
-import { AttachmentsView } from '../components/worklog/AttachmentsView';
-import { ReadingModeView } from '../components/worklog/ReadingModeView';
-import { WorkLogExporterModal } from '../components/worklog/WorkLogExporterModal';
-import { calculateWorkLogMetrics } from '../utils/workLogMetrics';
-import { STATUS_MAP, MOOD_EMOJIS } from '../lib/config';
-import { mapLog } from '../lib/dataMapper';
+import { Markdown } from '../../lib';
+import { Button } from '../ui/Button';
+import { Badge, type BadgeTone } from '../ui/Badge';
+import { EmptyState } from '../ui/EmptyState';
+import type { WorkLog } from '../../store/useWorkLogStore';
+import { TimelineView } from './TimelineView';
+import { ProblemFlowEditor } from './ProblemFlowEditor';
+import { TechnicalDecisionsView } from './TechnicalDecisionsView';
+import { StructuredBlockersView } from './StructuredBlockersView';
+import { TomorrowPlanView } from './TomorrowPlanView';
+import { ReflectionView } from './ReflectionView';
+import { AttachmentsView } from './AttachmentsView';
+import { ReadingModeView } from './ReadingModeView';
+import { WorkLogExporterModal } from './WorkLogExporterModal';
+import { calculateWorkLogMetrics } from '../../utils/workLogMetrics';
+import { STATUS_MAP, MOOD_EMOJIS } from '../../lib/config';
+import { selectMemory } from '../../lib/memorySelectors';
+
+// ── WorkLogDetailPanel (S3-T1) ────────────────────────────────────────────────
+// The single-surface detail view of a work log, extracted from the retired
+// standalone WorkLogDetail page (IA §8.7-4). Renders hero → stats → "Where I
+// stopped" (highlighted last node, via selectMemory) → tabs. Pure on the
+// `workLog` prop, so the Work Log page can embed it inline for the
+// master/detail merge without re-fetching.
 
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -64,78 +68,26 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   done: 'success',
 };
 
-export function WorkLogDetail() {
-  const { id } = useParams<{ id: string }>();
+export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog; onBack?: () => void }) {
   const navigate = useNavigate();
-
-
-  const [log, setLog] = useState<WorkLog | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [showDocPreview, setShowDocPreview] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-
-  useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setError('');
-    api.workLogs.get(id)
-      .then(doc => setLog(mapLog(doc)))
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  // Re-fetch whenever sub-document mutations happen (store triggers refreshLog)
-  // We subscribe to the store's version of this log and sync it back
-  const storeLog = useWorkLogStore(s =>
-    [...s.activeLogs, ...s.closedLogs].find(l => l._id === id)
-  );
-  useEffect(() => {
-    if (storeLog) setLog(storeLog);
-  }, [storeLog]);
-
-
-
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto space-y-6 p-6">
-        <Skeleton className="h-10 w-48" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
-  }
-
-  if (error || !log) {
-    return (
-      <div className="max-w-5xl mx-auto p-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}
-          className="mb-6" leftIcon={<ArrowLeft size={16} />}>
-          Back
-        </Button>
-        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
-          <EmptyState
-            icon={<BookMarked size={40} className="text-surface-600" />}
-            title="Work log not found"
-            description={error || 'This work log may have been deleted.'}
-          />
-        </div>
-      </div>
-    );
-  }
-
+  const memory = selectMemory(log);
   const status = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
   const totalDays = log.workEntries.length;
   const avgPerDay = totalDays > 0 ? (log.totalActiveMs / totalDays / 3600000).toFixed(1) : '0';
   const metrics = calculateWorkLogMetrics(log);
+  const whereStopped = memory.whereStopped;
+
+  const handleBack = onBack ?? (() => navigate(-1));
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 p-6">
+    <div className="space-y-6">
       {/* Back button */}
       <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        onClick={() => navigate(-1)}
+        onClick={handleBack}
         className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors">
         <ArrowLeft size={16} /> Back to Work Logs
       </motion.button>
@@ -174,7 +126,7 @@ export function WorkLogDetail() {
               </div>
               <p className="text-xs text-surface-500 mt-2">
                 Created {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
-                {' Â· '}
+                {' · '}
                 {log.isActive ? 'Active' : `Closed ${log.closedAt ? formatDistanceToNow(new Date(log.closedAt), { addSuffix: true }) : ''}`}
               </p>
             </div>
@@ -207,14 +159,47 @@ export function WorkLogDetail() {
         ))}
       </motion.div>
 
+      {/* Where I stopped (S3-T1 highlighted last node) */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+        className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-surface-900 p-5">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-7 h-7 rounded-lg bg-brand-500/15 flex items-center justify-center flex-shrink-0">
+            <MapPin size={14} className="text-brand-400" />
+          </div>
+          <span className="text-[11px] text-brand-300 font-semibold uppercase tracking-wider">Where I stopped</span>
+          {whereStopped && (
+            <span className="ml-auto text-[11px] text-surface-500">
+              {formatDistanceToNow(new Date(whereStopped.timestamp), { addSuffix: true })}
+            </span>
+          )}
+        </div>
+        {whereStopped ? (
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-surface-50 truncate">{whereStopped.title}</p>
+              <p className="text-xs text-surface-400 mt-0.5">
+                {whereStopped.label}
+                {whereStopped.description ? ` · ${whereStopped.description}` : ''}
+              </p>
+            </div>
+            <Button variant="ghost" size="xs" className="flex-shrink-0 text-brand-300 hover:text-brand-200"
+              onClick={() => setActiveTab('timeline')}>
+              View timeline →
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-surface-400">No activity captured on this work log yet.</p>
+        )}
+      </motion.div>
+
       {/* Tab Navigation */}
       <div className="overflow-x-auto scrollbar-none">
-        <div className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 min-w-max">
+        <div role="tablist" aria-label="Work log sections" className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 min-w-max">
           {DETAIL_TABS.map(tab => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
             return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              <button key={tab.id} role="tab" aria-selected={isActive} onClick={() => setActiveTab(tab.id)}
                 className={`relative flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all flex-shrink-0 ${
                   isActive ? 'text-surface-50' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-800/50'
                 }`}>
@@ -235,11 +220,11 @@ export function WorkLogDetail() {
 
       {/* Tab Content */}
       <AnimatePresence mode="wait">
-        {/* â”€â”€ Overview (original 2-col layout) â”€â”€ */}
+        {/* ── Overview (original 2-col layout) ── */}
         {activeTab === 'overview' && (
           <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left â€” Context */}
+            {/* Left — Context */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-3 space-y-4">
               {log.problem && (
                 <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -312,7 +297,7 @@ export function WorkLogDetail() {
               )}
             </motion.div>
 
-            {/* Right â€” Sessions, Checklist, Links, Export */}
+            {/* Right — Sessions, Checklist, Links, Export */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-4">
               {/* Export Documentation */}
               <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
@@ -412,7 +397,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Timeline Tab â”€â”€ */}
+        {/* ── Timeline Tab ── */}
         {activeTab === 'timeline' && (
           <motion.div key="timeline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -420,7 +405,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Problem Flow Tab â”€â”€ */}
+        {/* ── Problem Flow Tab ── */}
         {activeTab === 'problem' && (
           <motion.div key="problem" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -428,7 +413,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Decisions Tab â”€â”€ */}
+        {/* ── Decisions Tab ── */}
         {activeTab === 'decisions' && (
           <motion.div key="decisions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -436,7 +421,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Blockers Tab â”€â”€ */}
+        {/* ── Blockers Tab ── */}
         {activeTab === 'blockers' && (
           <motion.div key="blockers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -444,7 +429,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Tomorrow Plan Tab â”€â”€ */}
+        {/* ── Tomorrow Plan Tab ── */}
         {activeTab === 'tomorrow' && (
           <motion.div key="tomorrow" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -452,7 +437,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Reflection Tab â”€â”€ */}
+        {/* ── Reflection Tab ── */}
         {activeTab === 'reflection' && (
           <motion.div key="reflection" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -460,7 +445,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Attachments & Links Tab â”€â”€ */}
+        {/* ── Attachments & Links Tab ── */}
         {activeTab === 'resources' && (
           <motion.div key="resources" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -468,7 +453,7 @@ export function WorkLogDetail() {
           </motion.div>
         )}
 
-        {/* â”€â”€ Reading Mode Tab â”€â”€ */}
+        {/* ── Reading Mode Tab ── */}
         {activeTab === 'reading' && (
           <motion.div key="reading" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <ReadingModeView workLog={log} />

@@ -1,6 +1,7 @@
 import type { TimerState } from '../types';
-import type { WorkLog } from '../store/useWorkLogStore';
+import type { WorkLog, DecisionItem, StructuredBlocker, ProgressSnapshot, DailyReflection } from '../store/useWorkLogStore';
 import { selectFocusSession, type FocusChip, type FocusInput } from './focusSelectors';
+import { buildTimelineEvents, TIMELINE_KIND_LABELS } from './timelineSelectors';
 
 // ── S1-T6: pure Engineering Memory selector (ECIS §G · DCX) ────────────────────
 // ARK's Engineering Memory is a read-only projection of the existing
@@ -296,4 +297,71 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
     totalFacets: facets.length,
     hasAnyMemory,
   };
+}
+
+// ── selectMemory (S3-T1) ───────────────────────────────────────────────────────
+// Per-work-log Engineering Memory projection (ECIS §B.4 · DCX §17:30). Answers
+// "Where did I stop and what does the log already know?" from ONE work log:
+//   - whereStopped → the newest timeline node (reuses the S1-T7 event builder,
+//     so the same dedupe/sorting rules apply — nothing is re-invented)
+//   - decisions / blockers / snapshots → the log's own collections, sorted
+//   - reflection → the daily reflection, or `null` when nothing is filled
+// Pure: same log always yields the same view; no Date.now(), no side effects.
+
+export interface WorkLogMemoryWhereStopped {
+  id: string;
+  kind: string;
+  label: string;
+  title: string;
+  description?: string;
+  timestamp: number;
+}
+
+export interface WorkLogMemoryView {
+  whereStopped: WorkLogMemoryWhereStopped | null;
+  decisions: DecisionItem[];
+  blockers: StructuredBlocker[];
+  snapshots: ProgressSnapshot[];
+  reflection: DailyReflection | null;
+}
+
+function isReflectionBlank(reflection: DailyReflection | undefined): boolean {
+  if (!reflection) return true;
+  return (
+    (reflection.wentWell ?? '').trim() === ''
+    && (reflection.slowedDown ?? '').trim() === ''
+    && (reflection.learned ?? '').trim() === ''
+    && (reflection.improvement ?? '').trim() === ''
+  );
+}
+
+export function selectMemory(log: WorkLog): WorkLogMemoryView {
+  const events = buildTimelineEvents({ tasks: [], journals: [], workLogs: [log], blockers: [], features: [] })
+    .filter((event) => event.worklogId === log._id);
+  const last = events[0] ?? null;
+
+  const whereStopped: WorkLogMemoryWhereStopped | null = last
+    ? {
+        id: last.id,
+        kind: last.kind,
+        label: TIMELINE_KIND_LABELS[last.kind] ?? last.kind,
+        title: last.title,
+        description: last.description,
+        timestamp: last.timestamp,
+      }
+    : null;
+
+  const decisions = [...(log.decisions ?? [])].sort((a, b) => b.timestamp - a.timestamp);
+
+  const blockers = [...(log.blockerList ?? [])].sort((a, b) => {
+    const aOpen = a.status !== 'resolved' ? 0 : 1;
+    const bOpen = b.status !== 'resolved' ? 0 : 1;
+    return aOpen - bOpen || b.createdAt - a.createdAt;
+  });
+
+  const snapshots = [...(log.progressSnapshots ?? [])].sort((a, b) => b.timestamp - a.timestamp);
+
+  const reflection = isReflectionBlank(log.reflection) ? null : log.reflection;
+
+  return { whereStopped, decisions, blockers, snapshots, reflection };
 }

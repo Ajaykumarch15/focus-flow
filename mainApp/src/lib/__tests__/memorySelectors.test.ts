@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  mapSession, selectEngineeringMemory,
+  mapSession, selectEngineeringMemory, selectMemory,
   type MemoryInput, type MemorySession,
 } from '../memorySelectors';
 import type { Task, JournalEntry } from '../../types';
@@ -398,5 +398,80 @@ describe('selectEngineeringMemory (S1-T6)', () => {
     );
     expect(view.completeness).toBe(7);
     expect(view.totalFacets).toBe(10);
+  });
+});
+
+describe('selectMemory (S3-T1)', () => {
+  it('resolves whereStopped to the newest timeline node', () => {
+    const log = mkLog('wl-mem-1', 't-1', {
+      timelineEntries: [
+        { _id: 'tl-1', timestamp: 100, type: 'note', title: 'Started debugging', description: '', category: '' },
+        { _id: 'tl-2', timestamp: 200, type: 'snapshot', title: 'Snapshot at noon', description: '', category: '' },
+      ],
+      completedItems: [
+        { _id: 'ci-1', text: 'Shipped the focus loop', category: 'feature', done: true, completedAt: 300, createdAt: 200 },
+      ],
+    });
+    const view = selectMemory(log);
+    expect(view.whereStopped).toEqual({
+      id: 'wl-mem-1:ci:ci-1',
+      kind: 'completed_item',
+      label: 'Completed item',
+      title: 'Shipped the focus loop',
+      description: 'Completed item',
+      timestamp: 300,
+    });
+  });
+
+  it('returns null whereStopped when the log has no events', () => {
+    const view = selectMemory(mkLog('wl-empty', 't-1', { timelineEntries: [] }));
+    expect(view.whereStopped).toBeNull();
+  });
+
+  it('sorts decisions newest first', () => {
+    const view = selectMemory(mkLog('wl-dec', 't-1', {
+      decisions: [
+        { _id: 'd-1', title: 'Old', context: '', decision: '', alternatives: '', rationale: '', timestamp: 100 },
+        { _id: 'd-2', title: 'New', context: '', decision: '', alternatives: '', rationale: '', timestamp: 300 },
+        { _id: 'd-3', title: 'Mid', context: '', decision: '', alternatives: '', rationale: '', timestamp: 200 },
+      ],
+    }));
+    expect(view.decisions.map((d) => d._id)).toEqual(['d-2', 'd-3', 'd-1']);
+  });
+
+  it('sorts blockers open-first then newest, resolved last', () => {
+    const view = selectMemory(mkLog('wl-blk', 't-1', {
+      blockerList: [
+        { _id: 'b-1', title: 'Resolved', severity: 'high', status: 'resolved', notes: '', createdAt: 300 },
+        { _id: 'b-2', title: 'Open old', severity: 'low', status: 'open', notes: '', createdAt: 100 },
+        { _id: 'b-3', title: 'Open new', severity: 'medium', status: 'open', notes: '', createdAt: 200 },
+      ],
+    }));
+    expect(view.blockers.map((b) => b._id)).toEqual(['b-3', 'b-2', 'b-1']);
+  });
+
+  it('sorts snapshots newest first', () => {
+    const view = selectMemory(mkLog('wl-snap', 't-1', {
+      progressSnapshots: [
+        { _id: 's-1', period: 'Morning', text: 'a', timestamp: 100 },
+        { _id: 's-2', period: 'Afternoon', text: 'b', timestamp: 300 },
+        { _id: 's-3', period: 'Evening', text: 'c', timestamp: 200 },
+      ],
+    }));
+    expect(view.snapshots.map((s) => s._id)).toEqual(['s-2', 's-3', 's-1']);
+  });
+
+  it('returns null reflection when every field is blank or missing', () => {
+    expect(selectMemory(mkLog('wl-refl-1', 't-1')).reflection).toBeNull();
+    const blank = selectMemory(mkLog('wl-refl-2', 't-1', {
+      reflection: { wentWell: '', slowedDown: '   ', learned: '', improvement: '', rating: 4 },
+    }));
+    expect(blank.reflection).toBeNull();
+  });
+
+  it('returns the reflection once any field is filled', () => {
+    const filled = { wentWell: 'Shipped the loop', slowedDown: '', learned: '', improvement: '', rating: 5 };
+    const view = selectMemory(mkLog('wl-refl-3', 't-1', { reflection: filled }));
+    expect(view.reflection).toEqual(filled);
   });
 });
