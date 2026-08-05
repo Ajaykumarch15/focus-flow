@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar }        from './Sidebar';
 import { ToastContainer } from '../ui/ToastContainer';
 import { GlobalHeader }   from '../ui/GlobalHeader';
+import { NowStrip }       from '../now/NowStrip';
 import { useStore }       from '../../store/useStore';
 
 export function AppLayout() {
@@ -24,6 +25,7 @@ export function AppLayout() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <GlobalHeader />
+        <NowStrip />
         <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin">
           {/* Main content outlet */}
           <Outlet />

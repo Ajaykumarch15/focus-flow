@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useStore } from '../../store/useStore';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 import { ToastContainer } from '../ui/ToastContainer';
+import { NowStrip } from '../now/NowStrip';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { getWorkspaceMaturityLevel, isFeatureVisibleForMaturity } from '../../utils/workspaceMaturity';
@@ -357,6 +358,8 @@ export function WorkspaceLayout() {
             </div>
           </div>
         </header>
+
+        <NowStrip />
 
         <main className="flex-1 overflow-y-auto">
           <Outlet />
