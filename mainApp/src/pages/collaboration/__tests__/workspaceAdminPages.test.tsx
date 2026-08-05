@@ -64,6 +64,14 @@ describe('WorkspaceProjectsPage (S4-T3)', () => {
     act(() => root.unmount());
   });
 
+  it('links each project card to its detail overview (P1-T1)', () => {
+    const { container, root } = render(<WorkspaceProjectsPage />);
+    const links = Array.from(container.querySelectorAll('a[href^="/w/"]'));
+    expect(links.map((a) => a.getAttribute('href'))).toContain('/w/ws-1/projects/p1');
+    expect(links.map((a) => a.getAttribute('href'))).not.toContain('/w/ws-1/projects/p2');
+    act(() => root.unmount());
+  });
+
   it('renders an honest empty state when there are no projects', () => {
     useCollaborationStore.setState({ projects: [] });
     const { container, root } = render(<WorkspaceProjectsPage />);

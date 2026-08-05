@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { FolderOpen, GitBranch, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, FolderOpen, GitBranch, Plus } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { Button } from '../../components/ui/Button';
@@ -34,14 +35,18 @@ export function WorkspaceProjectsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {wsProjects.map((proj) => (
-          <div key={proj.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
+          <div key={proj.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4 flex flex-col">
             <div className="flex items-start justify-between">
-              <div>
+              <Link
+                to={`/w/${activeWorkspaceId}/projects/${proj.id}`}
+                className="group block"
+                aria-label={`Open overview for ${proj.name}`}
+              >
                 <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
                   {proj.key}
                 </Badge>
-                <h3 className="text-lg font-display font-extrabold text-surface-50 mt-1">{proj.name}</h3>
-              </div>
+                <h3 className="text-lg font-display font-extrabold text-surface-50 mt-1 group-hover:text-brand-300 transition-colors">{proj.name}</h3>
+              </Link>
               {proj.repositoryUrl && (
                 <a href={proj.repositoryUrl} target="_blank" rel="noreferrer"
                   className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 flex items-center gap-1.5 text-xs font-semibold">
@@ -70,6 +75,13 @@ export function WorkspaceProjectsPage() {
                 <p className="text-xs text-surface-500 italic">No milestones set.</p>
               )}
             </div>
+
+            <Link
+              to={`/w/${activeWorkspaceId}/projects/${proj.id}`}
+              className="mt-auto inline-flex items-center gap-1.5 text-xs font-bold text-brand-400 hover:text-brand-300 transition-colors"
+            >
+              Open Project Overview <ArrowRight size={14} />
+            </Link>
           </div>
         ))}
       </div>

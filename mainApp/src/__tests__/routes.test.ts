@@ -130,3 +130,40 @@ describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () =
     expect(sidebar).toContain("label: 'Workspace Hub'");
   });
 });
+
+describe('P1-T1 regression: actionable project overview', () => {
+  it('declares the project detail route once, backed by ProjectOverviewPage', () => {
+    const projectRoutes = appSource.match(/<Route\s+path="projects\/:projectId"/g) ?? [];
+    expect(projectRoutes).toHaveLength(1);
+    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId"\s+element={<ProjectOverviewPage \/>}/);
+    expect(routePaths).toContain('projects/:projectId');
+  });
+
+  it('lazy-loads ProjectOverviewPage alongside the other workspace pages', () => {
+    expect(appSource).toMatch(/const ProjectOverviewPage = lazy\(\(\) => import\('\.\/pages\/collaboration\/ProjectOverviewPage'\)/);
+  });
+
+  it('page layout is responsive (mobile stacks, desktop splits 2fr/1fr, KPIs 4-up)', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/collaboration/ProjectOverviewPage.tsx'), 'utf8');
+    expect(page).toMatch(/grid-cols-1\s+lg:grid-cols-\[2fr_1fr\]/);
+    expect(page).toMatch(/grid-cols-2\s+lg:grid-cols-4/);
+    expect(page).toContain('Current Sprint');
+    expect(page).toContain('Active Features');
+    expect(page).toContain('Team Progress');
+    expect(page).toContain('Recent Work');
+    expect(page).toContain('Blockers');
+    expect(page).toContain('Releases & Milestones');
+  });
+
+  it('project cards on WorkspaceProjectsPage link to the detail overview', () => {
+    const projectsPage = readFileSync(resolve(process.cwd(), 'src/pages/collaboration/WorkspaceProjectsPage.tsx'), 'utf8');
+    expect(projectsPage).toContain(`to={\`/w/\${activeWorkspaceId}/projects/\${proj.id}\`}`);
+    expect(projectsPage).toContain('Open Project Overview');
+  });
+
+  it('Breadcrumbs already label the project detail param', () => {
+    const breadcrumbs = readFileSync(resolve(process.cwd(), 'src/components/ui/Breadcrumbs.tsx'), 'utf8');
+    expect(breadcrumbs).toContain('/w/:workspaceId/projects/:projectId');
+    expect(breadcrumbs).toMatch(/projectId:\s*'Project'/);
+  });
+});
