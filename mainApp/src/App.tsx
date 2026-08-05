@@ -32,6 +32,7 @@ const Habits          = lazy(() => import('./pages/Habits').then(module => ({ de
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
 const KnowledgePage   = lazy(() => import('./pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
+const InsightsPage    = lazy(() => import('./pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
@@ -170,6 +171,7 @@ export default function App() {
                 <Route path="/knowledge"  element={<KnowledgePage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
+                <Route path="/insights"    element={<InsightsPage />} />
                 <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
