@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-rout
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon, ClipboardList,
-  Clock, LineChart, BarChart3, BookOpen, Calendar, Settings, ShieldCheck,
+  Clock, LineChart, BookOpen, Calendar, Settings, ShieldCheck,
   ChevronDown, ChevronLeft, PanelLeftOpen, Search, ArrowLeft, Bell, Menu
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
@@ -109,7 +109,6 @@ export function WorkspaceLayout() {
       label: 'Insights',
       items: [
         { to: `/w/${activeWs.id}/reports`, key: 'reports', label: 'Reports', icon: LineChart, color: 'text-blue-400' },
-        { to: `/w/${activeWs.id}/analytics`, key: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-teal-400' },
       ],
     },
     {

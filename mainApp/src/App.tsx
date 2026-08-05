@@ -141,7 +141,7 @@ export default function App() {
                 <Route path="qa" element={<QADashboardPage />} />
                 <Route path="activity" element={<ActivityFeedPage />} />
                 <Route path="reports" element={<ReportsAnalyticsPage />} />
-                <Route path="analytics" element={<ReportsAnalyticsPage />} />
+                <Route path="analytics" element={<Navigate to="reports" replace />} />
                 <Route path="knowledge" element={<TeamKnowledgePage />} />
                 <Route path="calendar" element={<TeamWorkspace />} />
                 <Route path="settings" element={<WorkspaceSettingsPage />} />

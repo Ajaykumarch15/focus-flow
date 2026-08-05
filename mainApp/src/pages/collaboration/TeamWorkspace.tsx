@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
+  Layers, FolderOpen, AlertOctagon, BookOpen, Calendar,
   ShieldCheck, Plus, GitBranch, Clock,
   ChevronDown, Flame,
   Zap, Edit3, UserCheck, Rocket, Gauge, ListChecks, CalendarClock, FileWarning
@@ -14,6 +14,7 @@ import { MemberRole, CollaborativeTask } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
 import { selectNowStrip } from '../../lib/nowSelectors';
 import { selectTeamToday } from '../../lib/missionControlSelectors';
+import { computeVelocity } from '../../lib/collaborationKpis';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { formatHours } from '../../utils/time';
 import { TeamTodaySection } from '../../components/collaboration/TeamTodaySection';
@@ -28,17 +29,9 @@ import { getWorkspaceMaturityLevel, isFeatureVisibleForMaturity } from '../../ut
 // ── Motion Variants ────────────────────────────────────────────────────────────
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
-// ── P6-T1: pure board computation over live store data ─────────────────────────
-// The server does not persist an `actualVelocity`, so the Active Sprint Velocity
-// card derives it from real task data: committed effort delivered (sum of
-// `estimatedHours` across `done` tasks). Returns 0 when nothing is done yet.
-export function computeSprintVelocity(tasks: Pick<CollaborativeTask, 'sprintStatus' | 'estimatedHours'>[]): number {
-  return tasks
-    .filter((t) => t.sprintStatus === 'done')
-    .reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
-}
-
 // ── UX-R1: pure helpers for the Mission Control dashboard ──────────────────────
+// Sprint velocity lives in the shared `lib/collaborationKpis` module (S4-T2) so
+// Mission Control and Project Reports read the same computed source (R3/R5).
 // All dashboard widgets read these over live store data; nothing is fabricated.
 
 /** Open work assigned to a user (not yet done): { count, hours }. */
@@ -89,7 +82,7 @@ export function computeWorkspaceProgress(
   return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 
-type TeamTab = 'dashboard' | 'projects' | 'docs' | 'calendar' | 'analytics' | 'admin';
+type TeamTab = 'dashboard' | 'projects' | 'docs' | 'calendar' | 'admin';
 
 export function TeamWorkspace() {
   const {
@@ -138,7 +131,10 @@ export function TeamWorkspace() {
     () => (activeSprint ? wsTasks.filter((t) => t.sprintId === activeSprint.id) : []),
     [wsTasks, activeSprint],
   );
-  const activeSprintVelocity = useMemo(() => computeSprintVelocity(activeSprintTasks), [activeSprintTasks]);
+  const activeSprintVelocity = useMemo(
+    () => computeVelocity(activeSprintTasks, activeSprint?.targetVelocity ?? 0).delivered,
+    [activeSprintTasks, activeSprint?.targetVelocity],
+  );
 
   // UX-R1: Mission Control data — everything derived, nothing fabricated.
   const currentUserId = useAuthStore.getState().user?._id ?? null;
@@ -324,7 +320,6 @@ export function TeamWorkspace() {
             { id: 'projects', key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', count: wsProjects.length },
             { id: 'docs', key: null, label: 'Knowledge Base', icon: BookOpen, color: 'text-purple-400', count: wsDocs.length },
             { id: 'calendar', key: null, label: 'Team Calendar', icon: Calendar, color: 'text-emerald-400' },
-            { id: 'analytics', key: 'analytics', label: 'Analytics & Reports', icon: BarChart3, color: 'text-sky-400' },
             { id: 'admin', key: 'admin', label: 'Teams & Access', icon: ShieldCheck, color: 'text-orange-400' },
           ];
 
@@ -752,30 +747,6 @@ export function TeamWorkspace() {
           {events.length === 0 && (
             <p className="text-xs text-surface-500 italic py-4 text-center">No calendar events yet.</p>
           )}
-        </div>
-      )}
-
-      {/* ── TAB 7: TEAM ANALYTICS & REPORTS ── */}
-      {activeTab === 'analytics' && (
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-          <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-            <BarChart3 size={18} className="text-sky-400" /> Team Cycle Time & Focus Metrics
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-sky-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">Average Task Cycle Time</p>
-            </div>
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-emerald-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">Daily Focus Time per Developer</p>
-            </div>
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-purple-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">PR Merge Rate within 24h</p>
-            </div>
-          </div>
-          <p className="text-xs text-surface-500 italic">Cycle-time and focus metrics appear once the workspace has sprint history.</p>
         </div>
       )}
 
