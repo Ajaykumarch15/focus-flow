@@ -1,12 +1,16 @@
 import type { Task, JournalEntry } from '../types';
 import type { WorkLog } from '../store/useWorkLogStore';
 import type { MemorySession } from './memorySelectors';
-import { computeRangeStats } from './reportsSelectors';
+import { computeRangeStats, getComparisonDelta } from './reportsSelectors';
 import {
+  dayKeyInTz,
+  endOfIsoWeekInTz,
   formatDateShort,
+  formatDateShortInTz,
   formatHours,
   formatTimeOfDay,
   startOfDayInTz,
+  startOfIsoWeekInTz,
 } from '../utils/time';
 
 // ── PI-1.1: pure Daily Insights selectors (Phase PI · DCX) ─────────────────────
@@ -62,6 +66,7 @@ export interface DailyInsightsView {
 // A focus block counts as "deep work" at 25+ uninterrupted minutes.
 const DEEP_WORK_MIN_MS = 25 * 60 * 1000;
 const MS_PER_DAY = 86400000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
 
 function confidenceFor(score: number, highAt: number, mediumAt = 1): Confidence {
   if (score >= highAt) return 'high';
@@ -421,5 +426,275 @@ export function selectDailyInsights(input: DailyInsightsInput): DailyInsightsVie
     hasData: mostImportant !== null || visible.length > 0,
     periodLabel,
     sessionCount: stats.sessionCount,
+  };
+}
+
+// ── PI-1.2: pure Weekly Insights selectors (Phase PI · DCX) ───────────────────
+// The weekly layer shares the daily honesty contract: deterministic rules only,
+// every number traces to `computeRangeStats` or the raw stores, and nothing is
+// invented. The period is the current ISO week (Monday–Sunday) in the user's
+// timezone, bounded in src/utils/time.ts. Week-over-week comparisons appear only
+// when the prior week actually has focus data AND the current week does too —
+// a missing baseline, or a blank current week, renders honest absence instead.
+
+export interface WeeklyInsight extends DailyInsight {}
+
+export interface WeeklyInsightsInput extends DailyInsightsInput {}
+
+export interface WeeklyInsightsView {
+  mostImportant: WeeklyInsight | null;
+  weekly: WeeklyInsight[];
+  hasData: boolean;
+  periodLabel: string;
+  sessionCount: number;
+  activeDays: number;
+}
+
+// ── Weekly insight builders ───────────────────────────────────────────────────
+
+function buildWeeklyFocusInsight(
+  focusedMs: number,
+  sessionCount: number,
+  focusScore: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  return {
+    id: 'weekly-focus',
+    category: 'Focus',
+    title: 'Focus time this week',
+    observation: `You focused ${formatHours(focusedMs)} this week across ${sessionCount} session${sessionCount === 1 ? '' : 's'}.`,
+    metrics: [
+      { label: 'Focused time', value: formatHours(focusedMs) },
+      { label: 'Sessions', value: String(sessionCount) },
+      ...(focusScore > 0 ? [{ label: 'Avg focus quality', value: `${focusScore}%` }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(sessionCount, 6, 2),
+  };
+}
+
+function buildWeeklyTrendInsight(
+  thisMs: number,
+  prevMs: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  const delta = getComparisonDelta(thisMs, prevMs);
+  const flat = delta.pct === 0;
+  return {
+    id: 'weekly-trend',
+    category: 'Consistency',
+    title: 'Weekly focus trend',
+    observation: flat
+      ? `You focused ${formatHours(thisMs)} this week, matching last week's ${formatHours(prevMs)}.`
+      : `You focused ${formatHours(thisMs)} this week, ${delta.pct}% ${delta.up ? 'more' : 'less'} than last week's ${formatHours(prevMs)}.`,
+    metrics: [
+      { label: 'This week', value: formatHours(thisMs) },
+      { label: 'Last week', value: formatHours(prevMs) },
+      { label: 'Change', value: `${delta.up ? '+' : '-'}${delta.pct}%` },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: flat || delta.up ? 'high' : 'medium',
+  };
+}
+
+function buildWeeklyDeepWorkInsight(
+  deepSessions: MemorySession[],
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  const deepMs = deepSessions.reduce((acc, s) => acc + s.activeTime, 0);
+  return {
+    id: 'weekly-deep-work',
+    category: 'Work Habits',
+    title: 'Deep work this week',
+    observation: `You spent ${formatHours(deepMs)} in ${deepSessions.length} deep-work session${deepSessions.length === 1 ? '' : 's'} of 25+ minutes this week.`,
+    metrics: [
+      { label: 'Deep work time', value: formatHours(deepMs) },
+      { label: 'Deep sessions', value: String(deepSessions.length) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(deepSessions.length, 4, 1),
+  };
+}
+
+function buildWeeklyConsistencyInsight(
+  activeDays: number,
+  focusedMs: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  const insight: WeeklyInsight = {
+    id: 'weekly-consistency',
+    category: 'Consistency',
+    title: 'Active days this week',
+    observation: `You focused on ${activeDays} of 7 days this week.`,
+    metrics: [
+      { label: 'Active days', value: `${activeDays}/7` },
+      { label: 'Focused time', value: formatHours(focusedMs) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(activeDays, 5, 3),
+  };
+  if (activeDays <= 2) {
+    insight.action = {
+      label: 'Protect a block each day',
+      detail: 'Even a short daily session builds a steadier rhythm than one long push.',
+    };
+  }
+  return insight;
+}
+
+function buildWeeklyCompletedInsight(
+  completed: number,
+  completionRate: number,
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  return {
+    id: 'weekly-completed',
+    category: 'Tasks',
+    title: 'Tasks completed this week',
+    observation: `You completed ${completed} task${completed === 1 ? '' : 's'} this week.`,
+    metrics: [
+      { label: 'Completed', value: String(completed) },
+      ...(completionRate > 0 ? [{ label: 'Completion rate', value: `${completionRate}%` }] : []),
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: 'high',
+  };
+}
+
+function buildWeeklyWorkLogInsight(
+  items: { logId: string; text: string }[],
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  const logCount = new Set(items.map((i) => i.logId)).size;
+  return {
+    id: 'weekly-worklog',
+    category: 'Knowledge',
+    title: 'Work-log completions',
+    observation: `You logged ${items.length} completed item${items.length === 1 ? '' : 's'} across your work logs this week.`,
+    metrics: [
+      { label: 'Completed items', value: String(items.length) },
+      { label: 'Work logs touched', value: String(logCount) },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(items.length, 4, 1),
+  };
+}
+
+function buildWeeklyJournalInsight(
+  journals: JournalEntry[],
+  periodLabel: string,
+  start: number,
+  end: number,
+): WeeklyInsight {
+  const avgMood = Math.round(journals.reduce((a, j) => a + j.mood, 0) / journals.length);
+  const avgFocus = Math.round(journals.reduce((a, j) => a + j.focusRating, 0) / journals.length);
+  return {
+    id: 'weekly-journal',
+    category: 'Reflection',
+    title: 'Journal reflection',
+    observation: `You wrote ${journals.length} journal entr${journals.length === 1 ? 'y' : 'ies'} this week.`,
+    metrics: [
+      { label: 'Entries', value: String(journals.length) },
+      { label: 'Avg mood', value: `${avgMood}/5` },
+      { label: 'Avg focus', value: `${avgFocus}/5` },
+    ],
+    period: { label: periodLabel, start, end },
+    confidence: confidenceFor(journals.length, 3, 1),
+  };
+}
+
+// ── Weekly Most Important selection (deterministic rule, first match wins) ────
+// 1) week-over-week trend (only when a real baseline exists) → 2) completed
+// tasks → 3) weekly focus total → none.
+
+function pickWeeklyMostImportant(weekly: WeeklyInsight[]): WeeklyInsight | null {
+  return weekly.find((i) => i.id === 'weekly-trend')
+    ?? weekly.find((i) => i.id === 'weekly-completed')
+    ?? weekly.find((i) => i.id === 'weekly-focus')
+    ?? null;
+}
+
+// ── selectWeeklyInsights ──────────────────────────────────────────────────────
+
+export function selectWeeklyInsights(input: WeeklyInsightsInput): WeeklyInsightsView {
+  const now = input.now ?? Date.now();
+  const timeZone = input.timeZone ?? 'UTC';
+  const start = startOfIsoWeekInTz(now, timeZone);
+  const end = endOfIsoWeekInTz(now, timeZone);
+  const periodLabel = `Week · ${formatDateShortInTz(start, timeZone)} – ${formatDateShortInTz(end, timeZone)}`;
+
+  const sessionLikes = input.sessions.map((s) => ({
+    id: s.id,
+    taskId: s.taskId,
+    startTime: s.startTime,
+    activeTime: s.activeTime,
+    totalPauseDuration: s.totalPauseDuration,
+    focusScore: s.focusScore ?? undefined,
+  }));
+  const stats = computeRangeStats(sessionLikes, input.tasks, start, end);
+  const weekSessions = input.sessions.filter((s) => s.startTime >= start && s.startTime <= end);
+
+  const prevStats = computeRangeStats(sessionLikes, input.tasks, start - MS_PER_WEEK, start - 1);
+
+  const weekly: WeeklyInsight[] = [];
+
+  if (stats.focusedMs > 0) {
+    weekly.push(buildWeeklyFocusInsight(stats.focusedMs, stats.sessionCount, stats.focusScore, periodLabel, start, end));
+  }
+
+  if (stats.focusedMs > 0 && prevStats.focusedMs > 0) {
+    weekly.push(buildWeeklyTrendInsight(stats.focusedMs, prevStats.focusedMs, periodLabel, start, end));
+  }
+
+  const deepSessions = weekSessions.filter((s) => s.activeTime >= DEEP_WORK_MIN_MS);
+  if (deepSessions.length > 0) {
+    weekly.push(buildWeeklyDeepWorkInsight(deepSessions, periodLabel, start, end));
+  }
+
+  const activeDays = new Set(weekSessions.map((s) => dayKeyInTz(s.startTime, timeZone))).size;
+  if (activeDays >= 2) {
+    weekly.push(buildWeeklyConsistencyInsight(activeDays, stats.focusedMs, periodLabel, start, end));
+  }
+
+  if (stats.completedTasks > 0) {
+    weekly.push(buildWeeklyCompletedInsight(stats.completedTasks, stats.completionRate, periodLabel, start, end));
+  }
+
+  const itemsThisWeek = input.workLogs.flatMap((log) =>
+    (log.completedItems ?? [])
+      .filter((item) => item.completedAt >= start && item.completedAt <= end)
+      .map((item) => ({ logId: log._id, text: item.text })),
+  );
+  if (itemsThisWeek.length > 0) {
+    weekly.push(buildWeeklyWorkLogInsight(itemsThisWeek, periodLabel, start, end));
+  }
+
+  const weekJournals = input.journals.filter((j) => j.createdAt >= start && j.createdAt <= end);
+  if (weekJournals.length > 0) {
+    weekly.push(buildWeeklyJournalInsight(weekJournals, periodLabel, start, end));
+  }
+
+  const mostImportant = pickWeeklyMostImportant(weekly);
+  const visible = weekly.filter((i) => i.id !== mostImportant?.id);
+
+  return {
+    mostImportant,
+    weekly: visible,
+    hasData: mostImportant !== null || visible.length > 0,
+    periodLabel,
+    sessionCount: stats.sessionCount,
+    activeDays,
   };
 }

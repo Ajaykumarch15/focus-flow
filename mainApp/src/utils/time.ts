@@ -176,6 +176,24 @@ export function getIsoWeekEndKey(timeZone = getTimezone()): string {
   return addDaysToKey(getIsoWeekStartKey(timeZone), 6);
 }
 
+/**
+ * Monday-midnight epoch ms of the ISO week a timestamp falls in, for a timezone.
+ * ISO weeks run Monday–Sunday; the instant is the user-tz midnight of Monday so
+ * a range filter can use it directly as a window start.
+ */
+export function startOfIsoWeekInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  const key = dayKeyInTz(timestamp, timeZone);
+  const [y, m, d] = key.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
+  const daysSinceMonday = (dow + 6) % 7;
+  return localDateToUtc(addDaysToKey(key, -daysSinceMonday), timeZone);
+}
+
+/** Sunday 23:59:59.999 epoch ms ending the ISO week a timestamp falls in. */
+export function endOfIsoWeekInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  return startOfIsoWeekInTz(timestamp, timeZone) + 7 * 86400000 - 1;
+}
+
 // ── Core date helpers (LOCAL TIME ONLY) ──────────────────────────────────────
 // Every function below uses local system time. No UTC. No toISOString().
 
@@ -359,6 +377,18 @@ export function formatDate(date: Date | number): string {
 export function formatDateShort(date: Date | number): string {
   return new Date(date).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
+  });
+}
+
+/**
+ * Format the calendar date a timestamp falls on, in a chosen timezone — "Sun,
+ * Aug 9". Unlike `formatDateShort` (local wall clock), this never shifts across
+ * midnight, so a range label matches the same timezone the range was computed in.
+ */
+export function formatDateShortInTz(timestamp: number | string, timeZone = getTimezone()): string {
+  const [y, m, d] = dayKeyInTz(timestamp, timeZone).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
   });
 }
 

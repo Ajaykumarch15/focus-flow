@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectDailyInsights, type DailyInsight } from '../insightsSelectors';
+import { selectDailyInsights, selectWeeklyInsights, type DailyInsight } from '../insightsSelectors';
 import type { MemorySession } from '../memorySelectors';
 import type { Task, JournalEntry } from '../../types';
 import type { WorkLog } from '../../store/useWorkLogStore';
@@ -296,5 +296,230 @@ describe('selectDailyInsights (PI-1.1)', () => {
     });
     expect(view.sessionCount).toBe(1);
     expect(view.todays.find((i) => i.id === 'interruptions')).toBeUndefined();
+  });
+});
+
+// ── PI-1.2: pure Weekly Insights selector tests (Phase PI) ────────────────────
+// The weekly layer must be deterministic, reuse the shared analytics layer, and
+// compare against last week only when that baseline actually has focus data.
+
+const WEEK_START = Date.UTC(2026, 7, 3); // Mon Aug 3 2026 (ISO week of NOW)
+const WEEK_END = Date.UTC(2026, 7, 9, 23, 59, 59, 999); // Sun Aug 9 2026
+const PREV_START = WEEK_START - 7 * 86400000; // Mon Jul 27 2026
+const PREV_END = WEEK_START - 1; // Sun Aug 2 2026
+const MS_PER_DAY_WEEK = 86400000;
+
+function weekBase() {
+  return {
+    sessions: [
+      session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 2 * HOUR }),
+      session('w-2', { startTime: WEEK_START + MS_PER_DAY_WEEK + 9 * HOUR, activeTime: 3 * HOUR }),
+    ],
+    tasks: [task('t-1', { status: 'completed', updatedAt: WEEK_START + 2 * MS_PER_DAY_WEEK + 11 * HOUR })],
+    journals: [journal('j-1', WEEK_START + MS_PER_DAY_WEEK + 10 * HOUR)],
+    workLogs: [log('l-1', [{ completedAt: WEEK_START + 9 * HOUR, text: 'Shipped export' }])],
+    dailyGoalMs: GOAL,
+    now: NOW,
+    timeZone: TZ,
+  };
+}
+
+describe('selectWeeklyInsights (PI-1.2)', () => {
+  it('labels the current ISO week (Monday–Sunday)', () => {
+    const view = selectWeeklyInsights(weekBase());
+    expect(view.periodLabel).toBe('Week · Mon, Aug 3 – Sun, Aug 9');
+    expect(view.sessionCount).toBe(2);
+  });
+
+  it('reports weekly focus time across the week, not just today', () => {
+    const view = selectWeeklyInsights(weekBase());
+    const insight = findById(view.weekly, 'weekly-focus');
+    expect(insight.observation).toContain('You focused 5.0h this week across 2 sessions');
+    expect(insight.metrics).toContainEqual({ label: 'Sessions', value: '2' });
+    expect(insight.metrics).toContainEqual({ label: 'Avg focus quality', value: '80%' });
+  });
+
+  it('compares against last week only when that baseline has focus data', () => {
+    const withBaseline = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [
+        session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 4 * HOUR }),
+        session('w-prev', { startTime: PREV_START + 9 * HOUR, activeTime: 3 * HOUR }),
+      ],
+    });
+    expect(withBaseline.mostImportant?.id).toBe('weekly-trend');
+    expect(withBaseline.mostImportant?.observation).toContain('33% more than last week');
+    expect(withBaseline.mostImportant?.metrics).toContainEqual({ label: 'Change', value: '+33%' });
+
+    const noBaseline = selectWeeklyInsights(weekBase());
+    expect(noBaseline.weekly.find((i) => i.id === 'weekly-trend')).toBeUndefined();
+    expect(noBaseline.mostImportant).not.toBeNull();
+  });
+
+  it('stays silent on the trend when the current week has no focus', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [session('w-prev', { startTime: PREV_START + 9 * HOUR, activeTime: 3 * HOUR })],
+      tasks: [],
+      journals: [],
+      workLogs: [],
+    });
+    expect(view.weekly.find((i) => i.id === 'weekly-trend')).toBeUndefined();
+    expect(view.hasData).toBe(false);
+    expect(view.activeDays).toBe(0);
+  });
+
+  it('treats an equal week as matching, not as zero change', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [
+        session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 4 * HOUR }),
+        session('w-prev', { startTime: PREV_START + 9 * HOUR, activeTime: 4 * HOUR }),
+      ],
+    });
+    expect(view.mostImportant?.id).toBe('weekly-trend');
+    expect(view.mostImportant?.observation).toContain('matching last week');
+    expect(view.mostImportant?.metrics).toContainEqual({ label: 'Change', value: '+0%' });
+  });
+
+  it('surfaces weekly deep work from 25+ minute sessions', () => {
+    const deep = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [
+        session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 40 * MIN }),
+        session('w-2', { startTime: WEEK_START + MS_PER_DAY_WEEK + 9 * HOUR, activeTime: 15 * MIN }),
+      ],
+    });
+    expect(deep.weekly.find((i) => i.id === 'weekly-deep-work')?.observation).toContain('1 deep-work session');
+  });
+
+  it('counts active days across the week', () => {
+    const view = selectWeeklyInsights(weekBase());
+    const insight = findById(view.weekly, 'weekly-consistency');
+    expect(insight.observation).toContain('You focused on 2 of 7 days this week');
+    expect(insight.action?.label).toBe('Protect a block each day');
+    expect(view.activeDays).toBe(2);
+  });
+
+  it('does not emit an active-days insight for a single active day', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [session('w-1', { startTime: WEEK_START + 9 * HOUR })],
+    });
+    expect(view.weekly.find((i) => i.id === 'weekly-consistency')).toBeUndefined();
+  });
+
+  it('counts tasks completed within the week via the analytics layer', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      tasks: [
+        task('t-1', { status: 'completed', updatedAt: WEEK_START + 2 * MS_PER_DAY_WEEK + 11 * HOUR }),
+        task('t-old', { status: 'completed', updatedAt: PREV_END - 3600000 }),
+      ],
+    });
+    expect(view.mostImportant?.id).toBe('weekly-completed');
+    expect(view.mostImportant?.observation).toContain('1 task');
+    expect(view.weekly.find((i) => i.id === 'weekly-completed')).toBeUndefined();
+  });
+
+  it('counts work-log completions within the week only', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      workLogs: [log('l-1', [
+        { completedAt: WEEK_START + 9 * HOUR, text: 'Shipped export' },
+        { completedAt: WEEK_END - 1, text: 'Closed PR' },
+        { completedAt: PREV_END - 3600000, text: 'Old item' },
+      ])],
+    });
+    const insight = findById(view.weekly, 'weekly-worklog');
+    expect(insight.observation).toContain('2 completed items');
+  });
+
+  it('reports weekly journal reflections with averages', () => {
+    const view = selectWeeklyInsights({
+      ...weekBase(),
+      journals: [
+        journal('j-1', WEEK_START + 9 * HOUR, { mood: 4, focusRating: 3 }),
+        journal('j-2', WEEK_START + MS_PER_DAY_WEEK + 10 * HOUR, { mood: 5, focusRating: 4 }),
+        journal('j-old', PREV_END - 3600000, { mood: 2, focusRating: 1 }),
+      ],
+    });
+    const insight = findById(view.weekly, 'weekly-journal');
+    expect(insight.observation).toContain('2 journal entries');
+    expect(insight.metrics).toContainEqual({ label: 'Avg mood', value: '5/5' });
+    expect(insight.metrics).toContainEqual({ label: 'Avg focus', value: '4/5' });
+  });
+
+  it('features the trend, then completed tasks, then focus as weekly Most Important', () => {
+    const withTrend = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [
+        session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 4 * HOUR }),
+        session('w-prev', { startTime: PREV_START + 9 * HOUR, activeTime: 3 * HOUR }),
+      ],
+    });
+    expect(withTrend.mostImportant?.id).toBe('weekly-trend');
+    expect(withTrend.weekly.map((i) => i.id)).not.toContain('weekly-trend');
+
+    const noTrend = selectWeeklyInsights({ ...weekBase(), sessions: [session('w-1', { startTime: WEEK_START + 9 * HOUR })] });
+    expect(noTrend.mostImportant?.id).toBe('weekly-completed');
+
+    const focusOnly = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: [session('w-1', { startTime: WEEK_START + 9 * HOUR })],
+      tasks: [],
+      journals: [],
+      workLogs: [],
+    });
+    expect(focusOnly.mostImportant?.id).toBe('weekly-focus');
+  });
+
+  it('excludes last week sessions from every weekly metric', () => {
+    const view = selectWeeklyInsights({
+      sessions: [
+        session('w-1', { startTime: WEEK_START + 9 * HOUR, activeTime: 2 * HOUR }),
+        session('w-prev', { startTime: PREV_START + 9 * HOUR, activeTime: 6 * HOUR, pauseCount: 5 }),
+      ],
+      tasks: [],
+      journals: [],
+      workLogs: [],
+      dailyGoalMs: 0,
+      now: NOW,
+      timeZone: TZ,
+    });
+    expect(view.sessionCount).toBe(1);
+    expect(view.activeDays).toBe(1);
+    expect(view.weekly.find((i) => i.id === 'weekly-consistency')).toBeUndefined();
+  });
+
+  it('scales weekly confidence with session volume', () => {
+    const sparse = selectWeeklyInsights(weekBase());
+    expect(findById(sparse.weekly, 'weekly-focus').confidence).toBe('medium');
+
+    const busy = selectWeeklyInsights({
+      ...weekBase(),
+      sessions: Array.from({ length: 7 }, (_, i) => session(`w-${i}`, {
+        startTime: WEEK_START + i * 86400000 + 9 * HOUR,
+        activeTime: 2 * HOUR,
+      })),
+    });
+    expect(findById(busy.weekly, 'weekly-focus').confidence).toBe('high');
+  });
+
+  it('emits no insight and no fabrication when the week has no data', () => {
+    const view = selectWeeklyInsights({
+      sessions: [],
+      tasks: [],
+      journals: [],
+      workLogs: [],
+      dailyGoalMs: GOAL,
+      now: NOW,
+      timeZone: TZ,
+    });
+    expect(view.hasData).toBe(false);
+    expect(view.mostImportant).toBeNull();
+    expect(view.weekly).toEqual([]);
+    expect(view.activeDays).toBe(0);
+    expect(view.periodLabel).toBe('Week · Mon, Aug 3 – Sun, Aug 9');
   });
 });

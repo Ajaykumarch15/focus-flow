@@ -6,7 +6,7 @@ import axe from 'axe-core';
 import { InsightsPage } from '../InsightsPage';
 import { useStore } from '../../store/useStore';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
-import { startOfDay } from '../../utils/time';
+import { startOfDay, startOfIsoWeekInTz } from '../../utils/time';
 import type { Task, JournalEntry } from '../../types';
 import type { WorkLog } from '../../store/useWorkLogStore';
 
@@ -207,6 +207,44 @@ describe('InsightsPage (PI-1.1)', () => {
       el.className.includes('grid-cols-1') && el.className.includes('md:grid-cols-2') && el.className.includes('xl:grid-cols-3'),
     );
     expect(grid).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it('renders the This Week section alongside Today from tracked data', async () => {
+    const weekStart = startOfIsoWeekInTz(Date.now(), 'UTC');
+    apiMock.sessions.list.mockResolvedValue([
+      sessionDoc('s-today', { taskId: 't-1', pauseCount: 2, totalPauseDuration: 10 * 60 * 1000 }),
+      sessionDoc('w-mon', { taskId: 't-2', startTime: weekStart + 9 * HOUR, activeTime: 2 * HOUR }),
+      sessionDoc('w-tue', { taskId: 't-1', startTime: weekStart + 33 * HOUR, activeTime: 90 * 60 * 1000 }),
+    ]);
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain("Today's Insights");
+    expect(text).toContain("This Week's Insights");
+    expect(text).toContain('Focus time this week');
+    expect(text).toContain('Active days this week');
+    expect(text).toContain('Weekly Focus');
+    expect(text).toContain('Week ·');
+    act(() => root.unmount());
+  });
+
+  it('shows the weekly section when today has no data yet', async () => {
+    const weekStart = startOfIsoWeekInTz(Date.now(), 'UTC');
+    apiMock.sessions.list.mockResolvedValue([
+      sessionDoc('w-mon', { taskId: 't-1', startTime: weekStart + 9 * HOUR, activeTime: 2 * HOUR }),
+    ]);
+    useStore.setState({ tasks: [], journals: [], profile: useStore.getState().profile });
+    useWorkLogStore.setState({ todayLog: null, activeLogs: [], closedLogs: [] });
+    const { container, root } = render(<InsightsPage />);
+    await flush();
+
+    const text = container.textContent ?? '';
+    expect(text).toContain("This Week's Insights");
+    expect(text).toContain('Focus time this week');
+    expect(text).toContain('Weekly Focus');
+    expect(text).not.toContain('Not enough data yet.');
     act(() => root.unmount());
   });
 

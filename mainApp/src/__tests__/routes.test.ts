@@ -239,3 +239,30 @@ describe('PI-1.1 regression: personal insights deep-link', () => {
     expect(selectors).toContain('period');
   });
 });
+
+describe('PI-1.2 regression: weekly insights on the same page', () => {
+  it('insights page renders the weekly section as a Today companion, not a KPI clone', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/pages/InsightsPage.tsx'), 'utf8');
+    expect(page).toContain("This Week's Insights");
+    expect(page).toContain('selectWeeklyInsights');
+    expect(page).toContain('Weekly Focus');
+    expect(page).toMatch(/grid-cols-1\s+md:grid-cols-2\s+xl:grid-cols-3/);
+    expect(page).not.toMatch(/AnalyticsSection|recharts|BarChart|PieChart/);
+  });
+
+  it('weekly insights come from a pure ISO-week selector with an honest baseline rule', () => {
+    const selectors = readFileSync(resolve(process.cwd(), 'src/lib/insightsSelectors.ts'), 'utf8');
+    expect(selectors).toContain('export function selectWeeklyInsights');
+    expect(selectors).toContain('startOfIsoWeekInTz');
+    expect(selectors).toContain('getComparisonDelta');
+    expect(selectors).toContain('prevStats');
+    expect(selectors).toContain('weekly-trend');
+  });
+
+  it('the ISO week is bounded in src/utils/time.ts, not inlined in the selector', () => {
+    const time = readFileSync(resolve(process.cwd(), 'src/utils/time.ts'), 'utf8');
+    expect(time).toContain('export function startOfIsoWeekInTz');
+    expect(time).toContain('export function endOfIsoWeekInTz');
+    expect(time).toContain('export function formatDateShortInTz');
+  });
+});
