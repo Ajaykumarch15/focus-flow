@@ -9,14 +9,16 @@ import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useWorkLogStore } from '../../store/useWorkLogStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { selectFocusSession, type FocusSessionView } from '../../lib/focusSelectors';
+import { buildCompletedItemTitle } from '../../lib/focusCompletion';
 import { PauseCapturePanel } from './PauseCapturePanel';
+import { CompletionPromptPanel } from './CompletionPromptPanel';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Select } from '../ui/Select';
 import { Textarea } from '../ui/Textarea';
 import { Skeleton } from '../ui/Skeleton';
-import { formatDuration, formatHours, formatDateShort } from '../../utils/time';
+import { formatDuration, formatHours, formatDateShort, formatMs } from '../../utils/time';
 
 // ── FocusSessionPanel (S1-T5) ─────────────────────────────────────────────────
 // The primary execution workspace at /focus. Distraction-free column that
@@ -57,13 +59,13 @@ export function FocusSessionPanel() {
   const {
     tasks, journals, activeTaskId, activeSessionId, activeTimerState,
     dataLoading, dataError, loadAll, startTimer, pauseTimer, resumeTimer, stopTimer,
-    toggleSubtask, addJournal, getTodayTime,
+    toggleSubtask, addJournal, completeTask, getTodayTime,
   } = useStore();
   const {
     workspaces, projects, sprints, features,
     tasks: collabTasks, blockers,
   } = useCollaborationStore();
-  const { activeLogs, closedLogs } = useWorkLogStore();
+  const { activeLogs, closedLogs, addCompleted } = useWorkLogStore();
   const { display } = useActiveTimer();
   const navigate = useNavigate();
 
@@ -178,6 +180,15 @@ export function FocusSessionPanel() {
   const handleResume = () => { if (view.taskId) resumeTimer(view.taskId); };
   const handleStop = () => { if (view.taskId) void stopTimer(view.taskId); };
 
+  const handleComplete = async () => {
+    if (!view.taskId || !view.title) return;
+    await completeTask(view.taskId);
+    if (linkedLog) {
+      const trackedLabel = view.totalTimeMs != null && view.totalTimeMs > 0 ? formatMs(view.totalTimeMs) : undefined;
+      await addCompleted(linkedLog.id, buildCompletedItemTitle(view.title, trackedLabel));
+    }
+  };
+
   const toggleSubtaskHandler = (subtaskId: string, completed: boolean) => {
     if (view.taskId) void toggleSubtask(view.taskId, subtaskId, completed);
   };
@@ -277,6 +288,11 @@ export function FocusSessionPanel() {
                 <Square size={16} fill="currentColor" />
               </Button>
             )}
+            {!view.completed && (
+              <Button variant="success" size="lg" className="px-5" leftIcon={<CheckCircle2 size={16} />} onClick={handleComplete}>
+                Complete Task
+              </Button>
+            )}
           </div>
 
           <div className="w-full sm:max-w-sm">
@@ -303,6 +319,13 @@ export function FocusSessionPanel() {
       <PauseCapturePanel
         paused={paused}
         workLogId={linkedLog ? linkedLog.id : null}
+        workLogTitle={linkedLog ? linkedLog.title : null}
+      />
+
+      {/* ═══════════ COMPLETION PROMPT (S2-T3) ═══════════ */}
+      <CompletionPromptPanel
+        completed={view.completed}
+        taskId={view.taskId}
         workLogTitle={linkedLog ? linkedLog.title : null}
       />
 

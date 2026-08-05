@@ -124,9 +124,10 @@ describe('FocusSessionPanel (S1-T5)', () => {
       stopTimer: vi.fn(async () => {}),
       toggleSubtask: vi.fn(async () => {}),
       addJournal: vi.fn(async () => {}),
+      completeTask: vi.fn(async () => {}),
       getTodayTime: () => 0,
     });
-    useWorkLogStore.setState({ activeLogs: [], closedLogs: [] });
+    useWorkLogStore.setState({ activeLogs: [], closedLogs: [], addCompleted: vi.fn(async () => {}) });
     useCollaborationStore.setState({
       workspaces: [],
       activeWorkspaceId: 'ws-1',
@@ -351,6 +352,60 @@ describe('FocusSessionPanel (S1-T5)', () => {
     expect(text).toContain('This task is complete');
     const start = buttonByText(container, 'Start Focus Session');
     expect(start?.disabled).toBe(true);
+    act(() => root.unmount());
+  });
+
+  it('completes the focused task and logs a completed item to the linked work log', async () => {
+    const log = {
+      _id: 'log-1', title: 'AI copilot log', status: 'in-progress', isActive: true,
+      taskRef: { _id: 't-1', title: 'Done task', color: '#fff', category: 'Work', totalTime: 0 },
+      updatedAt: new Date().toISOString(), blockerList: [], workEntries: [], currentWork: '', plan: '',
+    } as unknown as WorkLog;
+    useStore.setState({
+      tasks: [mkTask('t-1', { title: 'Done task', status: 'active', totalTime: 2 * 3_600_000 + 30 * 60_000 })],
+      activeTaskId: 't-1',
+      activeSessionId: 's-1',
+      activeTimerState: 'running',
+    });
+    timerMock.activeTaskId = 't-1';
+    timerMock.activeTimerState = 'running';
+    useWorkLogStore.setState({ activeLogs: [log], closedLogs: [] });
+
+    const { container, root } = render(<FocusSessionPanel />);
+    act(() => buttonByText(container, 'Complete Task')!.click());
+    await act(async () => {});
+
+    expect(useStore.getState().completeTask).toHaveBeenCalledWith('t-1');
+    expect(useWorkLogStore.getState().addCompleted).toHaveBeenCalledWith('log-1', 'Done task (2h 30m)');
+    act(() => root.unmount());
+  });
+
+  it('completes the task without a completed item when no work log is linked', async () => {
+    useStore.setState({
+      tasks: [mkTask('t-1', { title: 'Solo task', status: 'active' })],
+      activeTaskId: 't-1',
+      activeSessionId: 's-1',
+      activeTimerState: 'running',
+    });
+    timerMock.activeTaskId = 't-1';
+    timerMock.activeTimerState = 'running';
+
+    const { container, root } = render(<FocusSessionPanel />);
+    act(() => buttonByText(container, 'Complete Task')!.click());
+    await act(async () => {});
+
+    expect(useStore.getState().completeTask).toHaveBeenCalledWith('t-1');
+    expect(useWorkLogStore.getState().addCompleted).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
+  it('shows the completion reflection prompt once the task is completed', () => {
+    useStore.setState({ tasks: [mkTask('t-1', { title: 'Done task', status: 'completed' })], activeTaskId: 't-1' });
+    const { container, root } = render(<FocusSessionPanel />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Done — one light reflection');
+    expect(text).toContain('Save Reflection');
+    expect(buttonByText(container, 'Complete Task')).toBeNull();
     act(() => root.unmount());
   });
 
