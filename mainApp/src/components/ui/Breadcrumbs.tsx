@@ -3,7 +3,7 @@ import { ChevronRight, Home } from 'lucide-react';
 import { useMemo } from 'react';
 
 const ROUTE_MAP: Record<string, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Today',
   worklog: 'Work Logs',
   reports: 'Reports',
   tasks: 'Tasks',

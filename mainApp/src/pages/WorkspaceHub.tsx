@@ -114,7 +114,7 @@ export function WorkspaceHub() {
                   Personal Workspace
                 </h3>
                 <p className="text-xs text-surface-400 mt-1 leading-relaxed">
-                  Your private productivity system. Dashboard, personal tasks, focus timer, work logs, reflection journal, and personal reports.
+                  Your private productivity system. Today landing, personal tasks, focus timer, work logs, reflection journal, and personal reports.
                 </p>
               </div>
 

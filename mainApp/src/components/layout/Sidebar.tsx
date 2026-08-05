@@ -11,7 +11,7 @@ import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Today'  },
   { to: '/team',      icon: Users,           label: 'Team Workspace' },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },

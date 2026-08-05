@@ -21,7 +21,7 @@ const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module =>
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
 
 // Personal Workspace Pages
-const Dashboard       = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
 const Analytics       = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
@@ -153,7 +153,7 @@ export default function App() {
             {/* Personal Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/dashboard"   element={<Dashboard />} />
+                <Route path="/dashboard"   element={<TodayPage />} />
                 <Route path="/team"        element={<TeamWorkspace />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
                 <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
