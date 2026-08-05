@@ -51,7 +51,7 @@ async function submitForm(container: HTMLElement) {
   });
 }
 
-describe('P0-31 auth flows share the /hub landing', () => {
+describe('P0-31 auth flows land on the role-aware default', () => {
   const originalLogin = useAuthStore.getState().login;
   const originalRegister = useAuthStore.getState().register;
   const loginSpy = vi.fn().mockResolvedValue(undefined);
@@ -60,11 +60,11 @@ describe('P0-31 auth flows share the /hub landing', () => {
   beforeEach(() => {
     loginSpy.mockClear();
     registerSpy.mockClear();
-    useAuthStore.setState({ login: loginSpy, register: registerSpy, loading: false, error: null });
+    useAuthStore.setState({ login: loginSpy, register: registerSpy, loading: false, error: null, user: null });
   });
 
   afterEach(() => {
-    useAuthStore.setState({ login: originalLogin, register: originalRegister });
+    useAuthStore.setState({ login: originalLogin, register: originalRegister, user: null });
   });
 
   it('exposes browser-autofill hints on the login form', () => {
@@ -88,6 +88,17 @@ describe('P0-31 auth flows share the /hub landing', () => {
     await submitForm(container);
     expect(loginSpy).toHaveBeenCalledWith('ajay@example.com', 'secret123');
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/hub');
+  });
+
+  it('lands admins on the /workspace selector instead of /hub', async () => {
+    useAuthStore.setState({
+      user: { _id: 'admin-1', name: 'Admin User', email: 'admin@example.com', role: 'admin', settings: {} },
+    });
+    const { container } = renderAt('/login', <Login />);
+    setInput(container, 'email', 'admin@example.com');
+    setInput(container, 'password', 'secret123');
+    await submitForm(container);
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/workspace');
   });
 
   it('lands on /hub after a successful registration', async () => {

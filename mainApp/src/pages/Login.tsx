@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, LogIn, ShieldCheck, HelpCircle, X, Building2 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
+import { resolveDefaultLanding } from '../lib/navigation';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -23,7 +24,7 @@ export function Login() {
     clearError();
     try {
       await login(form.email, form.password);
-      navigate('/hub');
+      navigate(resolveDefaultLanding(useAuthStore.getState().user?.role));
     } catch {
       // Error handled in store
     }

@@ -97,3 +97,36 @@ describe('S4-T3 regression: deep-link pages, never daily mega-tabs', () => {
     expect(sidebar).toContain("to: '/admin/audit'");
   });
 });
+
+describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () => {
+  it('/team is declared once, backed by TeamProjects', () => {
+    const teamRoutes = appSource.match(/<Route\s+path="\/team"/g) ?? [];
+    expect(teamRoutes).toHaveLength(1);
+    expect(appSource).toMatch(/<Route\s+path="\/team"\s+element={<TeamProjects \/>}/);
+  });
+
+  it('removes the dead personal /team → TeamWorkspace route', () => {
+    expect(appSource).not.toMatch(/<Route\s+path="\/team"\s+element={<TeamWorkspace \/>}/);
+    expect(appSource).toMatch(/<Route\s+path="overview"\s+element={<TeamWorkspace \/>}/);
+  });
+
+  it('role-aware landings use the default-view helper', () => {
+    const login = readFileSync(resolve(process.cwd(), 'src/pages/Login.tsx'), 'utf8');
+    const register = readFileSync(resolve(process.cwd(), 'src/pages/Register.tsx'), 'utf8');
+    const protectedRoute = readFileSync(resolve(process.cwd(), 'src/components/auth/ProtectedRoute.tsx'), 'utf8');
+    for (const source of [login, register, protectedRoute]) {
+      expect(source).toContain('resolveDefaultLanding');
+    }
+    expect(login).toContain('useAuthStore.getState().user?.role');
+    expect(register).toContain('useAuthStore.getState().user?.role');
+    expect(protectedRoute).toContain('resolveDefaultLanding(user?.role)');
+    expect(protectedRoute).not.toMatch(/to="\/dashboard"/);
+  });
+
+  it('personal sidebar no longer links /team; exposes the hub switcher', () => {
+    const sidebar = readFileSync(resolve(process.cwd(), 'src/components/layout/Sidebar.tsx'), 'utf8');
+    expect(sidebar).not.toMatch(/to: '\/team'/);
+    expect(sidebar).toMatch(/to: '\/hub'/);
+    expect(sidebar).toContain("label: 'Workspace Hub'");
+  });
+});

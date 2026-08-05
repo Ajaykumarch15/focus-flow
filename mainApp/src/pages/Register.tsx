@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, UserPlus, Building2, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useStore } from '../store/useStore';
+import { resolveDefaultLanding } from '../lib/navigation';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
@@ -33,7 +34,7 @@ export function Register() {
 
     try {
       await register(form.name, form.email, form.password);
-      navigate('/hub');
+      navigate(resolveDefaultLanding(useAuthStore.getState().user?.role));
     } catch {
       // Error shown from store
     }

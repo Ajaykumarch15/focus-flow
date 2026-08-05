@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { resolveDefaultLanding } from '../../lib/navigation';
 import { motion } from 'framer-motion';
 
 /**
@@ -53,7 +54,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || user.role !== 'admin') return <Navigate to="/dashboard" replace />;
+  if (!user || user.role !== 'admin') return <Navigate to={resolveDefaultLanding(user?.role)} replace />;
 
   return <>{children}</>;
 }

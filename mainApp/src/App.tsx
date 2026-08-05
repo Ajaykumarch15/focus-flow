@@ -161,7 +161,6 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/dashboard"   element={<TodayPage />} />
-                <Route path="/team"        element={<TeamWorkspace />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
                 <Route path="/worklog/:id" element={<WorkLogPage />} />
                 <Route path="/knowledge"  element={<KnowledgePage />} />
