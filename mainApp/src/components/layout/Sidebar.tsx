@@ -115,7 +115,7 @@ export function Sidebar() {
         {user?.role === 'admin' && (
           <>
             <div className={`my-4 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            <button onClick={() => { setWorkspace('admin'); navigate('/admin/overview'); }}
+            <button onClick={() => { setWorkspace('admin'); navigate('/admin/audit'); }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative text-surface-400 hover:text-purple-400 hover:bg-purple-500/5 w-full`}>
               <ShieldCheck size={18} className="flex-shrink-0" />
               <AnimatePresence>

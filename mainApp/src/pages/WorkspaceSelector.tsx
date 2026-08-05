@@ -32,7 +32,7 @@ export function WorkspaceSelector() {
   const handleSelect = (workspace: 'personal' | 'admin') => {
     setWorkspace(workspace);
     if (workspace === 'personal') navigate('/dashboard');
-    else navigate('/admin/overview');
+    else navigate('/admin/audit');
   };
 
   return (

@@ -25,6 +25,7 @@ describe('route table', () => {
       'sprints',
       'backlog',
       'blockers',
+      'teams',
       'members',
       'activity',
       'reports',
@@ -43,11 +44,9 @@ describe('route table', () => {
       '/leaderboard',
       '/focus',
       '/activity',
-      '/admin/overview',
+      '/admin/audit',
       '/admin/people',
       '/admin/teams',
-      '/admin/analytics',
-      '/admin/activity',
       '/admin/settings',
     ];
     for (const p of expected) {
@@ -60,5 +59,41 @@ describe('route table', () => {
     for (const p of typos) {
       expect(routePaths).not.toContain(p);
     }
+  });
+});
+
+describe('S4-T3 regression: deep-link pages, never daily mega-tabs', () => {
+  it('routes projects/teams/members to dedicated pages, not TeamWorkspace', () => {
+    const lines = appSource.split('\n');
+    const projectsLine = lines.find((l) => l.includes('path="projects"'));
+    const teamsLine = lines.find((l) => l.includes('path="teams"'));
+    const membersLine = lines.find((l) => l.includes('path="members"'));
+    expect(projectsLine).toContain('WorkspaceProjectsPage');
+    expect(teamsLine).toContain('WorkspaceTeamsPage');
+    expect(membersLine).toContain('WorkspaceMembersPage');
+    expect(projectsLine).not.toContain('TeamWorkspace');
+    expect(teamsLine).not.toContain('TeamWorkspace');
+    expect(membersLine).not.toContain('TeamWorkspace');
+  });
+
+  it('TeamWorkspace no longer declares projects or admin tabs', () => {
+    const teamWorkspace = readFileSync(resolve(process.cwd(), 'src/pages/collaboration/TeamWorkspace.tsx'), 'utf8');
+    expect(teamWorkspace).toContain("type TeamTab = 'dashboard' | 'docs' | 'calendar';");
+    expect(teamWorkspace).not.toMatch(/'projects'|'admin'/);
+  });
+
+  it('retired admin routes redirect to the Audit deep link', () => {
+    const lines = appSource.split('\n');
+    for (const p of ['/admin/overview', '/admin/analytics', '/admin/activity']) {
+      const line = lines.find((l) => l.includes(`path="${p}"`));
+      expect(line).toContain('Navigate to="/admin/audit" replace');
+    }
+    expect(routePaths).toContain('/admin/audit');
+  });
+
+  it('admin sidebar navigation no longer points at retired routes', () => {
+    const sidebar = readFileSync(resolve(process.cwd(), 'src/components/layout/AdminSidebar.tsx'), 'utf8');
+    expect(sidebar).not.toMatch(/\/admin\/(overview|analytics|activity)/);
+    expect(sidebar).toContain("to: '/admin/audit'");
   });
 });

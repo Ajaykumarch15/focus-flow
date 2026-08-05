@@ -2,15 +2,15 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Layers, FolderOpen, AlertOctagon, BookOpen, Calendar,
-  ShieldCheck, Plus, GitBranch, Clock,
+  Layers, AlertOctagon, BookOpen, Calendar,
+  Plus, Clock,
   ChevronDown, Flame,
   Zap, Edit3, UserCheck, Rocket, Gauge, ListChecks, CalendarClock, FileWarning
 } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { MemberRole, CollaborativeTask } from '../../types/collaboration';
+import { CollaborativeTask } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
 import { selectNowStrip } from '../../lib/nowSelectors';
 import { selectTeamToday } from '../../lib/missionControlSelectors';
@@ -18,7 +18,6 @@ import { computeVelocity } from '../../lib/collaborationKpis';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { formatHours } from '../../utils/time';
 import { TeamTodaySection } from '../../components/collaboration/TeamTodaySection';
-import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
 import { CreateDocModal } from '../../components/collaboration/CreateDocModal';
 import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
 import { Button } from '../../components/ui/Button';
@@ -82,13 +81,13 @@ export function computeWorkspaceProgress(
   return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 
-type TeamTab = 'dashboard' | 'projects' | 'docs' | 'calendar' | 'admin';
+type TeamTab = 'dashboard' | 'docs' | 'calendar';
 
 export function TeamWorkspace() {
   const {
     workspaces, activeWorkspaceId, setActiveWorkspace,
     members, projects, sprints, tasks, features, activities,
-    docs, blockers, events, updateMemberRole,
+    docs, blockers, events,
     loadWorkspaceActivity, activityLoading, activityHasMore, activityNextCursor
   } = useCollaborationStore();
 
@@ -110,7 +109,6 @@ export function TeamWorkspace() {
   // Modals & States
   const [showWsMenu, setShowWsMenu] = useState(false);
   const [, setShowNewWsModal] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
   const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [editingDoc, setEditingDoc] = useState<any>(null);
@@ -317,10 +315,8 @@ export function TeamWorkspace() {
 
           const allTabs = [
             { id: 'dashboard', key: null, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
-            { id: 'projects', key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', count: wsProjects.length },
             { id: 'docs', key: null, label: 'Knowledge Base', icon: BookOpen, color: 'text-purple-400', count: wsDocs.length },
             { id: 'calendar', key: null, label: 'Team Calendar', icon: Calendar, color: 'text-emerald-400' },
-            { id: 'admin', key: 'admin', label: 'Teams & Access', icon: ShieldCheck, color: 'text-orange-400' },
           ];
 
           const visibleTabs = allTabs.filter(
@@ -623,73 +619,7 @@ export function TeamWorkspace() {
         </motion.div>
       )}
 
-      {/* ── TAB 2: PROJECTS & MILESTONES ── */}
-      {activeTab === 'projects' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <FolderOpen size={18} className="text-cyan-400" /> Projects & Milestones
-            </h2>
-            <Button onClick={() => setShowCreateProject(true)}
-              size="sm" leftIcon={<Plus size={14} />}>
-              New Project
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {wsProjects.map((proj) => (
-              <div key={proj.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
-                      {proj.key}
-                    </Badge>
-                    <h3 className="text-lg font-display font-extrabold text-surface-50 mt-1">{proj.name}</h3>
-                  </div>
-                  {proj.repositoryUrl && (
-                    <a href={proj.repositoryUrl} target="_blank" rel="noreferrer"
-                      className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 flex items-center gap-1.5 text-xs font-semibold">
-                      <GitBranch size={14} /> Repository
-                    </a>
-                  )}
-                </div>
-
-                <p className="text-xs text-surface-400 leading-relaxed">{proj.description}</p>
-
-                {/* Milestones */}
-                <div className="space-y-2 pt-2 border-t border-surface-800">
-                  <p className="text-xs font-bold text-surface-300">Active Milestones</p>
-                  {proj.milestones.map((ms) => (
-                    <div key={ms.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-semibold text-surface-100">{ms.title}</p>
-                        <p className="text-[10px] text-surface-500">Due: {ms.dueDate}</p>
-                      </div>
-                      <Badge tone="success" className="text-[10px] font-bold uppercase border border-emerald-500/20">
-                        {ms.targetPoints} pts
-                      </Badge>
-                    </div>
-                  ))}
-                  {proj.milestones.length === 0 && (
-                    <p className="text-xs text-surface-500 italic">No milestones set.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {wsProjects.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center">
-              <FolderOpen size={28} className="mx-auto text-cyan-400/60 mb-3" />
-              <p className="text-xs font-bold text-surface-300 mb-1">No projects yet</p>
-              <p className="text-xs text-surface-500 italic mb-4">Kick off the first initiative for this workspace.</p>
-              <Button onClick={() => setShowCreateProject(true)} size="sm" leftIcon={<Plus size={14} />}>
-                New Project
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── TAB 4: KNOWLEDGE BASE DOCUMENTS ── */}
+      {/* ── TAB 2: KNOWLEDGE BASE DOCUMENTS ── */}
       {activeTab === 'docs' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -729,7 +659,7 @@ export function TeamWorkspace() {
         </div>
       )}
 
-      {/* ── TAB 6: TEAM CALENDAR ── */}
+      {/* ── TAB 3: TEAM CALENDAR ── */}
       {activeTab === 'calendar' && (
         <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
@@ -750,45 +680,7 @@ export function TeamWorkspace() {
         </div>
       )}
 
-      {/* ── TAB 8: TEAMS & ACCESS ADMIN ── */}
-      {activeTab === 'admin' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <ShieldCheck size={18} className="text-orange-400" /> Team Roster & Role-Based Access
-            </h2>
-            <div className="divide-y divide-surface-800">
-              {members.map((m) => (
-                <div key={m.id} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-white">
-                      {m.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-surface-100">{m.name}</p>
-                      <p className="text-[11px] text-surface-500">{m.email}</p>
-                    </div>
-                  </div>
-                  <select aria-label="Member role" className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
-                    value={m.role} onChange={(e) => updateMemberRole(m.id, e.target.value as MemberRole)}>
-                    <option value="Owner">Owner</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Manager">Manager</option>
-                    <option value="Developer">Developer</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-            {members.length === 0 && (
-              <p className="text-xs text-surface-500 italic py-4 text-center">No members in this workspace yet.</p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Modals */}
-      <CreateProjectModal isOpen={showCreateProject} onClose={() => setShowCreateProject(false)} />
       <CreateDocModal isOpen={showCreateDoc} onClose={() => setShowCreateDoc(false)} docToEdit={editingDoc} />
       <CreateSprintModal isOpen={showCreateSprint} onClose={() => setShowCreateSprint(false)} />
     </div>

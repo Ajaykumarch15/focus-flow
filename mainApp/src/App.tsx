@@ -49,13 +49,14 @@ const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledge
 const SprintBoardPage = lazy(() => import('./pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
 const BacklogPage = lazy(() => import('./pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
 const BlockersPage = lazy(() => import('./pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
+const WorkspaceProjectsPage = lazy(() => import('./pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
+const WorkspaceTeamsPage = lazy(() => import('./pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
+const WorkspaceMembersPage = lazy(() => import('./pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
 
 // Admin workspace pages
-const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
+const AdminAudit      = lazy(() => import('./pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
 const AdminPeople     = lazy(() => import('./pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
 const AdminTeams      = lazy(() => import('./pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
-const AdminAnalytics  = lazy(() => import('./pages/admin/AdminAnalytics').then(module => ({ default: module.AdminAnalytics })));
-const AdminActivity   = lazy(() => import('./pages/admin/AdminActivity').then(module => ({ default: module.AdminActivity })));
 const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
@@ -130,12 +131,12 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
                 <Route path="overview" element={<TeamWorkspace />} />
-                <Route path="projects" element={<TeamWorkspace />} />
+                <Route path="projects" element={<WorkspaceProjectsPage />} />
                 <Route path="sprints" element={<SprintBoardPage />} />
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="blockers" element={<BlockersPage />} />
-                <Route path="teams" element={<TeamWorkspace />} />
-                <Route path="members" element={<MemberProfilePage />} />
+                <Route path="teams" element={<WorkspaceTeamsPage />} />
+                <Route path="members" element={<WorkspaceMembersPage />} />
                 <Route path="members/:memberId" element={<MemberProfilePage />} />
                 <Route path="features" element={<FeaturesPage />} />
                 <Route path="qa" element={<QADashboardPage />} />
@@ -181,13 +182,14 @@ export default function App() {
             {/* Admin Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
-                <Route path="/admin/overview"  element={<AdminOverview />} />
+                <Route path="/admin/audit"     element={<AdminAudit />} />
                 <Route path="/admin/people"    element={<AdminPeople />} />
                 <Route path="/admin/teams"     element={<AdminTeams />} />
-                <Route path="/admin/analytics" element={<AdminAnalytics />} />
-                <Route path="/admin/activity"  element={<AdminActivity />} />
                 <Route path="/admin/settings"  element={<AdminSettings />} />
-                <Route path="/admin"           element={<Navigate to="/admin/overview" replace />} />
+                <Route path="/admin/overview"  element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin/analytics" element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin/activity"  element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin"           element={<Navigate to="/admin/audit" replace />} />
               </Route>
             </Route>
 

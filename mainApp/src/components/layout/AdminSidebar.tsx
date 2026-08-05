@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, Users, BarChart3, Activity,
+  Users, Activity,
   Settings, ChevronLeft, ChevronRight, LogOut,
   Globe, ArrowLeft,
 } from 'lucide-react';
@@ -9,13 +9,14 @@ import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useStore } from '../../store/useStore';
 
+// S4-T3: the org's monitoring surfaces collapsed into one deep-link Audit page
+// (Overview / Analytics / Activity are in-page views now), so the admin nav
+// lists only the four stable destinations.
 const ADMIN_NAV = [
-  { to: '/admin/overview', icon: LayoutDashboard, label: 'Overview' },
-  { to: '/admin/people',  icon: Users,            label: 'People' },
-  { to: '/admin/teams',   icon: Globe,            label: 'Teams' },
-  { to: '/admin/analytics', icon: BarChart3,      label: 'Analytics' },
-  { to: '/admin/activity', icon: Activity,        label: 'Activity' },
-  { to: '/admin/settings', icon: Settings,        label: 'Settings' },
+  { to: '/admin/audit',    icon: Activity,            label: 'Audit' },
+  { to: '/admin/people',   icon: Users,               label: 'People' },
+  { to: '/admin/teams',    icon: Globe,               label: 'Teams' },
+  { to: '/admin/settings', icon: Settings,            label: 'Settings' },
 ];
 
 export function AdminSidebar() {

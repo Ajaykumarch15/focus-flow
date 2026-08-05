@@ -43,7 +43,7 @@ export function GlobalHeader() {
           aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
           <Menu size={18} />
         </button>
-        <button onClick={() => navigate(workspace === 'admin' ? '/admin/overview' : '/dashboard')}
+        <button onClick={() => navigate(workspace === 'admin' ? '/admin/audit' : '/dashboard')}
           className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
           <FocusFlowLogo size="sm" showText={false} />
         </button>
