@@ -27,6 +27,7 @@ const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => (
 const Analytics       = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({ default: module.FocusMode })));
+const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
@@ -166,6 +167,7 @@ export default function App() {
                 <Route path="/habits"      element={<Habits />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/focus"       element={<FocusMode />} />
+                <Route path="/activity"    element={<PersonalActivityPage />} />
                 <Route path="/settings"    element={<Settings />} />
               </Route>
             </Route>

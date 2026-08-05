@@ -40,6 +40,7 @@ describe('route table', () => {
       '/habits',
       '/leaderboard',
       '/focus',
+      '/activity',
       '/admin/overview',
       '/admin/people',
       '/admin/teams',

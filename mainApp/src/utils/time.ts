@@ -361,3 +361,26 @@ export function formatDateShort(date: Date | number): string {
     weekday: 'short', month: 'short', day: 'numeric',
   });
 }
+
+/** Local wall-clock time — "9:41 AM". */
+export function formatTimeOfDay(timestamp: number | string): string {
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+// ── Relative time ────────────────────────────────────────────────────────────
+// Single shared implementation (extracted from the inline timeAgo snippet that
+// was duplicated across AdminActivity/AdminOverview) so every feed renders the
+// same compact "5m ago" wording.
+
+/** Compact relative time — "just now", "5m ago", "3h ago", "2d ago". */
+export function formatRelativeTime(timestamp: number | string, now: number = Date.now()): string {
+  const ts = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+  if (!Number.isFinite(ts)) return '';
+  const diff = now - ts;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}

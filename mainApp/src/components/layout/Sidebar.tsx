@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BarChart3, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Users,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Users, History,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { to: '/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
+  { to: '/activity',  icon: History,         label: 'Activity'  },
   { to: '/settings',  icon: Settings,        label: 'Settings'   },
 ];
 
