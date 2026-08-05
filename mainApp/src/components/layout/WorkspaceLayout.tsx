@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon,
+  Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon, ClipboardList,
   Clock, LineChart, BarChart3, BookOpen, Calendar, Settings, ShieldCheck,
   ChevronDown, ChevronLeft, PanelLeftOpen, Search, ArrowLeft, Bell, Menu
 } from 'lucide-react';
@@ -91,6 +91,7 @@ export function WorkspaceLayout() {
         { to: `/w/${activeWs.id}/overview`, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
         { to: `/w/${activeWs.id}/projects`, key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', badge: wsProjects.length },
         { to: `/w/${activeWs.id}/sprints`, key: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', badge: wsTasks.length },
+        { to: `/w/${activeWs.id}/backlog`, label: 'Backlog', icon: ClipboardList, color: 'text-emerald-400' },
         { to: `/w/${activeWs.id}/features`, label: 'Features', icon: Sparkles, color: 'text-purple-400' },
       ],
     },
@@ -100,6 +101,7 @@ export function WorkspaceLayout() {
         { to: `/w/${activeWs.id}/teams`, key: 'teams', label: 'Teams', icon: Users, color: 'text-emerald-400' },
         { to: `/w/${activeWs.id}/members`, label: 'Members', icon: UserCheck, color: 'text-sky-400' },
         { to: `/w/${activeWs.id}/qa`, key: 'qa', label: 'QA Dashboard', icon: ShieldCheck, color: 'text-indigo-400' },
+        { to: `/w/${activeWs.id}/blockers`, key: 'blockers', label: 'Blockers', icon: AlertOctagon, color: 'text-red-400', badge: openBlockers.length },
         { to: `/w/${activeWs.id}/activity`, label: 'Activity', icon: Clock, color: 'text-pink-400' },
       ],
     },

@@ -46,6 +46,9 @@ const ReportsAnalyticsPage = lazy(() => import('./pages/collaboration/ReportsAna
 const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
 const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
 const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
+const SprintBoardPage = lazy(() => import('./pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
+const BacklogPage = lazy(() => import('./pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
+const BlockersPage = lazy(() => import('./pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
 
 // Admin workspace pages
 const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
@@ -128,7 +131,9 @@ export default function App() {
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
                 <Route path="overview" element={<TeamWorkspace />} />
                 <Route path="projects" element={<TeamWorkspace />} />
-                <Route path="sprints" element={<TeamWorkspace />} />
+                <Route path="sprints" element={<SprintBoardPage />} />
+                <Route path="backlog" element={<BacklogPage />} />
+                <Route path="blockers" element={<BlockersPage />} />
                 <Route path="teams" element={<TeamWorkspace />} />
                 <Route path="members" element={<MemberProfilePage />} />
                 <Route path="members/:memberId" element={<MemberProfilePage />} />

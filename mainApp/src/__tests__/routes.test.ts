@@ -23,6 +23,8 @@ describe('route table', () => {
       'overview',
       'projects',
       'sprints',
+      'backlog',
+      'blockers',
       'members',
       'activity',
       'reports',
