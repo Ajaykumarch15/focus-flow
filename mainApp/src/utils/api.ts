@@ -175,6 +175,10 @@ export const api = {
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'PATCH', body: JSON.stringify({ completed }) }),
     deleteSubtask: (taskId: string, subId: string) =>
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'DELETE' }),
+    // EEP2-P5.1.2: batch reorder — ids in display order; the server assigns each
+    // task's `order` its index (single-scope batches only).
+    reorder: (ids: string[]) =>
+      request<any[]>(`/tasks/reorder`, { method: 'POST', body: JSON.stringify({ ids }) }),
   },
 
   sessions: {

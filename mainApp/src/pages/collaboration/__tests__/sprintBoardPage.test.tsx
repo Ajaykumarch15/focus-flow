@@ -174,4 +174,27 @@ describe('SprintBoardPage (S4-T1)', () => {
     expect(updateTaskStatusSpy).toHaveBeenCalledWith('t-1', 'done');
     act(() => root.unmount());
   });
+
+  // EEP2-P5.1.3 (s2): the card's subtask toggle expands the SubtaskPanel inline.
+  it('expands a task card subtask panel via its toggle', () => {
+    useCollaborationStore.setState({
+      tasks: [
+        task({
+          id: 't-1', sprintStatus: 'in_progress',
+          subtasks: [{ id: 's1', title: 'Write tests', completed: false }],
+        }),
+      ],
+    });
+    const { container, root } = render(<SprintBoardPage />);
+    expect(container.querySelector('[data-testid="subtask-panel-t-1"]')).toBeNull();
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Subtasks for Wire the API"]');
+    expect(toggle).toBeTruthy();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    act(() => toggle!.click());
+    const panel = container.querySelector('[data-testid="subtask-panel-t-1"]');
+    expect(panel).toBeTruthy();
+    expect(panel?.textContent).toContain('0/1');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    act(() => root.unmount());
+  });
 });

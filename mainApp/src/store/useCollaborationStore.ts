@@ -320,6 +320,13 @@ interface CollaborationStore {
   commitSprint: (sprintId: string) => Promise<void>;
   createTask: (data: Partial<CollaborativeTask>) => Promise<CollaborativeTask | undefined>;
   updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => Promise<void>;
+  // EEP2-P5.1.2: assignee changes persist via PATCH /tasks/:id (the server
+  // enforces the DDS §4.9 "assignee must be a workspace member" rule).
+  assignTask: (taskId: string, assigneeId: string) => Promise<void>;
+  // EEP2-P5.1.3: subtask CRUD + toggle (DDS §4.10). Optimistic with rollback.
+  addSubtask: (taskId: string, title: string) => Promise<void>;
+  toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
+  deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
   // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
   // `null` un-tethers the feature (back to the Project Backlog).
   moveFeature: (featureId: string, sprintId: string | null) => Promise<void>;
@@ -974,6 +981,103 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       { errorTitle: 'Status update failed' },
     );
     toast.info('Status updated', `Task moved to ${sprintStatus.replace('_', ' ').toUpperCase()}`);
+  },
+
+  assignTask: async (taskId, assigneeId) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, assigneeId, updatedAt: new Date().toISOString() } : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, assigneeId: prevTask.assigneeId, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.update(taskId, { assigneeId }),
+      { errorTitle: 'Assignee update failed' },
+    );
+    toast.info('Assignee updated', assigneeId ? 'Task assignment changed' : 'Task unassigned');
+  },
+
+  // EEP2-P5.1.3: subtask actions — optimistic with rollback, mirroring the
+  // sprint/feature actions above. The server returns the refreshed parent task;
+  // like updateTaskStatus, we persist rather than re-map so transient temp ids
+  // settle on the next loadTasks().
+  addSubtask: async (taskId, title) => {
+    const prevTasks = get().tasks;
+    const tempId = `st-${Date.now()}`;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: [...t.subtasks, { id: tempId, title, completed: false }],
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.addSubtask(taskId, title),
+      { errorTitle: 'Subtask add failed' },
+    );
+    toast.success('Subtask added', title);
+  },
+
+  toggleSubtask: async (taskId, subtaskId, completed) => {
+    const prevTasks = get().tasks;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.toggleSubtask(taskId, subtaskId, completed),
+      { errorTitle: 'Subtask update failed' },
+    );
+  },
+
+  deleteSubtask: async (taskId, subtaskId) => {
+    const prevTasks = get().tasks;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks.filter((s) => s.id !== subtaskId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.deleteSubtask(taskId, subtaskId),
+      { errorTitle: 'Subtask delete failed' },
+    );
   },
 
   // IES-R1 (P6-T3): moveFeature persists the sprintRef change via

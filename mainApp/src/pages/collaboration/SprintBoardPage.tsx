@@ -1,15 +1,84 @@
 import { useState, useMemo } from 'react';
 import {
-  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge
+  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import { SprintStatus } from '../../types/collaboration';
+import { SprintStatus, CollaborativeTask } from '../../types/collaboration';
 import { selectSprintCapacity, selectSprintFeatures } from '../../lib/sprintSelectors';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
 import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
+import { SubtaskPanel } from '../../components/collaboration/SubtaskPanel';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+
+// EEP2-P5.1.3 (s2): each board card exposes an expandable subtask panel —
+// add/toggle/delete via the collaboration store (optimistic + rollback).
+function SprintTaskCard({ task, planningMode, onDiscuss }: {
+  task: CollaborativeTask;
+  planningMode: boolean;
+  onDiscuss: () => void;
+}) {
+  const { updateTaskStatus } = useCollaborationStore();
+  const [showSubtasks, setShowSubtasks] = useState(false);
+  const done = task.subtasks.filter((s) => s.completed).length;
+
+  return (
+    <div draggable={planningMode}
+      onDragStart={(e) => planningMode && e.dataTransfer.setData('text/plain', task.id)}
+      data-testid={`task-card-${task.id}`}
+      className={`rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group ${planningMode ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
+        {task.gitContext?.prNumber && (
+          <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
+            PR #{task.gitContext.prNumber}
+          </Badge>
+        )}
+      </div>
+
+      <p className="text-xs font-bold text-surface-100 leading-snug">{task.title}</p>
+      <p className="text-[11px] text-surface-400 line-clamp-2">{task.description}</p>
+
+      {/* Git Context Badges */}
+      {task.gitContext?.branch && (
+        <Badge tone="success" icon={<GitBranch size={10} />} className="text-[10px] font-mono py-1 truncate max-w-full overflow-hidden">
+          {task.gitContext.branch}
+        </Badge>
+      )}
+
+      {/* Action Bar */}
+      <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px]">
+        <Button onClick={onDiscuss}
+          variant="ghost" size="xs" leftIcon={<MessageSquare size={12} />}
+          className="text-surface-400 hover:text-brand-400 hover:bg-transparent">
+          Discuss
+        </Button>
+
+        {/* Quick Status Move */}
+        <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
+          value={task.sprintStatus} onChange={(e) => updateTaskStatus(task.id, e.target.value as SprintStatus)}>
+          <option value="backlog">Backlog</option>
+          <option value="ready">Ready</option>
+          <option value="in_progress">In Progress</option>
+          <option value="review">Review</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+
+      {/* EEP2-P5.1.3: expandable subtask panel */}
+      <button
+        type="button"
+        onClick={() => setShowSubtasks((s) => !s)}
+        aria-expanded={showSubtasks}
+        aria-label={`Subtasks for ${task.title}`}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-surface-800 bg-surface-900/60 px-2 py-1.5 text-[10px] font-semibold text-surface-400 hover:text-brand-400 hover:border-surface-700 transition-all">
+        <ListTodo size={12} /> Subtasks {done}/{task.subtasks.length}
+      </button>
+      {showSubtasks && <SubtaskPanel task={task} />}
+    </div>
+  );
+}
 
 // ECIS B.8: the Sprint page answers "What are we delivering?" — sprint header,
 // capacity, and the 5-column Kanban. The Project Backlog is split out to its
@@ -189,48 +258,12 @@ export function SprintBoardPage() {
 
               <div className="space-y-3">
                 {colTasks.map((task) => (
-                  <div key={task.id} draggable={planningMode}
-                    onDragStart={(e) => planningMode && e.dataTransfer.setData('text/plain', task.id)}
-                    data-testid={`task-card-${task.id}`}
-                    className={`rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group ${planningMode ? 'cursor-grab active:cursor-grabbing' : ''}`}>
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
-                      {task.gitContext?.prNumber && (
-                        <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
-                          PR #{task.gitContext.prNumber}
-                        </Badge>
-                      )}
-                    </div>
-
-                    <p className="text-xs font-bold text-surface-100 leading-snug">{task.title}</p>
-                    <p className="text-[11px] text-surface-400 line-clamp-2">{task.description}</p>
-
-                    {/* Git Context Badges */}
-                    {task.gitContext?.branch && (
-                      <Badge tone="success" icon={<GitBranch size={10} />} className="text-[10px] font-mono py-1 truncate max-w-full overflow-hidden">
-                        {task.gitContext.branch}
-                      </Badge>
-                    )}
-
-                    {/* Action Bar */}
-                    <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px]">
-                      <Button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
-                        variant="ghost" size="xs" leftIcon={<MessageSquare size={12} />}
-                        className="text-surface-400 hover:text-brand-400 hover:bg-transparent">
-                        Discuss
-                      </Button>
-
-                      {/* Quick Status Move */}
-                      <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
-                        value={task.sprintStatus} onChange={(e) => updateTaskStatus(task.id, e.target.value as SprintStatus)}>
-                        <option value="backlog">Backlog</option>
-                        <option value="ready">Ready</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                      </select>
-                    </div>
-                  </div>
+                  <SprintTaskCard
+                    key={task.id}
+                    task={task}
+                    planningMode={planningMode}
+                    onDiscuss={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
+                  />
                 ))}
                 {colTasks.length === 0 && (
                   <p className="text-[11px] text-surface-500 italic py-6 text-center">No tasks</p>
