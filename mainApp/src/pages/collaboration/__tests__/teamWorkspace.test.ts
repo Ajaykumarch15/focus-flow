@@ -1,39 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  computeSprintVelocity, computeAssignedWork, computePendingReviews,
+  computeAssignedWork, computePendingReviews,
   computeUpcomingDeadlines, computeWorkspaceProgress,
 } from '../TeamWorkspace';
-
-describe('computeSprintVelocity (R1-P6-T1)', () => {
-  it('returns 0 for an empty sprint task set instead of fabricating a number', () => {
-    expect(computeSprintVelocity([])).toBe(0);
-  });
-
-  it('returns 0 when no tasks are done', () => {
-    expect(computeSprintVelocity([
-      { sprintStatus: 'in_progress', estimatedHours: 8 },
-      { sprintStatus: 'review', estimatedHours: 5 },
-      { sprintStatus: 'backlog', estimatedHours: 3 },
-    ])).toBe(0);
-  });
-
-  it('sums only the estimated hours of done tasks', () => {
-    expect(computeSprintVelocity([
-      { sprintStatus: 'done', estimatedHours: 8 },
-      { sprintStatus: 'done', estimatedHours: 13 },
-      { sprintStatus: 'in_progress', estimatedHours: 999 },
-      { sprintStatus: 'review', estimatedHours: 999 },
-    ])).toBe(21);
-  });
-
-  it('treats missing estimated hours as zero contribution', () => {
-    expect(computeSprintVelocity([
-      { sprintStatus: 'done', estimatedHours: 0 },
-      { sprintStatus: 'done', estimatedHours: undefined as unknown as number },
-      { sprintStatus: 'done', estimatedHours: 5 },
-    ])).toBe(5);
-  });
-});
 
 describe('computeAssignedWork (UX-R1 Mission Control)', () => {
   const tasks = [

@@ -3,7 +3,7 @@ import { ChevronRight, Home } from 'lucide-react';
 import { useMemo } from 'react';
 
 const ROUTE_MAP: Record<string, string> = {
-  dashboard: 'Dashboard',
+  dashboard: 'Today',
   worklog: 'Work Logs',
   reports: 'Reports',
   tasks: 'Tasks',
@@ -19,6 +19,7 @@ const ROUTE_MAP: Record<string, string> = {
   people: 'People',
   teams: 'Teams',
   activity: 'Activity',
+  timeline: 'Timeline',
   w: 'Workspace',
 };
 
@@ -39,6 +40,7 @@ const DYNAMIC_ROUTES = [
   '/w/:workspaceId',
   '/w/:workspaceId/members/:memberId',
   '/w/:workspaceId/projects/:projectId',
+  '/w/:workspaceId/projects/:projectId/timeline',
   '/w/:workspaceId/sprints/:sprintId',
   '/w/:workspaceId/features/:featureId',
   '/w/:workspaceId/knowledge/:docId',

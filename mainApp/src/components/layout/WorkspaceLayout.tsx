@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon,
-  Clock, LineChart, BarChart3, BookOpen, Calendar, Settings, ShieldCheck,
+  Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon, ClipboardList,
+  Clock, LineChart, BookOpen, Calendar, Settings, ShieldCheck,
   ChevronDown, ChevronLeft, PanelLeftOpen, Search, ArrowLeft, Bell, Menu
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
@@ -11,6 +11,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useStore } from '../../store/useStore';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 import { ToastContainer } from '../ui/ToastContainer';
+import { NowStrip } from '../now/NowStrip';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { getWorkspaceMaturityLevel, isFeatureVisibleForMaturity } from '../../utils/workspaceMaturity';
@@ -88,17 +89,16 @@ export function WorkspaceLayout() {
       label: 'Planning',
       items: [
         { to: `/w/${activeWs.id}/overview`, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
-        { to: `/w/${activeWs.id}/projects`, key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', badge: wsProjects.length },
         { to: `/w/${activeWs.id}/sprints`, key: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', badge: wsTasks.length },
+        { to: `/w/${activeWs.id}/backlog`, label: 'Backlog', icon: ClipboardList, color: 'text-emerald-400' },
         { to: `/w/${activeWs.id}/features`, label: 'Features', icon: Sparkles, color: 'text-purple-400' },
       ],
     },
     {
       label: 'Collaboration',
       items: [
-        { to: `/w/${activeWs.id}/teams`, key: 'teams', label: 'Teams', icon: Users, color: 'text-emerald-400' },
-        { to: `/w/${activeWs.id}/members`, label: 'Members', icon: UserCheck, color: 'text-sky-400' },
         { to: `/w/${activeWs.id}/qa`, key: 'qa', label: 'QA Dashboard', icon: ShieldCheck, color: 'text-indigo-400' },
+        { to: `/w/${activeWs.id}/blockers`, key: 'blockers', label: 'Blockers', icon: AlertOctagon, color: 'text-red-400', badge: openBlockers.length },
         { to: `/w/${activeWs.id}/activity`, label: 'Activity', icon: Clock, color: 'text-pink-400' },
       ],
     },
@@ -106,7 +106,6 @@ export function WorkspaceLayout() {
       label: 'Insights',
       items: [
         { to: `/w/${activeWs.id}/reports`, key: 'reports', label: 'Reports', icon: LineChart, color: 'text-blue-400' },
-        { to: `/w/${activeWs.id}/analytics`, key: 'analytics', label: 'Analytics', icon: BarChart3, color: 'text-teal-400' },
       ],
     },
     {
@@ -119,6 +118,9 @@ export function WorkspaceLayout() {
     {
       label: 'Administration',
       items: [
+        { to: `/w/${activeWs.id}/projects`, key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', badge: wsProjects.length },
+        { to: `/w/${activeWs.id}/teams`, key: 'teams', label: 'Teams', icon: Users, color: 'text-emerald-400' },
+        { to: `/w/${activeWs.id}/members`, label: 'Members', icon: UserCheck, color: 'text-sky-400' },
         { to: `/w/${activeWs.id}/settings`, key: 'admin', label: 'Settings', icon: Settings, color: 'text-surface-400' },
       ],
     },
@@ -357,6 +359,8 @@ export function WorkspaceLayout() {
             </div>
           </div>
         </header>
+
+        <NowStrip />
 
         <main className="flex-1 overflow-y-auto">
           <Outlet />

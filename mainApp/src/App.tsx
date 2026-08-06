@@ -21,17 +21,18 @@ const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module =>
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
 
 // Personal Workspace Pages
-const Dashboard       = lazy(() => import('./pages/Dashboard').then(module => ({ default: module.Dashboard })));
+const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
-const Analytics       = lazy(() => import('./pages/Analytics').then(module => ({ default: module.Analytics })));
 const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({ default: module.FocusMode })));
+const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
-const WorkLogDetailPage = lazy(() => import('./pages/WorkLogDetail').then(module => ({ default: module.WorkLogDetail })));
+const KnowledgePage   = lazy(() => import('./pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
 const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
+const InsightsPage    = lazy(() => import('./pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
 const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
@@ -45,13 +46,20 @@ const ActivityFeedPage  = lazy(() => import('./pages/collaboration/ActivityFeedP
 const ReportsAnalyticsPage = lazy(() => import('./pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
 const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
 const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
+const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
+const SprintBoardPage = lazy(() => import('./pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
+const BacklogPage = lazy(() => import('./pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
+const BlockersPage = lazy(() => import('./pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
+const WorkspaceProjectsPage = lazy(() => import('./pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
+const ProjectOverviewPage = lazy(() => import('./pages/collaboration/ProjectOverviewPage').then(module => ({ default: module.ProjectOverviewPage })));
+const ProjectTimelinePage = lazy(() => import('./pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
+const WorkspaceTeamsPage = lazy(() => import('./pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
+const WorkspaceMembersPage = lazy(() => import('./pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
 
 // Admin workspace pages
-const AdminOverview   = lazy(() => import('./pages/admin/AdminOverview').then(module => ({ default: module.AdminOverview })));
+const AdminAudit      = lazy(() => import('./pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
 const AdminPeople     = lazy(() => import('./pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
 const AdminTeams      = lazy(() => import('./pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
-const AdminAnalytics  = lazy(() => import('./pages/admin/AdminAnalytics').then(module => ({ default: module.AdminAnalytics })));
-const AdminActivity   = lazy(() => import('./pages/admin/AdminActivity').then(module => ({ default: module.AdminActivity })));
 const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
@@ -126,17 +134,21 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
                 <Route path="overview" element={<TeamWorkspace />} />
-                <Route path="projects" element={<TeamWorkspace />} />
-                <Route path="sprints" element={<TeamWorkspace />} />
-                <Route path="teams" element={<TeamWorkspace />} />
-                <Route path="members" element={<MemberProfilePage />} />
+                <Route path="projects" element={<WorkspaceProjectsPage />} />
+                <Route path="projects/:projectId" element={<ProjectOverviewPage />} />
+                <Route path="projects/:projectId/timeline" element={<ProjectTimelinePage />} />
+                <Route path="sprints" element={<SprintBoardPage />} />
+                <Route path="backlog" element={<BacklogPage />} />
+                <Route path="blockers" element={<BlockersPage />} />
+                <Route path="teams" element={<WorkspaceTeamsPage />} />
+                <Route path="members" element={<WorkspaceMembersPage />} />
                 <Route path="members/:memberId" element={<MemberProfilePage />} />
                 <Route path="features" element={<FeaturesPage />} />
                 <Route path="qa" element={<QADashboardPage />} />
                 <Route path="activity" element={<ActivityFeedPage />} />
                 <Route path="reports" element={<ReportsAnalyticsPage />} />
-                <Route path="analytics" element={<ReportsAnalyticsPage />} />
-                <Route path="knowledge" element={<TeamWorkspace />} />
+                <Route path="analytics" element={<Navigate to="reports" replace />} />
+                <Route path="knowledge" element={<TeamKnowledgePage />} />
                 <Route path="calendar" element={<TeamWorkspace />} />
                 <Route path="settings" element={<WorkspaceSettingsPage />} />
                 <Route path="" element={<Navigate to="overview" replace />} />
@@ -153,19 +165,21 @@ export default function App() {
             {/* Personal Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/dashboard"   element={<Dashboard />} />
-                <Route path="/team"        element={<TeamWorkspace />} />
+                <Route path="/dashboard"   element={<TodayPage />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
-                <Route path="/worklog/:id" element={<WorkLogDetailPage />} />
+                <Route path="/worklog/:id" element={<WorkLogPage />} />
+                <Route path="/knowledge"  element={<KnowledgePage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
+                <Route path="/insights"    element={<InsightsPage />} />
+                <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
-                <Route path="/analytics"   element={<Analytics />} />
                 <Route path="/journal"     element={<Journal />} />
                 <Route path="/habits"      element={<Habits />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />
                 <Route path="/focus"       element={<FocusMode />} />
+                <Route path="/activity"    element={<PersonalActivityPage />} />
                 <Route path="/settings"    element={<Settings />} />
               </Route>
             </Route>
@@ -173,13 +187,14 @@ export default function App() {
             {/* Admin Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
-                <Route path="/admin/overview"  element={<AdminOverview />} />
+                <Route path="/admin/audit"     element={<AdminAudit />} />
                 <Route path="/admin/people"    element={<AdminPeople />} />
                 <Route path="/admin/teams"     element={<AdminTeams />} />
-                <Route path="/admin/analytics" element={<AdminAnalytics />} />
-                <Route path="/admin/activity"  element={<AdminActivity />} />
                 <Route path="/admin/settings"  element={<AdminSettings />} />
-                <Route path="/admin"           element={<Navigate to="/admin/overview" replace />} />
+                <Route path="/admin/overview"  element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin/analytics" element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin/activity"  element={<Navigate to="/admin/audit" replace />} />
+                <Route path="/admin"           element={<Navigate to="/admin/audit" replace />} />
               </Route>
             </Route>
 

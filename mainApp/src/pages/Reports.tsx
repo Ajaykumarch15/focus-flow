@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, Clock, CheckCircle2, GitBranch, ExternalLink,
@@ -10,10 +10,14 @@ import {
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
          isToday, subMonths, addMonths, parseISO } from 'date-fns';
 import { useAuthStore } from '../store/useAuthStore';
+import { useStore } from '../store/useStore';
 import { api } from '../utils/api';
+import { timerEngine } from '../utils/timerEngine';
 import { toast } from '../store/useToastStore';
 import { Markdown } from '../lib';
 import { Skeleton, SkeletonStatCard, SkeletonCard } from '../components/ui/Skeleton';
+import { AnalyticsSection } from '../components/reports/AnalyticsSection';
+import type { SessionLike } from '../lib/reportsSelectors';
 import { useNavigate } from 'react-router-dom';
 import { MOOD_EMOJIS } from '../lib/config';
 import { Button } from '../components/ui/Button';
@@ -60,6 +64,28 @@ interface SummaryTotals {
   taskCount: number;
   workLogCount: number;
   completedCount: number;
+}
+
+interface ApiSession {
+  _id: string;
+  taskId: string | { _id?: string };
+  startTime: number;
+  endTime?: number;
+  totalPauseDuration?: number;
+  activeTime?: number;
+  isActive?: boolean;
+  focusScore?: number;
+}
+
+function mapSessions(docs: ApiSession[]): SessionLike[] {
+  return docs.map(doc => ({
+    id: doc._id,
+    taskId: String((doc.taskId as any)?._id ?? doc.taskId ?? ''),
+    startTime: doc.startTime,
+    activeTime: doc.activeTime || 0,
+    totalPauseDuration: doc.totalPauseDuration || 0,
+    focusScore: doc.focusScore,
+  }));
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -533,6 +559,36 @@ function CalendarHeatmap({
   );
 }
 
+// ── Shared range filter (drives both the time retrospective and the focus view) ──
+function RangeControls({ from, to, onFrom, onTo, onApply }: {
+  from: string;
+  to: string;
+  onFrom: (v: string) => void;
+  onTo: (v: string) => void;
+  onApply: (from: Date, to: Date) => void;
+}) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <Input type="date" className="text-sm rounded-xl" value={from} onChange={e => onFrom(e.target.value)} />
+        <Input type="date" className="text-sm rounded-xl" value={to} onChange={e => onTo(e.target.value)} />
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {[
+          { label: 'Today', from: new Date(), to: new Date() },
+          { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 0 }), to: endOfWeek(new Date(), { weekStartsOn: 0 }) },
+          { label: 'This Month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
+        ].map(({ label, from: presetFrom, to: presetTo }) => (
+          <button key={label} onClick={() => onApply(presetFrom, presetTo)}
+            className="px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-xs text-surface-300 hover:text-surface-100 transition-all border border-surface-700 font-medium">
+            {label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 export function ReportsPage() {
   const { user } = useAuthStore();
@@ -552,11 +608,52 @@ export function ReportsPage() {
   const [adminUsers, setAdminUsers] = useState<{ _id: string; name: string; email: string }[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
 
+  // Merged Analytics state (focus view) — sessions + live timer.
+  const { tasks, theme, activeTaskId, activeSessionId, activeTimerState, currentSessionStart } = useStore();
+  const [view, setView] = useState<'overview' | 'focus'>('overview');
+  const [apiSessions, setApiSessions] = useState<SessionLike[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [timerTick, setTimerTick] = useState(0);
+  const prevTimerRef = useRef(activeTimerState);
+
   useEffect(() => {
     if (isAdmin) {
       api.admin.listUsers().then(d => setAdminUsers(d.items)).catch(() => {});
     }
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (activeTimerState === 'idle') {
+      prevTimerRef.current = 'idle';
+      return;
+    }
+    const id = setInterval(() => setTimerTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [activeTimerState]);
+
+  useEffect(() => {
+    if (prevTimerRef.current !== 'idle' && activeTimerState === 'idle') {
+      api.sessions.list()
+        .then((docs: ApiSession[]) => setApiSessions(mapSessions(docs)))
+        .catch((err) => toast.error('Could not refresh analytics sessions', err.message || 'Charts may be incomplete.'));
+    }
+    prevTimerRef.current = activeTimerState;
+  }, [activeTimerState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingSessions(true);
+    api.sessions.list()
+      .then((docs: ApiSession[]) => { if (!cancelled) setApiSessions(mapSessions(docs)); })
+      .catch((err) => {
+        if (!cancelled) {
+          setApiSessions([]);
+          toast.error('Could not load analytics sessions', err.message || 'Charts may be incomplete.');
+        }
+      })
+      .finally(() => { if (!cancelled) setLoadingSessions(false); });
+    return () => { cancelled = true; };
+  }, [activeTaskId]);
 
   useEffect(() => {
     setLoadingSummary(true);
@@ -613,6 +710,43 @@ export function ReportsPage() {
     setRangeTo(format(to, 'yyyy-MM-dd'));
   };
 
+  // The live session is sourced from the timer engine; merged with completed
+  // API sessions so running focus time is reflected in charts in real time.
+  const liveSessions = useMemo<SessionLike[]>(() => {
+    if (activeTimerState === 'idle' || !activeTaskId || !currentSessionStart) return [];
+    const activeTime = timerEngine.getElapsedMs();
+    if (activeTime <= 0) return [];
+    const snapshot = timerEngine.getSnapshot();
+    const openPause = snapshot.timerState === 'paused' && snapshot.pauseStart
+      ? Math.max(0, Date.now() - snapshot.pauseStart)
+      : 0;
+    return [{
+      id: `live_${activeTaskId}_${activeSessionId ?? 'current'}`,
+      taskId: activeTaskId,
+      startTime: currentSessionStart,
+      activeTime,
+      totalPauseDuration: snapshot.totalPauseDuration + openPause,
+      focusScore: 100,
+    }];
+  }, [activeTaskId, activeSessionId, activeTimerState, currentSessionStart, timerTick]);
+
+  const sessions = useMemo(() => {
+    const liveIds = new Set(liveSessions.map(s => s.id.replace(/^live_[^_]+_/, '')));
+    const completed = apiSessions.filter(s => !liveIds.has(s.id));
+    return [...completed, ...liveSessions].filter(s => s.taskId && s.activeTime > 0);
+  }, [apiSessions, liveSessions]);
+
+  const focusRange = useMemo(() => {
+    const from = parseISO(rangeFrom).getTime();
+    const to = parseISO(rangeTo).getTime() + 86400000 - 1;
+    return { start: from, end: to };
+  }, [rangeFrom, rangeTo]);
+
+  const accent = theme?.accentColor || '#0ea5e9';
+  const focusLabel = rangeFrom === rangeTo
+    ? format(parseISO(rangeFrom), 'MMM d')
+    : `${format(parseISO(rangeFrom), 'MMM d')} – ${format(parseISO(rangeTo), 'MMM d')}`;
+
   const activeDays = summary.filter(d => d.totalHours > 0 || d.workLogCount > 0);
 
   return (
@@ -623,12 +757,12 @@ export function ReportsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 tracking-tight">
-              Reports & Analytics
+              Personal Reports
             </h1>
             <p className="text-surface-400 text-sm mt-1">
               {selectedUserId
                 ? `Viewing reports for ${adminUsers.find(u => u._id === selectedUserId)?.name || 'user'}`
-                : 'Your productivity intelligence center — click any day to drill in.'}
+                : 'Time + focus retrospective — click any day to drill in.'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -646,10 +780,49 @@ export function ReportsPage() {
             </span>
           </div>
         </div>
+
+        {/* View toggle: Analytics merged in as a view of Reports */}
+        <div className="flex items-center gap-1.5 bg-surface-900 p-1.5 rounded-xl border border-surface-800 w-fit mt-4">
+          {([['overview', 'Overview'], ['focus', 'Focus & Analytics']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setView(key)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                view === key ? 'bg-surface-800 text-surface-50 shadow-sm' : 'text-surface-400 hover:text-surface-200 hover:bg-surface-850/50'
+              }`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </motion.div>
 
       {selectedDate ? (
         <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} viewUserId={selectedUserId || undefined} />
+      ) : view === 'focus' ? (
+        <div className="space-y-6">
+          {/* Shared range filter drives the focus KPIs and charts */}
+          <motion.div variants={fadeUp} initial="hidden" animate="show"
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-6">
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                <Clock size={15} />
+              </div>
+              <div>
+                <h2 className="font-display font-bold text-surface-50 text-[15px]">Range Filter</h2>
+                <p className="text-xs text-surface-400 mt-0.5">Drives the focus KPIs and charts below.</p>
+              </div>
+            </div>
+            <RangeControls from={rangeFrom} to={rangeTo} onFrom={setRangeFrom} onTo={setRangeTo} onApply={applyQuickRange} />
+          </motion.div>
+
+          <AnalyticsSection
+            sessions={sessions}
+            tasks={tasks}
+            start={focusRange.start}
+            end={focusRange.end}
+            accent={accent}
+            loading={loadingSessions && sessions.length === 0}
+            rangeLabel={focusLabel}
+          />
+        </div>
       ) : (
         <div className="space-y-6">
 
@@ -749,22 +922,7 @@ export function ReportsPage() {
                 {/* Custom range */}
                 <div className="rounded-xl border border-surface-800 bg-surface-850/50 p-4">
                   <label className="block text-xs text-surface-400 font-semibold mb-2 uppercase tracking-wider">Custom Range</label>
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <Input type="date" className="text-sm rounded-xl" value={rangeFrom} onChange={e => setRangeFrom(e.target.value)} />
-                    <Input type="date" className="text-sm rounded-xl" value={rangeTo} onChange={e => setRangeTo(e.target.value)} />
-                  </div>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {[
-                      { label: 'Today', from: new Date(), to: new Date() },
-                      { label: 'This Week', from: startOfWeek(new Date(), { weekStartsOn: 0 }), to: endOfWeek(new Date(), { weekStartsOn: 0 }) },
-                      { label: 'This Month', from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
-                    ].map(({ label, from, to }) => (
-                      <button key={label} onClick={() => applyQuickRange(from, to)}
-                        className="px-3 py-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-xs text-surface-300 hover:text-surface-100 transition-all border border-surface-700 font-medium">
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  <RangeControls from={rangeFrom} to={rangeTo} onFrom={setRangeFrom} onTo={setRangeTo} onApply={applyQuickRange} />
                 </div>
               </div>
 

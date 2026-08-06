@@ -1,23 +1,25 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Layers, FolderOpen, AlertOctagon, BookOpen, Calendar, BarChart3,
-  ShieldCheck, Plus, GitBranch, Clock,
-  CheckCircle2, ChevronDown, MessageSquare, Flame,
+  Layers, AlertOctagon, BookOpen, Calendar,
+  Plus, Clock,
+  ChevronDown, Flame,
   Zap, Edit3, UserCheck, Rocket, Gauge, ListChecks, CalendarClock, FileWarning
 } from 'lucide-react';
+import { useStore } from '../../store/useStore';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useAuthStore } from '../../store/useAuthStore';
-import { SprintStatus, MemberRole, CollaborativeTask } from '../../types/collaboration';
+import { CollaborativeTask } from '../../types/collaboration';
 import { activityActionLabel, activityDetail } from '../../lib/collaborationActivity';
-import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
-import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
-import { CreateBlockerModal } from '../../components/collaboration/CreateBlockerModal';
+import { selectNowStrip } from '../../lib/nowSelectors';
+import { selectTeamToday } from '../../lib/missionControlSelectors';
+import { computeVelocity } from '../../lib/collaborationKpis';
+import { useActiveTimer } from '../../hooks/useActiveTimer';
+import { formatHours } from '../../utils/time';
+import { TeamTodaySection } from '../../components/collaboration/TeamTodaySection';
 import { CreateDocModal } from '../../components/collaboration/CreateDocModal';
 import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
-import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
-import { CreateFeatureModal } from '../../components/collaboration/CreateFeatureModal';
-import { ProjectBacklog } from '../../components/collaboration/ProjectBacklog';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
@@ -26,17 +28,9 @@ import { getWorkspaceMaturityLevel, isFeatureVisibleForMaturity } from '../../ut
 // ── Motion Variants ────────────────────────────────────────────────────────────
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
-// ── P6-T1: pure board computation over live store data ─────────────────────────
-// The server does not persist an `actualVelocity`, so the Active Sprint Velocity
-// card derives it from real task data: committed effort delivered (sum of
-// `estimatedHours` across `done` tasks). Returns 0 when nothing is done yet.
-export function computeSprintVelocity(tasks: Pick<CollaborativeTask, 'sprintStatus' | 'estimatedHours'>[]): number {
-  return tasks
-    .filter((t) => t.sprintStatus === 'done')
-    .reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
-}
-
 // ── UX-R1: pure helpers for the Mission Control dashboard ──────────────────────
+// Sprint velocity lives in the shared `lib/collaborationKpis` module (S4-T2) so
+// Mission Control and Project Reports read the same computed source (R3/R5).
 // All dashboard widgets read these over live store data; nothing is fabricated.
 
 /** Open work assigned to a user (not yet done): { count, hours }. */
@@ -87,13 +81,13 @@ export function computeWorkspaceProgress(
   return { done, total, pct: total === 0 ? 0 : Math.round((done / total) * 100) };
 }
 
-type TeamTab = 'dashboard' | 'sprints' | 'projects' | 'blockers' | 'docs' | 'calendar' | 'analytics' | 'admin';
+type TeamTab = 'dashboard' | 'docs' | 'calendar';
 
 export function TeamWorkspace() {
   const {
     workspaces, activeWorkspaceId, setActiveWorkspace,
     members, projects, sprints, tasks, features, activities,
-    docs, blockers, events, updateTaskStatus, updateMemberRole, resolveBlocker,
+    docs, blockers, events,
     loadWorkspaceActivity, activityLoading, activityHasMore, activityNextCursor
   } = useCollaborationStore();
 
@@ -115,18 +109,9 @@ export function TeamWorkspace() {
   // Modals & States
   const [showWsMenu, setShowWsMenu] = useState(false);
   const [, setShowNewWsModal] = useState(false);
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  const [showCreateBlocker, setShowCreateBlocker] = useState(false);
   const [showCreateDoc, setShowCreateDoc] = useState(false);
   const [showCreateSprint, setShowCreateSprint] = useState(false);
-  const [showCreateTask, setShowCreateTask] = useState(false);
-  const [showCreateFeature, setShowCreateFeature] = useState(false);
   const [editingDoc, setEditingDoc] = useState<any>(null);
-
-  // Discussions Modal state
-  const [discModal, setDiscModal] = useState<{ open: boolean; targetType: any; targetId: string; title: string }>({
-    open: false, targetType: 'task', targetId: '', title: ''
-  });
 
   // ── Helper computations ──────────────────────────────────────────────────────
   const wsTasks = useMemo(() => activeWs ? tasks.filter((t) => t.workspaceId === activeWs.id) : [], [tasks, activeWs?.id]);
@@ -144,7 +129,10 @@ export function TeamWorkspace() {
     () => (activeSprint ? wsTasks.filter((t) => t.sprintId === activeSprint.id) : []),
     [wsTasks, activeSprint],
   );
-  const activeSprintVelocity = useMemo(() => computeSprintVelocity(activeSprintTasks), [activeSprintTasks]);
+  const activeSprintVelocity = useMemo(
+    () => computeVelocity(activeSprintTasks, activeSprint?.targetVelocity ?? 0).delivered,
+    [activeSprintTasks, activeSprint?.targetVelocity],
+  );
 
   // UX-R1: Mission Control data — everything derived, nothing fabricated.
   const currentUserId = useAuthStore.getState().user?._id ?? null;
@@ -169,6 +157,43 @@ export function TeamWorkspace() {
       : Math.round((activeSprintTasks.filter((t) => t.sprintStatus === 'done').length / activeSprintTasks.length) * 100)),
     [activeSprintTasks],
   );
+
+  // S3-T4: Mission Control leads with today's work + resume + the running timer.
+  // The active session is resolved across the personal + collab spine by the
+  // same pure selector the NowStrip uses (no duplicated derivation); the team
+  // "today" facts come from the live collab store via selectTeamToday.
+  const navigate = useNavigate();
+  const {
+    tasks: personalTasks, activeTaskId, activeSessionId, activeTimerState,
+    dataLoading, dataError, getTodayTime, profile, theme,
+    pauseTimer, resumeTimer,
+  } = useStore();
+  const { display: timerDisplay } = useActiveTimer();
+
+  const now = useMemo(
+    () => selectNowStrip({
+      tasks: personalTasks, collabTasks: tasks, workspaces, projects, sprints, features,
+      activeTaskId, activeSessionId, activeTimerState,
+    }),
+    [personalTasks, tasks, workspaces, projects, sprints, features,
+      activeTaskId, activeSessionId, activeTimerState],
+  );
+  const teamToday = useMemo(
+    () => selectTeamToday(wsTasks, members, currentUserId),
+    [wsTasks, members, currentUserId],
+  );
+
+  const todayMs = getTodayTime();
+  const dailyGoalMs = profile.dailyGoal * 3600000;
+  const goalPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : null;
+  const accent = theme?.accentColor || '#0ea5e9';
+  const dateLabel = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const openFocus = () => navigate('/focus');
+  const startToday = () => navigate('/dashboard');
+  const openTask = () => { if (activeWs) navigate(`/w/${activeWs.id}/sprints`); };
+  const pauseActive = () => { if (activeTaskId) pauseTimer(activeTaskId); };
+  const resumeActive = () => { if (activeTaskId) resumeTimer(activeTaskId); };
 
   // Presence counters
   const onlineMembers = members.filter((m) => m.status !== 'offline');
@@ -290,13 +315,8 @@ export function TeamWorkspace() {
 
           const allTabs = [
             { id: 'dashboard', key: null, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
-            { id: 'sprints', key: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', count: wsTasks.length },
-            { id: 'projects', key: 'projects', label: 'Projects', icon: FolderOpen, color: 'text-cyan-400', count: wsProjects.length },
-            { id: 'blockers', key: 'blockers', label: 'Blockers Matrix', icon: AlertOctagon, color: 'text-red-400', count: openBlockers.length },
             { id: 'docs', key: null, label: 'Knowledge Base', icon: BookOpen, color: 'text-purple-400', count: wsDocs.length },
             { id: 'calendar', key: null, label: 'Team Calendar', icon: Calendar, color: 'text-emerald-400' },
-            { id: 'analytics', key: 'analytics', label: 'Analytics & Reports', icon: BarChart3, color: 'text-sky-400' },
-            { id: 'admin', key: 'admin', label: 'Teams & Access', icon: ShieldCheck, color: 'text-orange-400' },
           ];
 
           const visibleTabs = allTabs.filter(
@@ -337,10 +357,29 @@ export function TeamWorkspace() {
                 {myName ? `${myName.split(' ')[0]}, ` : ''}here's the state of {activeWs.name} — {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}.
               </p>
             </div>
-            <Button onClick={() => setActiveTab('sprints')} size="sm" variant="secondary" leftIcon={<Layers size={14} />}>
+            <Button onClick={openTask} size="sm" variant="secondary" leftIcon={<Layers size={14} />}>
               Open Sprint Board
             </Button>
           </div>
+
+          {/* S3-T4: lead with today's work + resume + the running timer */}
+          <TeamTodaySection
+            loading={dataLoading}
+            error={dataError}
+            running={now.state === 'none' ? null : now}
+            timerLabel={timerDisplay}
+            todayLabel={formatHours(todayMs)}
+            goalPct={goalPct}
+            view={teamToday}
+            accent={accent}
+            workspaceName={activeWs.name}
+            dateLabel={dateLabel}
+            onResume={resumeActive}
+            onPause={pauseActive}
+            onOpenFocus={openFocus}
+            onStartToday={startToday}
+            onOpenTask={openTask}
+          />
 
           {/* Stat Cards — all derived from live store data */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -442,7 +481,7 @@ export function TeamWorkspace() {
                 ) : (
                   <div className="rounded-xl border border-dashed border-surface-700 bg-surface-850/40 p-6 text-center">
                     <p className="text-xs text-surface-400 italic">No active sprint. Plan the next iteration from the Sprint Board.</p>
-                    <Button onClick={() => setActiveTab('sprints')} size="xs" variant="secondary" className="mt-3">
+                    <Button onClick={openTask} size="xs" variant="secondary" className="mt-3">
                       Go to Sprint Planning
                     </Button>
                   </div>
@@ -517,7 +556,7 @@ export function TeamWorkspace() {
                   </ul>
                 )}
                 {openBlockers.length > 0 && (
-                  <Button onClick={() => setActiveTab('blockers')} size="xs" variant="secondary" className="w-full">
+                  <Button onClick={() => { if (activeWs) navigate(`/w/${activeWs.id}/blockers`); }} size="xs" variant="secondary" className="w-full">
                     Manage Blockers
                   </Button>
                 )}
@@ -580,257 +619,7 @@ export function TeamWorkspace() {
         </motion.div>
       )}
 
-      {/* ── TAB 2: SPRINT BOARD (KANBAN & AGILE) ── */}
-      {activeTab === 'sprints' && (
-        <div className="space-y-6">
-
-          {/* Sprint Board Actions — real member/feature-aware creation (P6-T4) */}
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <Layers size={18} className="text-brand-400" /> Sprint Planning
-            </h2>
-            <div className="flex items-center gap-2">
-              <Button onClick={() => setShowCreateTask(true)}
-                size="sm" leftIcon={<Plus size={14} />}>
-                New Task
-              </Button>
-              <Button onClick={() => setShowCreateSprint(true)}
-                size="sm" leftIcon={<Plus size={14} />}>
-                New Sprint
-              </Button>
-            </div>
-          </div>
-
-          {/* P6-T3: per-project feature backlog with drag-and-drop into sprints */}
-          <ProjectBacklog onCreateFeature={() => setShowCreateFeature(true)} />
-
-          {/* Sprint Details & Capacity Header */}
-          {activeSprint && (
-            <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-display font-extrabold text-surface-50 flex items-center gap-2">
-                  <Layers size={18} className="text-brand-400" /> {activeSprint.name}
-                </h2>
-                <p className="text-xs text-surface-400 mt-1">Goal: {activeSprint.goal}</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs font-semibold">
-                <div className="p-3 rounded-xl bg-surface-850 border border-surface-800 text-center">
-                  <p className="text-brand-400 font-bold">{activeSprint.capacityHours}h</p>
-                  <p className="text-[10px] text-surface-500">Capacity</p>
-                </div>
-                <div className="p-3 rounded-xl bg-surface-850 border border-surface-800 text-center">
-                  <p className="text-emerald-400 font-bold">{wsTasks.filter(t => t.sprintStatus === 'done').length} / {wsTasks.length}</p>
-                  <p className="text-[10px] text-surface-500 font-bold uppercase">Tasks Done</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* P6-T1: no active sprint — keep the board usable, explain the missing header */}
-          {!activeSprint && wsTasks.length > 0 && (
-            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-5 flex items-center gap-3 text-xs text-surface-400 italic">
-              <Layers size={14} className="text-surface-500" />
-              No active sprint — sprint goal, capacity, and velocity appear here once a sprint is active. The board below shows the workspace task backlog.
-            </div>
-          )}
-
-          {/* 5-Column Kanban Board */}
-          {wsTasks.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center text-xs text-surface-400 italic">
-              No tasks yet in this workspace. Tasks you create will appear on the sprint board.
-            </div>
-          ) : (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {(
-              [
-                { id: 'backlog', label: 'Backlog', color: 'border-surface-700 text-surface-400' },
-                { id: 'ready', label: 'Ready', color: 'border-blue-500/40 text-blue-400' },
-                { id: 'in_progress', label: 'In Progress', color: 'border-sky-500/40 text-sky-400' },
-                { id: 'review', label: 'Code Review', color: 'border-purple-500/40 text-purple-400' },
-                { id: 'done', label: 'Done', color: 'border-emerald-500/40 text-emerald-400' },
-              ] as const
-            ).map((col) => {
-              const colTasks = wsTasks.filter((t) => t.sprintStatus === col.id);
-              return (
-                <div key={col.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-4 space-y-3 min-h-[500px]">
-                  <div className={`pb-2 border-b flex items-center justify-between ${col.color}`}>
-                    <span className="font-display font-extrabold text-xs uppercase tracking-wider">{col.label}</span>
-                    <Badge tone="neutral" className="text-xs font-bold">{colTasks.length}</Badge>
-                  </div>
-
-                  <div className="space-y-3">
-                    {colTasks.map((task) => (
-                      <div key={task.id} className="rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group">
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
-                          {task.gitContext?.prNumber && (
-                            <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
-                              PR #{task.gitContext.prNumber}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <p className="text-xs font-bold text-surface-100 leading-snug">{task.title}</p>
-                        <p className="text-[11px] text-surface-400 line-clamp-2">{task.description}</p>
-
-                        {/* Git Context Badges */}
-                        {task.gitContext?.branch && (
-                          <Badge tone="success" icon={<GitBranch size={10} />} className="text-[10px] font-mono py-1 truncate max-w-full overflow-hidden">
-                            {task.gitContext.branch}
-                          </Badge>
-                        )}
-
-                        {/* Action Bar */}
-                        <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px]">
-                          <Button onClick={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
-                            variant="ghost" size="xs" leftIcon={<MessageSquare size={12} />}
-                            className="text-surface-400 hover:text-brand-400 hover:bg-transparent">
-                            Discuss
-                          </Button>
-
-                          {/* Quick Status Move */}
-                          <select aria-label="Task status" className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1 py-0.5"
-                            value={task.sprintStatus} onChange={(e) => updateTaskStatus(task.id, e.target.value as SprintStatus)}>
-                            <option value="backlog">Backlog</option>
-                            <option value="ready">Ready</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="review">Review</option>
-                            <option value="done">Done</option>
-                          </select>
-                        </div>
-                      </div>
-                    ))}
-                    {colTasks.length === 0 && (
-                      <p className="text-[11px] text-surface-500 italic py-6 text-center">No tasks</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          )}
-        </div>
-      )}
-
-      {/* ── TAB 3: PROJECTS & MILESTONES ── */}
-      {activeTab === 'projects' && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <FolderOpen size={18} className="text-cyan-400" /> Projects & Milestones
-            </h2>
-            <Button onClick={() => setShowCreateProject(true)}
-              size="sm" leftIcon={<Plus size={14} />}>
-              New Project
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {wsProjects.map((proj) => (
-              <div key={proj.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
-                      {proj.key}
-                    </Badge>
-                    <h3 className="text-lg font-display font-extrabold text-surface-50 mt-1">{proj.name}</h3>
-                  </div>
-                  {proj.repositoryUrl && (
-                    <a href={proj.repositoryUrl} target="_blank" rel="noreferrer"
-                      className="p-2 rounded-xl bg-surface-800 hover:bg-surface-700 text-surface-300 flex items-center gap-1.5 text-xs font-semibold">
-                      <GitBranch size={14} /> Repository
-                    </a>
-                  )}
-                </div>
-
-                <p className="text-xs text-surface-400 leading-relaxed">{proj.description}</p>
-
-                {/* Milestones */}
-                <div className="space-y-2 pt-2 border-t border-surface-800">
-                  <p className="text-xs font-bold text-surface-300">Active Milestones</p>
-                  {proj.milestones.map((ms) => (
-                    <div key={ms.id} className="p-3 rounded-xl bg-surface-850 border border-surface-800 flex items-center justify-between text-xs">
-                      <div>
-                        <p className="font-semibold text-surface-100">{ms.title}</p>
-                        <p className="text-[10px] text-surface-500">Due: {ms.dueDate}</p>
-                      </div>
-                      <Badge tone="success" className="text-[10px] font-bold uppercase border border-emerald-500/20">
-                        {ms.targetPoints} pts
-                      </Badge>
-                    </div>
-                  ))}
-                  {proj.milestones.length === 0 && (
-                    <p className="text-xs text-surface-500 italic">No milestones set.</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-          {wsProjects.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/60 p-12 text-center">
-              <FolderOpen size={28} className="mx-auto text-cyan-400/60 mb-3" />
-              <p className="text-xs font-bold text-surface-300 mb-1">No projects yet</p>
-              <p className="text-xs text-surface-500 italic mb-4">Kick off the first initiative for this workspace.</p>
-              <Button onClick={() => setShowCreateProject(true)} size="sm" leftIcon={<Plus size={14} />}>
-                New Project
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── TAB 4: CENTRAL BLOCKER MATRIX ── */}
-      {activeTab === 'blockers' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-                <AlertOctagon size={18} className="text-red-400" /> Blocker Resolution Board
-              </h2>
-              <Button onClick={() => setShowCreateBlocker(true)}
-                variant="danger" size="sm" leftIcon={<AlertOctagon size={14} />}>
-                Report Blocker
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {wsBlockers.map((blk) => (
-                <div key={blk.id} className="p-4 rounded-xl border border-surface-800 bg-surface-850 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge tone={blk.severity === 'critical' ? 'danger' : 'warning'} className="text-[10px] font-extrabold uppercase">
-                        {blk.severity}
-                      </Badge>
-                      <h4 className="text-sm font-bold text-surface-100">{blk.title}</h4>
-                    </div>
-                    <p className="text-xs text-surface-400">{blk.impactDescription}</p>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    {blk.status === 'resolved' ? (
-                      <Badge tone="success" icon={<CheckCircle2 size={13} />} className="text-xs font-bold px-3 py-1.5 border border-emerald-500/20">
-                        Resolved
-                      </Badge>
-                    ) : (
-                      <Button onClick={() => resolveBlocker(blk.id)} size="sm">
-                        Resolve Blocker
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {wsBlockers.length === 0 && (
-              <div className="py-8 text-center">
-                <CheckCircle2 size={28} className="mx-auto text-emerald-400/70 mb-3" />
-                <p className="text-xs font-bold text-surface-300 mb-1">No blockers reported</p>
-                <p className="text-xs text-surface-500 italic mb-4">The pipeline is clear. Report one if something is in the way.</p>
-                <Button onClick={() => setShowCreateBlocker(true)} variant="danger" size="xs" leftIcon={<AlertOctagon size={12} />}>
-                  Report Blocker
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* ── TAB 2: KNOWLEDGE BASE DOCUMENTS ── */}
       {activeTab === 'docs' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -870,7 +659,7 @@ export function TeamWorkspace() {
         </div>
       )}
 
-      {/* ── TAB 6: TEAM CALENDAR ── */}
+      {/* ── TAB 3: TEAM CALENDAR ── */}
       {activeTab === 'calendar' && (
         <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
           <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
@@ -891,81 +680,9 @@ export function TeamWorkspace() {
         </div>
       )}
 
-      {/* ── TAB 7: TEAM ANALYTICS & REPORTS ── */}
-      {activeTab === 'analytics' && (
-        <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-          <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-            <BarChart3 size={18} className="text-sky-400" /> Team Cycle Time & Focus Metrics
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-sky-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">Average Task Cycle Time</p>
-            </div>
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-emerald-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">Daily Focus Time per Developer</p>
-            </div>
-            <div className="p-5 rounded-xl bg-surface-850 border border-surface-800">
-              <p className="text-2xl font-bold text-purple-400">—</p>
-              <p className="text-xs text-surface-400 mt-1">PR Merge Rate within 24h</p>
-            </div>
-          </div>
-          <p className="text-xs text-surface-500 italic">Cycle-time and focus metrics appear once the workspace has sprint history.</p>
-        </div>
-      )}
-
-      {/* ── TAB 8: TEAMS & ACCESS ADMIN ── */}
-      {activeTab === 'admin' && (
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-4">
-            <h2 className="text-base font-display font-extrabold text-surface-50 flex items-center gap-2">
-              <ShieldCheck size={18} className="text-orange-400" /> Team Roster & Role-Based Access
-            </h2>
-            <div className="divide-y divide-surface-800">
-              {members.map((m) => (
-                <div key={m.id} className="py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-xs font-bold text-white">
-                      {m.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-surface-100">{m.name}</p>
-                      <p className="text-[11px] text-surface-500">{m.email}</p>
-                    </div>
-                  </div>
-                  <select aria-label="Member role" className="bg-surface-850 text-surface-200 text-xs rounded-lg border border-surface-700 px-2 py-1"
-                    value={m.role} onChange={(e) => updateMemberRole(m.id, e.target.value as MemberRole)}>
-                    <option value="Owner">Owner</option>
-                    <option value="Admin">Admin</option>
-                    <option value="Manager">Manager</option>
-                    <option value="Developer">Developer</option>
-                    <option value="Viewer">Viewer</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-            {members.length === 0 && (
-              <p className="text-xs text-surface-500 italic py-4 text-center">No members in this workspace yet.</p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Modals */}
-      <DiscussionsModal
-        isOpen={discModal.open}
-        onClose={() => setDiscModal({ ...discModal, open: false })}
-        targetType={discModal.targetType}
-        targetId={discModal.targetId}
-        title={discModal.title}
-      />
-      <CreateProjectModal isOpen={showCreateProject} onClose={() => setShowCreateProject(false)} />
-      <CreateBlockerModal isOpen={showCreateBlocker} onClose={() => setShowCreateBlocker(false)} />
       <CreateDocModal isOpen={showCreateDoc} onClose={() => setShowCreateDoc(false)} docToEdit={editingDoc} />
       <CreateSprintModal isOpen={showCreateSprint} onClose={() => setShowCreateSprint(false)} />
-      <CreateTaskModal isOpen={showCreateTask} onClose={() => setShowCreateTask(false)} />
-      <CreateFeatureModal isOpen={showCreateFeature} onClose={() => setShowCreateFeature(false)} />
     </div>
   );
 }

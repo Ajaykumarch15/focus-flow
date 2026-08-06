@@ -85,7 +85,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = (data as { message?: string }).message || `HTTP ${res.status}`;
-    console.error(`API Error [${res.status}] ${options.method || 'GET'} ${path}:`, msg);
+    // A 401 is the routine "no session / not authenticated" signal (e.g. the
+    // boot-time /auth/me check on the public landing page). It is handled by the
+    // caller (useAuthStore.restoreSession) and represents an anonymous visitor,
+    // not a real error — so keep the console quiet instead of spamming it.
+    if (res.status !== 401) {
+      console.error(`API Error [${res.status}] ${options.method || 'GET'} ${path}:`, msg);
+    }
     throw new Error(msg);
   }
   return data as T;

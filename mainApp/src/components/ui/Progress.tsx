@@ -15,13 +15,15 @@ interface ProgressProps {
   tone?: ProgressTone;
   className?: string;
   barClassName?: string;
+  ariaLabel?: string;
 }
 
-export function Progress({ value, max = 100, tone = 'brand', className, barClassName }: ProgressProps) {
+export function Progress({ value, max = 100, tone = 'brand', className, barClassName, ariaLabel }: ProgressProps) {
   const pct = Math.min(100, Math.max(0, (value / max) * 100));
   return (
     <div
       role="progressbar"
+      aria-label={ariaLabel}
       aria-valuenow={Math.round(pct)}
       aria-valuemin={0}
       aria-valuemax={100}

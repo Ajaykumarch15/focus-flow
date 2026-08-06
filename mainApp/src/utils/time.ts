@@ -176,6 +176,41 @@ export function getIsoWeekEndKey(timeZone = getTimezone()): string {
   return addDaysToKey(getIsoWeekStartKey(timeZone), 6);
 }
 
+/**
+ * Monday-midnight epoch ms of the ISO week a timestamp falls in, for a timezone.
+ * ISO weeks run Monday–Sunday; the instant is the user-tz midnight of Monday so
+ * a range filter can use it directly as a window start.
+ */
+export function startOfIsoWeekInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  const key = dayKeyInTz(timestamp, timeZone);
+  const [y, m, d] = key.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0 = Sunday
+  const daysSinceMonday = (dow + 6) % 7;
+  return localDateToUtc(addDaysToKey(key, -daysSinceMonday), timeZone);
+}
+
+/** Sunday 23:59:59.999 epoch ms ending the ISO week a timestamp falls in. */
+export function endOfIsoWeekInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  return startOfIsoWeekInTz(timestamp, timeZone) + 7 * 86400000 - 1;
+}
+
+/**
+ * Hour of the day (0–23) a timestamp falls in, for a timezone. Uses the tz
+ * offset at that exact instant, so DST transitions do not skew the hour.
+ */
+export function hourOfDayInTz(timestamp: number | string, timeZone = getTimezone()): number {
+  const ts = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+  return new Date(ts + getOffsetMs(new Date(ts), timeZone)).getUTCHours();
+}
+
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** Weekday short name ("Mon"–"Sun") of the calendar day a timestamp falls in, for a timezone. */
+export function weekdayInTz(timestamp: number | string, timeZone = getTimezone()): string {
+  const [y, m, d] = dayKeyInTz(timestamp, timeZone).split('-').map(Number);
+  return WEEKDAY_NAMES[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
 // ── Core date helpers (LOCAL TIME ONLY) ──────────────────────────────────────
 // Every function below uses local system time. No UTC. No toISOString().
 
@@ -360,4 +395,39 @@ export function formatDateShort(date: Date | number): string {
   return new Date(date).toLocaleDateString('en-US', {
     weekday: 'short', month: 'short', day: 'numeric',
   });
+}
+
+/**
+ * Format the calendar date a timestamp falls on, in a chosen timezone — "Sun,
+ * Aug 9". Unlike `formatDateShort` (local wall clock), this never shifts across
+ * midnight, so a range label matches the same timezone the range was computed in.
+ */
+export function formatDateShortInTz(timestamp: number | string, timeZone = getTimezone()): string {
+  const [y, m, d] = dayKeyInTz(timestamp, timeZone).split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC',
+  });
+}
+
+/** Local wall-clock time — "9:41 AM". */
+export function formatTimeOfDay(timestamp: number | string): string {
+  return new Date(timestamp).toLocaleTimeString('en-US', {
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
+// ── Relative time ────────────────────────────────────────────────────────────
+// Single shared implementation (extracted from the inline timeAgo snippet that
+// was duplicated across AdminActivity/AdminOverview) so every feed renders the
+// same compact "5m ago" wording.
+
+/** Compact relative time — "just now", "5m ago", "3h ago", "2d ago". */
+export function formatRelativeTime(timestamp: number | string, now: number = Date.now()): string {
+  const ts = typeof timestamp === 'string' ? new Date(timestamp).getTime() : timestamp;
+  if (!Number.isFinite(ts)) return '';
+  const diff = now - ts;
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
 }

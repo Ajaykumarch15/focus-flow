@@ -4,39 +4,16 @@ import {
   Download
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
-import type { CollaborativeTask } from '../../types/collaboration';
 import { saveAs } from 'file-saver';
 import { Card } from '../../components/ui/Card';
+import { computeVelocity, computeFeatureCompletionRate } from '../../lib/collaborationKpis';
+
+// S4-T2 (ECIS B.9): the KPI math now lives in the canonical lib module so the
+// same computed source feeds Mission Control and Project Reports (R3/R5). The
+// re-exports keep the public helper surface stable for existing consumers/tests.
+export { computeVelocity, computeFeatureCompletionRate };
 
 type ReportType = 'sprint' | 'developer' | 'productivity' | 'engineering';
-
-// IES-P1-20: an empty feature set is not a 100% completion rate — it's "no data".
-// Returns null so callers can render an explicit empty state instead of a
-// fabricated metric. Accepts either a Feature (`status`) or a CollaborativeTask
-// (`sprintStatus`) shape so the same KPI works over both live collections.
-export function computeFeatureCompletionRate(items: { sprintStatus?: string; status?: string }[]): number | null {
-  if (items.length === 0) return null;
-  const isDone = (i: { sprintStatus?: string; status?: string }) =>
-    i.status === 'done' || i.sprintStatus === 'done';
-  const completed = items.filter(isDone).length;
-  return Math.round((completed / items.length) * 100);
-}
-
-// IES-R1 (P6-T5): the server persists capacity/target velocity but NOT an
-// `actualVelocity`, so delivered velocity is derived from live task data:
-// committed effort (`estimatedHours`) delivered across `done` tasks.
-export function computeVelocity(
-  tasks: Pick<CollaborativeTask, 'sprintStatus' | 'estimatedHours'>[],
-  targetVelocity: number,
-): { delivered: number; pct: number | null } {
-  const delivered = tasks
-    .filter((t) => t.sprintStatus === 'done')
-    .reduce((sum, t) => sum + (t.estimatedHours || 0), 0);
-  return {
-    delivered,
-    pct: targetVelocity > 0 ? Math.round((delivered / targetVelocity) * 100) : null,
-  };
-}
 
 export function ReportsAnalyticsPage() {
   const { tasks, features, members, sprints, blockers, activeWorkspaceId } = useCollaborationStore();

@@ -1,9 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, CheckSquare, BarChart3, BookOpen,
+  LayoutDashboard, CheckSquare, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Users,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -11,16 +11,18 @@ import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard'  },
-  { to: '/team',      icon: Users,           label: 'Team Workspace' },
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Today'  },
+  { to: '/hub',       icon: Building2,       label: 'Workspace Hub' },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
+  { to: '/knowledge', icon: Library,         label: 'Knowledge'  },
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },
+  { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },
   { to: '/leaderboard', icon: Trophy,        label: 'Leaderboard'},
-  { to: '/analytics', icon: BarChart3,       label: 'Analytics'  },
   { to: '/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
+  { to: '/activity',  icon: History,         label: 'Activity'  },
   { to: '/settings',  icon: Settings,        label: 'Settings'   },
 ];
 
@@ -114,7 +116,7 @@ export function Sidebar() {
         {user?.role === 'admin' && (
           <>
             <div className={`my-4 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            <button onClick={() => { setWorkspace('admin'); navigate('/admin/overview'); }}
+            <button onClick={() => { setWorkspace('admin'); navigate('/admin/audit'); }}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative text-surface-400 hover:text-purple-400 hover:bg-purple-500/5 w-full`}>
               <ShieldCheck size={18} className="flex-shrink-0" />
               <AnimatePresence>

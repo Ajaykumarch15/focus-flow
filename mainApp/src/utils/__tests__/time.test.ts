@@ -22,6 +22,7 @@ import {
   splitSessionAcrossMidnight,
   formatDate,
   formatDateShort,
+  formatDateShortInTz,
   getTodayKey,
   dayKeyInTz,
   getOffsetMs,
@@ -31,6 +32,10 @@ import {
   addDaysToKey,
   getIsoWeekStartKey,
   getIsoWeekEndKey,
+  startOfIsoWeekInTz,
+  endOfIsoWeekInTz,
+  hourOfDayInTz,
+  weekdayInTz,
   getTimezone,
 } from '../time';
 
@@ -275,6 +280,21 @@ describe('ISO week helpers (IES-P1-19)', () => {
     vi.setSystemTime(new Date('2026-07-20T00:00:00Z')); // Monday — new week
     expect(getIsoWeekStartKey('UTC')).toBe('2026-07-20');
   });
+
+  it('startOfIsoWeekInTz/endOfIsoWeekInTz bound the ISO week at tz midnight', () => {
+    const wed = Date.parse('2026-08-05T12:00:00Z'); // Wed Aug 5 2026
+    expect(startOfIsoWeekInTz(wed, 'UTC')).toBe(Date.UTC(2026, 7, 3));
+    expect(endOfIsoWeekInTz(wed, 'UTC')).toBe(Date.UTC(2026, 7, 9, 23, 59, 59, 999));
+  });
+
+  it('week boundaries respect the user timezone, not the instant', () => {
+    // Aug 5 18:30Z is Aug 6 00:00 in Kolkata — a Thursday of the same ISO week.
+    const instant = Date.parse('2026-08-05T18:30:00Z');
+    expect(startOfIsoWeekInTz(instant, 'Asia/Kolkata')).toBe(localDateToUtc('2026-08-03', 'Asia/Kolkata'));
+    expect(endOfIsoWeekInTz(instant, 'Asia/Kolkata')).toBe(localDateToUtc('2026-08-09', 'Asia/Kolkata') + 86400000 - 1);
+    // The same instant is still Wednesday evening in New York — same week start.
+    expect(startOfIsoWeekInTz(instant, 'America/New_York')).toBe(localDateToUtc('2026-08-03', 'America/New_York'));
+  });
 });
 
 describe('date formatting', () => {
@@ -283,5 +303,26 @@ describe('date formatting', () => {
     vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0));
     expect(formatDate(new Date(2026, 6, 26))).toBe('Jul 26, 2026');
     expect(formatDateShort(new Date(2026, 6, 26))).toMatch(/Sun, Jul 26/);
+  });
+
+  it('formatDateShortInTz labels the calendar date in the given timezone', () => {
+    // 2026-08-09 23:59:59Z is already Monday in Kolkata but still Sunday in UTC.
+    const instant = Date.parse('2026-08-09T23:59:59Z');
+    expect(formatDateShortInTz(instant, 'UTC')).toBe('Sun, Aug 9');
+    expect(formatDateShortInTz(instant, 'Asia/Kolkata')).toBe('Mon, Aug 10');
+    expect(formatDateShortInTz(instant, 'America/New_York')).toBe('Sun, Aug 9');
+  });
+
+  it('hourOfDayInTz returns the wall-clock hour in the given timezone', () => {
+    expect(hourOfDayInTz('2026-08-05T03:30:00Z', 'UTC')).toBe(3);
+    expect(hourOfDayInTz('2026-08-05T03:30:00Z', 'Asia/Kolkata')).toBe(9); // 03:30Z = 09:00 IST
+    expect(hourOfDayInTz('2026-08-05T23:30:00Z', 'Asia/Kolkata')).toBe(5); // Aug 6 05:00 IST
+    expect(hourOfDayInTz('2026-08-05T23:30:00Z', 'America/New_York')).toBe(19); // EDT evening
+  });
+
+  it('weekdayInTz names the calendar day in the given timezone', () => {
+    expect(weekdayInTz('2026-08-05T18:30:00Z', 'UTC')).toBe('Wed');
+    expect(weekdayInTz('2026-08-05T18:30:00Z', 'Asia/Kolkata')).toBe('Thu'); // Aug 6 IST
+    expect(weekdayInTz('2026-08-09T23:59:00Z', 'America/New_York')).toBe('Sun');
   });
 });

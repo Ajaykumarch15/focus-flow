@@ -165,7 +165,7 @@ export function AdminOverview() {
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-surface-100">Recent Activity</h3>
-              <Button variant="ghost" size="xs" className="text-surface-500 hover:text-surface-200" rightIcon={<ChevronRight size={12} />} onClick={() => navigate('/admin/activity')}>View All</Button>
+              <Button variant="ghost" size="xs" className="text-surface-500 hover:text-surface-200" rightIcon={<ChevronRight size={12} />} onClick={() => navigate('/admin/audit?view=activity')}>View All</Button>
             </div>
             <div className="space-y-2">
               {activities.length === 0 ? (
