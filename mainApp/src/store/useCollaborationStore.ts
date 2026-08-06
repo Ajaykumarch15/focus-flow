@@ -327,6 +327,9 @@ interface CollaborationStore {
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+  // EEP2-P5.2.2: replace a task's dependency list in one shot (DDS §4.9). The
+  // server revalidates same-project scope and rejects cycles before persisting.
+  setDependencies: (taskId: string, dependencyIds: string[]) => Promise<void>;
   // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
   // `null` un-tethers the feature (back to the Project Backlog).
   moveFeature: (featureId: string, sprintId: string | null) => Promise<void>;
@@ -1077,6 +1080,33 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       },
       () => api.tasks.deleteSubtask(taskId, subtaskId),
       { errorTitle: 'Subtask delete failed' },
+    );
+  },
+
+  // EEP2-P5.2.2: setDependencies swaps the whole dependency list (DDS §4.9) —
+  // optimistic with rollback, mirroring assignTask. The server re-checks
+  // same-project scope and rejects cycles, so a 400 rolls the list back.
+  setDependencies: async (taskId, dependencyIds) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, dependencies: dependencyIds, updatedAt: new Date().toISOString() } : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, dependencies: prevTask.dependencies, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.update(taskId, { dependencies: dependencyIds }),
+      { errorTitle: 'Dependency update failed' },
     );
   },
 

@@ -197,4 +197,48 @@ describe('SprintBoardPage (S4-T1)', () => {
     expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     act(() => root.unmount());
   });
+
+  // EEP2-P5.2.2 (s2): blocked styling derives from selectBlockedTasks — a card
+  // with an unfinished dependency gets the amber border + "Blocked" badge.
+  it('marks a card blocked only when it has an unfinished dependency', () => {
+    useCollaborationStore.setState({
+      tasks: [
+        task({ id: 't-1', sprintStatus: 'in_progress', dependencies: ['t-2'], title: 'Wire the API' }),
+        task({ id: 't-2', sprintStatus: 'in_progress', title: 'Seed the database' }),
+        task({ id: 't-3', sprintStatus: 'backlog', dependencies: ['t-4'], title: 'Ship the release' }),
+        task({ id: 't-4', sprintStatus: 'done', title: 'QA sign-off' }),
+      ],
+    });
+    const { container, root } = render(<SprintBoardPage />);
+    const blockedCard = container.querySelector<HTMLElement>('[data-testid="task-card-t-1"]');
+    const clearCard = container.querySelector<HTMLElement>('[data-testid="task-card-t-3"]');
+    expect(blockedCard?.className).toContain('border-warning-500/50');
+    expect(blockedCard?.textContent).toContain('Blocked');
+    expect(blockedCard?.textContent).toContain('Dependencies 0/1');
+    expect(clearCard?.className).not.toContain('border-warning-500/50');
+    expect(clearCard?.textContent).not.toContain('Blocked');
+    expect(clearCard?.textContent).toContain('Dependencies 1/1');
+    act(() => root.unmount());
+  });
+
+  // EEP2-P5.2.2 (s1): the card's dependency toggle expands the DependencyPanel.
+  it('expands a task card dependency panel via its toggle', () => {
+    useCollaborationStore.setState({
+      tasks: [
+        task({ id: 't-1', sprintStatus: 'in_progress', dependencies: ['t-2'], title: 'Wire the API' }),
+        task({ id: 't-2', sprintStatus: 'done', title: 'Seed the database' }),
+      ],
+    });
+    const { container, root } = render(<SprintBoardPage />);
+    expect(container.querySelector('[data-testid="dependency-panel-t-1"]')).toBeNull();
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-label="Dependencies for Wire the API"]');
+    expect(toggle).toBeTruthy();
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    act(() => toggle!.click());
+    const panel = container.querySelector('[data-testid="dependency-panel-t-1"]');
+    expect(panel).toBeTruthy();
+    expect(panel?.textContent).toContain('Seed the database');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    act(() => root.unmount());
+  });
 });

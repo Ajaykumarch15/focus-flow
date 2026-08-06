@@ -112,6 +112,8 @@ describe('EEP2-P5.1.1 · Task model — dependencyRefs/estimateHours (DDS §4.9)
     mockWorkspace();
     const create = vi.spyOn(Task, 'create').mockResolvedValue({ _id: TASK_ID });
     vi.spyOn(Activity, 'create').mockResolvedValue(undefined);
+    // EEP2-P5.2.1: the create path validates dependencies are same-scope tasks.
+    vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_ID, workspaceRef: WS_ID }]);
 
     const res = await fetch(`${baseUrl}/api/tasks`, {
       method: 'POST',

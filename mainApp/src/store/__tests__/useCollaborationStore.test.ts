@@ -643,6 +643,39 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     expect(useCollaborationStore.getState().tasks[0].subtasks).toHaveLength(1);
   });
 
+  // EEP2-P5.2.2 · setDependencies (DDS §4.9 dependency list).
+  it('setDependencies optimistically replaces the dependency list and persists', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: ['t-old'],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().setDependencies('t1', ['t2', 't3']);
+    expect(useCollaborationStore.getState().tasks[0].dependencies).toEqual(['t2', 't3']);
+
+    await promise;
+    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { dependencies: ['t2', 't3'] });
+  });
+
+  it('setDependencies rolls back the list on failure', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: ['t-old'],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockRejectedValue(new Error('cycle'));
+
+    await useCollaborationStore.getState().setDependencies('t1', ['t2']);
+
+    expect(useCollaborationStore.getState().tasks[0].dependencies).toEqual(['t-old']);
+  });
+
   it('addComment and createDoc use the real authenticated user (no m1)', () => {
     useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
 

@@ -1,40 +1,57 @@
 import { useState, useMemo } from 'react';
 import {
-  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo
+  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo, Link2, AlertTriangle
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { SprintStatus, CollaborativeTask } from '../../types/collaboration';
 import { selectSprintCapacity, selectSprintFeatures } from '../../lib/sprintSelectors';
+import { selectTaskDependencies, selectBlockedTasks } from '../../lib/taskSelectors';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
 import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
 import { SubtaskPanel } from '../../components/collaboration/SubtaskPanel';
+import { DependencyPanel } from '../../components/collaboration/DependencyPanel';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
 // EEP2-P5.1.3 (s2): each board card exposes an expandable subtask panel —
 // add/toggle/delete via the collaboration store (optimistic + rollback).
-function SprintTaskCard({ task, planningMode, onDiscuss }: {
+// EEP2-P5.2.2 (s2): a card blocked by an unfinished dependency gets an amber
+// border + "Blocked" badge, and a "Dependencies" toggle expands the
+// DependencyPanel (s1). `isBlocked` is derived from selectBlockedTasks in the
+// parent so the styling stays a single source of truth.
+function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss }: {
   task: CollaborativeTask;
   planningMode: boolean;
+  isBlocked: boolean;
+  dependencies: CollaborativeTask[];
   onDiscuss: () => void;
 }) {
   const { updateTaskStatus } = useCollaborationStore();
   const [showSubtasks, setShowSubtasks] = useState(false);
+  const [showDependencies, setShowDependencies] = useState(false);
   const done = task.subtasks.filter((s) => s.completed).length;
+  const depsDone = dependencies.filter((d) => d.sprintStatus === 'done').length;
 
   return (
     <div draggable={planningMode}
       onDragStart={(e) => planningMode && e.dataTransfer.setData('text/plain', task.id)}
       data-testid={`task-card-${task.id}`}
-      className={`rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group ${planningMode ? 'cursor-grab active:cursor-grabbing' : ''}`}>
+      className={`rounded-xl border bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group ${planningMode ? 'cursor-grab active:cursor-grabbing' : ''} ${isBlocked ? 'border-warning-500/50' : 'border-surface-800'}`}>
       <div className="flex items-center justify-between text-[10px]">
         <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
-        {task.gitContext?.prNumber && (
-          <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
-            PR #{task.gitContext.prNumber}
-          </Badge>
-        )}
+        <div className="flex items-center gap-1.5">
+          {task.gitContext?.prNumber && (
+            <Badge tone="brand" className="font-mono font-bold border border-purple-500/20">
+              PR #{task.gitContext.prNumber}
+            </Badge>
+          )}
+          {isBlocked && (
+            <Badge tone="warning" icon={<AlertTriangle size={10} />}>
+              Blocked
+            </Badge>
+          )}
+        </div>
       </div>
 
       <p className="text-xs font-bold text-surface-100 leading-snug">{task.title}</p>
@@ -76,6 +93,19 @@ function SprintTaskCard({ task, planningMode, onDiscuss }: {
         <ListTodo size={12} /> Subtasks {done}/{task.subtasks.length}
       </button>
       {showSubtasks && <SubtaskPanel task={task} />}
+
+      {/* EEP2-P5.2.2: expandable dependency panel */}
+      <button
+        type="button"
+        onClick={() => setShowDependencies((s) => !s)}
+        aria-expanded={showDependencies}
+        aria-label={`Dependencies for ${task.title}`}
+        className={`w-full flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all ${isBlocked
+          ? 'border-warning-500/40 bg-warning-500/5 text-warning-400 hover:text-warning-300 hover:border-warning-500/60'
+          : 'border-surface-800 bg-surface-900/60 text-surface-400 hover:text-brand-400 hover:border-surface-700'}`}>
+        <Link2 size={12} /> Dependencies {depsDone}/{dependencies.length}
+      </button>
+      {showDependencies && <DependencyPanel task={task} dependencies={dependencies} />}
     </div>
   );
 }
@@ -124,6 +154,13 @@ export function SprintBoardPage() {
   const capacity = useMemo(
     () => selectSprintCapacity(activeSprint, sprintFeatures, sprintTasks),
     [activeSprint, sprintFeatures, sprintTasks],
+  );
+
+  // EEP2-P5.2.2 (s2): blocked ids derived once from selectBlockedTasks — the
+  // card styling is a pure projection, never a hand-rolled re-check.
+  const blockedIds = useMemo(
+    () => new Set(selectBlockedTasks(wsTasks).map((t) => t.id)),
+    [wsTasks],
   );
 
   const handleColumnDrop = (colId: SprintStatus, e: React.DragEvent<HTMLDivElement>) => {
@@ -262,6 +299,8 @@ export function SprintBoardPage() {
                     key={task.id}
                     task={task}
                     planningMode={planningMode}
+                    isBlocked={blockedIds.has(task.id)}
+                    dependencies={selectTaskDependencies(task.id, wsTasks)}
                     onDiscuss={() => setDiscModal({ open: true, targetType: 'task', targetId: task.id, title: task.title })}
                   />
                 ))}

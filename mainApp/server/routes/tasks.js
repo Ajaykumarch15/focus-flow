@@ -237,6 +237,66 @@ async function isWorkspaceMember(workspaceRef, userId) {
   return !!(ws && findMember(ws, userId));
 }
 
+// EEP2-P5.2.1 (DDS §4.9): cycle guard for `dependencies`. Only the parent's
+// out-edges change in a dependency write, so any new cycle must pass through
+// the parent — we walk each candidate's existing transitive deps and reject the
+// moment one reaches the parent (a self-dependency is the trivial case).
+async function wouldCreateDependencyCycle(taskId, dependencyIds) {
+  const seen = new Set();
+  const stack = [...dependencyIds];
+  let queries = 0;
+  const MAX_QUERIES = 200; // deep-graph safety valve
+  while (stack.length) {
+    const id = stack.pop();
+    const key = String(id);
+    if (key === String(taskId)) return true;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (++queries > MAX_QUERIES) break;
+    const dep = await Task.findById(id).select('dependencies');
+    if (dep && Array.isArray(dep.dependencies)) stack.push(...dep.dependencies);
+  }
+  return false;
+}
+
+// EEP2-P5.2.1 (DDS §4.9): validate a dependency set before it is written —
+// existence, same-project scope (workspace tasks share workspaceRef+projectRef;
+// personal tasks may only reference the owner's own personal tasks), and the
+// cycle guard. `parentTaskId` is null on create: a brand-new node cannot close
+// a cycle, so only existence + scope are checked.
+async function validateDependencySet({ parentTaskId, workspaceRef, projectRef, ownerUserId, dependencyIds }) {
+  const raw = Array.isArray(dependencyIds) ? dependencyIds.filter((d) => d != null) : [];
+  const ids = [...new Set(raw.map((d) => String(d)))];
+  if (ids.length === 0) return { error: false, ids: [] };
+
+  const deps = await Task.find({ _id: { $in: ids } });
+  if (deps.length !== ids.length) {
+    return { error: true, status: 404, message: 'Some dependency tasks were not found' };
+  }
+
+  if (workspaceRef) {
+    const sameWorkspace = deps.every((d) => d.workspaceRef && String(d.workspaceRef) === String(workspaceRef));
+    if (!sameWorkspace) {
+      return { error: true, status: 400, message: 'Dependencies must be tasks in the same workspace' };
+    }
+    const sameProject = deps.every((d) => String(d.projectRef || null) === String(projectRef || null));
+    if (!sameProject) {
+      return { error: true, status: 400, message: 'Dependencies must be tasks of the same project' };
+    }
+  } else {
+    const owned = deps.every((d) => d.userId && !d.workspaceRef && String(d.userId) === String(ownerUserId));
+    if (!owned) {
+      return { error: true, status: 400, message: 'You can only depend on your own tasks' };
+    }
+  }
+
+  if (parentTaskId && (await wouldCreateDependencyCycle(parentTaskId, ids))) {
+    return { error: true, status: 400, message: 'This dependency would create a cycle' };
+  }
+
+  return { error: false, ids };
+}
+
 // EEP2-P4.2.2: capacity guard for tasks landing in a sprint (via an owning
 // Feature or an explicit sprintId) — a task's estimate consumes the sprint's
 // capacityHours budget (0 = uncapped). DDS §10.
@@ -332,6 +392,19 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         if (!(await isWorkspaceMember(scope.workspaceRef, c.id))) {
           return res.status(400).json({ message: `${c.field} must be a member of this workspace` });
         }
+      }
+
+      // EEP2-P5.2.1 (DDS §4.9): dependencies must reference existing same-scope
+      // tasks. A new node can't close a cycle, so only existence+scope apply.
+      if (dependencies && dependencies.length) {
+        const depErr = await validateDependencySet({
+          parentTaskId: null,
+          workspaceRef: scope.workspaceRef,
+          projectRef: scope.projectRef,
+          ownerUserId: req.user._id,
+          dependencyIds: dependencies,
+        });
+        if (depErr.error) return res.status(depErr.status).json({ message: depErr.message });
       }
 
       if (scope.sprintRef) {
@@ -462,7 +535,7 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
 
     // EEP2-P5.1.2 (DDS §4.9): scope rules — any non-Viewer workspace member may
     // update a workspace task; a personal task stays private to its owner.
-    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef sprintRef estimatedHours userId');
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef sprintRef estimatedHours userId projectRef');
     if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
     const existing = loaded.task;
 
@@ -477,6 +550,20 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
           return res.status(400).json({ message: `${c.field} must be a member of this workspace` });
         }
       }
+    }
+
+    // EEP2-P5.2.1 (DDS §4.9): same-project scope + cycle guard before persisting.
+    if (patch.dependencies !== undefined) {
+      const depErr = await validateDependencySet({
+        parentTaskId: req.params.id,
+        workspaceRef: existing.workspaceRef,
+        projectRef: existing.projectRef,
+        ownerUserId: existing.userId,
+        dependencyIds: patch.dependencies,
+      });
+      if (depErr.error) return res.status(depErr.status).json({ message: depErr.message });
+      // The validator returns the de-duplicated, string-normalized list.
+      patch.dependencies = depErr.ids;
     }
 
     // EEP2-P4.2.2: re-estimating a task that is planned into a sprint may not
