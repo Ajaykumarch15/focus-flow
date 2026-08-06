@@ -51,6 +51,11 @@ vi.mock('../../utils/api', () => ({
       resolve: vi.fn(),
       remove: vi.fn(),
     },
+    attachments: {
+      list: vi.fn(),
+      create: vi.fn(),
+      remove: vi.fn(),
+    },
   },
 }));
 
@@ -86,6 +91,9 @@ const mocks = {
   commentReaction: vi.mocked(api.comments.addReaction),
   commentResolve: vi.mocked(api.comments.resolve),
   commentRemove: vi.mocked(api.comments.remove),
+  attachmentList: vi.mocked(api.attachments.list),
+  attachmentCreate: vi.mocked(api.attachments.create),
+  attachmentRemove: vi.mocked(api.attachments.remove),
 };
 
 function reset() {
@@ -101,6 +109,7 @@ function reset() {
     tasks: [],
     activities: [],
     discussions: [],
+    attachments: [],
     notifications: [],
     docs: [],
     blockers: [],
@@ -799,6 +808,82 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
 
     expect(mocks.commentRemove).toHaveBeenCalledWith('c-1');
     expect(useCollaborationStore.getState().discussions).toEqual([]);
+  });
+
+  // EEP2-P5.3.2: attachments are persisted — loadAttachments maps the paginated
+  // server page into TaskAttachments (targetRef → targetId, real uploader).
+  it('loadAttachments maps persisted docs into TaskAttachments', async () => {
+    mocks.attachmentList.mockResolvedValue({
+      items: [
+        { id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1',
+          name: 'Auth flow', type: 'image', url: 'https://x.test/a.png', sizeBytes: 2048,
+          description: 'diagram', uploadedBy: { id: 'u-1', name: 'Ajay' },
+          createdAt: '2026-01-02T00:00:00.000Z' },
+      ],
+      hasMore: true,
+      nextCursor: 'abc',
+    } as any);
+
+    await useCollaborationStore.getState().loadAttachments('task', 't1');
+
+    const s = useCollaborationStore.getState();
+    expect(s.attachments).toHaveLength(1);
+    expect(s.attachments[0]).toMatchObject({ id: 'a-1', targetId: 't1', name: 'Auth flow', url: 'https://x.test/a.png' });
+    expect(s.attachments[0].uploadedBy).toEqual({ id: 'u-1', name: 'Ajay' });
+    expect(s.attachmentsHasMore).toBe(true);
+    expect(s.attachmentsNextCursor).toBe('abc');
+  });
+
+  it('loadAttachments appends the next cursor page without duplicating', async () => {
+    mocks.attachmentList
+      .mockResolvedValueOnce({ items: [{ id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', name: 'one', type: 'file', url: 'https://x.test/1', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-03T00:00:00.000Z' }], hasMore: true, nextCursor: 'cur-2' } as any)
+      .mockResolvedValueOnce({ items: [{ id: 'a-2', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', name: 'two', type: 'file', url: 'https://x.test/2', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-02T00:00:00.000Z' }], hasMore: false, nextCursor: null } as any);
+
+    await useCollaborationStore.getState().loadAttachments('task', 't1');
+    await useCollaborationStore.getState().loadAttachments('task', 't1', { cursor: 'cur-2', append: true });
+
+    expect(mocks.attachmentList).toHaveBeenNthCalledWith(2, 'task', 't1', { cursor: 'cur-2' });
+    expect(useCollaborationStore.getState().attachments.map((a) => a.id)).toEqual(['a-1', 'a-2']);
+    expect(useCollaborationStore.getState().attachmentsHasMore).toBe(false);
+  });
+
+  it('uploadAttachment optimistically adds then adopts the server doc (real uploader)', async () => {
+    useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
+    mocks.attachmentCreate.mockResolvedValue({
+      id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1',
+      name: 'Diagram', type: 'image', url: 'https://x.test/d.png', sizeBytes: 4096,
+      description: 'auth flow', uploadedBy: { id: 'u-1', name: 'Ajay Kumar' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    } as any);
+
+    await useCollaborationStore.getState().uploadAttachment('task', 't1', {
+      name: 'Diagram', url: 'https://x.test/d.png', description: 'auth flow',
+    });
+
+    expect(mocks.attachmentCreate).toHaveBeenCalledWith({ targetType: 'task', targetRef: 't1', name: 'Diagram', url: 'https://x.test/d.png', description: 'auth flow' });
+    const a = useCollaborationStore.getState().attachments[0];
+    expect(a.id).toBe('a-1');
+    expect(a.uploadedBy).toEqual({ id: 'u-1', name: 'Ajay Kumar' });
+  });
+
+  it('uploadAttachment rolls back the optimistic attachment when persistence fails', async () => {
+    mocks.attachmentCreate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().uploadAttachment('task', 't1', { name: 'x', url: 'https://x.test/x' });
+
+    expect(useCollaborationStore.getState().attachments).toEqual([]);
+  });
+
+  it('deleteAttachment removes the attachment optimistically', async () => {
+    mocks.attachmentRemove.mockResolvedValue({ message: 'deleted' } as any);
+    useCollaborationStore.setState({
+      attachments: [{ id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', name: 'x', type: 'file', url: 'https://x.test/x', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-01T00:00:00.000Z' }],
+    });
+
+    await useCollaborationStore.getState().deleteAttachment('a-1');
+
+    expect(mocks.attachmentRemove).toHaveBeenCalledWith('a-1');
+    expect(useCollaborationStore.getState().attachments).toEqual([]);
   });
 
   it('createSprint passes capacity/target from the modal opts (backlog-safe defaults)', async () => {

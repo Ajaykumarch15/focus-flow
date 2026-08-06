@@ -271,6 +271,24 @@ export interface DiscussionComment {
   mentions?: string[]; // memberIds or teamNames
 }
 
+export interface TaskAttachment {
+  id: string;
+  workspaceId: string;
+  targetType: 'task' | 'worklog' | 'project' | 'doc';
+  targetId: string;
+  name: string;
+  type: string;
+  url: string;
+  sizeBytes: number;
+  description: string;
+  uploadedBy: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  createdAt: string;
+}
+
 export interface NotificationItem {
   id: string;
   workspaceId: string;

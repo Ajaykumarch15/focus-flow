@@ -4,7 +4,7 @@ import {
   Feature, Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
   SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole,
-  RoadmapMilestone, RoadmapPhase, RoadmapModule,
+  RoadmapMilestone, RoadmapPhase, RoadmapModule, TaskAttachment,
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
@@ -44,6 +44,28 @@ function toDiscussionComment(raw: any): DiscussionComment {
 }
 
 // ── API → frontend shape mappers (IES-P2-07: server docs → client models) ─────
+// EEP2-P5.3.2: server Attachment doc → client TaskAttachment. The server keeps
+// the polymorphic field as `targetRef`; the client model calls it `targetId`.
+function toAttachment(raw: any): TaskAttachment {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    workspaceId: raw.workspaceId ?? '',
+    targetType: raw.targetType,
+    targetId: String(raw.targetRef ?? raw.targetId ?? ''),
+    name: raw.name ?? 'Untitled attachment',
+    type: raw.type ?? 'file',
+    url: raw.url ?? '',
+    sizeBytes: Number(raw.sizeBytes ?? 0),
+    description: raw.description ?? '',
+    uploadedBy: {
+      id: String(raw.uploadedBy?.id ?? ''),
+      name: raw.uploadedBy?.name ?? 'Unknown',
+      avatar: raw.uploadedBy?.avatar,
+    },
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
+}
+
 const DEFAULT_WORKSPACE_SETTINGS: Workspace['settings'] = {
   allowMemberInvites: true,
   requireReviewForDone: false,
@@ -300,6 +322,11 @@ interface CollaborationStore {
   discussionsHasMore: boolean;
   discussionsNextCursor: string | null;
   discussionsError: boolean;
+  attachments: TaskAttachment[];
+  attachmentsLoading: boolean;
+  attachmentsHasMore: boolean;
+  attachmentsNextCursor: string | null;
+  attachmentsError: boolean;
   notifications: NotificationItem[];
   notificationsLoading: boolean;
   notificationsHasMore: boolean;
@@ -381,6 +408,11 @@ interface CollaborationStore {
   resolveThread: (commentId: string) => Promise<void>;
   deleteComment: (commentId: string) => Promise<void>;
 
+  // Attachments (EEP2-P5.3.2: persisted, was client-mock)
+  loadAttachments: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
+  uploadAttachment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, attachment: { name: string; type?: string; url: string; sizeBytes?: number; description?: string }) => Promise<void>;
+  deleteAttachment: (attachmentId: string) => Promise<void>;
+
   // Notifications (IES-P2-05: real, user-scoped — no more seed data)
   loadNotifications: (opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
@@ -419,6 +451,11 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   discussionsHasMore: false,
   discussionsNextCursor: null,
   discussionsError: false,
+  attachments: [],
+  attachmentsLoading: false,
+  attachmentsHasMore: false,
+  attachmentsNextCursor: null,
+  attachmentsError: false,
   notifications: [],
   notificationsLoading: false,
   notificationsHasMore: false,
@@ -1660,6 +1697,92 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       { errorTitle: 'Comment delete failed' },
     );
     if (deleted) toast.success('Comment deleted');
+  },
+
+  // EEP2-P5.3.2: persisted file attachments (was client-mock). loadAttachments
+  // mirrors loadDiscussions — each target owns its slice of the flat list so
+  // the panel never clobbers a sibling target's attachments.
+  loadAttachments: async (targetType, targetId, opts) => {
+    if (!opts?.append) set({ attachmentsLoading: true, attachmentsError: false });
+    try {
+      const page = await api.attachments.list(targetType, targetId, {
+        limit: opts?.limit,
+        cursor: opts?.cursor,
+      });
+      const items = page.items.map((it: any) => toAttachment(it));
+      set((state) => {
+        const others = state.attachments.filter(
+          (a) => !(a.targetType === targetType && a.targetId === targetId)
+        );
+        const existingTarget = opts?.append
+          ? state.attachments.filter((a) => a.targetType === targetType && a.targetId === targetId)
+          : [];
+        return {
+          attachments: [...others, ...existingTarget, ...items],
+          attachmentsHasMore: page.hasMore,
+          attachmentsNextCursor: page.nextCursor,
+          attachmentsError: false,
+        };
+      });
+    } catch {
+      if (!opts?.append) {
+        set({ attachmentsError: true, attachmentsHasMore: false, attachmentsNextCursor: null });
+      }
+    } finally {
+      if (!opts?.append) set({ attachmentsLoading: false });
+    }
+  },
+
+  uploadAttachment: async (targetType, targetId, attachment) => {
+    const tempId = `att-${Date.now()}`;
+    const temp: TaskAttachment = {
+      id: tempId,
+      workspaceId: get().activeWorkspaceId,
+      targetType,
+      targetId,
+      name: attachment.name,
+      type: attachment.type || 'file',
+      url: attachment.url,
+      sizeBytes: attachment.sizeBytes || 0,
+      description: attachment.description || '',
+      uploadedBy: { id: currentUserId(), name: currentUserName() },
+      createdAt: new Date().toISOString(),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ attachments: [temp, ...state.attachments] }));
+        return () => set((state) => ({ attachments: state.attachments.filter((a) => a.id !== tempId) }));
+      },
+      () => api.attachments.create({ targetType, targetRef: targetId, ...attachment }),
+      { errorTitle: 'Attachment upload failed' },
+    );
+    if (!created) return;
+    set((state) => ({
+      attachments: state.attachments.map((a) => (a.id === tempId ? toAttachment(created as any) : a)),
+    }));
+    toast.success('Attachment added', attachment.name);
+  },
+
+  deleteAttachment: async (attachmentId) => {
+    let targetKey: string | null = null;
+    const deleted = await runMutation(
+      () => {
+        set((state) => {
+          const found = state.attachments.find((a) => a.id === attachmentId);
+          if (found) targetKey = `${found.targetType}:${found.targetId}`;
+          return { attachments: state.attachments.filter((a) => a.id !== attachmentId) };
+        });
+        return () => {
+          if (targetKey) {
+            const [tt, tid] = targetKey.split(':');
+            get().loadAttachments(tt as 'task' | 'worklog' | 'project' | 'doc', tid).catch(() => {});
+          }
+        };
+      },
+      () => api.attachments.remove(attachmentId),
+      { errorTitle: 'Attachment delete failed' },
+    );
+    if (deleted) toast.success('Attachment deleted');
   },
 
   loadNotifications: async (opts) => {

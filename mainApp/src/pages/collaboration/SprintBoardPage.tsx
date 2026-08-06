@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
-  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo, Link2, AlertTriangle
+  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo, Link2, AlertTriangle, Paperclip
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { SprintStatus, CollaborativeTask } from '../../types/collaboration';
@@ -12,6 +12,7 @@ import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal'
 import { SubtaskPanel } from '../../components/collaboration/SubtaskPanel';
 import { DependencyPanel } from '../../components/collaboration/DependencyPanel';
 import { CommentPanel } from '../../components/collaboration/CommentPanel';
+import { AttachmentPanel } from '../../components/collaboration/AttachmentPanel';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
@@ -32,6 +33,7 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [showDependencies, setShowDependencies] = useState(false);
   const [showComments, setShowComments] = useState(false);
+  const [showAttachments, setShowAttachments] = useState(false);
   const done = task.subtasks.filter((s) => s.completed).length;
   const depsDone = dependencies.filter((d) => d.sprintStatus === 'done').length;
 
@@ -119,6 +121,17 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
         <MessageSquare size={12} /> Comments
       </button>
       {showComments && <CommentPanel targetType="task" targetId={task.id} />}
+
+      {/* EEP2-P5.3.2: expandable persisted attachment panel */}
+      <button
+        type="button"
+        onClick={() => setShowAttachments((s) => !s)}
+        aria-expanded={showAttachments}
+        aria-label={`Attachments for ${task.title}`}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-surface-800 bg-surface-900/60 px-2 py-1.5 text-[10px] font-semibold text-surface-400 hover:text-brand-400 hover:border-surface-700 transition-all">
+        <Paperclip size={12} /> Attachments
+      </button>
+      {showAttachments && <AttachmentPanel targetType="task" targetId={task.id} />}
     </div>
   );
 }
