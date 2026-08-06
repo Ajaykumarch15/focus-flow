@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useCollaborationStore } from '../useCollaborationStore';
 import { useAuthStore } from '../useAuthStore';
-import type { Feature } from '../../types/collaboration';
+import type { Feature, Sprint } from '../../types/collaboration';
 
 // IES-P2-07: the store must be fully API-backed — no seed data. Loaders map
 // server docs into client models; mutations are optimistic with rollback.
@@ -26,6 +26,8 @@ vi.mock('../../utils/api', () => ({
     sprints: {
       list: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      commit: vi.fn(),
     },
     features: {
       list: vi.fn(),
@@ -55,6 +57,8 @@ const mocks = {
   projectUpdate: vi.mocked(api.projects.update),
   sprintList: vi.mocked(api.sprints.list),
   sprintCreate: vi.mocked(api.sprints.create),
+  sprintUpdate: vi.mocked(api.sprints.update),
+  sprintCommit: vi.mocked(api.sprints.commit),
   featureList: vi.mocked(api.features.list),
   featureCreate: vi.mocked(api.features.create),
   featureUpdate: vi.mocked(api.features.update),
@@ -578,5 +582,81 @@ describe('useCollaborationStore moveFeature (IES-R1-P6-T3)', () => {
 
     expect(useCollaborationStore.getState().features.find((f) => f.id === 'f1')?.sprintId).toBeUndefined();
     expect(mocks.featureUpdate).toHaveBeenCalledWith('f1', { sprintId: 's1' });
+  });
+});
+
+// EEP2-P4.3.2: planning-page persistence actions (DDS §10).
+describe('useCollaborationStore sprint planning actions (EEP2-P4.3.2)', () => {
+  const sprint = (overrides: Record<string, any> = {}): Sprint => ({
+    id: 's1', workspaceId: 'ws-1', projectId: 'p1', name: 'Sprint 1',
+    startDate: '2026-01-01', endDate: '2026-01-07', goal: 'Ship the alpha',
+    status: 'draft', capacityHours: 160, targetVelocity: 80, ...overrides,
+  });
+
+  it('updateSprint applies goal/capacity optimistically and PATCHes', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({ _id: 's1', goal: 'new goal' } as any);
+
+    const promise = useCollaborationStore.getState().updateSprint('s1', { goal: 'new goal', capacityHours: 200 });
+    expect(useCollaborationStore.getState().sprints[0]).toMatchObject({ goal: 'new goal', capacityHours: 200 });
+
+    await promise;
+    expect(mocks.sprintUpdate).toHaveBeenCalledWith('s1', { goal: 'new goal', capacityHours: 200 });
+  });
+
+  it('updateSprint normalizes date inputs to the client ISO-day shape', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({} as any);
+
+    await useCollaborationStore.getState().updateSprint('s1', { startDate: '2026-02-01T00:00:00.000Z' });
+
+    expect(useCollaborationStore.getState().sprints[0].startDate).toBe('2026-02-01');
+  });
+
+  it('updateSprint rolls back on failure', async () => {
+    useCollaborationStore.setState({ sprints: [sprint({ goal: 'old goal' })] });
+    mocks.sprintUpdate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().updateSprint('s1', { goal: 'new goal' });
+
+    expect(useCollaborationStore.getState().sprints[0].goal).toBe('old goal');
+  });
+
+  it('updateSprint is a no-op for an unknown sprint', async () => {
+    await useCollaborationStore.getState().updateSprint('missing', { goal: 'x' });
+    expect(mocks.sprintUpdate).not.toHaveBeenCalled();
+  });
+
+  it('advanceSprintState delegates to updateSprint with the target status', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({} as any);
+
+    await useCollaborationStore.getState().advanceSprintState('s1', 'planned');
+
+    expect(mocks.sprintUpdate).toHaveBeenCalledWith('s1', { status: 'planned' });
+  });
+
+  it('commitSprint latches committed and advances draft → planned', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintCommit.mockResolvedValue({
+      _id: 's1', committed: true, commitmentDate: '2026-01-01T00:00:00.000Z', status: 'planned',
+    } as any);
+
+    const promise = useCollaborationStore.getState().commitSprint('s1');
+    expect(useCollaborationStore.getState().sprints[0]).toMatchObject({ committed: true, status: 'planned' });
+
+    await promise;
+    expect(mocks.sprintCommit).toHaveBeenCalledWith('s1');
+  });
+
+  it('commitSprint rolls back the committed latch on failure', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintCommit.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().commitSprint('s1');
+
+    const s = useCollaborationStore.getState().sprints[0];
+    expect(s.committed).toBeFalsy();
+    expect(s.status).toBe('draft');
   });
 });

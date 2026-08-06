@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-rout
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, FolderOpen, Layers, Users, UserCheck, Sparkles, AlertOctagon, ClipboardList,
-  Clock, LineChart, BookOpen, Calendar, Settings, ShieldCheck,
+  Clock, LineChart, BookOpen, Calendar, Settings, ShieldCheck, ListChecks,
   ChevronDown, ChevronLeft, PanelLeftOpen, Search, ArrowLeft, Bell, Menu
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
@@ -90,6 +90,7 @@ export function WorkspaceLayout() {
       items: [
         { to: `/w/${activeWs.id}/overview`, label: 'Mission Control', icon: Zap, color: 'text-amber-400' },
         { to: `/w/${activeWs.id}/sprints`, key: 'sprints', label: 'Sprint Board', icon: Layers, color: 'text-brand-400', badge: wsTasks.length },
+        { to: `/w/${activeWs.id}/sprints/plan`, label: 'Sprint Plan', icon: ListChecks, color: 'text-sky-400' },
         { to: `/w/${activeWs.id}/backlog`, label: 'Backlog', icon: ClipboardList, color: 'text-emerald-400' },
         { to: `/w/${activeWs.id}/features`, label: 'Features', icon: Sparkles, color: 'text-purple-400' },
       ],

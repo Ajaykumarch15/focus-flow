@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import {
-  Layers, Plus, GitBranch, MessageSquare
+  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { SprintStatus } from '../../types/collaboration';
+import { selectSprintCapacity, selectSprintFeatures } from '../../lib/sprintSelectors';
 import { DiscussionsModal } from '../../components/collaboration/DiscussionsModal';
 import { CreateSprintModal } from '../../components/collaboration/CreateSprintModal';
 import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
@@ -14,9 +15,14 @@ import { Badge } from '../../components/ui/Badge';
 // capacity, and the 5-column Kanban. The Project Backlog is split out to its
 // own routed page (`/w/:id/backlog`); the workspace's sprint-less features no
 // longer share this surface.
+//
+// EEP2-P4.3.3: a planning-mode toggle on the board (s1) surfaces the capacity
+// bar (s3, DDS §10 via the P4.3.1 selectors) and makes task cards draggable
+// between columns so a drag/drop reassignment is verifiable (s2). Planning
+// mode is off by default so the read view stays untouched.
 
 export function SprintBoardPage() {
-  const { sprints, tasks, activeWorkspaceId, updateTaskStatus } = useCollaborationStore();
+  const { sprints, features, tasks, activeWorkspaceId, updateTaskStatus } = useCollaborationStore();
 
   const wsTasks = useMemo(
     () => tasks.filter((t) => t.workspaceId === activeWorkspaceId),
@@ -27,6 +33,7 @@ export function SprintBoardPage() {
     [sprints, activeWorkspaceId],
   );
 
+  const [planningMode, setPlanningMode] = useState(false);
   const [showCreateSprint, setShowCreateSprint] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [discModal, setDiscModal] = useState<{
@@ -34,6 +41,27 @@ export function SprintBoardPage() {
   }>({
     open: false, targetType: 'task', targetId: '', title: ''
   });
+
+  // EEP2-P4.3.3 (s3): capacity load = Σ estimatedHours of the sprint's planned
+  // Features + Tasks (DDS §10), shared with the planning page via selectors.
+  const sprintFeatures = useMemo(
+    () => selectSprintFeatures(activeSprint?.id, features),
+    [activeSprint?.id, features],
+  );
+  const sprintTasks = useMemo(
+    () => wsTasks.filter((t) => t.sprintId === activeSprint?.id),
+    [wsTasks, activeSprint?.id],
+  );
+  const capacity = useMemo(
+    () => selectSprintCapacity(activeSprint, sprintFeatures, sprintTasks),
+    [activeSprint, sprintFeatures, sprintTasks],
+  );
+
+  const handleColumnDrop = (colId: SprintStatus, e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const taskId = e.dataTransfer.getData('text/plain');
+    if (taskId) updateTaskStatus(taskId, colId);
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6">
@@ -47,6 +75,14 @@ export function SprintBoardPage() {
           <p className="text-xs text-surface-400 mt-0.5">What are we delivering this iteration?</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setPlanningMode((m) => !m)}
+            variant={planningMode ? 'secondary' : 'ghost'}
+            size="sm"
+            aria-pressed={planningMode}
+            leftIcon={<SlidersHorizontal size={14} />}>
+            {planningMode ? 'Planning mode on' : 'Planning mode'}
+          </Button>
           <Button onClick={() => setShowCreateTask(true)}
             size="sm" leftIcon={<Plus size={14} />}>
             New Task
@@ -57,6 +93,42 @@ export function SprintBoardPage() {
           </Button>
         </div>
       </div>
+
+      {/* EEP2-P4.3.3 (s3): capacity bar surfaced by the planning-mode toggle. */}
+      {planningMode && activeSprint && (
+        <div data-testid="capacity-panel" className="rounded-2xl border border-surface-800 bg-surface-900 p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-display font-extrabold text-surface-300 uppercase tracking-wider flex items-center gap-2">
+              <Gauge size={14} className="text-brand-400" /> Planning Capacity
+            </span>
+            <span className="text-xs font-semibold text-surface-400">
+              {capacity.capacityHours > 0 ? (
+                <><span className={capacity.overCapacity ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{capacity.load}h</span> of {capacity.capacityHours}h loaded ({capacity.loadPct}%)</>
+              ) : 'Uncapped capacity'}
+            </span>
+          </div>
+          {capacity.capacityHours > 0 && (
+            <div
+              className="h-2.5 rounded-full bg-surface-800 overflow-hidden"
+              role="progressbar"
+              aria-label="Sprint capacity load"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.min(100, capacity.loadPct)}>
+              <div
+                data-testid="capacity-bar"
+                className={`h-full rounded-full transition-all ${capacity.overCapacity ? 'bg-danger-500' : 'bg-gradient-to-r from-brand-500 to-emerald-400'}`}
+                style={{ width: `${Math.min(100, capacity.loadPct)}%` }} />
+            </div>
+          )}
+          <p className="text-[11px] text-surface-500">
+            Drag task cards between columns to reassign their status.
+            {capacity.capacityHours > 0 && (capacity.overCapacity
+              ? ' This sprint is over capacity — trim scope before committing.'
+              : ` ${capacity.remainingHours}h of headroom remains.`)}
+          </p>
+        </div>
+      )}
 
       {/* Sprint Details & Capacity Header */}
       {activeSprint && (
@@ -106,7 +178,10 @@ export function SprintBoardPage() {
         ).map((col) => {
           const colTasks = wsTasks.filter((t) => t.sprintStatus === col.id);
           return (
-            <div key={col.id} className="rounded-2xl border border-surface-800 bg-surface-900 p-4 space-y-3 min-h-[500px]">
+            <div key={col.id} data-testid={`column-${col.id}`}
+              onDragOver={(e) => planningMode && e.preventDefault()}
+              onDrop={(e) => planningMode && handleColumnDrop(col.id, e)}
+              className="rounded-2xl border border-surface-800 bg-surface-900 p-4 space-y-3 min-h-[500px]">
               <div className={`pb-2 border-b flex items-center justify-between ${col.color}`}>
                 <span className="font-display font-extrabold text-xs uppercase tracking-wider">{col.label}</span>
                 <Badge tone="neutral" className="text-xs font-bold">{colTasks.length}</Badge>
@@ -114,7 +189,10 @@ export function SprintBoardPage() {
 
               <div className="space-y-3">
                 {colTasks.map((task) => (
-                  <div key={task.id} className="rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group">
+                  <div key={task.id} draggable={planningMode}
+                    onDragStart={(e) => planningMode && e.dataTransfer.setData('text/plain', task.id)}
+                    data-testid={`task-card-${task.id}`}
+                    className={`rounded-xl border border-surface-800 bg-surface-850 p-3.5 space-y-2 hover:border-surface-700 transition-all group ${planningMode ? 'cursor-grab active:cursor-grabbing' : ''}`}>
                     <div className="flex items-center justify-between text-[10px]">
                       <span className="font-bold text-brand-400 uppercase">{task.priority}</span>
                       {task.gitContext?.prNumber && (

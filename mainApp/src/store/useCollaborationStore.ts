@@ -8,7 +8,7 @@ import {
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
-import type { MilestoneUpdatePayload, PhaseUpdatePayload, ModuleUpdatePayload } from '../utils/api';
+import type { MilestoneUpdatePayload, PhaseUpdatePayload, ModuleUpdatePayload, SprintUpdatePayload } from '../utils/api';
 import { runMutation } from '../utils/mutation';
 import { useAuthStore } from './useAuthStore';
 
@@ -311,6 +311,13 @@ interface CollaborationStore {
   updateProjectMeta: (projectId: string, patch: ProjectPatch) => Promise<void>;
   createFeature: (data: Partial<Feature>) => Promise<Feature | undefined>;
   createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string, opts?: { capacityHours?: number; targetVelocity?: number }) => Promise<Sprint | undefined>;
+  // EEP2-P4.3.2: planning-page persistence (DDS §10). updateSprint PATCHes
+  // goals/capacity/velocity/dates/status; advanceSprintState is the lifecycle
+  // step (draft → planned → active → completed); commitSprint latches the
+  // one-way commitment (POST /sprints/:id/commit, Owner/Admin).
+  updateSprint: (sprintId: string, patch: SprintUpdatePayload) => Promise<void>;
+  advanceSprintState: (sprintId: string, status: Sprint['status']) => Promise<void>;
+  commitSprint: (sprintId: string) => Promise<void>;
   createTask: (data: Partial<CollaborativeTask>) => Promise<CollaborativeTask | undefined>;
   updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => Promise<void>;
   // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
@@ -812,6 +819,72 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     set((state) => ({ sprints: state.sprints.map((s) => (s.id === tempId ? sprint : s)) }));
     toast.success('Sprint created', name);
     return sprint;
+  },
+
+  // EEP2-P4.3.2: persist goal/capacity/velocity/dates/status via PATCH. Date
+  // inputs are normalized to the client's ISO-day shape before the optimistic
+  // merge; a committed sprint's scope stays frozen (server rejects with 409).
+  updateSprint: async (sprintId, patch) => {
+    const prev = get().sprints.find((s) => s.id === sprintId);
+    if (!prev) return;
+    const optimistic: Partial<Sprint> = {};
+    if (patch.name !== undefined) optimistic.name = patch.name;
+    if (patch.goal !== undefined) optimistic.goal = patch.goal;
+    if (patch.startDate !== undefined) optimistic.startDate = new Date(patch.startDate).toISOString().slice(0, 10);
+    if (patch.endDate !== undefined) optimistic.endDate = new Date(patch.endDate).toISOString().slice(0, 10);
+    if (patch.capacityHours !== undefined) optimistic.capacityHours = patch.capacityHours;
+    if (patch.targetVelocity !== undefined) optimistic.targetVelocity = patch.targetVelocity;
+    if (patch.status !== undefined) optimistic.status = patch.status;
+    await runMutation(
+      () => {
+        set((state) => ({
+          sprints: state.sprints.map((s) => (s.id === sprintId ? { ...s, ...optimistic } : s)),
+        }));
+        return () => {
+          set((state) => ({
+            sprints: state.sprints.map((s) => (s.id === sprintId && prev ? prev : s)),
+          }));
+        };
+      },
+      () => api.sprints.update(sprintId, patch),
+      { errorTitle: 'Sprint update failed' },
+    );
+  },
+
+  // EEP2-P4.3.2: explicit lifecycle step through the server state machine.
+  advanceSprintState: async (sprintId, status) => {
+    await get().updateSprint(sprintId, { status });
+  },
+
+  // EEP2-P4.3.2/P4.1.4: one-way commitment latch. Optimistically freezes the
+  // committed scope client-side; the server keeps the original commitmentDate.
+  commitSprint: async (sprintId) => {
+    const prev = get().sprints.find((s) => s.id === sprintId);
+    if (!prev) return;
+    await runMutation(
+      () => {
+        set((state) => ({
+          sprints: state.sprints.map((s) =>
+            s.id === sprintId
+              ? {
+                  ...s,
+                  committed: true,
+                  commitmentDate: new Date().toISOString(),
+                  ...(s.status === 'draft' ? { status: 'planned' as Sprint['status'] } : {}),
+                }
+              : s,
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            sprints: state.sprints.map((s) => (s.id === sprintId && prev ? prev : s)),
+          }));
+        };
+      },
+      () => api.sprints.commit(sprintId),
+      { errorTitle: 'Sprint commit failed' },
+    );
+    toast.success('Sprint committed', `Scope frozen for ${prev.name}`);
   },
 
   createTask: async (data) => {

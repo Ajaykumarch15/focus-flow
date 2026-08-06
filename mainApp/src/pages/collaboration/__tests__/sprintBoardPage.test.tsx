@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import axe from 'axe-core';
 import { SprintBoardPage } from '../SprintBoardPage';
 import { useCollaborationStore } from '../../../store/useCollaborationStore';
-import type { Sprint, CollaborativeTask } from '../../../types/collaboration';
+import type { Sprint, CollaborativeTask, Feature } from '../../../types/collaboration';
 
 function render(node: ReactNode) {
   const container = document.createElement('div');
@@ -17,6 +17,16 @@ function render(node: ReactNode) {
 async function scan(container: HTMLElement) {
   const results = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } });
   return results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious');
+}
+
+function dragEvent(type: string, dt: unknown) {
+  const ev = new Event(type, { bubbles: true, cancelable: true });
+  Object.defineProperty(ev, 'dataTransfer', { value: dt });
+  return ev;
+}
+
+function findButton(container: HTMLElement, label: string) {
+  return [...container.querySelectorAll('button')].find((b) => b.textContent?.includes(label));
 }
 
 const sprint = (id: string): Sprint => ({
@@ -42,6 +52,13 @@ const task = (overrides: Partial<CollaborativeTask>): CollaborativeTask => ({
   subtasks: [],
   createdAt: '2026-01-01',
   updatedAt: '2026-01-01',
+  ...overrides,
+});
+
+const feature = (overrides: Partial<Feature>): Feature => ({
+  id: 'f-1', projectId: 'p1', workspaceId: 'ws-1', name: 'Auth module',
+  description: '', type: 'feature', labels: [], ownerId: 'm-1',
+  estimatedHours: 8, status: 'backlog', order: 0, createdAt: '2026-01-01',
   ...overrides,
 });
 
@@ -109,6 +126,52 @@ describe('SprintBoardPage (S4-T1)', () => {
     const { container, root } = render(<SprintBoardPage />);
     const violations = await scan(container);
     expect(violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s)`)).toEqual([]);
+    act(() => root.unmount());
+  });
+
+  // EEP2-P4.3.3 (s1) planning toggle / (s3) capacity bar / (s2) drag/drop.
+  it('hides the capacity panel until planning mode is toggled on', () => {
+    const { container, root } = render(<SprintBoardPage />);
+    expect(container.querySelector('[data-testid="capacity-panel"]')).toBeNull();
+    const toggle = findButton(container, 'Planning mode');
+    expect(toggle).toBeTruthy();
+    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
+    act(() => toggle!.click());
+    expect(container.querySelector('[data-testid="capacity-panel"]')).toBeTruthy();
+    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
+    act(() => root.unmount());
+  });
+
+  it('shows the planning capacity bar from sprint features + tasks', () => {
+    useCollaborationStore.setState({
+      features: [feature({ id: 'f-1', sprintId: 's1', estimatedHours: 40, name: 'Auth module' })],
+      tasks: [
+        task({ id: 't-3', sprintId: 's1', sprintStatus: 'in_progress', estimatedHours: 40, title: 'Planned task' }),
+      ],
+    });
+    const { container, root } = render(<SprintBoardPage />);
+    act(() => findButton(container, 'Planning mode')!.click());
+    const text = container.textContent ?? '';
+    // 40h feature + 40h task = 80h of the 160h capacity budget → 50%.
+    expect(text).toContain('80h');
+    expect(text).toContain('of 160h loaded (50%)');
+    expect(text).toContain('80h of headroom remains');
+    const bar = container.querySelector<HTMLDivElement>('[data-testid="capacity-bar"]');
+    expect(bar?.style.width).toBe('50%');
+    act(() => root.unmount());
+  });
+
+  it('reassigns a task via drag-and-drop between columns in planning mode', () => {
+    const { container, root } = render(<SprintBoardPage />);
+    act(() => findButton(container, 'Planning mode')!.click());
+    const card = container.querySelector<HTMLElement>('[data-testid="task-card-t-1"]');
+    const doneCol = container.querySelector<HTMLElement>('[data-testid="column-done"]');
+    expect(card).toBeTruthy();
+    expect(doneCol).toBeTruthy();
+    const dt = { setData: vi.fn(), getData: () => 't-1', effectAllowed: 'move' };
+    act(() => card!.dispatchEvent(dragEvent('dragstart', dt)));
+    act(() => doneCol!.dispatchEvent(dragEvent('drop', dt)));
+    expect(updateTaskStatusSpy).toHaveBeenCalledWith('t-1', 'done');
     act(() => root.unmount());
   });
 });
