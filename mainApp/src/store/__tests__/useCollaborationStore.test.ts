@@ -12,6 +12,7 @@ vi.mock('../../utils/api', () => ({
       members: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+      remove: vi.fn(),
     },
     teams: {
       list: vi.fn(),
@@ -66,6 +67,7 @@ const mocks = {
   wsMembers: vi.mocked(api.workspaces.members),
   wsUpdate: vi.mocked(api.workspaces.update),
   wsCreate: vi.mocked(api.workspaces.create),
+  wsRemove: vi.mocked(api.workspaces.remove),
   teamList: vi.mocked(api.teams.list),
   projectList: vi.mocked(api.projects.list),
   projectCreate: vi.mocked(api.projects.create),
@@ -312,6 +314,82 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     expect(created).toBeUndefined();
     expect(useCollaborationStore.getState().workspaces).toHaveLength(0);
     expect(useCollaborationStore.getState().activeWorkspaceId).toBe('');
+  });
+
+  it('updateWorkspace patches the server doc and swaps the optimistically updated workspace', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [{
+        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+      }],
+    });
+    mocks.wsUpdate.mockResolvedValue({
+      id: 'ws-1', name: 'Acme AI', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+    } as any);
+
+    const promise = useCollaborationStore.getState().updateWorkspace('ws-1', { name: 'Acme AI', type: 'Enterprise', description: 'new desc' });
+    const optimistic = useCollaborationStore.getState().workspaces[0];
+    expect(optimistic).toMatchObject({ name: 'Acme AI', type: 'Enterprise', icon: '🏢', description: 'new desc' });
+
+    const updated = await promise;
+    expect(updated?.name).toBe('Acme AI');
+    expect(mocks.wsUpdate).toHaveBeenCalledWith('ws-1', { name: 'Acme AI', type: 'Enterprise', description: 'new desc' });
+    expect(useCollaborationStore.getState().workspaces[0].name).toBe('Acme AI');
+  });
+
+  it('updateWorkspace rolls back to the previous workspace on failure', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [{
+        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+      }],
+    });
+    mocks.wsUpdate.mockRejectedValue(new Error('boom'));
+
+    const updated = await useCollaborationStore.getState().updateWorkspace('ws-1', { name: 'Nope', type: 'Startup', description: 'old' });
+
+    expect(updated).toBeUndefined();
+    expect(useCollaborationStore.getState().workspaces[0]).toMatchObject({ name: 'Acme', type: 'Startup' });
+  });
+
+  it('deleteWorkspace removes the workspace and reassigns the active workspace', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [
+        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-2', name: 'B', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+      ],
+    });
+    mocks.wsRemove.mockResolvedValue({ message: 'Workspace deleted' } as any);
+
+    const ok = await useCollaborationStore.getState().deleteWorkspace('ws-1');
+
+    expect(ok).toBe(true);
+    expect(mocks.wsRemove).toHaveBeenCalledWith('ws-1');
+    expect(useCollaborationStore.getState().workspaces.map((w) => w.id)).toEqual(['ws-2']);
+    expect(useCollaborationStore.getState().activeWorkspaceId).toBe('ws-2');
+  });
+
+  it('deleteWorkspace rolls back the workspace list and active id on failure', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [
+        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+      ],
+    });
+    mocks.wsRemove.mockRejectedValue(new Error('boom'));
+
+    const ok = await useCollaborationStore.getState().deleteWorkspace('ws-1');
+
+    expect(ok).toBe(false);
+    expect(useCollaborationStore.getState().workspaces).toHaveLength(1);
+    expect(useCollaborationStore.getState().activeWorkspaceId).toBe('ws-1');
   });
 
   it('createProject optimistically adds, then replaces with the server doc', async () => {

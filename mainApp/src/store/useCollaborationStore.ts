@@ -5,6 +5,7 @@ import {
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
   SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole,
   RoadmapMilestone, RoadmapPhase, RoadmapModule, TaskAttachment,
+  WorkspaceType,
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
@@ -358,7 +359,9 @@ interface CollaborationStore {
   // Actions
   setActiveWorkspace: (id: string) => void;
   updateWorkspaceSettings: (workspaceId: string, settings: Partial<Workspace['settings']>) => Promise<void>;
-  createWorkspace: (name: string, type: any, description: string) => Promise<Workspace | undefined>;
+  createWorkspace: (name: string, type: WorkspaceType, description: string) => Promise<Workspace | undefined>;
+  updateWorkspace: (workspaceId: string, patch: { name: string; type: WorkspaceType; description: string }) => Promise<Workspace | undefined>;
+  deleteWorkspace: (workspaceId: string) => Promise<boolean>;
   createTeam: (name: string, description: string, color: string, memberIds: string[]) => Promise<void>;
   updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
   updateMemberStatus: (memberId: string, status: any, currentTask?: string) => void;
@@ -711,6 +714,66 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }));
     toast.success('Workspace created', `You are now in ${ws.name}`);
     return ws;
+  },
+
+  updateWorkspace: async (workspaceId, patch) => {
+    const prev = get().workspaces.find((w) => w.id === workspaceId);
+    if (!prev) return undefined;
+    const next: Workspace = {
+      ...prev,
+      ...patch,
+      icon: patch.type ? workspaceIconFor(patch.type) : prev.icon,
+    };
+    const updated = await runMutation(
+      () => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) => (w.id === workspaceId ? next : w)),
+        }));
+        return () => {
+          set((state) => ({
+            workspaces: state.workspaces.map((w) => (w.id === workspaceId ? prev : w)),
+          }));
+        };
+      },
+      () => api.workspaces.update(workspaceId, { ...patch }),
+      { errorTitle: 'Workspace update failed' },
+    );
+    if (!updated) return undefined;
+    const ws = toWorkspace(updated);
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => (w.id === workspaceId ? ws : w)),
+    }));
+    toast.success('Workspace updated', ws.name);
+    return ws;
+  },
+
+  deleteWorkspace: async (workspaceId) => {
+    const target = get().workspaces.find((w) => w.id === workspaceId);
+    const prevActive = get().activeWorkspaceId;
+    const removed = await runMutation(
+      () => {
+        set((state) => {
+          const remaining = state.workspaces.filter((w) => w.id !== workspaceId);
+          return {
+            workspaces: remaining,
+            activeWorkspaceId: state.activeWorkspaceId === workspaceId
+              ? (remaining[0]?.id ?? '')
+              : state.activeWorkspaceId,
+          };
+        });
+        return () => {
+          set((state) => ({
+            workspaces: target ? [target, ...state.workspaces] : state.workspaces,
+            activeWorkspaceId: prevActive,
+          }));
+        };
+      },
+      () => api.workspaces.remove(workspaceId),
+      { errorTitle: 'Workspace deletion failed' },
+    );
+    if (!removed) return false;
+    toast.success('Workspace deleted', target ? `${target.name} and its teams were removed.` : undefined);
+    return true;
   },
 
   createTeam: async (name, description, color, memberIds) => {
