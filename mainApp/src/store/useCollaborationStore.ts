@@ -289,6 +289,10 @@ function toCollabTask(raw: any): CollaborativeTask {
     // EEP2-P5.4.2: server `Task.totalTime` (ms) feeds the board timer's resume
     // base so a resumed card clock continues from its logged total.
     totalTime: raw.totalTime != null ? Number(raw.totalTime) : undefined,
+    // EEP2-P5.5.1: the server stores deadlines as tz-midnight instants; keeping
+    // the ISO string lets `dayKey(new Date(deadline))` round-trip to the picked
+    // calendar date for due/overdue derivation.
+    deadline: raw.deadline ? new Date(raw.deadline).toISOString() : undefined,
     gitContext: raw.gitContext ?? undefined,
     subtasks: Array.isArray(raw.subtasks)
       ? raw.subtasks.map((s: any) => ({

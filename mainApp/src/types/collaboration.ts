@@ -234,6 +234,9 @@ export interface CollaborativeTask {
   // EEP2-P5.4.2: accumulated focus ms on the task (server `Task.totalTime`).
   // Optional so existing fixtures/mocks that predate the timer hookup compile.
   totalTime?: number;
+  // EEP2-P5.5.1: calendar deadline from the server `Task.deadline` (a tz-midnight
+  // instant, serialized as an ISO string). Absent when no deadline is set.
+  deadline?: string;
   gitContext?: GitContext;
   subtasks: { id: string; title: string; completed: boolean }[];
   createdAt: string;

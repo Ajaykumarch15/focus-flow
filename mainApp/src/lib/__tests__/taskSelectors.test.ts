@@ -3,6 +3,10 @@ import {
   selectTaskDependencies,
   selectBlockedTasks,
   isTaskBlocked,
+  selectTaskStatusCounts,
+  selectOverdueTasks,
+  selectDueTodayTasks,
+  selectTasksWithWorklog,
 } from '../taskSelectors';
 import type { CollaborativeTask } from '../../types/collaboration';
 
@@ -81,5 +85,71 @@ describe('isTaskBlocked / selectBlockedTasks (P5.2.2)', () => {
   it('is never blocked with no dependencies', () => {
     const solo = task({ id: 't1' });
     expect(selectBlockedTasks([solo])).toEqual([]);
+  });
+});
+
+// EEP2-P5.5.1 (s2): pure execution-view selectors — counts, due (overdue / due
+// today), and worklog. `now` is injected so the outputs are deterministic.
+describe('taskSelectors P5.5.1', () => {
+  const NOW = new Date('2026-07-10T12:00:00.000Z').getTime();
+  // Deadline encoding: a tz-midnight instant; dayKey() round-trips the calendar
+  // date, so '2026-07-10' is "due today" and '2026-07-09' is overdue.
+  const due = (deadline: string) => task({ deadline });
+
+  it('counts tasks per status, always returning every status key', () => {
+    const tasks = [
+      task({ id: 'a', sprintStatus: 'backlog' }),
+      task({ id: 'b', sprintStatus: 'in_progress' }),
+      task({ id: 'c', sprintStatus: 'in_progress' }),
+      task({ id: 'd', sprintStatus: 'done' }),
+      task({ id: 'e', sprintStatus: 'done' }),
+      task({ id: 'f', sprintStatus: 'done' }),
+    ];
+    expect(selectTaskStatusCounts(tasks)).toEqual({
+      backlog: 1, ready: 0, in_progress: 2, review: 0, done: 3,
+    });
+  });
+
+  it('returns all-zero counts for an empty list', () => {
+    expect(selectTaskStatusCounts([])).toEqual({
+      backlog: 0, ready: 0, in_progress: 0, review: 0, done: 0,
+    });
+  });
+
+  it('flags overdue tasks with a deadline before today, excluding done ones', () => {
+    const tasks = [
+      due('2026-07-09T00:00:00.000Z'),
+      task({ id: 'done', deadline: '2026-07-01T00:00:00.000Z', sprintStatus: 'done' }),
+      due('2026-07-10T00:00:00.000Z'),
+      due('2026-07-15T00:00:00.000Z'),
+      task({ id: 'nodl' }),
+    ];
+    expect(selectOverdueTasks(tasks, NOW).map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it('flags tasks whose deadline is today, excluding done ones', () => {
+    const tasks = [
+      due('2026-07-10T00:00:00.000Z'),
+      task({ id: 'done', deadline: '2026-07-10T00:00:00.000Z', sprintStatus: 'done' }),
+      due('2026-07-09T00:00:00.000Z'),
+      task({ id: 'nodl' }),
+    ];
+    expect(selectDueTodayTasks(tasks, NOW).map((t) => t.id)).toEqual(['t1']);
+  });
+
+  it('treats a missing deadline honestly (never overdue / never due today)', () => {
+    const tasks = [task({ id: 'no-deadline' })];
+    expect(selectOverdueTasks(tasks, NOW)).toEqual([]);
+    expect(selectDueTodayTasks(tasks, NOW)).toEqual([]);
+  });
+
+  it('selects tasks with logged time from totalTime or actualHours', () => {
+    const tasks = [
+      task({ id: 'ms', totalTime: 3_600_000 }),
+      task({ id: 'hrs', actualHours: 2.5 }),
+      task({ id: 'both', totalTime: 1_800_000, actualHours: 1 }),
+      task({ id: 'none' }),
+    ];
+    expect(selectTasksWithWorklog(tasks).map((t) => t.id)).toEqual(['ms', 'hrs', 'both']);
   });
 });
