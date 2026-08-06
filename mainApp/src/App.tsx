@@ -20,6 +20,7 @@ const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module =>
 const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
 const ProjectLayout   = lazy(() => import('./components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
+const WorkspaceHomePage = lazy(() => import('./pages/collaboration/WorkspaceHomePage').then(module => ({ default: module.WorkspaceHomePage })));
 
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
@@ -168,7 +169,7 @@ export default function App() {
                 <Route path="knowledge" element={<TeamKnowledgePage />} />
                 <Route path="calendar" element={<TeamWorkspace />} />
                 <Route path="settings" element={<WorkspaceSettingsPage />} />
-                <Route path="" element={<Navigate to="overview" replace />} />
+                <Route path="" element={<WorkspaceHomePage />} />
               </Route>
             </Route>
 

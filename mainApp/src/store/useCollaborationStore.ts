@@ -315,6 +315,7 @@ interface CollaborationStore {
   members: WorkspaceMember[];
   teams: WorkspaceTeam[];
   projects: Project[];
+  projectsLoading: boolean;
   sprints: Sprint[];
   features: Feature[];
   milestones: RoadmapMilestone[];
@@ -446,6 +447,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   members: [],
   teams: [],
   projects: [],
+  projectsLoading: false,
   sprints: [],
   features: [],
   milestones: [],
@@ -528,11 +530,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       set({ projects: [] });
       return;
     }
+    set({ projectsLoading: true });
     try {
       const rawList = await api.projects.list(workspaceId);
       set({ projects: (Array.isArray(rawList) ? rawList : []).map(toProject) });
     } catch {
       set({ projects: [] });
+    } finally {
+      set({ projectsLoading: false });
     }
   },
 

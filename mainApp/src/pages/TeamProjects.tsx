@@ -52,7 +52,7 @@ export function TeamProjects() {
 
   const handleSelectCollaborative = (workspaceId: string) => {
     setActiveWorkspace(workspaceId);
-    navigate(`/w/${workspaceId}/overview`);
+    navigate(`/w/${workspaceId}`);
   };
 
   const openCreate = () => {

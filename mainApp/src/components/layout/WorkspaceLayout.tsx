@@ -191,7 +191,7 @@ export function WorkspaceLayout() {
                   onClick={() => {
                     setActiveWorkspace(ws.id);
                     setShowWsDropdown(false);
-                    navigate(`/w/${ws.id}/overview`);
+                    navigate(`/w/${ws.id}`);
                   }}
                   className={`w-full text-left flex items-center gap-3 p-2.5 rounded-xl transition-all ${
                     ws.id === activeWs.id ? 'bg-brand-500/15 text-surface-50 border border-brand-500/30' : 'hover:bg-surface-800 text-surface-300'
