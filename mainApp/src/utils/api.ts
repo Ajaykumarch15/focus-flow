@@ -257,6 +257,8 @@ export const api = {
       const qs = active !== undefined ? `?active=${active}` : '';
       return request<any[]>(`/worklogs${qs}`);
     },
+    // EEP2-P5.4.1: task-scoped persisted worklog rows for the sprint board panel.
+    byTask: (taskId: string) => request<any[]>(`/worklogs/by-task/${taskId}`),
     get: (id: string) => request<any>(`/worklogs/${id}`),
     create: (body: any) => request<any>('/worklogs', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/worklogs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

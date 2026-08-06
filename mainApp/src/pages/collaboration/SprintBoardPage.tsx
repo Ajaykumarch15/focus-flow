@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import {
-  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo, Link2, AlertTriangle, Paperclip
+  Layers, Plus, GitBranch, MessageSquare, SlidersHorizontal, Gauge, ListTodo, Link2, AlertTriangle, Paperclip, Clock
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { SprintStatus, CollaborativeTask } from '../../types/collaboration';
@@ -13,6 +13,7 @@ import { SubtaskPanel } from '../../components/collaboration/SubtaskPanel';
 import { DependencyPanel } from '../../components/collaboration/DependencyPanel';
 import { CommentPanel } from '../../components/collaboration/CommentPanel';
 import { AttachmentPanel } from '../../components/collaboration/AttachmentPanel';
+import { WorklogPanel } from '../../components/collaboration/WorklogPanel';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
@@ -34,6 +35,7 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
   const [showDependencies, setShowDependencies] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [showWorklog, setShowWorklog] = useState(false);
   const done = task.subtasks.filter((s) => s.completed).length;
   const depsDone = dependencies.filter((d) => d.sprintStatus === 'done').length;
 
@@ -132,6 +134,18 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
         <Paperclip size={12} /> Attachments
       </button>
       {showAttachments && <AttachmentPanel targetType="task" targetId={task.id} />}
+
+      {/* EEP2-P5.4.1: expandable persisted worklog panel — real session-derived
+          rows via GET /api/worklogs/by-task/:taskId (no mock time). */}
+      <button
+        type="button"
+        onClick={() => setShowWorklog((s) => !s)}
+        aria-expanded={showWorklog}
+        aria-label={`Worklog for ${task.title}`}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-surface-800 bg-surface-900/60 px-2 py-1.5 text-[10px] font-semibold text-surface-400 hover:text-brand-400 hover:border-surface-700 transition-all">
+        <Clock size={12} /> Worklog
+      </button>
+      {showWorklog && <WorklogPanel taskId={task.id} />}
     </div>
   );
 }
