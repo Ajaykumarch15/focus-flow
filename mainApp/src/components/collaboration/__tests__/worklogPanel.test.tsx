@@ -3,6 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import axe from 'axe-core';
 import { WorklogPanel } from '../WorklogPanel';
+import { timerEngine } from '../../../utils/timerEngine';
 
 // EEP2-P5.4.1 (s2): the panel renders a task's PERSISTED worklog rows fetched
 // from GET /api/worklogs/by-task/:taskId — the acceptance is "Mock->persisted":
@@ -94,6 +95,41 @@ describe('WorklogPanel (EEP2-P5.4.1)', () => {
     await act(async () => { retry!.click(); });
     expect(byTask).toHaveBeenCalledTimes(2);
     expect(container.textContent).toContain('1h 30m');
+    act(() => root.unmount());
+  });
+
+  // EEP2-P5.4.2 (s2): acceptance is "Stop timer -> worklog row". While the
+  // panel is open, stopping the engine on THIS task (engine transitions to
+  // idle) must refetch so the newly-persisted row appears without a manual
+  // refresh. Starting the task again must not cause another fetch on its own.
+  it('auto-refreshes the rows when the timer stops on this task', async () => {
+    byTask.mockResolvedValueOnce([]).mockResolvedValue([log()]);
+    const { container, root } = await render(<WorklogPanel taskId="t-1" />);
+    expect(container.textContent).toContain('No time logged yet.');
+    expect(byTask).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await timerEngine.start('t-1', undefined, Date.now()); });
+    expect(byTask).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await timerEngine.stop('t-1', Date.now()); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(byTask).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain('1h 30m');
+    act(() => root.unmount());
+  });
+
+  it('does not refetch when a different task stops', async () => {
+    byTask.mockResolvedValue([]);
+    const { container, root } = await render(<WorklogPanel taskId="t-1" />);
+    expect(byTask).toHaveBeenCalledTimes(1);
+
+    await act(async () => { await timerEngine.start('t-2', undefined, Date.now()); });
+    await act(async () => { await timerEngine.stop('t-2', Date.now()); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+    expect(byTask).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain('No time logged yet.');
     act(() => root.unmount());
   });
 

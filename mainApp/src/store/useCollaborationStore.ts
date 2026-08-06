@@ -286,6 +286,9 @@ function toCollabTask(raw: any): CollaborativeTask {
     dependencies: (raw.dependencies ?? []).map(String),
     estimatedHours: Number(raw.estimatedHours ?? 0),
     actualHours: Number(raw.actualHours ?? 0),
+    // EEP2-P5.4.2: server `Task.totalTime` (ms) feeds the board timer's resume
+    // base so a resumed card clock continues from its logged total.
+    totalTime: raw.totalTime != null ? Number(raw.totalTime) : undefined,
     gitContext: raw.gitContext ?? undefined,
     subtasks: Array.isArray(raw.subtasks)
       ? raw.subtasks.map((s: any) => ({

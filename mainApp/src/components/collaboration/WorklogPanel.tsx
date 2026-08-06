@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, Loader2, RefreshCw } from 'lucide-react';
 import { api } from '../../utils/api';
+import { timerEngine } from '../../utils/timerEngine';
 import { Button } from '../ui/Button';
 
 // EEP2-P5.4.1: persisted worklog panel for a task. The rows are NOT client mock
@@ -57,6 +58,22 @@ export function WorklogPanel({ taskId }: { taskId: string }) {
     setLoading(true);
     load();
   }, [load]);
+
+  // EEP2-P5.4.2 (s2): "stop timer -> worklog row" — while the panel is open,
+  // a STOP on this exact task (the engine is idle afterwards, so track the
+  // transition) triggers a refetch so the new row appears without a manual
+  // refresh. Starts on the same task don't reload — only the stop that writes.
+  useEffect(() => {
+    let prevActive = timerEngine.getActiveTaskId();
+    const unsubscribe = timerEngine.subscribe(() => {
+      const nextActive = timerEngine.getActiveTaskId();
+      if (prevActive === taskId && nextActive === null) {
+        load();
+      }
+      prevActive = nextActive;
+    });
+    return unsubscribe;
+  }, [taskId, load]);
 
   const entries = logs.flatMap((l) => l.workEntries);
   const total = logs.reduce((sum, l) => sum + (l.totalActiveMs || 0), 0);

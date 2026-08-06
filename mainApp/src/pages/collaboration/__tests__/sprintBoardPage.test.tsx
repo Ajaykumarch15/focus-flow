@@ -110,6 +110,17 @@ describe('SprintBoardPage (S4-T1)', () => {
     act(() => root.unmount());
   });
 
+  // EEP2-P5.4.2 (s1): every board card carries a start-timer control. Cards
+  // without logged time (totalTime undefined/0) get "Start"; the timer itself
+  // is the global engine, covered separately in TaskTimerButton tests.
+  it('renders a timer start control on each card', () => {
+    const { container, root } = render(<SprintBoardPage />);
+    expect(container.querySelector('[aria-label="Start timer for Wire the API"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Start timer for Seed the database"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="timer-control-t-1"]')).toBeTruthy();
+    act(() => root.unmount());
+  });
+
   it('moves a task to another status via the quick status select', () => {
     const { container, root } = render(<SprintBoardPage />);
     const select = container.querySelector<HTMLSelectElement>('[aria-label="Task status"]');

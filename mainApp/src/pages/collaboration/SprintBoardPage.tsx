@@ -14,6 +14,7 @@ import { DependencyPanel } from '../../components/collaboration/DependencyPanel'
 import { CommentPanel } from '../../components/collaboration/CommentPanel';
 import { AttachmentPanel } from '../../components/collaboration/AttachmentPanel';
 import { WorklogPanel } from '../../components/collaboration/WorklogPanel';
+import { TaskTimerButton } from '../../components/collaboration/TaskTimerButton';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
@@ -69,6 +70,12 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
           {task.gitContext.branch}
         </Badge>
       )}
+
+      {/* EEP2-P5.4.2: board timer — start/stop/pause wired to the global timer.
+          Stopping writes the worklog row the WorklogPanel below auto-refreshes to. */}
+      <div className="pt-1">
+        <TaskTimerButton taskId={task.id} title={task.title} baseMs={task.totalTime ?? 0} />
+      </div>
 
       {/* Action Bar */}
       <div className="pt-2 border-t border-surface-800 flex items-center justify-between text-[11px]">

@@ -222,7 +222,10 @@ interface StoreState {
   completeTask: (id: string) => Promise<void>;
   reorderTasks: (tasks: Task[]) => void;
 
-  startTimer: (taskId: string) => Promise<void>;
+  // EEP2-P5.4.2: `baseMs` lets the sprint board pass a collab task's accumulated
+  // totalTime as the resume base (collab tasks live in the collaboration store,
+  // not in this personal `tasks` list, so the store cannot look it up itself).
+  startTimer: (taskId: string, baseMs?: number) => Promise<void>;
   pauseTimer: (taskId: string) => void;
   resumeTimer: (taskId: string) => void;
   stopTimer: (taskId: string) => Promise<void>;
@@ -432,7 +435,7 @@ export const useStore = create<StoreState>((set, get) => {
     reorderTasks: (tasks) => set({ tasks }),
 
     // ── Timer Operations (Delegated to TimerEngine & OfflineQueue) ────────────
-    startTimer: async (taskId) => {
+    startTimer: async (taskId, baseMs) => {
       const now = Date.now();
       const opId = createOpId();
 
@@ -444,7 +447,7 @@ export const useStore = create<StoreState>((set, get) => {
       }
 
       // Resuming a task continues from its accumulated time (display continuity).
-      const resumeFromMs = get().tasks.find(t => t.id === taskId)?.totalTime ?? 0;
+      const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
 
       const res = await timerEngine.start(taskId, undefined, now, resumeFromMs);
       if (!res.success) {

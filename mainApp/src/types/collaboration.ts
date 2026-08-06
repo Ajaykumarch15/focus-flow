@@ -231,6 +231,9 @@ export interface CollaborativeTask {
   dependencies: string[]; // task IDs
   estimatedHours: number;
   actualHours: number;
+  // EEP2-P5.4.2: accumulated focus ms on the task (server `Task.totalTime`).
+  // Optional so existing fixtures/mocks that predate the timer hookup compile.
+  totalTime?: number;
   gitContext?: GitContext;
   subtasks: { id: string; title: string; completed: boolean }[];
   createdAt: string;
