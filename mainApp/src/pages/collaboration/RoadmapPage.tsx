@@ -8,6 +8,7 @@ import {
   selectRoadmapOrdered,
 } from '../../lib/roadmapSelectors';
 import { RoadmapStatusBadge, ROADMAP_STATUS_OPTIONS } from '../../components/roadmap/RoadmapStatusBadge';
+import { RoadmapTimeline } from '../../components/roadmap/RoadmapTimeline';
 import { ConfirmDialog } from '../../components/roadmap/ConfirmDialog';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
@@ -128,6 +129,7 @@ export function RoadmapPage() {
   const { milestones, phases, activeWorkspaceId, deleteMilestone } = useCollaborationStore();
   const [showCreate, setShowCreate] = useState(false);
   const [toDelete, setToDelete] = useState<RoadmapMilestone | null>(null);
+  const [view, setView] = useState<'cards' | 'timeline'>('cards');
 
   const projectMilestones = useMemo(
     () => milestones.filter((m) => m.projectId === projectId),
@@ -163,7 +165,33 @@ export function RoadmapPage() {
         }
       />
 
-      {roadmap.length === 0 ? (
+      {/* View toggle: ordered cards vs. time-scaled timeline (EEP2-P3.4.5) */}
+      <div className="flex items-center gap-1 w-fit p-1 rounded-xl border border-surface-800 bg-surface-900">
+        {(['cards', 'timeline'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            aria-pressed={view === v}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+              view === v
+                ? 'bg-brand-500/15 text-brand-300 border border-brand-500/30'
+                : 'text-surface-400 border border-transparent hover:text-surface-200'
+            }`}
+          >
+            {v === 'cards' ? 'Cards' : 'Timeline'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'timeline' ? (
+        <RoadmapTimeline
+          milestones={roadmap}
+          phases={projectPhases}
+          onOpen={(m) => navigate(`/w/${wsKey}/projects/${projectId}/roadmap/${m.id}`)}
+          onDelete={setToDelete}
+        />
+      ) : roadmap.length === 0 ? (
         <Card>
           <EmptyState
             icon={<Flag size={26} />}
