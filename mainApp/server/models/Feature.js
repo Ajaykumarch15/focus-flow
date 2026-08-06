@@ -8,6 +8,7 @@ const featureSchema = new mongoose.Schema(
   {
     projectRef:   { type: mongoose.Schema.Types.ObjectId, ref: 'Project',  required: true },
     sprintRef:    { type: mongoose.Schema.Types.ObjectId, ref: 'Sprint',   default: null },
+    moduleRef:    { type: mongoose.Schema.Types.ObjectId, ref: 'Module',   default: null },
     workspaceRef: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', required: true },
     name:         { type: String, required: true, trim: true, maxlength: 150 },
     description:  { type: String, default: '' },
@@ -28,5 +29,6 @@ featureSchema.index({ projectRef: 1, order: 1 });
 featureSchema.index({ sprintRef: 1, status: 1 });
 featureSchema.index({ workspaceRef: 1 });
 featureSchema.index({ type: 1 });
+featureSchema.index({ moduleRef: 1 });
 
 module.exports = mongoose.model('Feature', featureSchema);

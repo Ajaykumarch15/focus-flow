@@ -10,6 +10,7 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   'workspace.member.roleChanged': 'changed a member role',
   'workspace.member.removed': 'removed a member',
   'project.created': 'created a project',
+  'project.updated': 'updated a project',
   'team.created': 'created a team',
   'team.updated': 'updated a team',
   'team.deleted': 'deleted a team',
@@ -25,6 +26,7 @@ export function activityDetail(act: WorkspaceActivity): string {
   const d = act.details ?? {};
   switch (act.action) {
     case 'project.created':
+    case 'project.updated':
       return d.projectName ? `Project: ${d.projectName}` : '';
     case 'workspace.member.roleChanged': {
       const parts = [d.workspaceName, d.role ? `role → ${d.role}` : ''].filter(Boolean);

@@ -10,14 +10,13 @@
 // who is not a member of the workspace is treated like any other non-member,
 // matching the workspace surface semantics in workspaces.js.
 //
-// Must run AFTER `protect`. See SAD §10.3 for the permission matrix.
+// Must run AFTER `protect`. See SAD §10.3 / DDS §7 for the permission matrix.
+// EEP2-P1.2.1: the role vocabulary lives in utils/permissions.js (single source)
+// and is re-exported here so existing `require('../middleware/workspace')`
+// consumers keep working unchanged.
 const Workspace = require('../models/Workspace');
 const Project = require('../models/Project');
-
-const ROLE_TIERS = ['Owner', 'Admin', 'Manager', 'Developer', 'Viewer'];
-const MANAGER_ROLES = ['Owner', 'Admin'];
-// IES-R1: any role except Viewer may create/update workspace resources.
-const EDITOR_ROLES = ['Owner', 'Admin', 'Manager', 'Developer'];
+const { ROLE_TIERS, MANAGER_ROLES, EDITOR_ROLES } = require('../utils/permissions');
 
 // userId may be a raw ObjectId (unpopulated doc) or a populated user subdoc.
 function memberUserId(m) {

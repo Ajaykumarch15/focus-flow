@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import {
-  Workspace, WorkspaceTeam, WorkspaceMember, Project, Feature,
-  Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
+  Workspace, WorkspaceTeam, WorkspaceMember, Project, ProjectPatch,
+  Feature, Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
-  SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole
+  SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole,
+  RoadmapMilestone, RoadmapPhase, RoadmapModule,
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
+import type { MilestoneUpdatePayload, PhaseUpdatePayload, ModuleUpdatePayload } from '../utils/api';
 import { runMutation } from '../utils/mutation';
 import { useAuthStore } from './useAuthStore';
 
@@ -97,6 +99,7 @@ function toProject(raw: any): Project {
     teamIds: (raw.teamIds ?? []).map(String),
     status: raw.status ?? 'active',
     milestones: raw.milestones ?? [],
+    settings: raw.settings ?? {},
     createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
   };
 }
@@ -118,11 +121,93 @@ function toSprint(raw: any): Sprint {
   };
 }
 
+// ── EEP2-P3.3: roadmap spine mappers (DDS §4.5-4.7; mirror toSprint/toFeature).
+// `projectRef`/`milestoneRef`/`phaseRef` become the client id fields; the legacy
+// `planning` status was normalized to `planned` by migration 0013.
+function toMilestone(raw: any): RoadmapMilestone {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Milestone',
+    description: raw.description ?? '',
+    targetDate: raw.targetDate ? new Date(raw.targetDate).toISOString().slice(0, 10) : null,
+    order: Number(raw.order ?? 0),
+    status: raw.status ?? 'planned',
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toPhase(raw: any): RoadmapPhase {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    milestoneId: raw.milestoneRef ? String(raw.milestoneRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Phase',
+    description: raw.description ?? '',
+    status: raw.status ?? 'planned',
+    order: Number(raw.order ?? 0),
+    startDate: raw.startDate ? new Date(raw.startDate).toISOString().slice(0, 10) : null,
+    endDate: raw.endDate ? new Date(raw.endDate).toISOString().slice(0, 10) : null,
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toModule(raw: any): RoadmapModule {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    phaseId: raw.phaseRef ? String(raw.phaseRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Module',
+    description: raw.description ?? '',
+    status: raw.status ?? 'planned',
+    order: Number(raw.order ?? 0),
+    ownerId: raw.ownerId ? String(raw.ownerId) : null,
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+// Normalizes API date inputs (string | number | null) to the client's ISO-date
+// (or null) shape used by optimistic updates. Undefined passes through untouched.
+function toDateInputValue(v: string | number | null | undefined): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v == null) return null;
+  return new Date(v).toISOString().slice(0, 10);
+}
+
+// Payload → optimistic client patch. The API payloads permit `number`
+// timestamps; the client models use `string | null`, so dates are normalized
+// before the optimistic merge (keeps the store shape stable).
+function toMilestonePatch(patch: MilestoneUpdatePayload): Partial<RoadmapMilestone> {
+  return {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.description !== undefined ? { description: patch.description } : {}),
+    ...(patch.targetDate !== undefined ? { targetDate: toDateInputValue(patch.targetDate) as string | null } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+  };
+}
+
+function toPhasePatch(patch: PhaseUpdatePayload): Partial<RoadmapPhase> {
+  return {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.description !== undefined ? { description: patch.description } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    ...(patch.milestoneId !== undefined ? { milestoneId: patch.milestoneId } : {}),
+    ...(patch.startDate !== undefined ? { startDate: toDateInputValue(patch.startDate) as string | null } : {}),
+    ...(patch.endDate !== undefined ? { endDate: toDateInputValue(patch.endDate) as string | null } : {}),
+  };
+}
+
 function toFeature(raw: any): Feature {
   return {
     id: String(raw._id ?? raw.id ?? ''),
     projectId: raw.projectRef ? String(raw.projectRef) : '',
     sprintId: raw.sprintRef ? String(raw.sprintRef) : undefined,
+    moduleId: raw.moduleRef ? String(raw.moduleRef) : undefined,
     workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
     name: raw.name ?? 'Untitled Feature',
     description: raw.description ?? '',
@@ -178,6 +263,9 @@ interface CollaborationStore {
   projects: Project[];
   sprints: Sprint[];
   features: Feature[];
+  milestones: RoadmapMilestone[];
+  phases: RoadmapPhase[];
+  modules: RoadmapModule[];
   tasks: CollaborativeTask[];
   activities: WorkspaceActivity[];
   activityLoading: boolean;
@@ -199,6 +287,9 @@ interface CollaborationStore {
   loadProjects: () => Promise<void>;
   loadSprints: () => Promise<void>;
   loadFeatures: () => Promise<void>;
+  loadMilestones: () => Promise<void>;
+  loadPhases: () => Promise<void>;
+  loadModules: () => Promise<void>;
   loadTasks: () => Promise<void>;
   loadCollabData: () => Promise<void>;
 
@@ -212,6 +303,9 @@ interface CollaborationStore {
 
   // Project & Sprint Actions
   createProject: (data: Partial<Project>) => Promise<Project | undefined>;
+  // EEP2-P2.2.3: persist DDS §4.4 Project Info (description/key/status/members/
+  // teamIds/settings). Optimistic with rollback — see updateWorkspaceSettings.
+  updateProjectMeta: (projectId: string, patch: ProjectPatch) => Promise<void>;
   createFeature: (data: Partial<Feature>) => Promise<Feature | undefined>;
   createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string, opts?: { capacityHours?: number; targetVelocity?: number }) => Promise<Sprint | undefined>;
   createTask: (data: Partial<CollaborativeTask>) => Promise<CollaborativeTask | undefined>;
@@ -219,6 +313,20 @@ interface CollaborationStore {
   // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
   // `null` un-tethers the feature (back to the Project Backlog).
   moveFeature: (featureId: string, sprintId: string | null) => Promise<void>;
+  // EEP2-P3.3.3: Roadmap spine CRUD (DDS §4.5-4.7). Delete nulls child refs
+  // store-side to mirror the server's orphan-protection behaviour (§6.3).
+  createMilestone: (data: Partial<RoadmapMilestone>) => Promise<RoadmapMilestone | undefined>;
+  updateMilestone: (id: string, patch: MilestoneUpdatePayload) => Promise<void>;
+  deleteMilestone: (id: string) => Promise<void>;
+  createPhase: (data: Partial<RoadmapPhase>) => Promise<RoadmapPhase | undefined>;
+  updatePhase: (id: string, patch: PhaseUpdatePayload) => Promise<void>;
+  deletePhase: (id: string) => Promise<void>;
+  createModule: (data: Partial<RoadmapModule>) => Promise<RoadmapModule | undefined>;
+  updateModule: (id: string, patch: ModuleUpdatePayload) => Promise<void>;
+  deleteModule: (id: string) => Promise<void>;
+  // EEP2-P3.3.3: move a Feature between Modules (or back to project-level with
+  // `null`). Same-project revalidated server-side; `sprintRef` never touched.
+  moveFeatureModule: (featureId: string, moduleId: string | null) => Promise<void>;
   updateGitContext: (taskId: string, gitData: Partial<CollaborativeTask['gitContext']>) => Promise<void>;
 
   // Discussions & Comments
@@ -251,6 +359,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   projects: [],
   sprints: [],
   features: [],
+  milestones: [],
+  phases: [],
+  modules: [],
   tasks: [],
   activities: [],
   activityLoading: false,
@@ -360,6 +471,56 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
+  // ── EEP2-P3.3.3: Roadmap spine loaders (DDS §9). Keyed by the projects the
+  // active workspace already loaded — offline-safe like the sprint/feature loaders.
+  loadMilestones: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ milestones: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.milestones.list(p.id).catch(() => [] as RoadmapMilestone[])),
+      );
+      set({ milestones: lists.flat().map(toMilestone) });
+    } catch {
+      set({ milestones: [] });
+    }
+  },
+
+  loadPhases: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ phases: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.phases.list(p.id).catch(() => [] as RoadmapPhase[])),
+      );
+      set({ phases: lists.flat().map(toPhase) });
+    } catch {
+      set({ phases: [] });
+    }
+  },
+
+  loadModules: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ modules: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.modules.list(p.id).catch(() => [] as RoadmapModule[])),
+      );
+      set({ modules: lists.flat().map(toModule) });
+    } catch {
+      set({ modules: [] });
+    }
+  },
+
   loadTasks: async () => {
     const workspaceId = get().activeWorkspaceId;
     if (!workspaceId) {
@@ -384,6 +545,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     await Promise.all([
       get().loadSprints(),
       get().loadFeatures(),
+      get().loadMilestones(),
+      get().loadPhases(),
+      get().loadModules(),
       get().loadTasks(),
     ]);
   },
@@ -544,6 +708,28 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     return project;
   },
 
+  // EEP2-P2.2.3: optimistic Project Info save with rollback. `patch` holds only
+  // the changed DDS §4.4 fields; the server re-validates member/team refs and
+  // enforces the editor vs Owner/Admin role split.
+  updateProjectMeta: async (projectId, patch) => {
+    const prev = get().projects.find((p) => p.id === projectId);
+    if (!prev) return;
+    await runMutation(
+      () => {
+        set((state) => ({
+          projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...patch } : p)),
+        }));
+        return () => {
+          set((state) => ({
+            projects: state.projects.map((p) => (p.id === projectId ? prev : p)),
+          }));
+        };
+      },
+      () => api.projects.update(projectId, patch),
+      { errorTitle: 'Project update failed' },
+    );
+  },
+
   // IES-R1 (P6-T5/UX-R1): create a backlog feature (sprintRef stays null). Real
   // owner comes from the modal's member picker; falls back to the auth user.
   createFeature: async (data) => {
@@ -554,6 +740,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       id: tempId,
       workspaceId: activeWsId,
       projectId: data.projectId || '',
+      moduleId: data.moduleId ?? undefined,
       name: data.name || 'Untitled Feature',
       description: data.description || '',
       type: data.type || 'feature',
@@ -579,6 +766,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         estimatedHours: temp.estimatedHours,
         status: temp.status,
         order: temp.order,
+        moduleId: temp.moduleId ?? undefined,
       }),
       { errorTitle: 'Feature creation failed' },
     );
@@ -737,6 +925,275 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       },
       () => api.features.update(featureId, { sprintId }),
       { errorTitle: 'Feature move failed' },
+    );
+  },
+
+  // ── EEP2-P3.3.3: Roadmap spine actions (DDS §4.5-4.7, §6.3). ───────────────
+  // Optimistic with rollback, mirroring the sprint/feature actions above.
+  // `workspaceRef` is derived server-side; `projectId` always comes from data.
+  createMilestone: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `ms-${Date.now()}`;
+    const prevMilestones = get().milestones;
+    const temp: RoadmapMilestone = {
+      id: tempId,
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Milestone',
+      description: data.description || '',
+      targetDate: data.targetDate ?? null,
+      order: data.order ?? 0,
+      status: data.status || 'planned',
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ milestones: [...state.milestones, temp] }));
+        return () => set({ milestones: prevMilestones });
+      },
+      () => api.milestones.create({
+        projectId: temp.projectId,
+        name: temp.name,
+        description: temp.description,
+        targetDate: temp.targetDate ?? undefined,
+        order: temp.order,
+        status: temp.status,
+      }),
+      { errorTitle: 'Milestone creation failed' },
+    );
+    if (!created) return undefined;
+    const milestone = toMilestone(created);
+    set((state) => ({ milestones: state.milestones.map((m) => (m.id === tempId ? milestone : m)) }));
+    toast.success('Milestone created', milestone.name);
+    return milestone;
+  },
+
+  updateMilestone: async (id, patch) => {
+    const prev = get().milestones.find((m) => m.id === id);
+    const optimistic = toMilestonePatch(patch);
+    await runMutation(
+      () => {
+        set((state) => ({
+          milestones: state.milestones.map((m) => (m.id === id ? { ...m, ...optimistic } : m)),
+        }));
+        return () => {
+          set((state) => ({
+            milestones: state.milestones.map((m) =>
+              m.id === id && prev ? { ...m, ...prev } : m
+            ),
+          }));
+        };
+      },
+      () => api.milestones.update(id, optimistic),
+      { errorTitle: 'Milestone update failed' },
+    );
+  },
+
+  deleteMilestone: async (id) => {
+    const prev = get().milestones.find((m) => m.id === id);
+    if (!prev) return;
+    const prevPhases = get().phases;
+    await runMutation(
+      () => {
+        set((state) => ({
+          milestones: state.milestones.filter((m) => m.id !== id),
+          // DDS §6.3: child Phases stay but detach from the deleted milestone.
+          phases: state.phases.map((p) => (p.milestoneId === id ? { ...p, milestoneId: '' } : p)),
+        }));
+        return () => set({ milestones: [...get().milestones.filter((m) => m.id !== id), prev], phases: prevPhases });
+      },
+      () => api.milestones.remove(id),
+      { errorTitle: 'Milestone deletion failed' },
+    );
+    toast.success('Milestone deleted', prev.name);
+  },
+
+  createPhase: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `ph-${Date.now()}`;
+    const prevPhases = get().phases;
+    const temp: RoadmapPhase = {
+      id: tempId,
+      milestoneId: data.milestoneId || '',
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Phase',
+      description: data.description || '',
+      status: data.status || 'planned',
+      order: data.order ?? 0,
+      startDate: data.startDate ?? null,
+      endDate: data.endDate ?? null,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ phases: [...state.phases, temp] }));
+        return () => set({ phases: prevPhases });
+      },
+      () => api.phases.create({
+        projectId: temp.projectId,
+        milestoneId: temp.milestoneId,
+        name: temp.name,
+        description: temp.description,
+        status: temp.status,
+        order: temp.order,
+        startDate: temp.startDate ?? undefined,
+        endDate: temp.endDate ?? undefined,
+      }),
+      { errorTitle: 'Phase creation failed' },
+    );
+    if (!created) return undefined;
+    const phase = toPhase(created);
+    set((state) => ({ phases: state.phases.map((p) => (p.id === tempId ? phase : p)) }));
+    toast.success('Phase created', phase.name);
+    return phase;
+  },
+
+  updatePhase: async (id, patch) => {
+    const prev = get().phases.find((p) => p.id === id);
+    const optimistic = toPhasePatch(patch);
+    await runMutation(
+      () => {
+        set((state) => ({
+          phases: state.phases.map((p) => (p.id === id ? { ...p, ...optimistic } : p)),
+        }));
+        return () => {
+          set((state) => ({
+            phases: state.phases.map((p) =>
+              p.id === id && prev ? { ...p, ...prev } : p
+            ),
+          }));
+        };
+      },
+      () => api.phases.update(id, optimistic),
+      { errorTitle: 'Phase update failed' },
+    );
+  },
+
+  deletePhase: async (id) => {
+    const prev = get().phases.find((p) => p.id === id);
+    if (!prev) return;
+    const prevModules = get().modules;
+    await runMutation(
+      () => {
+        set((state) => ({
+          phases: state.phases.filter((p) => p.id !== id),
+          // DDS §6.3: child Modules stay but detach from the deleted Phase.
+          modules: state.modules.map((mod) => (mod.phaseId === id ? { ...mod, phaseId: '' } : mod)),
+        }));
+        return () => set({ phases: [...get().phases.filter((p) => p.id !== id), prev], modules: prevModules });
+      },
+      () => api.phases.remove(id),
+      { errorTitle: 'Phase deletion failed' },
+    );
+    toast.success('Phase deleted', prev.name);
+  },
+
+  createModule: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `md-${Date.now()}`;
+    const prevModules = get().modules;
+    const temp: RoadmapModule = {
+      id: tempId,
+      phaseId: data.phaseId || '',
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Module',
+      description: data.description || '',
+      status: data.status || 'planned',
+      order: data.order ?? 0,
+      ownerId: data.ownerId ?? null,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ modules: [...state.modules, temp] }));
+        return () => set({ modules: prevModules });
+      },
+      () => api.modules.create({
+        projectId: temp.projectId,
+        phaseId: temp.phaseId,
+        name: temp.name,
+        description: temp.description,
+        status: temp.status,
+        order: temp.order,
+        ownerId: temp.ownerId ?? undefined,
+      }),
+      { errorTitle: 'Module creation failed' },
+    );
+    if (!created) return undefined;
+    const module = toModule(created);
+    set((state) => ({ modules: state.modules.map((m) => (m.id === tempId ? module : m)) }));
+    toast.success('Module created', module.name);
+    return module;
+  },
+
+  updateModule: async (id, patch) => {
+    const prev = get().modules.find((m) => m.id === id);
+    await runMutation(
+      () => {
+        set((state) => ({
+          modules: state.modules.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+        }));
+        return () => {
+          set((state) => ({
+            modules: state.modules.map((m) =>
+              m.id === id && prev ? { ...m, ...prev } : m
+            ),
+          }));
+        };
+      },
+      () => api.modules.update(id, patch),
+      { errorTitle: 'Module update failed' },
+    );
+  },
+
+  deleteModule: async (id) => {
+    const prev = get().modules.find((m) => m.id === id);
+    if (!prev) return;
+    const prevFeatures = get().features;
+    await runMutation(
+      () => {
+        set((state) => ({
+          modules: state.modules.filter((m) => m.id !== id),
+          // DDS §6.3: child Features become project-level (moduleRef null).
+          features: state.features.map((f) => (f.moduleId === id ? { ...f, moduleId: undefined } : f)),
+        }));
+        return () => set({ modules: [...get().modules.filter((m) => m.id !== id), prev], features: prevFeatures });
+      },
+      () => api.modules.remove(id),
+      { errorTitle: 'Module deletion failed' },
+    );
+    toast.success('Module deleted', prev.name);
+  },
+
+  // EEP2-P3.3.3: moveFeatureModule persists the moduleRef change via
+  // `PATCH /features/:id { moduleId }` (server revalidates same-project). Moving
+  // between modules never touches `sprintRef` (DDS §4.8 flex point). `null`
+  // drops the feature back to project-level while staying sprint-scheduled.
+  moveFeatureModule: async (featureId, moduleId) => {
+    const prevFeature = get().features.find((f) => f.id === featureId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          features: state.features.map((f) =>
+            f.id === featureId
+              ? { ...f, moduleId: moduleId ?? undefined }
+              : f
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            features: state.features.map((f) =>
+              f.id === featureId && prevFeature
+                ? { ...f, moduleId: prevFeature.moduleId }
+                : f
+            ),
+          }));
+        };
+      },
+      () => api.features.update(featureId, { moduleId }),
+      { errorTitle: 'Module move failed' },
     );
   },
 

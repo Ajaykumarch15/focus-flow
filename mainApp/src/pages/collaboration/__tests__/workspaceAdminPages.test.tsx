@@ -79,6 +79,17 @@ describe('WorkspaceProjectsPage (S4-T3)', () => {
     act(() => root.unmount());
   });
 
+  it('renders the persisted description and status on each project card (P2 frontend)', () => {
+    useCollaborationStore.setState({
+      projects: [{ ...project('p1'), description: 'Sprint review of Q3 goals.', status: 'planning' }],
+    });
+    const { container, root } = render(<WorkspaceProjectsPage />);
+    const text = container.textContent ?? '';
+    expect(text).toContain('Sprint review of Q3 goals.');
+    expect(text).toContain('planning');
+    act(() => root.unmount());
+  });
+
   it('has no critical/serious axe violations on a populated page', async () => {
     const { container, root } = render(<WorkspaceProjectsPage />);
     const violations = await scan(container);

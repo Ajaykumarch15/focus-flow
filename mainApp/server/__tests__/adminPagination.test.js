@@ -231,3 +231,34 @@ describe('IES-P1-18 · admin list pagination', () => {
     expect(typeof body.nextCursor).toBe('string');
   });
 });
+
+describe('EEP2-P2.3.2 · admin audit scoping (no data leak)', () => {
+  function mockNonAdmin() {
+    vi.spyOn(User, 'findById').mockImplementation(() => ({
+      select: () => Promise.resolve(new User({
+        name: 'Pagination Dev',
+        email: 'dev@example.com',
+        passwordHash: 'not-a-real-hash',
+        role: 'developer',
+      })),
+    }));
+  }
+
+  it('GET /api/admin/activity rejects a non-admin with 403', async () => {
+    mockNonAdmin();
+    const res = await fetch(`${baseUrl}/api/admin/activity`, {
+      headers: { Authorization: `Bearer ${signToken('aaaaaaaaaaaaaaaaaaaaaaaa')}` },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toContain('Admin privileges required');
+  });
+
+  it('GET /api/admin/users rejects a non-admin with 403', async () => {
+    mockNonAdmin();
+    const res = await fetch(`${baseUrl}/api/admin/users`, {
+      headers: { Authorization: `Bearer ${signToken('aaaaaaaaaaaaaaaaaaaaaaaa')}` },
+    });
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toContain('Admin privileges required');
+  });
+});

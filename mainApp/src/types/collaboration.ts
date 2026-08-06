@@ -54,6 +54,62 @@ export interface ProjectMilestone {
   targetPoints: number;
 }
 
+// ── EEP2-P3.3/P3.4: Roadmap spine types (DDS §4.5-4.7, §9). ────────────────────
+// Server refs (`projectRef`/`workspaceRef`/`milestoneRef`/`phaseRef`) map to the
+// client id fields below via the store mappers (toMilestone/toPhase/toModule).
+// `RoadmapStatus` mirrors the DDS vocabulary; legacy embedded `ProjectMilestone`
+// (`planning|active|completed`) is read-compatible during the migration 0013
+// transition — new Roadmap data always uses `planned`.
+export type RoadmapStatus = 'planned' | 'active' | 'completed';
+
+export interface RoadmapMilestone {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  targetDate: string | null;
+  order: number;
+  status: RoadmapStatus;
+  createdAt: string;
+}
+
+export interface RoadmapPhase {
+  id: string;
+  milestoneId: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  status: RoadmapStatus;
+  order: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+export interface RoadmapModule {
+  id: string;
+  phaseId: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  status: RoadmapStatus;
+  order: number;
+  ownerId: string | null;
+  createdAt: string;
+}
+
+// DDS §4.4: project settings override workspace defaults for that project only
+// (values mirrored from the workspace settings schema).
+export interface ProjectSettings {
+  allowMemberInvites: boolean;
+  requireReviewForDone: boolean;
+  autoSyncTimerWorkLogs: boolean;
+  defaultVisibility: 'Private' | 'Team' | 'Project' | 'Workspace';
+}
+
 export interface Project {
   id: string;
   workspaceId: string;
@@ -65,8 +121,20 @@ export interface Project {
   teamIds: string[];
   status: 'planning' | 'active' | 'completed' | 'on_hold';
   milestones: ProjectMilestone[];
+  settings?: Partial<ProjectSettings>;
   createdAt: string;
 }
+
+// EEP2-P2.2.3: payload for PATCH /api/projects/:id (DDS §4.4 Project Info).
+// Meta fields are editor-gated; members/teamIds/settings are Owner/Admin-gated.
+export type ProjectPatch = Partial<{
+  description: string;
+  key: string;
+  status: Project['status'];
+  members: string[];
+  teamIds: string[];
+  settings: Partial<ProjectSettings>;
+}>;
 
 export interface Sprint {
   id: string;
@@ -91,6 +159,10 @@ export interface Feature {
   id: string;
   projectId: string;
   sprintId?: string;
+  // DDS §4.8: module ownership is orthogonal to sprint planning. `moduleId`
+  // null/absent = project-level feature (Backlog); moving between modules never
+  // touches `sprintId`.
+  moduleId?: string;
   workspaceId: string;
   name: string;
   description: string;

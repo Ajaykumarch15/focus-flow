@@ -19,6 +19,7 @@ const Register        = lazy(() => import('./pages/Register').then(module => ({ 
 const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
 const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
+const ProjectLayout   = lazy(() => import('./components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
 
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
@@ -55,6 +56,12 @@ const ProjectOverviewPage = lazy(() => import('./pages/collaboration/ProjectOver
 const ProjectTimelinePage = lazy(() => import('./pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
 const WorkspaceTeamsPage = lazy(() => import('./pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
 const WorkspaceMembersPage = lazy(() => import('./pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
+
+// EEP2-P3.4.2/P3.4.3: Roadmap spine pages (hosted by ProjectLayout).
+const RoadmapPage = lazy(() => import('./pages/collaboration/RoadmapPage').then(module => ({ default: module.RoadmapPage })));
+const MilestoneDetailPage = lazy(() => import('./pages/collaboration/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
+const PhaseDetailPage = lazy(() => import('./pages/collaboration/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
+const ModuleDetailPage = lazy(() => import('./pages/collaboration/ModuleDetailPage').then(module => ({ default: module.ModuleDetailPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('./pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -135,8 +142,16 @@ export default function App() {
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
                 <Route path="overview" element={<TeamWorkspace />} />
                 <Route path="projects" element={<WorkspaceProjectsPage />} />
-                <Route path="projects/:projectId" element={<ProjectOverviewPage />} />
-                <Route path="projects/:projectId/timeline" element={<ProjectTimelinePage />} />
+                {/* EEP2-P3.3.2: project route tree (DDS §8.3) hosted by ProjectLayout.
+                    Additive — deep links to project pages keep working. */}
+                <Route path="projects/:projectId" element={<ProjectLayout />}>
+                  <Route index element={<ProjectOverviewPage />} />
+                  <Route path="timeline" element={<ProjectTimelinePage />} />
+                  <Route path="roadmap" element={<RoadmapPage />} />
+                  <Route path="roadmap/:milestoneId" element={<MilestoneDetailPage />} />
+                  <Route path="phases/:phaseId" element={<PhaseDetailPage />} />
+                  <Route path="modules/:moduleId" element={<ModuleDetailPage />} />
+                </Route>
                 <Route path="sprints" element={<SprintBoardPage />} />
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="blockers" element={<BlockersPage />} />

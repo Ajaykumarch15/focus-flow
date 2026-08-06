@@ -76,6 +76,13 @@ nameKey: {
     ],
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     teamIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
+    // DDS §4.4 / Blueprint §2.2: project settings override workspace defaults
+    // for that project (visibility · review policy · defaults). Free-form object,
+    // validated/coerced by the PATCH schema; empty default.
+    settings: {
+      type:    mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   { timestamps: true }
 );

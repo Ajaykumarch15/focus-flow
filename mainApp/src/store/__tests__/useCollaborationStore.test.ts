@@ -20,6 +20,8 @@ vi.mock('../../utils/api', () => ({
     projects: {
       list: vi.fn(),
       create: vi.fn(),
+      get: vi.fn(),
+      update: vi.fn(),
     },
     sprints: {
       list: vi.fn(),
@@ -49,6 +51,8 @@ const mocks = {
   teamList: vi.mocked(api.teams.list),
   projectList: vi.mocked(api.projects.list),
   projectCreate: vi.mocked(api.projects.create),
+  projectGet: vi.mocked(api.projects.get),
+  projectUpdate: vi.mocked(api.projects.update),
   sprintList: vi.mocked(api.sprints.list),
   sprintCreate: vi.mocked(api.sprints.create),
   featureList: vi.mocked(api.features.list),
@@ -299,6 +303,41 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
 
     expect(created).toBeUndefined();
     expect(useCollaborationStore.getState().projects).toHaveLength(0);
+  });
+
+  it('updateProjectMeta applies meta optimistically and calls api.projects.update', async () => {
+    useCollaborationStore.setState({
+      projects: [{
+        id: 'p1', workspaceId: 'ws-1', name: 'Agent Service', key: 'AG', description: 'old',
+        members: [], teamIds: [], status: 'active', milestones: [], createdAt: '2026-01-01',
+      }],
+    });
+    mocks.projectUpdate.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().updateProjectMeta('p1', { description: 'new', status: 'on_hold' });
+    expect(useCollaborationStore.getState().projects[0]).toMatchObject({ description: 'new', status: 'on_hold' });
+
+    await promise;
+    expect(mocks.projectUpdate).toHaveBeenCalledWith('p1', { description: 'new', status: 'on_hold' });
+  });
+
+  it('updateProjectMeta rolls back on failure', async () => {
+    useCollaborationStore.setState({
+      projects: [{
+        id: 'p1', workspaceId: 'ws-1', name: 'Agent Service', key: 'AG', description: 'old',
+        members: [], teamIds: [], status: 'active', milestones: [], createdAt: '2026-01-01',
+      }],
+    });
+    mocks.projectUpdate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().updateProjectMeta('p1', { description: 'new' });
+
+    expect(useCollaborationStore.getState().projects[0].description).toBe('old');
+  });
+
+  it('updateProjectMeta is a no-op for an unknown project', async () => {
+    await useCollaborationStore.getState().updateProjectMeta('missing', { description: 'x' });
+    expect(mocks.projectUpdate).not.toHaveBeenCalled();
   });
 
   it('createFeature optimistically adds a backlog feature with a real owner', async () => {

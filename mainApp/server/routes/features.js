@@ -8,6 +8,7 @@
 const express = require('express');
 const Sprint = require('../models/Sprint');
 const Feature = require('../models/Feature');
+const Module = require('../models/Module');
 const Task = require('../models/Task');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
@@ -34,6 +35,7 @@ const nullableRef = z.union([objectId, z.null()]).optional();
 const featureCreateSchema = z.object({
   projectId: objectId,
   sprintId: nullableRef,
+  moduleId: objectId.optional(),
   name: requiredString(150, 'name', 'Feature name is required'),
   description: z.string().max(5000, 'Description too long').default(''),
   type: z.enum(FEATURE_TYPE).default('feature'),
@@ -54,6 +56,7 @@ const featurePatchSchema = z.object({
   status: z.enum(FEATURE_STATUS).optional(),
   order: z.number().finite('Invalid order').optional(),
   sprintId: nullableRef,
+  moduleId: objectId.optional(),
 }).passthrough();
 
 const featureParamsSchema = z.object({ id: objectId });
@@ -62,6 +65,7 @@ const featureParamsSchema = z.object({ id: objectId });
 const featureQuerySchema = z.object({
   projectId: objectId,
   sprintId: objectId.optional(),
+  moduleId: objectId.optional(),
   backlog: z.enum(['true', 'false']).optional(),
   type: z.enum(FEATURE_TYPE).optional(),
   status: z.enum(FEATURE_STATUS).optional(),
@@ -78,21 +82,33 @@ async function loadFeature(req, res, next) {
   }
 }
 
-// IES-R1: Feature↔Sprint must share the same projectRef (no cross-project
-// sprints). Returns null when the sprint is valid for `projectRef`.
-async function validateSprintForProject(sprintId, projectRef) {
-  const sprint = await Sprint.findById(sprintId);
-  if (!sprint) return { status: 404, message: 'Sprint not found' };
-  if (String(sprint.projectRef) !== String(projectRef)) {
-    return { status: 400, message: 'Sprint does not belong to this project' };
+// EEP2-P3.2.4: generic same-project validation for any parent ref (Sprint,
+// Module). Returns null when the parent is valid for `projectRef`.
+async function validateParentForProject(Model, refId, projectRef, label) {
+  const doc = await Model.findById(refId);
+  if (!doc) return { status: 404, message: `${label} not found` };
+  if (String(doc.projectRef) !== String(projectRef)) {
+    return { status: 400, message: `${label} does not belong to this project` };
   }
   return null;
+}
+
+// IES-R1: Feature↔Sprint must share the same projectRef (no cross-project
+// sprints). Returns null when the sprint is valid for `projectRef`.
+function validateSprintForProject(sprintId, projectRef) {
+  return validateParentForProject(Sprint, sprintId, projectRef, 'Sprint');
+}
+
+// EEP2-P3.2.4: Feature↔Module must share the same projectRef (no cross-project
+// modules — a module move revalidates and never touches sprintRef).
+function validateModuleForProject(moduleId, projectRef) {
+  return validateParentForProject(Module, moduleId, projectRef, 'Module');
 }
 
 // ── GET /api/features?projectId=&backlog=&sprintId=&type=&status= ────────────
 router.get('/', validate(null, { query: featureQuerySchema }), resolveProjectWorkspace, requireWorkspaceMember, async (req, res, next) => {
   try {
-    const { sprintId, backlog, type, status } = req.query;
+    const { sprintId, moduleId, backlog, type, status } = req.query;
     const filter = { projectRef: req.project._id };
     if (backlog === 'true') {
       filter.sprintRef = null;
@@ -100,6 +116,11 @@ router.get('/', validate(null, { query: featureQuerySchema }), resolveProjectWor
       const err = await validateSprintForProject(sprintId, req.project._id);
       if (err) return res.status(err.status).json({ message: err.message });
       filter.sprintRef = sprintId;
+    }
+    if (moduleId) {
+      const err = await validateModuleForProject(moduleId, req.project._id);
+      if (err) return res.status(err.status).json({ message: err.message });
+      filter.moduleRef = moduleId;
     }
     if (type) filter.type = type;
     if (status) filter.status = status;
@@ -113,16 +134,21 @@ router.get('/', validate(null, { query: featureQuerySchema }), resolveProjectWor
 // ── POST /api/features ─────────────────────────────────────────────────────────
 router.post('/', validate(featureCreateSchema), resolveProjectWorkspace, requireWorkspaceEditor, async (req, res, next) => {
   try {
-    const { name, description, type, labels, ownerId, estimatedHours, status, order, sprintId } = req.body;
+    const { name, description, type, labels, ownerId, estimatedHours, status, order, sprintId, moduleId } = req.body;
     let sprintRef = sprintId ?? null;
     if (sprintId) {
       const err = await validateSprintForProject(sprintId, req.project._id);
+      if (err) return res.status(err.status).json({ message: err.message });
+    }
+    if (moduleId) {
+      const err = await validateModuleForProject(moduleId, req.project._id);
       if (err) return res.status(err.status).json({ message: err.message });
     }
 
     const feature = await Feature.create({
       projectRef: req.project._id,
       sprintRef,
+      moduleRef: moduleId ?? null,
       workspaceRef: req.project.workspaceRef,
       name: name.trim(),
       description: description || '',
@@ -151,7 +177,7 @@ router.post('/', validate(featureCreateSchema), resolveProjectWorkspace, require
 router.patch('/:id', validate(featurePatchSchema, { params: featureParamsSchema }), loadFeature, scopeToWorkspace((req) => req.feature.workspaceRef), requireWorkspaceEditor, async (req, res, next) => {
   try {
     const patch = {};
-    const { name, description, type, labels, ownerId, estimatedHours, status, order, sprintId } = req.body;
+    const { name, description, type, labels, ownerId, estimatedHours, status, order, sprintId, moduleId } = req.body;
     if (name !== undefined) patch.name = name.trim();
     if (description !== undefined) patch.description = description;
     if (type !== undefined) patch.type = type;
@@ -168,6 +194,13 @@ router.patch('/:id', validate(featurePatchSchema, { params: featureParamsSchema 
         if (err) return res.status(err.status).json({ message: err.message });
       }
       patch.sprintRef = ref;
+    }
+    if (moduleId !== undefined) {
+      // EEP2-P3.2.4: moving a Feature between Modules revalidates same-project
+      // and only touches moduleRef — sprintRef is never modified by a move.
+      const err = await validateModuleForProject(moduleId, req.feature.projectRef);
+      if (err) return res.status(err.status).json({ message: err.message });
+      patch.moduleRef = moduleId;
     }
 
     if (Object.keys(patch).length === 0) {

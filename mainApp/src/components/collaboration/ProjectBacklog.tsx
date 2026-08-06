@@ -5,6 +5,7 @@ import {
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { Feature } from '../../types/collaboration';
 import { WorkItemTypeBadge } from './WorkItemTypeBadge';
+import { ModulePicker } from '../roadmap/ModulePicker';
 import { Input } from '../ui/Input';
 import { Select } from '../ui/Select';
 import { Badge } from '../ui/Badge';
@@ -58,7 +59,7 @@ export function assignFeatureToSprint(
 
 export function ProjectBacklog({ onCreateFeature }: { onCreateFeature?: () => void }) {
   const {
-    features, sprints, projects, members, activeWorkspaceId, moveFeature,
+    features, sprints, projects, members, modules, activeWorkspaceId, moveFeature,
   } = useCollaborationStore();
 
   const [filters, setFilters] = useState<BacklogFilters>({
@@ -117,6 +118,10 @@ export function ProjectBacklog({ onCreateFeature }: { onCreateFeature?: () => vo
 
   const projectName = (projectId: string) =>
     wsProjects.find((p) => p.id === projectId)?.name ?? 'Project';
+
+  // EEP2-P3.4.4: module ownership label for the backlog card trail.
+  const moduleName = (moduleId?: string) =>
+    modules.find((m) => m.id === moduleId)?.name;
 
   return (
     <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 space-y-4">
@@ -286,6 +291,11 @@ export function ProjectBacklog({ onCreateFeature }: { onCreateFeature?: () => vo
                       {feature.labels.slice(0, 3).map((l) => (
                         <Badge key={l} tone="info" className="text-[10px] font-bold">{l}</Badge>
                       ))}
+                      {feature.moduleId && moduleName(feature.moduleId) && (
+                        <Badge tone="brand" className="text-[10px] font-extrabold">
+                          {moduleName(feature.moduleId)}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs font-bold text-surface-100 mt-1 truncate">{feature.name}</p>
                     <p className="text-[11px] text-surface-400 truncate">{feature.description}</p>
@@ -297,6 +307,9 @@ export function ProjectBacklog({ onCreateFeature }: { onCreateFeature?: () => vo
                     Owner: {owner?.name ?? 'Unassigned'}
                   </span>
                   <Badge tone="neutral" className="text-[10px] font-bold">{feature.estimatedHours}h</Badge>
+                  {/* Module ownership picker (EEP2-P3.4.4) — PATCHes moduleId only; sprintId untouched */}
+                  <ModulePicker feature={feature}
+                    className="bg-surface-800 text-surface-300 text-[10px] rounded border border-surface-700 px-1.5 py-1 outline-none" />
                   <Select aria-label={`Move feature ${feature.name}`} value=""
                     onChange={(e) => {
                       if (e.target.value) {

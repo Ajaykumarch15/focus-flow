@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Activity, Users, FolderOpen } from 'lucide-react';
@@ -8,11 +8,22 @@ import { Card } from '../../components/ui/Card';
 
 export function ActivityFeedPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { activities, activeWorkspaceId } = useCollaborationStore();
+  const {
+    activities, activeWorkspaceId, loadWorkspaceActivity,
+    activityLoading, activityHasMore, activityNextCursor,
+  } = useCollaborationStore();
+
+  const wsId = workspaceId || activeWorkspaceId;
+
+  // IES-P2-04: the deep-link page loads its own feed (independent of the
+  // TeamWorkspace mount that previously populated the store).
+  useEffect(() => {
+    if (wsId) loadWorkspaceActivity(wsId);
+  }, [wsId, loadWorkspaceActivity]);
 
   const wsActivities = useMemo(
-    () => activities.filter((a) => a.workspaceId === (workspaceId || activeWorkspaceId)),
-    [activities, workspaceId, activeWorkspaceId]
+    () => activities.filter((a) => a.workspaceId === wsId),
+    [activities, wsId],
   );
 
   const getActivityIcon = (action: string) => {
@@ -23,6 +34,7 @@ export function ActivityFeedPage() {
       case 'workspace.deleted':
         return <FolderOpen size={16} className="text-cyan-400" />;
       case 'project.created':
+      case 'project.updated':
         return <FolderOpen size={16} className="text-emerald-400" />;
       case 'team.created':
       case 'team.updated':
@@ -48,7 +60,10 @@ export function ActivityFeedPage() {
 
       <Card className="p-6 lg:p-8 space-y-6">
         <div className="relative border-l-2 border-surface-800 ml-4 space-y-6 pl-6">
-          {wsActivities.length === 0 && (
+          {activityLoading && wsActivities.length === 0 && (
+            <p className="text-xs text-surface-500 italic">Loading activity…</p>
+          )}
+          {!activityLoading && wsActivities.length === 0 && (
             <p className="text-xs text-surface-500 italic">No activity yet.</p>
           )}
           {wsActivities.map((act) => (
@@ -74,6 +89,19 @@ export function ActivityFeedPage() {
               </div>
             </motion.div>
           ))}
+          {activityHasMore && (
+            <div className="pl-1">
+              <button
+                type="button"
+                onClick={() => loadWorkspaceActivity(wsId, { cursor: activityNextCursor ?? undefined, append: true })}
+                disabled={activityLoading}
+                className="inline-flex items-center gap-2 rounded-xl border border-surface-800 bg-surface-900 px-4 py-2 text-xs font-bold text-brand-400 hover:border-surface-700 hover:text-brand-300 transition-colors disabled:opacity-50"
+              >
+                <Activity size={14} />
+                {activityLoading ? 'Loading…' : 'Load more activity'}
+              </button>
+            </div>
+          )}
         </div>
       </Card>
     </div>

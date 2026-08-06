@@ -21,6 +21,8 @@ const PENDING_ALL = [
   '0009_fold_worklog_drift.js',
   '0010_create_sprint_feature_collections.js',
   '0011_task_collab_links.js',
+  '0012_roadmap_collections.js',
+  '0013_migrate_project_milestones.js',
 ];
 
 const silentLog = () => {};
@@ -66,6 +68,14 @@ function createFakeDb({
   const activitiesCollection = makeIndexedWithState('activities', activityIndexes);
   const sprintsCollection = makeIndexedWithState('sprints', sprintIndexes);
   const featuresCollection = makeIndexedWithState('features', featureIndexes);
+  const milestonesCollection = {
+    ...makeIndexedWithState('milestones', []),
+    updateOne: vi.fn(async (filter, update, options) => ({
+      filter, update, options, upsertedCount: 0, modifiedCount: 0,
+    })),
+  };
+  const phasesCollection = makeIndexedWithState('phases', []);
+  const modulesCollection = makeIndexedWithState('modules', []);
 
   const collections = {
     schema_migrations: {
@@ -101,6 +111,9 @@ function createFakeDb({
     reportshares: makeIndexed('reportshares'),
     sprints: sprintsCollection,
     features: featuresCollection,
+    milestones: milestonesCollection,
+    phases: phasesCollection,
+    modules: modulesCollection,
   };
 
   return {
@@ -263,7 +276,7 @@ describe('IES-P1-04 · report/analytics index migration', () => {
     const secondRun = await runMigrations({ db, migrationsDir: MIGRATIONS_DIR, dryRun: false, log: silentLog });
 
     expect(secondRun).toEqual([]);
-    expect(created).toHaveLength(19);
+    expect(created).toHaveLength(28);
   });
 });
 
@@ -738,5 +751,109 @@ describe('IES-R1 · task collaboration backfill migration', () => {
     for (const [field, value] of Object.entries(schemaDefaults)) {
       expect(migration.DEFAULTS[field], `${field} drifted from the model default`).toBe(value);
     }
+  });
+});
+
+describe('EEP2-P3.1.4 · roadmap collection migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0012_roadmap_collections.js'));
+
+  it('creates every milestone/phase/module index and the features.moduleRef index', async () => {
+    const { db, created } = createFakeDb();
+    await migration.up({ db });
+
+    expect(created.map((c) => `${c.collection}:${c.options.name}`)).toEqual([
+      'milestones:projectRef_1_order_1_targetDate_1',
+      'milestones:workspaceRef_1',
+      'phases:milestoneRef_1_order_1',
+      'phases:projectRef_1',
+      'phases:workspaceRef_1',
+      'modules:phaseRef_1_order_1',
+      'modules:projectRef_1',
+      'modules:workspaceRef_1',
+      'features:moduleRef_1',
+    ]);
+  });
+
+  it('schema declarations match the migration specs (no drift)', () => {
+    const MODELS = {
+      milestones: require('../models/Milestone'),
+      phases: require('../models/Phase'),
+      modules: require('../models/Module'),
+      features: require('../models/Feature'),
+    };
+
+    for (const { collection, spec } of migration.INDEXES) {
+      const found = MODELS[collection].schema.indexes().some(
+        ([key]) => JSON.stringify(key) === JSON.stringify(spec)
+      );
+      expect(found, `${collection} is missing schema index ${JSON.stringify(spec)}`).toBe(true);
+    }
+  });
+});
+
+describe('EEP2-P3.1.5 · project milestones → milestones migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0013_migrate_project_milestones.js'));
+
+  function fakeDbWithProjects(projects) {
+    const { db } = createFakeDb({ projects });
+    db.collection('milestones').updateOne.mockImplementation(async (filter, update, options) => ({
+      filter, update, options, upsertedCount: 1, modifiedCount: 0,
+    }));
+    return db;
+  }
+
+  it('round-trips name/date/status/order from embedded milestones and keeps the legacy array', async () => {
+    const db = fakeDbWithProjects([
+      {
+        _id: 'p1',
+        userId: 'u1',
+        workspaceRef: 'w1',
+        milestones: [
+          { id: 'm1', title: 'GA Launch', dueDate: '2027-01-15', status: 'planning' },
+          { id: 'm2', title: 'Beta', dueDate: '', status: 'completed', order: 2 },
+        ],
+      },
+    ]);
+
+    const result = await migration.up({ db });
+
+    expect(result).toEqual({ projectsProcessed: 1, inserted: 2 });
+    const calls = db.collection('milestones').updateOne.mock.calls;
+    expect(calls[0][0]).toEqual({ projectRef: 'p1', name: 'GA Launch' });
+    expect(calls[0][1].$setOnInsert).toMatchObject({
+      projectRef: 'p1',
+      workspaceRef: 'w1',
+      name: 'GA Launch',
+      status: 'planned',
+      order: 0,
+      createdBy: 'u1',
+    });
+    expect(calls[0][1].$setOnInsert.targetDate).toEqual(new Date('2027-01-15'));
+    expect(calls[1][1].$setOnInsert.status).toBe('completed');
+    expect(calls[1][1].$setOnInsert.order).toBe(2);
+    expect(calls[1][1].$setOnInsert.targetDate).toBeNull();
+  });
+
+  it('is idempotent — a re-run upserts nothing new', async () => {
+    const db = fakeDbWithProjects([
+      {
+        _id: 'p1',
+        userId: 'u1',
+        workspaceRef: null,
+        milestones: [{ id: 'm1', title: 'GA Launch', dueDate: '2027-01-15', status: 'planning' }],
+      },
+    ]);
+    db.collection('milestones').updateOne.mockImplementation(async (filter, update, options) => ({
+      filter, update, options, upsertedCount: 0, modifiedCount: 0,
+    }));
+
+    const result = await migration.up({ db });
+    expect(result).toEqual({ projectsProcessed: 1, inserted: 0 });
+  });
+
+  it('skips projects without milestones', async () => {
+    const db = fakeDbWithProjects([{ _id: 'p2', userId: 'u2', workspaceRef: null, milestones: [] }]);
+    const result = await migration.up({ db });
+    expect(result).toEqual({ projectsProcessed: 0, inserted: 0 });
   });
 });

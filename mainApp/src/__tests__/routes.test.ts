@@ -132,10 +132,11 @@ describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () =
 });
 
 describe('P1-T1 regression: actionable project overview', () => {
-  it('declares the project detail route once, backed by ProjectOverviewPage', () => {
+  it('declares the project detail route once, backed by ProjectLayout with an index overview', () => {
     const projectRoutes = appSource.match(/<Route\s+path="projects\/:projectId"/g) ?? [];
     expect(projectRoutes).toHaveLength(1);
-    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId"\s+element={<ProjectOverviewPage \/>}/);
+    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId"\s+element={<ProjectLayout \/>}/);
+    expect(appSource).toMatch(/<Route index element={<ProjectOverviewPage \/>} \/>/);
     expect(routePaths).toContain('projects/:projectId');
   });
 
@@ -169,11 +170,11 @@ describe('P1-T1 regression: actionable project overview', () => {
 });
 
 describe('P1-T2 regression: project timeline deep-link', () => {
-  it('declares the timeline route once, backed by ProjectTimelinePage', () => {
-    const timelineRoutes = appSource.match(/<Route\s+path="projects\/:projectId\/timeline"/g) ?? [];
+  it('declares the timeline as a nested ProjectLayout route, backed by ProjectTimelinePage', () => {
+    const timelineRoutes = appSource.match(/<Route\s+path="timeline"\s+element={<ProjectTimelinePage \/>}/g) ?? [];
     expect(timelineRoutes).toHaveLength(1);
-    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId\/timeline"\s+element={<ProjectTimelinePage \/>}/);
-    expect(routePaths).toContain('projects/:projectId/timeline');
+    expect(appSource).toMatch(/<Route\s+path="projects\/:projectId"\s+element={<ProjectLayout \/>}/);
+    expect(routePaths).toContain('timeline');
   });
 
   it('lazy-loads ProjectTimelinePage', () => {
