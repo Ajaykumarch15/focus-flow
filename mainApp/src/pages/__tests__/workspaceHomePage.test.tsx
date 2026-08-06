@@ -109,17 +109,13 @@ describe('WorkspaceHomePage project launcher', () => {
     useAuthStore.setState(originalAuth);
   });
 
-  it('renders the workspace header, stats, and project cards', () => {
+  it('renders the project launcher without the workspace identity header (now in the shell)', () => {
     const { container, root } = render(<WorkspaceHomePage />);
-    expect(container.textContent).toContain('Workspace ws-1');
-    expect(container.textContent).toContain('A shared engineering workspace.');
-    expect(container.textContent).toContain('3 members');
-    expect(container.textContent).toContain('3 projects');
-    expect(container.textContent).toContain('1 active');
     expect(container.textContent).toContain('AI Search Engine');
     expect(container.textContent).toContain('Mobile Gateway');
     expect(container.textContent).toContain('Data Platform');
     expect(container.textContent).toContain('2 members');
+    expect(container.textContent).not.toContain('Workspace ws-1');
     act(() => root.unmount());
     container.remove();
   });

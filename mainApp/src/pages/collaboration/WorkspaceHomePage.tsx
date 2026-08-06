@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  FolderPlus, Search, Clock, Users, ChevronRight, ChevronLeft,
-  ArrowUpRight, FolderOpen, Layers, Plus,
+  FolderPlus, Search, Clock, Users, ChevronLeft, ChevronRight,
+  ArrowUpRight, Plus,
 } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { CreateProjectModal } from '../../components/collaboration/CreateProjectModal';
@@ -45,7 +45,7 @@ const PAGE_SIZE = 6;
 // pages themselves are out of scope here.
 export function WorkspaceHomePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { workspaces, projects, projectsLoading, tasks, activeWorkspaceId } = useCollaborationStore();
+  const { projects, projectsLoading, tasks, activeWorkspaceId } = useCollaborationStore();
 
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [search, setSearch] = useState('');
@@ -54,7 +54,6 @@ export function WorkspaceHomePage() {
   const [page, setPage] = useState(1);
 
   const wsId = workspaceId || activeWorkspaceId;
-  const activeWs = workspaces.find((w) => w.id === wsId) ?? workspaces[0];
   const wsProjects = useMemo(
     () => projects.filter((p) => p.workspaceId === wsId),
     [projects, wsId],
@@ -103,7 +102,6 @@ export function WorkspaceHomePage() {
   const safePage = Math.min(page, totalPages);
   const paged = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
   const showPagination = sorted.length > PAGE_SIZE;
-  const activeCount = wsProjects.filter((p) => p.status === 'active').length;
 
   const loading = projectsLoading;
 
@@ -116,43 +114,6 @@ export function WorkspaceHomePage() {
           transition={{ duration: 0.18, ease: 'easeOut' }}
           className="space-y-6"
         >
-          {/* Header: breadcrumb + workspace identity + stats */}
-          <header className="flex flex-col gap-4">
-            <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-surface-500">
-              <Link to="/hub" className="font-semibold hover:text-surface-200 transition-colors">
-                Workspace Hub
-              </Link>
-              <ChevronRight size={12} className="text-surface-600" aria-hidden="true" />
-              <span aria-current="page" className="font-semibold text-surface-200">Projects</span>
-            </nav>
-
-            <div className="flex items-start gap-4">
-              <div
-                className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center text-2xl shadow-lg shadow-brand-500/20 shrink-0"
-                aria-hidden="true"
-              >
-                {activeWs?.icon ?? 'W'}
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl font-display font-extrabold text-surface-50 truncate">
-                  {activeWs?.name}
-                </h1>
-                <p className="mt-1 text-sm text-surface-400 max-w-2xl">{activeWs?.description}</p>
-                <div className="mt-3 flex items-center gap-2 flex-wrap">
-                  <Badge tone="neutral" icon={<Users size={13} />}>
-                    {activeWs?.membersCount ?? 0} members
-                  </Badge>
-                  <Badge tone="brand" icon={<FolderOpen size={13} />}>
-                    {wsProjects.length} projects
-                  </Badge>
-                  <Badge tone="success" icon={<Layers size={13} />}>
-                    {activeCount} active
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </header>
-
           {loading ? (
             <LoadingSkeleton />
           ) : (
