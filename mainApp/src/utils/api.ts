@@ -14,6 +14,7 @@ import type {
   RoadmapPhase,
   RoadmapModule,
   RoadmapStatus,
+  DiscussionComment,
 } from '../types/collaboration';
 
 const BASE = import.meta.env.VITE_API_URL;
@@ -564,6 +565,34 @@ export const api = {
       if (opts?.limit) params.set('limit', String(opts.limit));
       return request<SearchResults>(`/search?${params.toString()}`);
     },
+  },
+
+  // EEP2-P5.3.1: persisted comment threads (was client-mock in the store).
+  // `targetRef` is the polymorphic id of the target the thread hangs off; the
+  // server validates it resolves to a Task/WorkLog/Project/doc the caller can see.
+  comments: {
+    list: (
+      targetType: DiscussionComment['targetType'],
+      targetRef: string,
+      opts?: { limit?: number; cursor?: string },
+    ) => {
+      const params = new URLSearchParams({ targetType, targetRef });
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.cursor) params.set('cursor', opts.cursor);
+      return request<Paginated<DiscussionComment>>(`/comments?${params.toString()}`);
+    },
+    create: (body: {
+      targetType: DiscussionComment['targetType'];
+      targetRef: string;
+      content: string;
+      parentId?: string | null;
+    }) => request<DiscussionComment>('/comments', { method: 'POST', body: JSON.stringify(body) }),
+    addReaction: (id: string, emoji: string) =>
+      request<DiscussionComment>(`/comments/${id}/reactions`, { method: 'PATCH', body: JSON.stringify({ emoji }) }),
+    resolve: (id: string) =>
+      request<DiscussionComment>(`/comments/${id}/resolve`, { method: 'PATCH' }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/comments/${id}`, { method: 'DELETE' }),
   },
 
   google: {

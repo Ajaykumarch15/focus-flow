@@ -22,6 +22,27 @@ function currentUserName(): string {
   return useAuthStore.getState().user?.name ?? 'Unknown';
 }
 
+// EEP2-P5.3.1: server Comment doc → client DiscussionComment. The server keeps
+// the polymorphic field as `targetRef`; the client model calls it `targetId`.
+function toDiscussionComment(raw: any): DiscussionComment {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    workspaceId: raw.workspaceId ?? '',
+    targetType: raw.targetType,
+    targetId: String(raw.targetRef ?? raw.targetId ?? ''),
+    author: {
+      id: String(raw.author?.id ?? ''),
+      name: raw.author?.name ?? 'Unknown',
+      avatar: raw.author?.avatar,
+    },
+    content: raw.content ?? '',
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    reactions: raw.reactions ?? {},
+    replies: (Array.isArray(raw.replies) ? raw.replies : []).map((r: any) => toDiscussionComment(r)),
+    isResolved: Boolean(raw.isResolved),
+  };
+}
+
 // ── API → frontend shape mappers (IES-P2-07: server docs → client models) ─────
 const DEFAULT_WORKSPACE_SETTINGS: Workspace['settings'] = {
   allowMemberInvites: true,
@@ -275,6 +296,10 @@ interface CollaborationStore {
   activityHasMore: boolean;
   activityNextCursor: string | null;
   discussions: DiscussionComment[];
+  discussionsLoading: boolean;
+  discussionsHasMore: boolean;
+  discussionsNextCursor: string | null;
+  discussionsError: boolean;
   notifications: NotificationItem[];
   notificationsLoading: boolean;
   notificationsHasMore: boolean;
@@ -349,10 +374,12 @@ interface CollaborationStore {
   moveFeatureModule: (featureId: string, moduleId: string | null) => Promise<void>;
   updateGitContext: (taskId: string, gitData: Partial<CollaborativeTask['gitContext']>) => Promise<void>;
 
-  // Discussions & Comments
-  addComment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, content: string, parentCommentId?: string) => void;
-  addReaction: (commentId: string, emoji: string) => void;
-  resolveThread: (commentId: string) => void;
+  // Discussions & Comments (EEP2-P5.3.1: persisted, was client-mock)
+  loadDiscussions: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
+  addComment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, content: string, parentCommentId?: string) => Promise<void>;
+  addReaction: (commentId: string, emoji: string) => Promise<void>;
+  resolveThread: (commentId: string) => Promise<void>;
+  deleteComment: (commentId: string) => Promise<void>;
 
   // Notifications (IES-P2-05: real, user-scoped — no more seed data)
   loadNotifications: (opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
@@ -388,6 +415,10 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   activityHasMore: false,
   activityNextCursor: null,
   discussions: [],
+  discussionsLoading: false,
+  discussionsHasMore: false,
+  discussionsNextCursor: null,
+  discussionsError: false,
   notifications: [],
   notificationsLoading: false,
   notificationsHasMore: false,
@@ -1439,9 +1470,42 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.success('Git details linked');
   },
 
-  addComment: (targetType, targetId, content, parentCommentId) => {
-    const newComment: DiscussionComment = {
-      id: `comm-${Date.now()}`,
+  loadDiscussions: async (targetType, targetId, opts) => {
+    if (!opts?.append) set({ discussionsLoading: true, discussionsError: false });
+    try {
+      const page = await api.comments.list(targetType, targetId, {
+        limit: opts?.limit,
+        cursor: opts?.cursor,
+      });
+      const items = page.items.map((it: any) => toDiscussionComment(it));
+      set((state) => {
+        const others = state.discussions.filter(
+          (d) => !(d.targetType === targetType && d.targetId === targetId)
+        );
+        const existingTarget = opts?.append
+          ? state.discussions.filter((d) => d.targetType === targetType && d.targetId === targetId)
+          : [];
+        return {
+          discussions: [...others, ...existingTarget, ...items],
+          discussionsHasMore: page.hasMore,
+          discussionsNextCursor: page.nextCursor,
+          discussionsError: false,
+        };
+      });
+    } catch {
+      // EEP2-P5.3.1: a failed fetch must never crash the board/modal (offline).
+      if (!opts?.append) {
+        set({ discussionsError: true, discussionsHasMore: false, discussionsNextCursor: null });
+      }
+    } finally {
+      if (!opts?.append) set({ discussionsLoading: false });
+    }
+  },
+
+  addComment: async (targetType, targetId, content, parentCommentId) => {
+    const tempId = `comm-${Date.now()}`;
+    const temp: DiscussionComment = {
+      id: tempId,
       workspaceId: get().activeWorkspaceId,
       targetType,
       targetId,
@@ -1452,45 +1516,150 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       replies: [],
     };
 
+    const created = await runMutation(
+      () => {
+        set((state) => {
+          if (parentCommentId) {
+            return {
+              discussions: state.discussions.map((c) =>
+                c.id === parentCommentId ? { ...c, replies: [...c.replies, temp] } : c
+              ),
+            };
+          }
+          return { discussions: [temp, ...state.discussions] };
+        });
+        return () => {
+          set((state) => {
+            if (parentCommentId) {
+              return {
+                discussions: state.discussions.map((c) =>
+                  c.id === parentCommentId
+                    ? { ...c, replies: c.replies.filter((r) => r.id !== tempId) }
+                    : c
+                ),
+              };
+            }
+            return { discussions: state.discussions.filter((c) => c.id !== tempId) };
+          });
+        };
+      },
+      () => api.comments.create({ targetType, targetRef: targetId, content, parentId: parentCommentId }),
+      { errorTitle: 'Comment failed to post' },
+    );
+    if (!created) return;
+
+    // Swap the temp comment for the server doc (real id, timestamps, reactions).
+    const server = toDiscussionComment(created as any);
     set((state) => {
       if (parentCommentId) {
         return {
           discussions: state.discussions.map((c) =>
-            c.id === parentCommentId ? { ...c, replies: [...c.replies, newComment] } : c
+            c.id === parentCommentId
+              ? { ...c, replies: c.replies.map((r) => (r.id === tempId ? server : r)) }
+              : c
           ),
         };
       }
-      return { discussions: [newComment, ...state.discussions] };
+      return { discussions: state.discussions.map((c) => (c.id === tempId ? server : c)) };
     });
     toast.success('Comment posted');
   },
 
-  addReaction: (commentId, emoji) => {
+  addReaction: async (commentId, emoji) => {
     const me = currentUserId();
+    const result = await runMutation(
+      () => {
+        const prev = get().discussions.find((c) => c.id === commentId)?.reactions;
+        set((state) => ({
+          discussions: state.discussions.map((c) => {
+            if (c.id !== commentId) return c;
+            const current = c.reactions[emoji] || [];
+            const updated = current.includes(me)
+              ? current.filter((id) => id !== me)
+              : [...current, me];
+            return { ...c, reactions: { ...c.reactions, [emoji]: updated } };
+          }),
+        }));
+        return () => {
+          set((state) => ({
+            discussions: state.discussions.map((c) =>
+              c.id === commentId && prev ? { ...c, reactions: prev } : c
+            ),
+          }));
+        };
+      },
+      () => api.comments.addReaction(commentId, emoji),
+      { errorTitle: 'Reaction failed' },
+    );
+    if (!result) return;
+    // Adopt the server doc so a toggle-off that emptied a reaction is reflected.
     set((state) => ({
-      discussions: state.discussions.map((c) => {
-        if (c.id === commentId) {
-          const current = c.reactions[emoji] || [];
-          const updated = current.includes(me)
-            ? current.filter((id) => id !== me)
-            : [...current, me];
-          return {
-            ...c,
-            reactions: { ...c.reactions, [emoji]: updated },
-          };
-        }
-        return c;
-      }),
+      discussions: state.discussions.map((c) =>
+        c.id === commentId ? toDiscussionComment(result as any) : c
+      ),
     }));
   },
 
-  resolveThread: (commentId) => {
+  resolveThread: async (commentId) => {
+    const result = await runMutation(
+      () => {
+        const prev = get().discussions.find((c) => c.id === commentId)?.isResolved ?? false;
+        set((state) => ({
+          discussions: state.discussions.map((c) =>
+            c.id === commentId ? { ...c, isResolved: !c.isResolved } : c
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            discussions: state.discussions.map((c) =>
+              c.id === commentId ? { ...c, isResolved: prev } : c
+            ),
+          }));
+        };
+      },
+      () => api.comments.resolve(commentId),
+      { errorTitle: 'Thread update failed' },
+    );
+    if (!result) return;
     set((state) => ({
       discussions: state.discussions.map((c) =>
-        c.id === commentId ? { ...c, isResolved: !c.isResolved } : c
+        c.id === commentId ? toDiscussionComment(result as any) : c
       ),
     }));
     toast.info('Discussion thread updated');
+  },
+
+  deleteComment: async (commentId) => {
+    let targetKey: string | null = null;
+    const deleted = await runMutation(
+      () => {
+        set((state) => {
+          const root = state.discussions.find(
+            (c) => c.id === commentId || c.replies.some((r) => r.id === commentId)
+          );
+          if (root) targetKey = `${root.targetType}:${root.targetId}`;
+          return {
+            discussions: state.discussions
+              .map((c) =>
+                c.id === commentId
+                  ? null
+                  : { ...c, replies: c.replies.filter((r) => r.id !== commentId) }
+              )
+              .filter((c): c is DiscussionComment => c !== null),
+          };
+        });
+        return () => {
+          // Reload the thread on failure so the optimistic delete is undone.
+          if (targetKey) {
+            const [tt, tid] = targetKey.split(':');
+            get().loadDiscussions(tt as 'task' | 'worklog' | 'project' | 'doc', tid).catch(() => {});
+          }
+        };
+      },
+      () => api.comments.remove(commentId),
+      { errorTitle: 'Comment delete failed' },
+    );
+    if (deleted) toast.success('Comment deleted');
   },
 
   loadNotifications: async (opts) => {

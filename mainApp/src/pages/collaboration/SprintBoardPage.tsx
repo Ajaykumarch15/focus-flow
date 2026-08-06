@@ -11,6 +11,7 @@ import { CreateSprintModal } from '../../components/collaboration/CreateSprintMo
 import { CreateTaskModal } from '../../components/collaboration/CreateTaskModal';
 import { SubtaskPanel } from '../../components/collaboration/SubtaskPanel';
 import { DependencyPanel } from '../../components/collaboration/DependencyPanel';
+import { CommentPanel } from '../../components/collaboration/CommentPanel';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 
@@ -30,6 +31,7 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
   const { updateTaskStatus } = useCollaborationStore();
   const [showSubtasks, setShowSubtasks] = useState(false);
   const [showDependencies, setShowDependencies] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const done = task.subtasks.filter((s) => s.completed).length;
   const depsDone = dependencies.filter((d) => d.sprintStatus === 'done').length;
 
@@ -106,6 +108,17 @@ function SprintTaskCard({ task, planningMode, isBlocked, dependencies, onDiscuss
         <Link2 size={12} /> Dependencies {depsDone}/{dependencies.length}
       </button>
       {showDependencies && <DependencyPanel task={task} dependencies={dependencies} />}
+
+      {/* EEP2-P5.3.1: expandable persisted comment thread panel */}
+      <button
+        type="button"
+        onClick={() => setShowComments((s) => !s)}
+        aria-expanded={showComments}
+        aria-label={`Comments for ${task.title}`}
+        className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-surface-800 bg-surface-900/60 px-2 py-1.5 text-[10px] font-semibold text-surface-400 hover:text-brand-400 hover:border-surface-700 transition-all">
+        <MessageSquare size={12} /> Comments
+      </button>
+      {showComments && <CommentPanel targetType="task" targetId={task.id} />}
     </div>
   );
 }

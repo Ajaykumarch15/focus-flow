@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Send, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { Loader2, MessageSquare, Send, CheckCircle2, Sparkles, X } from 'lucide-react';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { Button } from '../ui/Button';
 import { EmptyState } from '../ui/EmptyState';
@@ -19,8 +19,14 @@ export function DiscussionsModal({
   targetId: string;
   title: string;
 }) {
-  const { discussions, addComment, addReaction, resolveThread } = useCollaborationStore();
+  const { discussions, discussionsLoading, loadDiscussions, addComment, addReaction, resolveThread } = useCollaborationStore();
   const [content, setContent] = useState('');
+
+  // EEP2-P5.3.1: threads are persisted — load them fresh each time the modal
+  // opens so the panel reflects the latest comments from any collaborator.
+  useEffect(() => {
+    if (isOpen) loadDiscussions(targetType, targetId).catch(() => {});
+  }, [isOpen, targetType, targetId, loadDiscussions]);
 
   if (!isOpen) return null;
 
@@ -66,7 +72,11 @@ export function DiscussionsModal({
 
         {/* Body — Comment list */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {targetDiscussions.length === 0 ? (
+          {discussionsLoading && targetDiscussions.length === 0 ? (
+            <div className="flex items-center justify-center py-12 text-surface-500">
+              <Loader2 size={20} className="animate-spin mr-2" /> Loading discussions…
+            </div>
+          ) : targetDiscussions.length === 0 ? (
             <EmptyState
               icon={<Sparkles size={24} className="text-surface-600" />}
               title="No discussions yet"

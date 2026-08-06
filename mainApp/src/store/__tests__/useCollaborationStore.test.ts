@@ -44,6 +44,13 @@ vi.mock('../../utils/api', () => ({
       deleteSubtask: vi.fn(),
       reorder: vi.fn(),
     },
+    comments: {
+      list: vi.fn(),
+      create: vi.fn(),
+      addReaction: vi.fn(),
+      resolve: vi.fn(),
+      remove: vi.fn(),
+    },
   },
 }));
 
@@ -74,6 +81,11 @@ const mocks = {
   taskToggleSubtask: vi.mocked(api.tasks.toggleSubtask),
   taskDeleteSubtask: vi.mocked(api.tasks.deleteSubtask),
   taskReorder: vi.mocked(api.tasks.reorder),
+  commentList: vi.mocked(api.comments.list),
+  commentCreate: vi.mocked(api.comments.create),
+  commentReaction: vi.mocked(api.comments.addReaction),
+  commentResolve: vi.mocked(api.comments.resolve),
+  commentRemove: vi.mocked(api.comments.remove),
 };
 
 function reset() {
@@ -676,16 +688,117 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     expect(useCollaborationStore.getState().tasks[0].dependencies).toEqual(['t-old']);
   });
 
-  it('addComment and createDoc use the real authenticated user (no m1)', () => {
+  it('addComment and createDoc use the real authenticated user (no m1)', async () => {
     useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
+    mocks.commentCreate.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'Ajay Kumar' }, content: 'hello',
+      createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [], isResolved: false,
+    } as any);
 
-    useCollaborationStore.getState().addComment('task', 't1', 'hello');
+    await useCollaborationStore.getState().addComment('task', 't1', 'hello');
     const c = useCollaborationStore.getState().discussions[0];
     expect(c.author.id).toBe('u-1');
     expect(c.author.name).toBe('Ajay Kumar');
+    expect(c.targetId).toBe('t1');
+    expect(mocks.commentCreate).toHaveBeenCalledWith({ targetType: 'task', targetRef: 't1', content: 'hello', parentId: undefined });
 
     useCollaborationStore.getState().createDoc('Doc', 'Architecture', '# hi', []);
     expect(useCollaborationStore.getState().docs[0].authorId).toBe('u-1');
+  });
+
+  // EEP2-P5.3.1: comments are persisted — loadDiscussions maps the paginated
+  // server page into DiscussionComments (targetRef → targetId, nested replies).
+  it('loadDiscussions maps persisted thread docs into DiscussionComments', async () => {
+    mocks.commentList.mockResolvedValue({
+      items: [
+        { id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+          author: { id: 'u-1', name: 'Ajay' }, content: 'root', createdAt: '2026-01-02T00:00:00.000Z',
+          reactions: { '👍': ['u-1'] }, replies: [
+            { id: 'c-2', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: 'c-1',
+              author: { id: 'u-2', name: 'Bo' }, content: 'reply', createdAt: '2026-01-03T00:00:00.000Z',
+              reactions: {}, replies: [], isResolved: false },
+          ], isResolved: false },
+      ],
+      hasMore: true,
+      nextCursor: 'abc',
+    } as any);
+
+    await useCollaborationStore.getState().loadDiscussions('task', 't1');
+
+    const s = useCollaborationStore.getState();
+    expect(s.discussions).toHaveLength(1);
+    expect(s.discussions[0]).toMatchObject({ id: 'c-1', targetId: 't1', content: 'root' });
+    expect(s.discussions[0].reactions).toEqual({ '👍': ['u-1'] });
+    expect(s.discussions[0].replies[0].targetId).toBe('t1');
+    expect(s.discussions[0].replies[0].content).toBe('reply');
+    expect(s.discussionsHasMore).toBe(true);
+    expect(s.discussionsNextCursor).toBe('abc');
+  });
+
+  it('loadDiscussions appends the next cursor page without duplicating roots', async () => {
+    mocks.commentList
+      .mockResolvedValueOnce({ items: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null, author: { id: 'u-1', name: 'A' }, content: 'first', createdAt: '2026-01-03T00:00:00.000Z', reactions: {}, replies: [], isResolved: false }], hasMore: true, nextCursor: 'cur-2' } as any)
+      .mockResolvedValueOnce({ items: [{ id: 'c-0', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null, author: { id: 'u-1', name: 'A' }, content: 'second', createdAt: '2026-01-02T00:00:00.000Z', reactions: {}, replies: [], isResolved: false }], hasMore: false, nextCursor: null } as any);
+
+    await useCollaborationStore.getState().loadDiscussions('task', 't1');
+    await useCollaborationStore.getState().loadDiscussions('task', 't1', { cursor: 'cur-2', append: true });
+
+    expect(mocks.commentList).toHaveBeenNthCalledWith(2, 'task', 't1', { cursor: 'cur-2' });
+    expect(useCollaborationStore.getState().discussions.map((d) => d.id)).toEqual(['c-1', 'c-0']);
+    expect(useCollaborationStore.getState().discussionsHasMore).toBe(false);
+  });
+
+  it('addComment rolls back the optimistic comment when persistence fails', async () => {
+    mocks.commentCreate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().addComment('task', 't1', 'will-fail');
+
+    expect(useCollaborationStore.getState().discussions).toEqual([]);
+  });
+
+  it('addReaction toggles the current user and persists via PATCH', async () => {
+    mocks.commentReaction.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z',
+      reactions: { '👍': ['u-1'] }, replies: [], isResolved: false,
+    } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }],
+    });
+
+    await useCollaborationStore.getState().addReaction('c-1', '👍');
+
+    expect(mocks.commentReaction).toHaveBeenCalledWith('c-1', '👍');
+    expect(useCollaborationStore.getState().discussions[0].reactions['👍']).toEqual(['u-1']);
+  });
+
+  it('resolveThread persists the resolved flag', async () => {
+    mocks.commentResolve.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z',
+      reactions: {}, replies: [], isResolved: true,
+    } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }],
+    });
+
+    await useCollaborationStore.getState().resolveThread('c-1');
+
+    expect(mocks.commentResolve).toHaveBeenCalledWith('c-1');
+    expect(useCollaborationStore.getState().discussions[0].isResolved).toBe(true);
+  });
+
+  it('deleteComment removes the comment and its replies optimistically', async () => {
+    mocks.commentRemove.mockResolvedValue({ message: 'deleted' } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [{ id: 'c-2', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-2', name: 'B' }, content: 'y', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }] }],
+    });
+
+    await useCollaborationStore.getState().deleteComment('c-1');
+
+    expect(mocks.commentRemove).toHaveBeenCalledWith('c-1');
+    expect(useCollaborationStore.getState().discussions).toEqual([]);
   });
 
   it('createSprint passes capacity/target from the modal opts (backlog-safe defaults)', async () => {
