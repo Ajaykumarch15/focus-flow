@@ -15,6 +15,7 @@ const { syncWorkLog } = require('../utils/worklogSync');
 const { localDateToUtc, userTimezone } = require('../utils/dates');
 const { logger } = require('../utils/logger');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
+const { assertWithinCapacity } = require('../utils/sprintMetrics');
 
 const router = express.Router();
 router.use(protect);
@@ -210,6 +211,20 @@ async function isWorkspaceEditor(workspaceRef, userId) {
   return !!(m && m.role !== 'Viewer');
 }
 
+// EEP2-P4.2.2: capacity guard for tasks landing in a sprint (via an owning
+// Feature or an explicit sprintId) — a task's estimate consumes the sprint's
+// capacityHours budget (0 = uncapped). DDS §10.
+async function assertSprintCapacityForTask({ sprintRef, incomingHours, excludeTaskId }) {
+  const [sprint, features, tasks] = await Promise.all([
+    Sprint.findById(sprintRef),
+    Feature.find({ sprintRef }).select('estimatedHours'),
+    Task.find({ sprintRef }).select('estimatedHours'),
+  ]);
+  if (!sprint) return { status: 404, message: 'Sprint not found' };
+  const siblings = tasks.filter((t) => String(t._id) !== String(excludeTaskId));
+  return assertWithinCapacity({ sprint, features, tasks: siblings, incomingHours });
+}
+
 // GET /api/tasks
 router.get('/', validate(null, { query: taskQuerySchema }), async (req, res, next) => {
   try {
@@ -280,6 +295,12 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       if (scope.error) return res.status(scope.status).json({ message: scope.message });
       if (!(await isWorkspaceEditor(scope.workspaceRef, req.user._id))) {
         return res.status(403).json({ message: 'Only workspace editors can create tasks in this workspace' });
+      }
+
+      if (scope.sprintRef) {
+        // EEP2-P4.2.2: creating a task inside a sprint consumes capacity.
+        const capErr = await assertSprintCapacityForTask({ sprintRef: scope.sprintRef, incomingHours: estimatedHours || 0 });
+        if (capErr) return res.status(capErr.status).json({ message: capErr.message });
       }
 
       const task = await Task.create({
@@ -354,10 +375,21 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
     }
 
     // IES-R1: workspace-scoped tasks additionally require an editor gate.
-    const existing = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('workspaceRef');
+    const existing = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('workspaceRef sprintRef estimatedHours');
     if (!existing) return res.status(404).json({ message: 'Task not found' });
     if (existing.workspaceRef && !(await isWorkspaceEditor(existing.workspaceRef, req.user._id))) {
       return res.status(403).json({ message: 'Only workspace editors can update this task' });
+    }
+
+    // EEP2-P4.2.2: re-estimating a task that is planned into a sprint may not
+    // push the sprint's projected load over its capacityHours budget.
+    if (existing.sprintRef && patch.estimatedHours !== undefined) {
+      const capErr = await assertSprintCapacityForTask({
+        sprintRef: existing.sprintRef,
+        incomingHours: patch.estimatedHours || 0,
+        excludeTaskId: req.params.id,
+      });
+      if (capErr) return res.status(capErr.status).json({ message: capErr.message });
     }
 
     const task = await Task.findOneAndUpdate(

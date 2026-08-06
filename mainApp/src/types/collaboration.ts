@@ -159,6 +159,23 @@ export interface Sprint {
   actualVelocity?: number;
 }
 
+// EEP2-P4.2.3: sprint planning summary/velocity (server routes/sprints.js
+// `GET /sprints/:id/stats`, DDS §10). Velocity counts completed items only —
+// done Features + done Tasks. `capacityHours` 0 means uncapped.
+export interface SprintStats {
+  sprintId: string;
+  capacityHours: number;
+  targetVelocity: number;
+  load: number;
+  loadBreakdown: { features: number; tasks: number };
+  loadPct: number;
+  remainingHours: number;
+  overCapacity: boolean;
+  velocity: number;
+  velocityBreakdown: { features: number; tasks: number };
+  completedCount: { features: number; tasks: number };
+}
+
 // IES-R1: Feature/FeatureType mirror the server Feature model (server/models/Feature.js).
 // `sprintId` absent/null means the feature lives in the Project Backlog.
 export type FeatureType = 'feature' | 'bug' | 'spike' | 'chore' | 'research' | 'debt' | 'improvement';

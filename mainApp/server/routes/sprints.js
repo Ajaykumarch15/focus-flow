@@ -25,6 +25,7 @@ const {
 } = require('../middleware/workspace');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 const { SPRINT_STATUSES, assertTransition } = require('../utils/sprintState');
+const { computeSprintStats } = require('../utils/sprintMetrics');
 
 const router = express.Router();
 router.use(protect);
@@ -203,6 +204,21 @@ router.post('/:id/commit', validate(null, { params: sprintParamsSchema }), loadS
       workspaceRef: sprint.workspaceRef,
       details: { sprintName: updated.name, sprintId: updated._id, from: sprint.status, to: updated.status },
     }).catch(() => {});
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/sprints/:id/stats (EEP2-P4.2.3) ───────────────────────────────────
+// DDS §10 summary/velocity: plan load vs capacityHours, remaining hours, and the
+// completed-only velocity (Σ estimatedHours of done Features + done Tasks).
+router.get('/:id/stats', validate(null, { params: sprintParamsSchema }), loadSprint, scopeToWorkspace((req) => req.sprint.workspaceRef), requireWorkspaceMember, async (req, res, next) => {
+  try {
+    const [features, tasks] = await Promise.all([
+      Feature.find({ sprintRef: req.sprint._id }).select('estimatedHours status'),
+      Task.find({ sprintRef: req.sprint._id }).select('estimatedHours sprintStatus'),
+    ]);
+    res.json(computeSprintStats({ sprint: req.sprint, features, tasks }));
   } catch (err) {
     next(err);
   }

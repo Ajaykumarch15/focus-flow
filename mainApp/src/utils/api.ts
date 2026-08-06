@@ -5,6 +5,7 @@ import type {
   Feature,
   GitContext,
   Sprint,
+  SprintStats,
   WorkspaceActivity,
   NotificationItem,
   SearchResults,
@@ -439,6 +440,9 @@ export const api = {
     // EEP2-P4.1.4: one-way commitment latch (Owner/Admin). Idempotent; the
     // original commitmentDate is never rewritten.
     commit: (id: string) => request<Sprint>(`/sprints/${id}/commit`, { method: 'POST' }),
+    // EEP2-P4.2.3: capacity/velocity summary (DDS §10). Velocity is derived
+    // from completed items only.
+    stats: (id: string) => request<SprintStats>(`/sprints/${id}/stats`),
   },
 
   // IES-R1: real Feature CRUD backed by the Phase 3 route (server/routes/features.js).

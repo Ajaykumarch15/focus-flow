@@ -20,6 +20,7 @@ const {
   scopeToWorkspace,
 } = require('../middleware/workspace');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
+const { assertWithinCapacity } = require('../utils/sprintMetrics');
 
 const router = express.Router();
 router.use(protect);
@@ -105,6 +106,20 @@ function validateModuleForProject(moduleId, projectRef) {
   return validateParentForProject(Module, moduleId, projectRef, 'Module');
 }
 
+// EEP2-P4.2.2: server-side capacity guard — planning a feature into a sprint
+// (create directly into it, or PATCH move/re-estimate) may not push the sprint's
+// projected load past its capacityHours budget (0 = uncapped). DDS §10.
+async function assertSprintCapacity({ sprintId, incomingHours, excludeFeatureId }) {
+  const [sprint, features, tasks] = await Promise.all([
+    Sprint.findById(sprintId),
+    Feature.find({ sprintRef: sprintId }).select('estimatedHours'),
+    Task.find({ sprintRef: sprintId }).select('estimatedHours'),
+  ]);
+  if (!sprint) return { status: 404, message: 'Sprint not found' };
+  const siblings = features.filter((f) => String(f._id) !== String(excludeFeatureId));
+  return assertWithinCapacity({ sprint, features: siblings, tasks, incomingHours });
+}
+
 // ── GET /api/features?projectId=&backlog=&sprintId=&type=&status= ────────────
 router.get('/', validate(null, { query: featureQuerySchema }), resolveProjectWorkspace, requireWorkspaceMember, async (req, res, next) => {
   try {
@@ -139,6 +154,9 @@ router.post('/', validate(featureCreateSchema), resolveProjectWorkspace, require
     if (sprintId) {
       const err = await validateSprintForProject(sprintId, req.project._id);
       if (err) return res.status(err.status).json({ message: err.message });
+      // EEP2-P4.2.2: creating directly into a sprint is a planning action.
+      const capErr = await assertSprintCapacity({ sprintId, incomingHours: estimatedHours || 0 });
+      if (capErr) return res.status(capErr.status).json({ message: capErr.message });
     }
     if (moduleId) {
       const err = await validateModuleForProject(moduleId, req.project._id);
@@ -205,6 +223,19 @@ router.patch('/:id', validate(featurePatchSchema, { params: featureParamsSchema 
 
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ message: 'No updatable fields provided' });
+    }
+
+    // EEP2-P4.2.2: capacity guard — moving a feature into a sprint or
+    // re-estimating one already planned into it may not exceed the budget.
+    const targetSprintRef = sprintId !== undefined ? (sprintId ?? null) : req.feature.sprintRef;
+    if (targetSprintRef) {
+      const hours = estimatedHours !== undefined ? estimatedHours : req.feature.estimatedHours;
+      const capErr = await assertSprintCapacity({
+        sprintId: targetSprintRef,
+        incomingHours: hours || 0,
+        excludeFeatureId: req.feature._id,
+      });
+      if (capErr) return res.status(capErr.status).json({ message: capErr.message });
     }
 
     const feature = await Feature.findByIdAndUpdate(req.params.id, { $set: patch }, { new: true, runValidators: true });

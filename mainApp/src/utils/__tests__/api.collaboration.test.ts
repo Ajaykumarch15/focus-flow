@@ -40,6 +40,7 @@ describe('collaboration API client (IES-R1 Phase 3 routes)', () => {
     expect(typeof api.sprints.update).toBe('function');
     expect(typeof api.sprints.remove).toBe('function');
     expect(typeof api.sprints.commit).toBe('function');
+    expect(typeof api.sprints.stats).toBe('function');
     expect(typeof api.features.list).toBe('function');
     expect(typeof api.features.create).toBe('function');
     expect(typeof api.features.update).toBe('function');
@@ -79,6 +80,15 @@ describe('collaboration API client (IES-R1 Phase 3 routes)', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('/sprints/s1/commit');
     expect(init.method).toBe('POST');
+  });
+
+  it('fetches sprint capacity/velocity stats', async () => {
+    stubOk({ sprintId: 's1', load: 12, velocity: 5 });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    await api.sprints.stats('s1');
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/sprints/s1/stats');
+    expect(init.method).toBeUndefined();
   });
 
   it('lists features with backlog/sprint/type/status filters', async () => {
