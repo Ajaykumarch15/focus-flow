@@ -23,6 +23,7 @@ const PENDING_ALL = [
   '0011_task_collab_links.js',
   '0012_roadmap_collections.js',
   '0013_migrate_project_milestones.js',
+  '0014_sprint_lifecycle.js',
 ];
 
 const silentLog = () => {};
@@ -66,7 +67,10 @@ function createFakeDb({
   projectsCollection.find = () => ({ toArray: () => Promise.resolve(projects) });
   projectsCollection.updateOne = vi.fn(async (filter, update) => ({ filter, update }));
   const activitiesCollection = makeIndexedWithState('activities', activityIndexes);
-  const sprintsCollection = makeIndexedWithState('sprints', sprintIndexes);
+  const sprintsCollection = {
+    ...makeIndexedWithState('sprints', sprintIndexes),
+    updateMany: vi.fn(async (filter, update) => ({ filter, update, modifiedCount: 1 })),
+  };
   const featuresCollection = makeIndexedWithState('features', featureIndexes);
   const milestonesCollection = {
     ...makeIndexedWithState('milestones', []),
@@ -276,7 +280,7 @@ describe('IES-P1-04 · report/analytics index migration', () => {
     const secondRun = await runMigrations({ db, migrationsDir: MIGRATIONS_DIR, dryRun: false, log: silentLog });
 
     expect(secondRun).toEqual([]);
-    expect(created).toHaveLength(28);
+    expect(created).toHaveLength(29);
   });
 });
 
@@ -855,5 +859,41 @@ describe('EEP2-P3.1.5 · project milestones → milestones migration', () => {
     const db = fakeDbWithProjects([{ _id: 'p2', userId: 'u2', workspaceRef: null, milestones: [] }]);
     const result = await migration.up({ db });
     expect(result).toEqual({ projectsProcessed: 0, inserted: 0 });
+  });
+});
+
+describe('EEP2-P4.1.1 · sprint lifecycle migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0014_sprint_lifecycle.js'));
+
+  it('normalizes legacy future status to draft and creates the lifecycle index', async () => {
+    const { db, created } = createFakeDb();
+    await migration.up({ db });
+
+    const [filter, update] = db.collection('sprints').updateMany.mock.calls[0];
+    expect(filter).toEqual({ status: 'future' });
+    expect(update).toEqual({ $set: { status: 'draft' } });
+    expect(created).toEqual([
+      {
+        collection: 'sprints',
+        spec: { projectRef: 1, status: 1, startDate: -1 },
+        options: { name: 'projectRef_1_status_1_startDate_-1' },
+      },
+    ]);
+  });
+
+  it('schema declaration matches the migration spec (no drift)', () => {
+    const Sprint = require('../models/Sprint');
+    const found = Sprint.schema.indexes().some(
+      ([key]) => JSON.stringify(key) === JSON.stringify({ projectRef: 1, status: 1, startDate: -1 })
+    );
+    expect(found, 'Sprint schema is missing the lifecycle index').toBe(true);
+  });
+
+  it('skips index creation when it already exists', async () => {
+    const { db, created } = createFakeDb({
+      sprintIndexes: [{ name: 'projectRef_1_status_1_startDate_-1' }],
+    });
+    await migration.up({ db });
+    expect(created).toHaveLength(0);
   });
 });

@@ -16,6 +16,11 @@ export const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   'team.deleted': 'deleted a team',
   'team.member.added': 'added a team member',
   'team.member.removed': 'removed a team member',
+  'sprint.created': 'created a sprint',
+  'sprint.updated': 'updated a sprint',
+  'sprint.deleted': 'deleted a sprint',
+  'sprint.committed': 'committed a sprint',
+  'sprint.state_changed': 'changed a sprint state',
 };
 
 export function activityActionLabel(action: string): string {

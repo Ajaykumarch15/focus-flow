@@ -4,6 +4,12 @@
 // (resolveProjectWorkspace), never the client body; Feature↔Sprint and
 // Task↔Sprint refs share the owning project's workspaceRef; DELETE nulls
 // child refs instead of cascading deletes.
+//
+// EEP2-P4.1.2/3/4 (DDS §4.11, §6.1, §10): create/update carry goals, capacity
+// and dates with strict validation; status changes flow through the lifecycle
+// state machine (draft → planned → active → completed, no skips, planned →
+// active guarded on startDate); the commitment endpoint latches
+// `committed`/`commitmentDate` once (Owner/Admin) and freezes the scope.
 const express = require('express');
 const Sprint = require('../models/Sprint');
 const Feature = require('../models/Feature');
@@ -18,13 +24,17 @@ const {
   scopeToWorkspace,
 } = require('../middleware/workspace');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
+const { SPRINT_STATUSES, assertTransition } = require('../utils/sprintState');
 
 const router = express.Router();
 router.use(protect);
 
-// IES-P0-16: body/param/query schemas.
-const SPRINT_STATUS = ['future', 'active', 'completed'];
+// EEP2-P4.1.4: fields owned by the commitment endpoint — never writable via PATCH.
+const SERVER_OWNED_FIELDS = ['committed', 'commitmentDate', 'committedBy'];
+// Fields that define the committed scope and are frozen once committed.
+const COMMIT_SCOPE_FIELDS = ['name', 'goal', 'startDate', 'endDate', 'capacityHours', 'targetVelocity'];
 
+// IES-P0-16: body/param/query schemas.
 const sprintCreateSchema = z.object({
   projectId: objectId,
   name: requiredString(150, 'name', 'Sprint name is required'),
@@ -42,7 +52,7 @@ const sprintPatchSchema = z.object({
   goal: z.string().max(2000, 'Goal too long').optional(),
   capacityHours: z.number().finite('Invalid capacityHours').min(0, 'capacityHours must be at least 0').optional(),
   targetVelocity: z.number().finite('Invalid targetVelocity').min(0, 'targetVelocity must be at least 0').optional(),
-  status: z.enum(SPRINT_STATUS).optional(),
+  status: z.enum(SPRINT_STATUSES).optional(),
 }).passthrough();
 
 const sprintParamsSchema = z.object({ id: objectId });
@@ -88,6 +98,7 @@ router.post('/', validate(sprintCreateSchema), resolveProjectWorkspace, requireW
       endDate: end,
       capacityHours: capacityHours || 0,
       targetVelocity: targetVelocity || 0,
+      status: 'draft',
       createdBy: req.user._id,
     });
 
@@ -106,6 +117,10 @@ router.post('/', validate(sprintCreateSchema), resolveProjectWorkspace, requireW
 // ── PATCH /api/sprints/:id ─────────────────────────────────────────────────────
 router.patch('/:id', validate(sprintPatchSchema, { params: sprintParamsSchema }), loadSprint, scopeToWorkspace((req) => req.sprint.workspaceRef), requireWorkspaceEditor, async (req, res, next) => {
   try {
+    if (SERVER_OWNED_FIELDS.some((f) => req.body[f] !== undefined)) {
+      return res.status(400).json({ message: 'committed / commitmentDate / committedBy are managed by the commit endpoint' });
+    }
+
     const patch = {};
     const { name, goal, startDate, endDate, capacityHours, targetVelocity, status } = req.body;
     if (name !== undefined) patch.name = name.trim();
@@ -119,6 +134,13 @@ router.patch('/:id', validate(sprintPatchSchema, { params: sprintParamsSchema })
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ message: 'No updatable fields provided' });
     }
+
+    // EEP2-P4.1.4: a committed sprint's scope is frozen — only lifecycle status
+    // transitions may still change the document.
+    if (req.sprint.committed && COMMIT_SCOPE_FIELDS.some((f) => patch[f] !== undefined)) {
+      return res.status(409).json({ message: 'Sprint is committed and its scope is frozen' });
+    }
+
     if (patch.startDate || patch.endDate) {
       const start = (patch.startDate || req.sprint.startDate).getTime();
       const end = (patch.endDate || req.sprint.endDate).getTime();
@@ -127,13 +149,59 @@ router.patch('/:id', validate(sprintPatchSchema, { params: sprintParamsSchema })
       }
     }
 
+    // EEP2-P4.1.3: status changes flow through the lifecycle state machine.
+    const statusChanged = patch.status !== undefined && patch.status !== req.sprint.status;
+    if (statusChanged) {
+      try {
+        assertTransition(req.sprint.status, patch.status, { now: Date.now(), startDate: req.sprint.startDate });
+      } catch (err) {
+        return res.status(err.status || 400).json({ message: err.message });
+      }
+    }
+
     const sprint = await Sprint.findByIdAndUpdate(req.params.id, { $set: patch }, { new: true, runValidators: true });
     res.json(sprint);
     Activity.create({
       userId: req.user._id,
-      action: 'sprint.updated',
+      action: statusChanged ? 'sprint.state_changed' : 'sprint.updated',
       workspaceRef: req.sprint.workspaceRef,
-      details: { sprintName: sprint.name, sprintId: sprint._id },
+      details: statusChanged
+        ? { sprintName: sprint.name, sprintId: sprint._id, from: req.sprint.status, to: sprint.status }
+        : { sprintName: sprint.name, sprintId: sprint._id },
+    }).catch(() => {});
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/sprints/:id/commit (EEP2-P4.1.4) ────────────────────────────────
+// Owner/Admin only. Latches `committed` + `commitmentDate` + `committedBy` and
+// advances draft → planned. The commitment is one-way: a repeated commit is an
+// idempotent no-op that never rewrites the original commitmentDate, and PATCH
+// refuses to touch the committed scope afterwards.
+router.post('/:id/commit', validate(null, { params: sprintParamsSchema }), loadSprint, scopeToWorkspace((req) => req.sprint.workspaceRef), requireWorkspaceOwnerAdmin, async (req, res, next) => {
+  try {
+    const sprint = req.sprint;
+    if (sprint.committed) {
+      return res.json(sprint);
+    }
+
+    const set = {
+      committed: true,
+      commitmentDate: new Date(),
+      committedBy: req.user._id,
+    };
+    if (sprint.status === 'draft') {
+      set.status = 'planned';
+    }
+
+    const updated = await Sprint.findByIdAndUpdate(sprint._id, { $set: set }, { new: true, runValidators: true });
+    res.json(updated);
+    Activity.create({
+      userId: req.user._id,
+      action: 'sprint.committed',
+      workspaceRef: sprint.workspaceRef,
+      details: { sprintName: updated.name, sprintId: updated._id, from: sprint.status, to: updated.status },
     }).catch(() => {});
   } catch (err) {
     next(err);

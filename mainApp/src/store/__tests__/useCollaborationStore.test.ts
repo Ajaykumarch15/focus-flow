@@ -397,7 +397,7 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     mocks.sprintCreate.mockResolvedValue({
       _id: 's-real', name: 'Sprint 1', projectRef: 'p1', workspaceRef: 'ws-1', goal: 'g',
       startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-01-07T00:00:00.000Z',
-      status: 'future', capacityHours: 160, targetVelocity: 80,
+      status: 'draft', capacityHours: 160, targetVelocity: 80,
     } as any);
 
     const promise = useCollaborationStore.getState().createSprint('p1', 'Sprint 1', '2026-01-01', '2026-01-07', 'g');
@@ -526,7 +526,7 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     mocks.sprintCreate.mockResolvedValue({
       _id: 's-real', name: 'Sprint 1', projectRef: 'p1', workspaceRef: 'ws-1', goal: 'g',
       startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-01-07T00:00:00.000Z',
-      status: 'future', capacityHours: 200, targetVelocity: 90,
+      status: 'draft', capacityHours: 200, targetVelocity: 90,
     } as any);
 
     await useCollaborationStore.getState().createSprint('p1', 'Sprint 1', '2026-01-01', '2026-01-07', 'g', { capacityHours: 200, targetVelocity: 90 });

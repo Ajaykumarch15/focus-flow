@@ -56,7 +56,7 @@ export type SprintCreatePayload = {
 };
 
 export type SprintUpdatePayload = Partial<Omit<SprintCreatePayload, 'projectId'>> & {
-  status?: 'future' | 'active' | 'completed';
+  status?: 'draft' | 'planned' | 'active' | 'completed';
 };
 
 export type FeatureCreatePayload = {
@@ -436,6 +436,9 @@ export const api = {
       request<Sprint>(`/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) =>
       request<{ message: string }>(`/sprints/${id}`, { method: 'DELETE' }),
+    // EEP2-P4.1.4: one-way commitment latch (Owner/Admin). Idempotent; the
+    // original commitmentDate is never rewritten.
+    commit: (id: string) => request<Sprint>(`/sprints/${id}/commit`, { method: 'POST' }),
   },
 
   // IES-R1: real Feature CRUD backed by the Phase 3 route (server/routes/features.js).

@@ -136,6 +136,10 @@ export type ProjectPatch = Partial<{
   settings: Partial<ProjectSettings>;
 }>;
 
+// EEP2-P4.1.3: sprint lifecycle vocabulary (server utils/sprintState.js owns
+// the machine: draft → planned → active → completed, no skips).
+export type SprintLifecycleStatus = 'draft' | 'planned' | 'active' | 'completed';
+
 export interface Sprint {
   id: string;
   workspaceId: string;
@@ -144,9 +148,14 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   goal: string;
-  status: 'future' | 'active' | 'completed';
+  status: SprintLifecycleStatus;
   capacityHours: number;
   targetVelocity: number;
+  // EEP2-P4.1.1/P4.1.4: commitment is a one-way latch written once by
+  // `POST /sprints/:id/commit` (Owner/Admin); the committed scope is frozen.
+  committed?: boolean;
+  commitmentDate?: string;
+  committedBy?: string;
   actualVelocity?: number;
 }
 
