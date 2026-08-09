@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import {
-  Workspace, WorkspaceTeam, WorkspaceMember, Project, Feature,
-  Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
+  Workspace, WorkspaceTeam, WorkspaceMember, Project, ProjectPatch,
+  Feature, Sprint, CollaborativeTask, WorkspaceActivity, DiscussionComment,
   NotificationItem, KnowledgeDoc, CentralBlocker, TeamCalendarEvent,
-  SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole
+  SprintStatus, BlockerSeverity, DocCategory, EventType, MemberRole,
+  RoadmapMilestone, RoadmapPhase, RoadmapModule, TaskAttachment,
+  WorkspaceType,
 } from '../types/collaboration';
 import { toast } from './useToastStore';
 import { api } from '../utils/api';
+import type { MilestoneUpdatePayload, PhaseUpdatePayload, ModuleUpdatePayload, SprintUpdatePayload } from '../utils/api';
 import { runMutation } from '../utils/mutation';
 import { useAuthStore } from './useAuthStore';
 
@@ -20,7 +23,50 @@ function currentUserName(): string {
   return useAuthStore.getState().user?.name ?? 'Unknown';
 }
 
+// EEP2-P5.3.1: server Comment doc → client DiscussionComment. The server keeps
+// the polymorphic field as `targetRef`; the client model calls it `targetId`.
+function toDiscussionComment(raw: any): DiscussionComment {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    workspaceId: raw.workspaceId ?? '',
+    targetType: raw.targetType,
+    targetId: String(raw.targetRef ?? raw.targetId ?? ''),
+    author: {
+      id: String(raw.author?.id ?? ''),
+      name: raw.author?.name ?? 'Unknown',
+      avatar: raw.author?.avatar,
+    },
+    content: raw.content ?? '',
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+    reactions: raw.reactions ?? {},
+    replies: (Array.isArray(raw.replies) ? raw.replies : []).map((r: any) => toDiscussionComment(r)),
+    isResolved: Boolean(raw.isResolved),
+  };
+}
+
 // ── API → frontend shape mappers (IES-P2-07: server docs → client models) ─────
+// EEP2-P5.3.2: server Attachment doc → client TaskAttachment. The server keeps
+// the polymorphic field as `targetRef`; the client model calls it `targetId`.
+function toAttachment(raw: any): TaskAttachment {
+  return {
+    id: String(raw.id ?? raw._id ?? ''),
+    workspaceId: raw.workspaceId ?? '',
+    targetType: raw.targetType,
+    targetId: String(raw.targetRef ?? raw.targetId ?? ''),
+    name: raw.name ?? 'Untitled attachment',
+    type: raw.type ?? 'file',
+    url: raw.url ?? '',
+    sizeBytes: Number(raw.sizeBytes ?? 0),
+    description: raw.description ?? '',
+    uploadedBy: {
+      id: String(raw.uploadedBy?.id ?? ''),
+      name: raw.uploadedBy?.name ?? 'Unknown',
+      avatar: raw.uploadedBy?.avatar,
+    },
+    createdAt: raw.createdAt ?? new Date().toISOString(),
+  };
+}
+
 const DEFAULT_WORKSPACE_SETTINGS: Workspace['settings'] = {
   allowMemberInvites: true,
   requireReviewForDone: false,
@@ -97,6 +143,7 @@ function toProject(raw: any): Project {
     teamIds: (raw.teamIds ?? []).map(String),
     status: raw.status ?? 'active',
     milestones: raw.milestones ?? [],
+    settings: raw.settings ?? {},
     createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
   };
 }
@@ -111,10 +158,94 @@ function toSprint(raw: any): Sprint {
     startDate: raw.startDate ? new Date(raw.startDate).toISOString().slice(0, 10) : '',
     endDate: raw.endDate ? new Date(raw.endDate).toISOString().slice(0, 10) : '',
     goal: raw.goal ?? '',
-    status: raw.status ?? 'future',
+    status: raw.status ?? 'draft',
+    committed: Boolean(raw.committed ?? false),
+    commitmentDate: raw.commitmentDate ? new Date(raw.commitmentDate).toISOString() : undefined,
+    committedBy: raw.committedBy ? String(raw.committedBy) : undefined,
     capacityHours: Number(raw.capacityHours ?? 0),
     targetVelocity: Number(raw.targetVelocity ?? 0),
     actualVelocity: raw.actualVelocity != null ? Number(raw.actualVelocity) : undefined,
+  };
+}
+
+// ── EEP2-P3.3: roadmap spine mappers (DDS §4.5-4.7; mirror toSprint/toFeature).
+// `projectRef`/`milestoneRef`/`phaseRef` become the client id fields; the legacy
+// `planning` status was normalized to `planned` by migration 0013.
+function toMilestone(raw: any): RoadmapMilestone {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Milestone',
+    description: raw.description ?? '',
+    targetDate: raw.targetDate ? new Date(raw.targetDate).toISOString().slice(0, 10) : null,
+    order: Number(raw.order ?? 0),
+    status: raw.status ?? 'planned',
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toPhase(raw: any): RoadmapPhase {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    milestoneId: raw.milestoneRef ? String(raw.milestoneRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Phase',
+    description: raw.description ?? '',
+    status: raw.status ?? 'planned',
+    order: Number(raw.order ?? 0),
+    startDate: raw.startDate ? new Date(raw.startDate).toISOString().slice(0, 10) : null,
+    endDate: raw.endDate ? new Date(raw.endDate).toISOString().slice(0, 10) : null,
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+function toModule(raw: any): RoadmapModule {
+  return {
+    id: String(raw._id ?? raw.id ?? ''),
+    phaseId: raw.phaseRef ? String(raw.phaseRef) : '',
+    projectId: raw.projectRef ? String(raw.projectRef) : '',
+    workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
+    name: raw.name ?? 'Untitled Module',
+    description: raw.description ?? '',
+    status: raw.status ?? 'planned',
+    order: Number(raw.order ?? 0),
+    ownerId: raw.ownerId ? String(raw.ownerId) : null,
+    createdAt: raw.createdAt ? new Date(raw.createdAt).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+  };
+}
+
+// Normalizes API date inputs (string | number | null) to the client's ISO-date
+// (or null) shape used by optimistic updates. Undefined passes through untouched.
+function toDateInputValue(v: string | number | null | undefined): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v == null) return null;
+  return new Date(v).toISOString().slice(0, 10);
+}
+
+// Payload → optimistic client patch. The API payloads permit `number`
+// timestamps; the client models use `string | null`, so dates are normalized
+// before the optimistic merge (keeps the store shape stable).
+function toMilestonePatch(patch: MilestoneUpdatePayload): Partial<RoadmapMilestone> {
+  return {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.description !== undefined ? { description: patch.description } : {}),
+    ...(patch.targetDate !== undefined ? { targetDate: toDateInputValue(patch.targetDate) as string | null } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+  };
+}
+
+function toPhasePatch(patch: PhaseUpdatePayload): Partial<RoadmapPhase> {
+  return {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.description !== undefined ? { description: patch.description } : {}),
+    ...(patch.status !== undefined ? { status: patch.status } : {}),
+    ...(patch.order !== undefined ? { order: patch.order } : {}),
+    ...(patch.milestoneId !== undefined ? { milestoneId: patch.milestoneId } : {}),
+    ...(patch.startDate !== undefined ? { startDate: toDateInputValue(patch.startDate) as string | null } : {}),
+    ...(patch.endDate !== undefined ? { endDate: toDateInputValue(patch.endDate) as string | null } : {}),
   };
 }
 
@@ -123,6 +254,7 @@ function toFeature(raw: any): Feature {
     id: String(raw._id ?? raw.id ?? ''),
     projectId: raw.projectRef ? String(raw.projectRef) : '',
     sprintId: raw.sprintRef ? String(raw.sprintRef) : undefined,
+    moduleId: raw.moduleRef ? String(raw.moduleRef) : undefined,
     workspaceId: raw.workspaceRef ? String(raw.workspaceRef) : '',
     name: raw.name ?? 'Untitled Feature',
     description: raw.description ?? '',
@@ -155,6 +287,13 @@ function toCollabTask(raw: any): CollaborativeTask {
     dependencies: (raw.dependencies ?? []).map(String),
     estimatedHours: Number(raw.estimatedHours ?? 0),
     actualHours: Number(raw.actualHours ?? 0),
+    // EEP2-P5.4.2: server `Task.totalTime` (ms) feeds the board timer's resume
+    // base so a resumed card clock continues from its logged total.
+    totalTime: raw.totalTime != null ? Number(raw.totalTime) : undefined,
+    // EEP2-P5.5.1: the server stores deadlines as tz-midnight instants; keeping
+    // the ISO string lets `dayKey(new Date(deadline))` round-trip to the picked
+    // calendar date for due/overdue derivation.
+    deadline: raw.deadline ? new Date(raw.deadline).toISOString() : undefined,
     gitContext: raw.gitContext ?? undefined,
     subtasks: Array.isArray(raw.subtasks)
       ? raw.subtasks.map((s: any) => ({
@@ -176,14 +315,27 @@ interface CollaborationStore {
   members: WorkspaceMember[];
   teams: WorkspaceTeam[];
   projects: Project[];
+  projectsLoading: boolean;
   sprints: Sprint[];
   features: Feature[];
+  milestones: RoadmapMilestone[];
+  phases: RoadmapPhase[];
+  modules: RoadmapModule[];
   tasks: CollaborativeTask[];
   activities: WorkspaceActivity[];
   activityLoading: boolean;
   activityHasMore: boolean;
   activityNextCursor: string | null;
   discussions: DiscussionComment[];
+  discussionsLoading: boolean;
+  discussionsHasMore: boolean;
+  discussionsNextCursor: string | null;
+  discussionsError: boolean;
+  attachments: TaskAttachment[];
+  attachmentsLoading: boolean;
+  attachmentsHasMore: boolean;
+  attachmentsNextCursor: string | null;
+  attachmentsError: boolean;
   notifications: NotificationItem[];
   notificationsLoading: boolean;
   notificationsHasMore: boolean;
@@ -199,32 +351,78 @@ interface CollaborationStore {
   loadProjects: () => Promise<void>;
   loadSprints: () => Promise<void>;
   loadFeatures: () => Promise<void>;
+  loadMilestones: () => Promise<void>;
+  loadPhases: () => Promise<void>;
+  loadModules: () => Promise<void>;
   loadTasks: () => Promise<void>;
   loadCollabData: () => Promise<void>;
 
   // Actions
   setActiveWorkspace: (id: string) => void;
   updateWorkspaceSettings: (workspaceId: string, settings: Partial<Workspace['settings']>) => Promise<void>;
-  createWorkspace: (name: string, type: any, description: string) => Promise<Workspace | undefined>;
+  createWorkspace: (name: string, type: WorkspaceType, description: string) => Promise<Workspace | undefined>;
+  updateWorkspace: (workspaceId: string, patch: { name: string; type: WorkspaceType; description: string }) => Promise<Workspace | undefined>;
+  deleteWorkspace: (workspaceId: string) => Promise<boolean>;
   createTeam: (name: string, description: string, color: string, memberIds: string[]) => Promise<void>;
   updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
   updateMemberStatus: (memberId: string, status: any, currentTask?: string) => void;
 
   // Project & Sprint Actions
   createProject: (data: Partial<Project>) => Promise<Project | undefined>;
+  // EEP2-P2.2.3: persist DDS §4.4 Project Info (description/key/status/members/
+  // teamIds/settings). Optimistic with rollback — see updateWorkspaceSettings.
+  updateProjectMeta: (projectId: string, patch: ProjectPatch) => Promise<void>;
   createFeature: (data: Partial<Feature>) => Promise<Feature | undefined>;
   createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string, opts?: { capacityHours?: number; targetVelocity?: number }) => Promise<Sprint | undefined>;
+  // EEP2-P4.3.2: planning-page persistence (DDS §10). updateSprint PATCHes
+  // goals/capacity/velocity/dates/status; advanceSprintState is the lifecycle
+  // step (draft → planned → active → completed); commitSprint latches the
+  // one-way commitment (POST /sprints/:id/commit, Owner/Admin).
+  updateSprint: (sprintId: string, patch: SprintUpdatePayload) => Promise<void>;
+  advanceSprintState: (sprintId: string, status: Sprint['status']) => Promise<void>;
+  commitSprint: (sprintId: string) => Promise<void>;
   createTask: (data: Partial<CollaborativeTask>) => Promise<CollaborativeTask | undefined>;
   updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => Promise<void>;
+  // EEP2-P5.1.2: assignee changes persist via PATCH /tasks/:id (the server
+  // enforces the DDS §4.9 "assignee must be a workspace member" rule).
+  assignTask: (taskId: string, assigneeId: string) => Promise<void>;
+  // EEP2-P5.1.3: subtask CRUD + toggle (DDS §4.10). Optimistic with rollback.
+  addSubtask: (taskId: string, title: string) => Promise<void>;
+  toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
+  deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+  // EEP2-P5.2.2: replace a task's dependency list in one shot (DDS §4.9). The
+  // server revalidates same-project scope and rejects cycles before persisting.
+  setDependencies: (taskId: string, dependencyIds: string[]) => Promise<void>;
   // IES-R1 (P6-T3): drag a feature into/out of a Sprint (backlog ⇄ sprintRef).
   // `null` un-tethers the feature (back to the Project Backlog).
   moveFeature: (featureId: string, sprintId: string | null) => Promise<void>;
+  // EEP2-P3.3.3: Roadmap spine CRUD (DDS §4.5-4.7). Delete nulls child refs
+  // store-side to mirror the server's orphan-protection behaviour (§6.3).
+  createMilestone: (data: Partial<RoadmapMilestone>) => Promise<RoadmapMilestone | undefined>;
+  updateMilestone: (id: string, patch: MilestoneUpdatePayload) => Promise<void>;
+  deleteMilestone: (id: string) => Promise<void>;
+  createPhase: (data: Partial<RoadmapPhase>) => Promise<RoadmapPhase | undefined>;
+  updatePhase: (id: string, patch: PhaseUpdatePayload) => Promise<void>;
+  deletePhase: (id: string) => Promise<void>;
+  createModule: (data: Partial<RoadmapModule>) => Promise<RoadmapModule | undefined>;
+  updateModule: (id: string, patch: ModuleUpdatePayload) => Promise<void>;
+  deleteModule: (id: string) => Promise<void>;
+  // EEP2-P3.3.3: move a Feature between Modules (or back to project-level with
+  // `null`). Same-project revalidated server-side; `sprintRef` never touched.
+  moveFeatureModule: (featureId: string, moduleId: string | null) => Promise<void>;
   updateGitContext: (taskId: string, gitData: Partial<CollaborativeTask['gitContext']>) => Promise<void>;
 
-  // Discussions & Comments
-  addComment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, content: string, parentCommentId?: string) => void;
-  addReaction: (commentId: string, emoji: string) => void;
-  resolveThread: (commentId: string) => void;
+  // Discussions & Comments (EEP2-P5.3.1: persisted, was client-mock)
+  loadDiscussions: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
+  addComment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, content: string, parentCommentId?: string) => Promise<void>;
+  addReaction: (commentId: string, emoji: string) => Promise<void>;
+  resolveThread: (commentId: string) => Promise<void>;
+  deleteComment: (commentId: string) => Promise<void>;
+
+  // Attachments (EEP2-P5.3.2: persisted, was client-mock)
+  loadAttachments: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
+  uploadAttachment: (targetType: 'task' | 'worklog' | 'project' | 'doc', targetId: string, attachment: { name: string; type?: string; url: string; sizeBytes?: number; description?: string }) => Promise<void>;
+  deleteAttachment: (attachmentId: string) => Promise<void>;
 
   // Notifications (IES-P2-05: real, user-scoped — no more seed data)
   loadNotifications: (opts?: { limit?: number; cursor?: string; append?: boolean }) => Promise<void>;
@@ -249,14 +447,27 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   members: [],
   teams: [],
   projects: [],
+  projectsLoading: false,
   sprints: [],
   features: [],
+  milestones: [],
+  phases: [],
+  modules: [],
   tasks: [],
   activities: [],
   activityLoading: false,
   activityHasMore: false,
   activityNextCursor: null,
   discussions: [],
+  discussionsLoading: false,
+  discussionsHasMore: false,
+  discussionsNextCursor: null,
+  discussionsError: false,
+  attachments: [],
+  attachmentsLoading: false,
+  attachmentsHasMore: false,
+  attachmentsNextCursor: null,
+  attachmentsError: false,
   notifications: [],
   notificationsLoading: false,
   notificationsHasMore: false,
@@ -319,11 +530,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       set({ projects: [] });
       return;
     }
+    set({ projectsLoading: true });
     try {
       const rawList = await api.projects.list(workspaceId);
       set({ projects: (Array.isArray(rawList) ? rawList : []).map(toProject) });
     } catch {
       set({ projects: [] });
+    } finally {
+      set({ projectsLoading: false });
     }
   },
 
@@ -360,6 +574,56 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
+  // ── EEP2-P3.3.3: Roadmap spine loaders (DDS §9). Keyed by the projects the
+  // active workspace already loaded — offline-safe like the sprint/feature loaders.
+  loadMilestones: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ milestones: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.milestones.list(p.id).catch(() => [] as RoadmapMilestone[])),
+      );
+      set({ milestones: lists.flat().map(toMilestone) });
+    } catch {
+      set({ milestones: [] });
+    }
+  },
+
+  loadPhases: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ phases: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.phases.list(p.id).catch(() => [] as RoadmapPhase[])),
+      );
+      set({ phases: lists.flat().map(toPhase) });
+    } catch {
+      set({ phases: [] });
+    }
+  },
+
+  loadModules: async () => {
+    const projects = get().projects;
+    if (!projects.length) {
+      set({ modules: [] });
+      return;
+    }
+    try {
+      const lists = await Promise.all(
+        projects.map((p) => api.modules.list(p.id).catch(() => [] as RoadmapModule[])),
+      );
+      set({ modules: lists.flat().map(toModule) });
+    } catch {
+      set({ modules: [] });
+    }
+  },
+
   loadTasks: async () => {
     const workspaceId = get().activeWorkspaceId;
     if (!workspaceId) {
@@ -384,6 +648,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     await Promise.all([
       get().loadSprints(),
       get().loadFeatures(),
+      get().loadMilestones(),
+      get().loadPhases(),
+      get().loadModules(),
       get().loadTasks(),
     ]);
   },
@@ -452,6 +719,66 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }));
     toast.success('Workspace created', `You are now in ${ws.name}`);
     return ws;
+  },
+
+  updateWorkspace: async (workspaceId, patch) => {
+    const prev = get().workspaces.find((w) => w.id === workspaceId);
+    if (!prev) return undefined;
+    const next: Workspace = {
+      ...prev,
+      ...patch,
+      icon: patch.type ? workspaceIconFor(patch.type) : prev.icon,
+    };
+    const updated = await runMutation(
+      () => {
+        set((state) => ({
+          workspaces: state.workspaces.map((w) => (w.id === workspaceId ? next : w)),
+        }));
+        return () => {
+          set((state) => ({
+            workspaces: state.workspaces.map((w) => (w.id === workspaceId ? prev : w)),
+          }));
+        };
+      },
+      () => api.workspaces.update(workspaceId, { ...patch }),
+      { errorTitle: 'Workspace update failed' },
+    );
+    if (!updated) return undefined;
+    const ws = toWorkspace(updated);
+    set((state) => ({
+      workspaces: state.workspaces.map((w) => (w.id === workspaceId ? ws : w)),
+    }));
+    toast.success('Workspace updated', ws.name);
+    return ws;
+  },
+
+  deleteWorkspace: async (workspaceId) => {
+    const target = get().workspaces.find((w) => w.id === workspaceId);
+    const prevActive = get().activeWorkspaceId;
+    const removed = await runMutation(
+      () => {
+        set((state) => {
+          const remaining = state.workspaces.filter((w) => w.id !== workspaceId);
+          return {
+            workspaces: remaining,
+            activeWorkspaceId: state.activeWorkspaceId === workspaceId
+              ? (remaining[0]?.id ?? '')
+              : state.activeWorkspaceId,
+          };
+        });
+        return () => {
+          set((state) => ({
+            workspaces: target ? [target, ...state.workspaces] : state.workspaces,
+            activeWorkspaceId: prevActive,
+          }));
+        };
+      },
+      () => api.workspaces.remove(workspaceId),
+      { errorTitle: 'Workspace deletion failed' },
+    );
+    if (!removed) return false;
+    toast.success('Workspace deleted', target ? `${target.name} and its teams were removed.` : undefined);
+    return true;
   },
 
   createTeam: async (name, description, color, memberIds) => {
@@ -544,6 +871,28 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     return project;
   },
 
+  // EEP2-P2.2.3: optimistic Project Info save with rollback. `patch` holds only
+  // the changed DDS §4.4 fields; the server re-validates member/team refs and
+  // enforces the editor vs Owner/Admin role split.
+  updateProjectMeta: async (projectId, patch) => {
+    const prev = get().projects.find((p) => p.id === projectId);
+    if (!prev) return;
+    await runMutation(
+      () => {
+        set((state) => ({
+          projects: state.projects.map((p) => (p.id === projectId ? { ...p, ...patch } : p)),
+        }));
+        return () => {
+          set((state) => ({
+            projects: state.projects.map((p) => (p.id === projectId ? prev : p)),
+          }));
+        };
+      },
+      () => api.projects.update(projectId, patch),
+      { errorTitle: 'Project update failed' },
+    );
+  },
+
   // IES-R1 (P6-T5/UX-R1): create a backlog feature (sprintRef stays null). Real
   // owner comes from the modal's member picker; falls back to the auth user.
   createFeature: async (data) => {
@@ -554,6 +903,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       id: tempId,
       workspaceId: activeWsId,
       projectId: data.projectId || '',
+      moduleId: data.moduleId ?? undefined,
       name: data.name || 'Untitled Feature',
       description: data.description || '',
       type: data.type || 'feature',
@@ -579,6 +929,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         estimatedHours: temp.estimatedHours,
         status: temp.status,
         order: temp.order,
+        moduleId: temp.moduleId ?? undefined,
       }),
       { errorTitle: 'Feature creation failed' },
     );
@@ -603,7 +954,8 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       startDate,
       endDate,
       goal,
-      status: 'future',
+      status: 'draft',
+      committed: false,
       capacityHours,
       targetVelocity,
     };
@@ -620,6 +972,72 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     set((state) => ({ sprints: state.sprints.map((s) => (s.id === tempId ? sprint : s)) }));
     toast.success('Sprint created', name);
     return sprint;
+  },
+
+  // EEP2-P4.3.2: persist goal/capacity/velocity/dates/status via PATCH. Date
+  // inputs are normalized to the client's ISO-day shape before the optimistic
+  // merge; a committed sprint's scope stays frozen (server rejects with 409).
+  updateSprint: async (sprintId, patch) => {
+    const prev = get().sprints.find((s) => s.id === sprintId);
+    if (!prev) return;
+    const optimistic: Partial<Sprint> = {};
+    if (patch.name !== undefined) optimistic.name = patch.name;
+    if (patch.goal !== undefined) optimistic.goal = patch.goal;
+    if (patch.startDate !== undefined) optimistic.startDate = new Date(patch.startDate).toISOString().slice(0, 10);
+    if (patch.endDate !== undefined) optimistic.endDate = new Date(patch.endDate).toISOString().slice(0, 10);
+    if (patch.capacityHours !== undefined) optimistic.capacityHours = patch.capacityHours;
+    if (patch.targetVelocity !== undefined) optimistic.targetVelocity = patch.targetVelocity;
+    if (patch.status !== undefined) optimistic.status = patch.status;
+    await runMutation(
+      () => {
+        set((state) => ({
+          sprints: state.sprints.map((s) => (s.id === sprintId ? { ...s, ...optimistic } : s)),
+        }));
+        return () => {
+          set((state) => ({
+            sprints: state.sprints.map((s) => (s.id === sprintId && prev ? prev : s)),
+          }));
+        };
+      },
+      () => api.sprints.update(sprintId, patch),
+      { errorTitle: 'Sprint update failed' },
+    );
+  },
+
+  // EEP2-P4.3.2: explicit lifecycle step through the server state machine.
+  advanceSprintState: async (sprintId, status) => {
+    await get().updateSprint(sprintId, { status });
+  },
+
+  // EEP2-P4.3.2/P4.1.4: one-way commitment latch. Optimistically freezes the
+  // committed scope client-side; the server keeps the original commitmentDate.
+  commitSprint: async (sprintId) => {
+    const prev = get().sprints.find((s) => s.id === sprintId);
+    if (!prev) return;
+    await runMutation(
+      () => {
+        set((state) => ({
+          sprints: state.sprints.map((s) =>
+            s.id === sprintId
+              ? {
+                  ...s,
+                  committed: true,
+                  commitmentDate: new Date().toISOString(),
+                  ...(s.status === 'draft' ? { status: 'planned' as Sprint['status'] } : {}),
+                }
+              : s,
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            sprints: state.sprints.map((s) => (s.id === sprintId && prev ? prev : s)),
+          }));
+        };
+      },
+      () => api.sprints.commit(sprintId),
+      { errorTitle: 'Sprint commit failed' },
+    );
+    toast.success('Sprint committed', `Scope frozen for ${prev.name}`);
   },
 
   createTask: async (data) => {
@@ -711,6 +1129,130 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.info('Status updated', `Task moved to ${sprintStatus.replace('_', ' ').toUpperCase()}`);
   },
 
+  assignTask: async (taskId, assigneeId) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, assigneeId, updatedAt: new Date().toISOString() } : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, assigneeId: prevTask.assigneeId, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.update(taskId, { assigneeId }),
+      { errorTitle: 'Assignee update failed' },
+    );
+    toast.info('Assignee updated', assigneeId ? 'Task assignment changed' : 'Task unassigned');
+  },
+
+  // EEP2-P5.1.3: subtask actions — optimistic with rollback, mirroring the
+  // sprint/feature actions above. The server returns the refreshed parent task;
+  // like updateTaskStatus, we persist rather than re-map so transient temp ids
+  // settle on the next loadTasks().
+  addSubtask: async (taskId, title) => {
+    const prevTasks = get().tasks;
+    const tempId = `st-${Date.now()}`;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: [...t.subtasks, { id: tempId, title, completed: false }],
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.addSubtask(taskId, title),
+      { errorTitle: 'Subtask add failed' },
+    );
+    toast.success('Subtask added', title);
+  },
+
+  toggleSubtask: async (taskId, subtaskId, completed) => {
+    const prevTasks = get().tasks;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks.map((s) => (s.id === subtaskId ? { ...s, completed } : s)),
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.toggleSubtask(taskId, subtaskId, completed),
+      { errorTitle: 'Subtask update failed' },
+    );
+  },
+
+  deleteSubtask: async (taskId, subtaskId) => {
+    const prevTasks = get().tasks;
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks.filter((s) => s.id !== subtaskId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : t
+          ),
+        }));
+        return () => set({ tasks: prevTasks });
+      },
+      () => api.tasks.deleteSubtask(taskId, subtaskId),
+      { errorTitle: 'Subtask delete failed' },
+    );
+  },
+
+  // EEP2-P5.2.2: setDependencies swaps the whole dependency list (DDS §4.9) —
+  // optimistic with rollback, mirroring assignTask. The server re-checks
+  // same-project scope and rejects cycles, so a 400 rolls the list back.
+  setDependencies: async (taskId, dependencyIds) => {
+    const prevTask = get().tasks.find((t) => t.id === taskId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId ? { ...t, dependencies: dependencyIds, updatedAt: new Date().toISOString() } : t
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            tasks: state.tasks.map((t) =>
+              t.id === taskId && prevTask
+                ? { ...t, dependencies: prevTask.dependencies, updatedAt: prevTask.updatedAt }
+                : t
+            ),
+          }));
+        };
+      },
+      () => api.tasks.update(taskId, { dependencies: dependencyIds }),
+      { errorTitle: 'Dependency update failed' },
+    );
+  },
+
   // IES-R1 (P6-T3): moveFeature persists the sprintRef change via
   // `PATCH /features/:id { sprintId }` (server validates same-project). Dropping
   // back onto the Backlog sends `sprintId: null` (explicit un-tether).
@@ -737,6 +1279,275 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       },
       () => api.features.update(featureId, { sprintId }),
       { errorTitle: 'Feature move failed' },
+    );
+  },
+
+  // ── EEP2-P3.3.3: Roadmap spine actions (DDS §4.5-4.7, §6.3). ───────────────
+  // Optimistic with rollback, mirroring the sprint/feature actions above.
+  // `workspaceRef` is derived server-side; `projectId` always comes from data.
+  createMilestone: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `ms-${Date.now()}`;
+    const prevMilestones = get().milestones;
+    const temp: RoadmapMilestone = {
+      id: tempId,
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Milestone',
+      description: data.description || '',
+      targetDate: data.targetDate ?? null,
+      order: data.order ?? 0,
+      status: data.status || 'planned',
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ milestones: [...state.milestones, temp] }));
+        return () => set({ milestones: prevMilestones });
+      },
+      () => api.milestones.create({
+        projectId: temp.projectId,
+        name: temp.name,
+        description: temp.description,
+        targetDate: temp.targetDate ?? undefined,
+        order: temp.order,
+        status: temp.status,
+      }),
+      { errorTitle: 'Milestone creation failed' },
+    );
+    if (!created) return undefined;
+    const milestone = toMilestone(created);
+    set((state) => ({ milestones: state.milestones.map((m) => (m.id === tempId ? milestone : m)) }));
+    toast.success('Milestone created', milestone.name);
+    return milestone;
+  },
+
+  updateMilestone: async (id, patch) => {
+    const prev = get().milestones.find((m) => m.id === id);
+    const optimistic = toMilestonePatch(patch);
+    await runMutation(
+      () => {
+        set((state) => ({
+          milestones: state.milestones.map((m) => (m.id === id ? { ...m, ...optimistic } : m)),
+        }));
+        return () => {
+          set((state) => ({
+            milestones: state.milestones.map((m) =>
+              m.id === id && prev ? { ...m, ...prev } : m
+            ),
+          }));
+        };
+      },
+      () => api.milestones.update(id, optimistic),
+      { errorTitle: 'Milestone update failed' },
+    );
+  },
+
+  deleteMilestone: async (id) => {
+    const prev = get().milestones.find((m) => m.id === id);
+    if (!prev) return;
+    const prevPhases = get().phases;
+    await runMutation(
+      () => {
+        set((state) => ({
+          milestones: state.milestones.filter((m) => m.id !== id),
+          // DDS §6.3: child Phases stay but detach from the deleted milestone.
+          phases: state.phases.map((p) => (p.milestoneId === id ? { ...p, milestoneId: '' } : p)),
+        }));
+        return () => set({ milestones: [...get().milestones.filter((m) => m.id !== id), prev], phases: prevPhases });
+      },
+      () => api.milestones.remove(id),
+      { errorTitle: 'Milestone deletion failed' },
+    );
+    toast.success('Milestone deleted', prev.name);
+  },
+
+  createPhase: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `ph-${Date.now()}`;
+    const prevPhases = get().phases;
+    const temp: RoadmapPhase = {
+      id: tempId,
+      milestoneId: data.milestoneId || '',
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Phase',
+      description: data.description || '',
+      status: data.status || 'planned',
+      order: data.order ?? 0,
+      startDate: data.startDate ?? null,
+      endDate: data.endDate ?? null,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ phases: [...state.phases, temp] }));
+        return () => set({ phases: prevPhases });
+      },
+      () => api.phases.create({
+        projectId: temp.projectId,
+        milestoneId: temp.milestoneId,
+        name: temp.name,
+        description: temp.description,
+        status: temp.status,
+        order: temp.order,
+        startDate: temp.startDate ?? undefined,
+        endDate: temp.endDate ?? undefined,
+      }),
+      { errorTitle: 'Phase creation failed' },
+    );
+    if (!created) return undefined;
+    const phase = toPhase(created);
+    set((state) => ({ phases: state.phases.map((p) => (p.id === tempId ? phase : p)) }));
+    toast.success('Phase created', phase.name);
+    return phase;
+  },
+
+  updatePhase: async (id, patch) => {
+    const prev = get().phases.find((p) => p.id === id);
+    const optimistic = toPhasePatch(patch);
+    await runMutation(
+      () => {
+        set((state) => ({
+          phases: state.phases.map((p) => (p.id === id ? { ...p, ...optimistic } : p)),
+        }));
+        return () => {
+          set((state) => ({
+            phases: state.phases.map((p) =>
+              p.id === id && prev ? { ...p, ...prev } : p
+            ),
+          }));
+        };
+      },
+      () => api.phases.update(id, optimistic),
+      { errorTitle: 'Phase update failed' },
+    );
+  },
+
+  deletePhase: async (id) => {
+    const prev = get().phases.find((p) => p.id === id);
+    if (!prev) return;
+    const prevModules = get().modules;
+    await runMutation(
+      () => {
+        set((state) => ({
+          phases: state.phases.filter((p) => p.id !== id),
+          // DDS §6.3: child Modules stay but detach from the deleted Phase.
+          modules: state.modules.map((mod) => (mod.phaseId === id ? { ...mod, phaseId: '' } : mod)),
+        }));
+        return () => set({ phases: [...get().phases.filter((p) => p.id !== id), prev], modules: prevModules });
+      },
+      () => api.phases.remove(id),
+      { errorTitle: 'Phase deletion failed' },
+    );
+    toast.success('Phase deleted', prev.name);
+  },
+
+  createModule: async (data) => {
+    const activeWsId = get().activeWorkspaceId;
+    const tempId = `md-${Date.now()}`;
+    const prevModules = get().modules;
+    const temp: RoadmapModule = {
+      id: tempId,
+      phaseId: data.phaseId || '',
+      projectId: data.projectId || '',
+      workspaceId: activeWsId,
+      name: data.name || 'Untitled Module',
+      description: data.description || '',
+      status: data.status || 'planned',
+      order: data.order ?? 0,
+      ownerId: data.ownerId ?? null,
+      createdAt: new Date().toISOString().slice(0, 10),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ modules: [...state.modules, temp] }));
+        return () => set({ modules: prevModules });
+      },
+      () => api.modules.create({
+        projectId: temp.projectId,
+        phaseId: temp.phaseId,
+        name: temp.name,
+        description: temp.description,
+        status: temp.status,
+        order: temp.order,
+        ownerId: temp.ownerId ?? undefined,
+      }),
+      { errorTitle: 'Module creation failed' },
+    );
+    if (!created) return undefined;
+    const module = toModule(created);
+    set((state) => ({ modules: state.modules.map((m) => (m.id === tempId ? module : m)) }));
+    toast.success('Module created', module.name);
+    return module;
+  },
+
+  updateModule: async (id, patch) => {
+    const prev = get().modules.find((m) => m.id === id);
+    await runMutation(
+      () => {
+        set((state) => ({
+          modules: state.modules.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+        }));
+        return () => {
+          set((state) => ({
+            modules: state.modules.map((m) =>
+              m.id === id && prev ? { ...m, ...prev } : m
+            ),
+          }));
+        };
+      },
+      () => api.modules.update(id, patch),
+      { errorTitle: 'Module update failed' },
+    );
+  },
+
+  deleteModule: async (id) => {
+    const prev = get().modules.find((m) => m.id === id);
+    if (!prev) return;
+    const prevFeatures = get().features;
+    await runMutation(
+      () => {
+        set((state) => ({
+          modules: state.modules.filter((m) => m.id !== id),
+          // DDS §6.3: child Features become project-level (moduleRef null).
+          features: state.features.map((f) => (f.moduleId === id ? { ...f, moduleId: undefined } : f)),
+        }));
+        return () => set({ modules: [...get().modules.filter((m) => m.id !== id), prev], features: prevFeatures });
+      },
+      () => api.modules.remove(id),
+      { errorTitle: 'Module deletion failed' },
+    );
+    toast.success('Module deleted', prev.name);
+  },
+
+  // EEP2-P3.3.3: moveFeatureModule persists the moduleRef change via
+  // `PATCH /features/:id { moduleId }` (server revalidates same-project). Moving
+  // between modules never touches `sprintRef` (DDS §4.8 flex point). `null`
+  // drops the feature back to project-level while staying sprint-scheduled.
+  moveFeatureModule: async (featureId, moduleId) => {
+    const prevFeature = get().features.find((f) => f.id === featureId);
+    await runMutation(
+      () => {
+        set((state) => ({
+          features: state.features.map((f) =>
+            f.id === featureId
+              ? { ...f, moduleId: moduleId ?? undefined }
+              : f
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            features: state.features.map((f) =>
+              f.id === featureId && prevFeature
+                ? { ...f, moduleId: prevFeature.moduleId }
+                : f
+            ),
+          }));
+        };
+      },
+      () => api.features.update(featureId, { moduleId }),
+      { errorTitle: 'Module move failed' },
     );
   },
 
@@ -771,9 +1582,42 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.success('Git details linked');
   },
 
-  addComment: (targetType, targetId, content, parentCommentId) => {
-    const newComment: DiscussionComment = {
-      id: `comm-${Date.now()}`,
+  loadDiscussions: async (targetType, targetId, opts) => {
+    if (!opts?.append) set({ discussionsLoading: true, discussionsError: false });
+    try {
+      const page = await api.comments.list(targetType, targetId, {
+        limit: opts?.limit,
+        cursor: opts?.cursor,
+      });
+      const items = page.items.map((it: any) => toDiscussionComment(it));
+      set((state) => {
+        const others = state.discussions.filter(
+          (d) => !(d.targetType === targetType && d.targetId === targetId)
+        );
+        const existingTarget = opts?.append
+          ? state.discussions.filter((d) => d.targetType === targetType && d.targetId === targetId)
+          : [];
+        return {
+          discussions: [...others, ...existingTarget, ...items],
+          discussionsHasMore: page.hasMore,
+          discussionsNextCursor: page.nextCursor,
+          discussionsError: false,
+        };
+      });
+    } catch {
+      // EEP2-P5.3.1: a failed fetch must never crash the board/modal (offline).
+      if (!opts?.append) {
+        set({ discussionsError: true, discussionsHasMore: false, discussionsNextCursor: null });
+      }
+    } finally {
+      if (!opts?.append) set({ discussionsLoading: false });
+    }
+  },
+
+  addComment: async (targetType, targetId, content, parentCommentId) => {
+    const tempId = `comm-${Date.now()}`;
+    const temp: DiscussionComment = {
+      id: tempId,
       workspaceId: get().activeWorkspaceId,
       targetType,
       targetId,
@@ -784,45 +1628,236 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       replies: [],
     };
 
+    const created = await runMutation(
+      () => {
+        set((state) => {
+          if (parentCommentId) {
+            return {
+              discussions: state.discussions.map((c) =>
+                c.id === parentCommentId ? { ...c, replies: [...c.replies, temp] } : c
+              ),
+            };
+          }
+          return { discussions: [temp, ...state.discussions] };
+        });
+        return () => {
+          set((state) => {
+            if (parentCommentId) {
+              return {
+                discussions: state.discussions.map((c) =>
+                  c.id === parentCommentId
+                    ? { ...c, replies: c.replies.filter((r) => r.id !== tempId) }
+                    : c
+                ),
+              };
+            }
+            return { discussions: state.discussions.filter((c) => c.id !== tempId) };
+          });
+        };
+      },
+      () => api.comments.create({ targetType, targetRef: targetId, content, parentId: parentCommentId }),
+      { errorTitle: 'Comment failed to post' },
+    );
+    if (!created) return;
+
+    // Swap the temp comment for the server doc (real id, timestamps, reactions).
+    const server = toDiscussionComment(created as any);
     set((state) => {
       if (parentCommentId) {
         return {
           discussions: state.discussions.map((c) =>
-            c.id === parentCommentId ? { ...c, replies: [...c.replies, newComment] } : c
+            c.id === parentCommentId
+              ? { ...c, replies: c.replies.map((r) => (r.id === tempId ? server : r)) }
+              : c
           ),
         };
       }
-      return { discussions: [newComment, ...state.discussions] };
+      return { discussions: state.discussions.map((c) => (c.id === tempId ? server : c)) };
     });
     toast.success('Comment posted');
   },
 
-  addReaction: (commentId, emoji) => {
+  addReaction: async (commentId, emoji) => {
     const me = currentUserId();
+    const result = await runMutation(
+      () => {
+        const prev = get().discussions.find((c) => c.id === commentId)?.reactions;
+        set((state) => ({
+          discussions: state.discussions.map((c) => {
+            if (c.id !== commentId) return c;
+            const current = c.reactions[emoji] || [];
+            const updated = current.includes(me)
+              ? current.filter((id) => id !== me)
+              : [...current, me];
+            return { ...c, reactions: { ...c.reactions, [emoji]: updated } };
+          }),
+        }));
+        return () => {
+          set((state) => ({
+            discussions: state.discussions.map((c) =>
+              c.id === commentId && prev ? { ...c, reactions: prev } : c
+            ),
+          }));
+        };
+      },
+      () => api.comments.addReaction(commentId, emoji),
+      { errorTitle: 'Reaction failed' },
+    );
+    if (!result) return;
+    // Adopt the server doc so a toggle-off that emptied a reaction is reflected.
     set((state) => ({
-      discussions: state.discussions.map((c) => {
-        if (c.id === commentId) {
-          const current = c.reactions[emoji] || [];
-          const updated = current.includes(me)
-            ? current.filter((id) => id !== me)
-            : [...current, me];
-          return {
-            ...c,
-            reactions: { ...c.reactions, [emoji]: updated },
-          };
-        }
-        return c;
-      }),
+      discussions: state.discussions.map((c) =>
+        c.id === commentId ? toDiscussionComment(result as any) : c
+      ),
     }));
   },
 
-  resolveThread: (commentId) => {
+  resolveThread: async (commentId) => {
+    const result = await runMutation(
+      () => {
+        const prev = get().discussions.find((c) => c.id === commentId)?.isResolved ?? false;
+        set((state) => ({
+          discussions: state.discussions.map((c) =>
+            c.id === commentId ? { ...c, isResolved: !c.isResolved } : c
+          ),
+        }));
+        return () => {
+          set((state) => ({
+            discussions: state.discussions.map((c) =>
+              c.id === commentId ? { ...c, isResolved: prev } : c
+            ),
+          }));
+        };
+      },
+      () => api.comments.resolve(commentId),
+      { errorTitle: 'Thread update failed' },
+    );
+    if (!result) return;
     set((state) => ({
       discussions: state.discussions.map((c) =>
-        c.id === commentId ? { ...c, isResolved: !c.isResolved } : c
+        c.id === commentId ? toDiscussionComment(result as any) : c
       ),
     }));
     toast.info('Discussion thread updated');
+  },
+
+  deleteComment: async (commentId) => {
+    let targetKey: string | null = null;
+    const deleted = await runMutation(
+      () => {
+        set((state) => {
+          const root = state.discussions.find(
+            (c) => c.id === commentId || c.replies.some((r) => r.id === commentId)
+          );
+          if (root) targetKey = `${root.targetType}:${root.targetId}`;
+          return {
+            discussions: state.discussions
+              .map((c) =>
+                c.id === commentId
+                  ? null
+                  : { ...c, replies: c.replies.filter((r) => r.id !== commentId) }
+              )
+              .filter((c): c is DiscussionComment => c !== null),
+          };
+        });
+        return () => {
+          // Reload the thread on failure so the optimistic delete is undone.
+          if (targetKey) {
+            const [tt, tid] = targetKey.split(':');
+            get().loadDiscussions(tt as 'task' | 'worklog' | 'project' | 'doc', tid).catch(() => {});
+          }
+        };
+      },
+      () => api.comments.remove(commentId),
+      { errorTitle: 'Comment delete failed' },
+    );
+    if (deleted) toast.success('Comment deleted');
+  },
+
+  // EEP2-P5.3.2: persisted file attachments (was client-mock). loadAttachments
+  // mirrors loadDiscussions — each target owns its slice of the flat list so
+  // the panel never clobbers a sibling target's attachments.
+  loadAttachments: async (targetType, targetId, opts) => {
+    if (!opts?.append) set({ attachmentsLoading: true, attachmentsError: false });
+    try {
+      const page = await api.attachments.list(targetType, targetId, {
+        limit: opts?.limit,
+        cursor: opts?.cursor,
+      });
+      const items = page.items.map((it: any) => toAttachment(it));
+      set((state) => {
+        const others = state.attachments.filter(
+          (a) => !(a.targetType === targetType && a.targetId === targetId)
+        );
+        const existingTarget = opts?.append
+          ? state.attachments.filter((a) => a.targetType === targetType && a.targetId === targetId)
+          : [];
+        return {
+          attachments: [...others, ...existingTarget, ...items],
+          attachmentsHasMore: page.hasMore,
+          attachmentsNextCursor: page.nextCursor,
+          attachmentsError: false,
+        };
+      });
+    } catch {
+      if (!opts?.append) {
+        set({ attachmentsError: true, attachmentsHasMore: false, attachmentsNextCursor: null });
+      }
+    } finally {
+      if (!opts?.append) set({ attachmentsLoading: false });
+    }
+  },
+
+  uploadAttachment: async (targetType, targetId, attachment) => {
+    const tempId = `att-${Date.now()}`;
+    const temp: TaskAttachment = {
+      id: tempId,
+      workspaceId: get().activeWorkspaceId,
+      targetType,
+      targetId,
+      name: attachment.name,
+      type: attachment.type || 'file',
+      url: attachment.url,
+      sizeBytes: attachment.sizeBytes || 0,
+      description: attachment.description || '',
+      uploadedBy: { id: currentUserId(), name: currentUserName() },
+      createdAt: new Date().toISOString(),
+    };
+    const created = await runMutation(
+      () => {
+        set((state) => ({ attachments: [temp, ...state.attachments] }));
+        return () => set((state) => ({ attachments: state.attachments.filter((a) => a.id !== tempId) }));
+      },
+      () => api.attachments.create({ targetType, targetRef: targetId, ...attachment }),
+      { errorTitle: 'Attachment upload failed' },
+    );
+    if (!created) return;
+    set((state) => ({
+      attachments: state.attachments.map((a) => (a.id === tempId ? toAttachment(created as any) : a)),
+    }));
+    toast.success('Attachment added', attachment.name);
+  },
+
+  deleteAttachment: async (attachmentId) => {
+    let targetKey: string | null = null;
+    const deleted = await runMutation(
+      () => {
+        set((state) => {
+          const found = state.attachments.find((a) => a.id === attachmentId);
+          if (found) targetKey = `${found.targetType}:${found.targetId}`;
+          return { attachments: state.attachments.filter((a) => a.id !== attachmentId) };
+        });
+        return () => {
+          if (targetKey) {
+            const [tt, tid] = targetKey.split(':');
+            get().loadAttachments(tt as 'task' | 'worklog' | 'project' | 'doc', tid).catch(() => {});
+          }
+        };
+      },
+      () => api.attachments.remove(attachmentId),
+      { errorTitle: 'Attachment delete failed' },
+    );
+    if (deleted) toast.success('Attachment deleted');
   },
 
   loadNotifications: async (opts) => {

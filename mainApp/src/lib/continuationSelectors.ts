@@ -6,6 +6,7 @@ import type {
 import {
   selectFocusSession, type FocusChip, type FocusInput, type FocusSubtask,
 } from './focusSelectors';
+import { stripHtml } from './htmlContent';
 
 // ── S2-T1: Current Task continuation selector (ECIS §G · DCX) ────────────────
 // Answers "Where am I with this task, and where do I pick up next?" for the
@@ -171,7 +172,7 @@ function whereStopped(workLog: WorkLog | null, journals: JournalEntry[], taskId:
   for (const j of journals) {
     if (j.taskId === taskId && j.content?.trim()) {
       candidates.push({
-        source: 'journal', text: j.content.trim(), at: j.createdAt,
+        source: 'journal', text: stripHtml(j.content).trim(), at: j.createdAt,
         workLogId: null, workLogTitle: null,
       });
     }

@@ -54,6 +54,62 @@ export interface ProjectMilestone {
   targetPoints: number;
 }
 
+// ── EEP2-P3.3/P3.4: Roadmap spine types (DDS §4.5-4.7, §9). ────────────────────
+// Server refs (`projectRef`/`workspaceRef`/`milestoneRef`/`phaseRef`) map to the
+// client id fields below via the store mappers (toMilestone/toPhase/toModule).
+// `RoadmapStatus` mirrors the DDS vocabulary; legacy embedded `ProjectMilestone`
+// (`planning|active|completed`) is read-compatible during the migration 0013
+// transition — new Roadmap data always uses `planned`.
+export type RoadmapStatus = 'planned' | 'active' | 'completed';
+
+export interface RoadmapMilestone {
+  id: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  targetDate: string | null;
+  order: number;
+  status: RoadmapStatus;
+  createdAt: string;
+}
+
+export interface RoadmapPhase {
+  id: string;
+  milestoneId: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  status: RoadmapStatus;
+  order: number;
+  startDate: string | null;
+  endDate: string | null;
+  createdAt: string;
+}
+
+export interface RoadmapModule {
+  id: string;
+  phaseId: string;
+  projectId: string;
+  workspaceId: string;
+  name: string;
+  description: string;
+  status: RoadmapStatus;
+  order: number;
+  ownerId: string | null;
+  createdAt: string;
+}
+
+// DDS §4.4: project settings override workspace defaults for that project only
+// (values mirrored from the workspace settings schema).
+export interface ProjectSettings {
+  allowMemberInvites: boolean;
+  requireReviewForDone: boolean;
+  autoSyncTimerWorkLogs: boolean;
+  defaultVisibility: 'Private' | 'Team' | 'Project' | 'Workspace';
+}
+
 export interface Project {
   id: string;
   workspaceId: string;
@@ -65,8 +121,24 @@ export interface Project {
   teamIds: string[];
   status: 'planning' | 'active' | 'completed' | 'on_hold';
   milestones: ProjectMilestone[];
+  settings?: Partial<ProjectSettings>;
   createdAt: string;
 }
+
+// EEP2-P2.2.3: payload for PATCH /api/projects/:id (DDS §4.4 Project Info).
+// Meta fields are editor-gated; members/teamIds/settings are Owner/Admin-gated.
+export type ProjectPatch = Partial<{
+  description: string;
+  key: string;
+  status: Project['status'];
+  members: string[];
+  teamIds: string[];
+  settings: Partial<ProjectSettings>;
+}>;
+
+// EEP2-P4.1.3: sprint lifecycle vocabulary (server utils/sprintState.js owns
+// the machine: draft → planned → active → completed, no skips).
+export type SprintLifecycleStatus = 'draft' | 'planned' | 'active' | 'completed';
 
 export interface Sprint {
   id: string;
@@ -76,10 +148,32 @@ export interface Sprint {
   startDate: string;
   endDate: string;
   goal: string;
-  status: 'future' | 'active' | 'completed';
+  status: SprintLifecycleStatus;
   capacityHours: number;
   targetVelocity: number;
+  // EEP2-P4.1.1/P4.1.4: commitment is a one-way latch written once by
+  // `POST /sprints/:id/commit` (Owner/Admin); the committed scope is frozen.
+  committed?: boolean;
+  commitmentDate?: string;
+  committedBy?: string;
   actualVelocity?: number;
+}
+
+// EEP2-P4.2.3: sprint planning summary/velocity (server routes/sprints.js
+// `GET /sprints/:id/stats`, DDS §10). Velocity counts completed items only —
+// done Features + done Tasks. `capacityHours` 0 means uncapped.
+export interface SprintStats {
+  sprintId: string;
+  capacityHours: number;
+  targetVelocity: number;
+  load: number;
+  loadBreakdown: { features: number; tasks: number };
+  loadPct: number;
+  remainingHours: number;
+  overCapacity: boolean;
+  velocity: number;
+  velocityBreakdown: { features: number; tasks: number };
+  completedCount: { features: number; tasks: number };
 }
 
 // IES-R1: Feature/FeatureType mirror the server Feature model (server/models/Feature.js).
@@ -91,6 +185,10 @@ export interface Feature {
   id: string;
   projectId: string;
   sprintId?: string;
+  // DDS §4.8: module ownership is orthogonal to sprint planning. `moduleId`
+  // null/absent = project-level feature (Backlog); moving between modules never
+  // touches `sprintId`.
+  moduleId?: string;
   workspaceId: string;
   name: string;
   description: string;
@@ -133,6 +231,12 @@ export interface CollaborativeTask {
   dependencies: string[]; // task IDs
   estimatedHours: number;
   actualHours: number;
+  // EEP2-P5.4.2: accumulated focus ms on the task (server `Task.totalTime`).
+  // Optional so existing fixtures/mocks that predate the timer hookup compile.
+  totalTime?: number;
+  // EEP2-P5.5.1: calendar deadline from the server `Task.deadline` (a tz-midnight
+  // instant, serialized as an ISO string). Absent when no deadline is set.
+  deadline?: string;
   gitContext?: GitContext;
   subtasks: { id: string; title: string; completed: boolean }[];
   createdAt: string;
@@ -171,6 +275,24 @@ export interface DiscussionComment {
   replies: DiscussionComment[];
   isResolved?: boolean;
   mentions?: string[]; // memberIds or teamNames
+}
+
+export interface TaskAttachment {
+  id: string;
+  workspaceId: string;
+  targetType: 'task' | 'worklog' | 'project' | 'doc';
+  targetId: string;
+  name: string;
+  type: string;
+  url: string;
+  sizeBytes: number;
+  description: string;
+  uploadedBy: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  createdAt: string;
 }
 
 export interface NotificationItem {

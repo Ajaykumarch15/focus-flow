@@ -15,6 +15,7 @@ const { syncWorkLog } = require('../utils/worklogSync');
 const { localDateToUtc, userTimezone } = require('../utils/dates');
 const { logger } = require('../utils/logger');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
+const { assertWithinCapacity } = require('../utils/sprintMetrics');
 
 const router = express.Router();
 router.use(protect);
@@ -52,7 +53,7 @@ const taskBase = {
   priority: z.enum(TASK_PRIORITY),
   status: z.enum(TASK_STATUS),
   category: z.string().trim().max(50, 'Category too long'),
-  deadline: dateInput,
+  deadline: dateInput.optional(),
   color: z.string().trim().max(20, 'Color too long'),
   tags: z.array(z.string().trim().max(50, 'Tag too long')).max(50, 'Too many tags'),
 };
@@ -210,6 +211,106 @@ async function isWorkspaceEditor(workspaceRef, userId) {
   return !!(m && m.role !== 'Viewer');
 }
 
+// EEP2-P5.1.2 (DDS §4.9): scope rules for task mutations. A workspace Task may
+// be modified/deleted by any non-Viewer member — not only its creator — while a
+// personal Task stays private to its owner. The `userId &&` guard keeps the
+// owner check a no-op for docs that predate the field; the schema requires
+// `userId` on every real document, so production tasks are always guarded.
+async function loadTaskScoped(id, user, selectFields) {
+  const task = await Task.findOne({ _id: id }).select(selectFields || 'workspaceRef userId');
+  if (!task) return { error: true, status: 404, message: 'Task not found' };
+  if (task.workspaceRef) {
+    if (!(await isWorkspaceEditor(task.workspaceRef, user._id))) {
+      return { error: true, status: 403, message: 'Only workspace editors can modify this task' };
+    }
+    return { error: false, task };
+  }
+  if (task.userId && String(task.userId) !== String(user._id)) {
+    return { error: true, status: 404, message: 'Task not found' };
+  }
+  return { error: false, task };
+}
+
+// EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be members of the workspace.
+async function isWorkspaceMember(workspaceRef, userId) {
+  const ws = await Workspace.findById(workspaceRef).select('members');
+  return !!(ws && findMember(ws, userId));
+}
+
+// EEP2-P5.2.1 (DDS §4.9): cycle guard for `dependencies`. Only the parent's
+// out-edges change in a dependency write, so any new cycle must pass through
+// the parent — we walk each candidate's existing transitive deps and reject the
+// moment one reaches the parent (a self-dependency is the trivial case).
+async function wouldCreateDependencyCycle(taskId, dependencyIds) {
+  const seen = new Set();
+  const stack = [...dependencyIds];
+  let queries = 0;
+  const MAX_QUERIES = 200; // deep-graph safety valve
+  while (stack.length) {
+    const id = stack.pop();
+    const key = String(id);
+    if (key === String(taskId)) return true;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (++queries > MAX_QUERIES) break;
+    const dep = await Task.findById(id).select('dependencies');
+    if (dep && Array.isArray(dep.dependencies)) stack.push(...dep.dependencies);
+  }
+  return false;
+}
+
+// EEP2-P5.2.1 (DDS §4.9): validate a dependency set before it is written —
+// existence, same-project scope (workspace tasks share workspaceRef+projectRef;
+// personal tasks may only reference the owner's own personal tasks), and the
+// cycle guard. `parentTaskId` is null on create: a brand-new node cannot close
+// a cycle, so only existence + scope are checked.
+async function validateDependencySet({ parentTaskId, workspaceRef, projectRef, ownerUserId, dependencyIds }) {
+  const raw = Array.isArray(dependencyIds) ? dependencyIds.filter((d) => d != null) : [];
+  const ids = [...new Set(raw.map((d) => String(d)))];
+  if (ids.length === 0) return { error: false, ids: [] };
+
+  const deps = await Task.find({ _id: { $in: ids } });
+  if (deps.length !== ids.length) {
+    return { error: true, status: 404, message: 'Some dependency tasks were not found' };
+  }
+
+  if (workspaceRef) {
+    const sameWorkspace = deps.every((d) => d.workspaceRef && String(d.workspaceRef) === String(workspaceRef));
+    if (!sameWorkspace) {
+      return { error: true, status: 400, message: 'Dependencies must be tasks in the same workspace' };
+    }
+    const sameProject = deps.every((d) => String(d.projectRef || null) === String(projectRef || null));
+    if (!sameProject) {
+      return { error: true, status: 400, message: 'Dependencies must be tasks of the same project' };
+    }
+  } else {
+    const owned = deps.every((d) => d.userId && !d.workspaceRef && String(d.userId) === String(ownerUserId));
+    if (!owned) {
+      return { error: true, status: 400, message: 'You can only depend on your own tasks' };
+    }
+  }
+
+  if (parentTaskId && (await wouldCreateDependencyCycle(parentTaskId, ids))) {
+    return { error: true, status: 400, message: 'This dependency would create a cycle' };
+  }
+
+  return { error: false, ids };
+}
+
+// EEP2-P4.2.2: capacity guard for tasks landing in a sprint (via an owning
+// Feature or an explicit sprintId) — a task's estimate consumes the sprint's
+// capacityHours budget (0 = uncapped). DDS §10.
+async function assertSprintCapacityForTask({ sprintRef, incomingHours, excludeTaskId }) {
+  const [sprint, features, tasks] = await Promise.all([
+    Sprint.findById(sprintRef),
+    Feature.find({ sprintRef }).select('estimatedHours'),
+    Task.find({ sprintRef }).select('estimatedHours'),
+  ]);
+  if (!sprint) return { status: 404, message: 'Sprint not found' };
+  const siblings = tasks.filter((t) => String(t._id) !== String(excludeTaskId));
+  return assertWithinCapacity({ sprint, features, tasks: siblings, incomingHours });
+}
+
 // GET /api/tasks
 router.get('/', validate(null, { query: taskQuerySchema }), async (req, res, next) => {
   try {
@@ -282,6 +383,36 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         return res.status(403).json({ message: 'Only workspace editors can create tasks in this workspace' });
       }
 
+      // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
+      const memberChecks = [
+        { id: assigneeId, field: 'Assignee' },
+        { id: reviewerId, field: 'Reviewer' },
+      ].filter((c) => c.id !== undefined);
+      for (const c of memberChecks) {
+        if (!(await isWorkspaceMember(scope.workspaceRef, c.id))) {
+          return res.status(400).json({ message: `${c.field} must be a member of this workspace` });
+        }
+      }
+
+      // EEP2-P5.2.1 (DDS §4.9): dependencies must reference existing same-scope
+      // tasks. A new node can't close a cycle, so only existence+scope apply.
+      if (dependencies && dependencies.length) {
+        const depErr = await validateDependencySet({
+          parentTaskId: null,
+          workspaceRef: scope.workspaceRef,
+          projectRef: scope.projectRef,
+          ownerUserId: req.user._id,
+          dependencyIds: dependencies,
+        });
+        if (depErr.error) return res.status(depErr.status).json({ message: depErr.message });
+      }
+
+      if (scope.sprintRef) {
+        // EEP2-P4.2.2: creating a task inside a sprint consumes capacity.
+        const capErr = await assertSprintCapacityForTask({ sprintRef: scope.sprintRef, incomingHours: estimatedHours || 0 });
+        if (capErr) return res.status(capErr.status).json({ message: capErr.message });
+      }
+
       const task = await Task.create({
         userId: req.user._id,
         title: title.trim(),
@@ -341,6 +472,55 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
   }
 });
 
+// POST /api/tasks/reorder
+// EEP2-P5.1.2: batch reorder — `ids` in display order; each task's `order`
+// becomes its index. The batch must be single-scope (all personal tasks of the
+// caller, or all tasks of one workspace the caller may edit) so a reorder can
+// never cross ownership boundaries (DDS §4.9).
+const reorderSchema = z.object({
+  ids: z.array(objectId).min(1, 'ids must contain at least one task').max(500, 'Too many tasks'),
+});
+
+router.post('/reorder', validate(reorderSchema), async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    const tasks = await Task.find({ _id: { $in: ids } });
+    if (tasks.length !== ids.length) {
+      return res.status(404).json({ message: 'Some tasks were not found' });
+    }
+
+    const scopes = new Set(tasks.map((t) => (t.workspaceRef ? 'workspace' : 'personal')));
+    if (scopes.size > 1) {
+      return res.status(400).json({ message: 'Reorder batch must not mix personal and workspace tasks' });
+    }
+
+    if (scopes.has('workspace')) {
+      const workspaceRefs = new Set(tasks.map((t) => String(t.workspaceRef)));
+      if (workspaceRefs.size > 1) {
+        return res.status(400).json({ message: 'Reorder batch must belong to a single workspace' });
+      }
+      if (!(await isWorkspaceEditor(tasks[0].workspaceRef, req.user._id))) {
+        return res.status(403).json({ message: 'Only workspace editors can reorder tasks' });
+      }
+    } else {
+      const owned = tasks.every((t) => t.userId && String(t.userId) === String(req.user._id));
+      if (!owned) {
+        return res.status(403).json({ message: 'You can only reorder your own tasks' });
+      }
+    }
+
+    await Task.bulkWrite(
+      ids.map((id, index) => ({
+        updateOne: { filter: { _id: id }, update: { $set: { order: index } } },
+      })),
+    );
+    const updated = await Task.find({ _id: { $in: ids } }).sort({ order: 1 });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/tasks/:id
 router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), async (req, res, next) => {
   try {
@@ -353,15 +533,52 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
       if (patch.deadline === undefined) delete patch.deadline;
     }
 
-    // IES-R1: workspace-scoped tasks additionally require an editor gate.
-    const existing = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('workspaceRef');
-    if (!existing) return res.status(404).json({ message: 'Task not found' });
-    if (existing.workspaceRef && !(await isWorkspaceEditor(existing.workspaceRef, req.user._id))) {
-      return res.status(403).json({ message: 'Only workspace editors can update this task' });
+    // EEP2-P5.1.2 (DDS §4.9): scope rules — any non-Viewer workspace member may
+    // update a workspace task; a personal task stays private to its owner.
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef sprintRef estimatedHours userId projectRef');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
+    const existing = loaded.task;
+
+    // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
+    if (existing.workspaceRef) {
+      const memberChecks = [
+        { id: patch.assigneeId, field: 'Assignee' },
+        { id: patch.reviewerId, field: 'Reviewer' },
+      ].filter((c) => c.id !== undefined);
+      for (const c of memberChecks) {
+        if (!(await isWorkspaceMember(existing.workspaceRef, c.id))) {
+          return res.status(400).json({ message: `${c.field} must be a member of this workspace` });
+        }
+      }
+    }
+
+    // EEP2-P5.2.1 (DDS §4.9): same-project scope + cycle guard before persisting.
+    if (patch.dependencies !== undefined) {
+      const depErr = await validateDependencySet({
+        parentTaskId: req.params.id,
+        workspaceRef: existing.workspaceRef,
+        projectRef: existing.projectRef,
+        ownerUserId: existing.userId,
+        dependencyIds: patch.dependencies,
+      });
+      if (depErr.error) return res.status(depErr.status).json({ message: depErr.message });
+      // The validator returns the de-duplicated, string-normalized list.
+      patch.dependencies = depErr.ids;
+    }
+
+    // EEP2-P4.2.2: re-estimating a task that is planned into a sprint may not
+    // push the sprint's projected load over its capacityHours budget.
+    if (existing.sprintRef && patch.estimatedHours !== undefined) {
+      const capErr = await assertSprintCapacityForTask({
+        sprintRef: existing.sprintRef,
+        incomingHours: patch.estimatedHours || 0,
+        excludeTaskId: req.params.id,
+      });
+      if (capErr) return res.status(capErr.status).json({ message: capErr.message });
     }
 
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id },
       { $set: patch },
       { new: true, runValidators: true }
     );
@@ -378,14 +595,11 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
 // PATCH /api/tasks/:id/git — IES-R1 git context (mirrors types/collaboration.ts).
 router.patch('/:id/git', validate(gitContextSchema, { params: taskParamsSchema }), async (req, res, next) => {
   try {
-    const existing = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('workspaceRef');
-    if (!existing) return res.status(404).json({ message: 'Task not found' });
-    if (existing.workspaceRef && !(await isWorkspaceEditor(existing.workspaceRef, req.user._id))) {
-      return res.status(403).json({ message: 'Only workspace editors can update this task' });
-    }
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef userId');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
 
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id },
       { $set: { gitContext: req.body } },
       { new: true, runValidators: true }
     );
@@ -399,14 +613,10 @@ router.patch('/:id/git', validate(gitContextSchema, { params: taskParamsSchema }
 // DELETE /api/tasks/:id
 router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, res, next) => {
   try {
-    // IES-R1: workspace-scoped tasks additionally require an editor gate.
-    const existing = await Task.findOne({ _id: req.params.id, userId: req.user._id }).select('workspaceRef');
-    if (!existing) return res.status(404).json({ message: 'Task not found' });
-    if (existing.workspaceRef && !(await isWorkspaceEditor(existing.workspaceRef, req.user._id))) {
-      return res.status(403).json({ message: 'Only workspace editors can delete this task' });
-    }
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef userId');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
 
-    const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+    const task = await Task.findOneAndDelete({ _id: req.params.id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
     // IES-P1-09: the cascade removes the task's sessions/journal, and any
@@ -439,8 +649,11 @@ router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, 
 // POST /api/tasks/:id/subtasks
 router.post('/:id/subtasks', validate(subtaskCreateSchema, { params: taskParamsSchema }), async (req, res, next) => {
   try {
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef userId');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
+
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id },
       { $push: { subtasks: { title: req.body.title } } },
       { new: true, runValidators: true }
     );
@@ -454,8 +667,11 @@ router.post('/:id/subtasks', validate(subtaskCreateSchema, { params: taskParamsS
 // PATCH /api/tasks/:id/subtasks/:subId
 router.patch('/:id/subtasks/:subId', validate(subtaskPatchSchema, { params: subtaskParamsSchema }), async (req, res, next) => {
   try {
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef userId');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
+
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id, 'subtasks._id': req.params.subId },
+      { _id: req.params.id, 'subtasks._id': req.params.subId },
       { $set: { 'subtasks.$.completed': req.body.completed } },
       { new: true, runValidators: true }
     );
@@ -469,8 +685,11 @@ router.patch('/:id/subtasks/:subId', validate(subtaskPatchSchema, { params: subt
 // DELETE /api/tasks/:id/subtasks/:subId
 router.delete('/:id/subtasks/:subId', validate(null, { params: subtaskParamsSchema }), async (req, res, next) => {
   try {
+    const loaded = await loadTaskScoped(req.params.id, req.user, 'workspaceRef userId');
+    if (loaded.error) return res.status(loaded.status).json({ message: loaded.message });
+
     const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user._id },
+      { _id: req.params.id },
       { $pull: { subtasks: { _id: req.params.subId } } },
       { new: true, runValidators: true }
     );

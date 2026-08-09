@@ -16,9 +16,13 @@ import { Spinner }         from './components/ui/Spinner';
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
 const Register        = lazy(() => import('./pages/Register').then(module => ({ default: module.Register })));
+// TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
+const RteTestPage     = lazy(() => import('./pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
 const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
 const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
+const ProjectLayout   = lazy(() => import('./components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
+const WorkspaceHomePage = lazy(() => import('./pages/collaboration/WorkspaceHomePage').then(module => ({ default: module.WorkspaceHomePage })));
 
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
@@ -48,6 +52,7 @@ const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfile
 const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
 const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
 const SprintBoardPage = lazy(() => import('./pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
+const SprintPlanningPage = lazy(() => import('./pages/collaboration/SprintPlanningPage').then(module => ({ default: module.SprintPlanningPage })));
 const BacklogPage = lazy(() => import('./pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
 const BlockersPage = lazy(() => import('./pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
 const WorkspaceProjectsPage = lazy(() => import('./pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
@@ -55,6 +60,12 @@ const ProjectOverviewPage = lazy(() => import('./pages/collaboration/ProjectOver
 const ProjectTimelinePage = lazy(() => import('./pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
 const WorkspaceTeamsPage = lazy(() => import('./pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
 const WorkspaceMembersPage = lazy(() => import('./pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
+
+// EEP2-P3.4.2/P3.4.3: Roadmap spine pages (hosted by ProjectLayout).
+const RoadmapPage = lazy(() => import('./pages/collaboration/RoadmapPage').then(module => ({ default: module.RoadmapPage })));
+const MilestoneDetailPage = lazy(() => import('./pages/collaboration/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
+const PhaseDetailPage = lazy(() => import('./pages/collaboration/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
+const ModuleDetailPage = lazy(() => import('./pages/collaboration/ModuleDetailPage').then(module => ({ default: module.ModuleDetailPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('./pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -124,6 +135,9 @@ export default function App() {
             <Route path="/register"                    element={<Register />} />
             <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
 
+            {/* TEMP (Phase 3): isolated rich-text-editor test page (public, no auth) */}
+            <Route path="/rte-test"                    element={<RteTestPage />} />
+
             {/* Post-Login Workspace Hub */}
             <Route element={<ProtectedRoute />}>
               <Route path="/hub" element={<WorkspaceHub />} />
@@ -135,9 +149,18 @@ export default function App() {
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
                 <Route path="overview" element={<TeamWorkspace />} />
                 <Route path="projects" element={<WorkspaceProjectsPage />} />
-                <Route path="projects/:projectId" element={<ProjectOverviewPage />} />
-                <Route path="projects/:projectId/timeline" element={<ProjectTimelinePage />} />
+                {/* EEP2-P3.3.2: project route tree (DDS §8.3) hosted by ProjectLayout.
+                    Additive — deep links to project pages keep working. */}
+                <Route path="projects/:projectId" element={<ProjectLayout />}>
+                  <Route index element={<ProjectOverviewPage />} />
+                  <Route path="timeline" element={<ProjectTimelinePage />} />
+                  <Route path="roadmap" element={<RoadmapPage />} />
+                  <Route path="roadmap/:milestoneId" element={<MilestoneDetailPage />} />
+                  <Route path="phases/:phaseId" element={<PhaseDetailPage />} />
+                  <Route path="modules/:moduleId" element={<ModuleDetailPage />} />
+                </Route>
                 <Route path="sprints" element={<SprintBoardPage />} />
+                <Route path="sprints/plan" element={<SprintPlanningPage />} />
                 <Route path="backlog" element={<BacklogPage />} />
                 <Route path="blockers" element={<BlockersPage />} />
                 <Route path="teams" element={<WorkspaceTeamsPage />} />
@@ -151,7 +174,7 @@ export default function App() {
                 <Route path="knowledge" element={<TeamKnowledgePage />} />
                 <Route path="calendar" element={<TeamWorkspace />} />
                 <Route path="settings" element={<WorkspaceSettingsPage />} />
-                <Route path="" element={<Navigate to="overview" replace />} />
+                <Route path="" element={<WorkspaceHomePage />} />
               </Route>
             </Route>
 

@@ -134,7 +134,7 @@ const milestone = (overrides: Partial<ProjectMilestone> = {}): ProjectMilestone 
 describe('projectOverviewSelectors (P1-T1)', () => {
   it('selects the active sprint for a project, ignoring other statuses/projects', () => {
     const sprints = [
-      sprint({ id: 's-future', status: 'future' }),
+      sprint({ id: 's-draft', status: 'draft' }),
       sprint({ status: 'active' }),
       sprint({ id: 's-done', status: 'completed' }),
       sprint({ id: 's-other', projectId: 'p2', status: 'active' }),

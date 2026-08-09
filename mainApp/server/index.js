@@ -81,6 +81,11 @@ const notificationRoutes = require('./routes/notifications'); // IES-P2-05
 const searchRoutes = require('./routes/search');             // IES-P2-06
 const sprintRoutes = require('./routes/sprints');            // IES-R1
 const featureRoutes = require('./routes/features');          // IES-R1
+const milestoneRoutes = require('./routes/milestones');      // EEP2-P3.2.1
+const phaseRoutes = require('./routes/phases');              // EEP2-P3.2.2
+const moduleRoutes = require('./routes/modules');            // EEP2-P3.2.3
+const commentRoutes = require('./routes/comments');          // EEP2-P5.3.1
+const attachmentRoutes = require('./routes/attachments');    // EEP2-P5.3.2
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
@@ -127,6 +132,11 @@ app.use('/api/notifications', notificationRoutes); // IES-P2-05
 app.use('/api/search', searchRoutes);              // IES-P2-06
 app.use('/api/sprints', sprintRoutes);             // IES-R1
 app.use('/api/features', featureRoutes);           // IES-R1
+app.use('/api/milestones', milestoneRoutes);       // EEP2-P3.2.1
+app.use('/api/phases', phaseRoutes);               // EEP2-P3.2.2
+app.use('/api/modules', moduleRoutes);             // EEP2-P3.2.3
+app.use('/api/comments', commentRoutes);           // EEP2-P5.3.1
+app.use('/api/attachments', attachmentRoutes);     // EEP2-P5.3.2
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());

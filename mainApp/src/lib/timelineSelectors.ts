@@ -2,6 +2,7 @@ import type { JournalEntry, Task } from '../types';
 import type { WorkLog } from '../store/useWorkLogStore';
 import type { CentralBlocker, Feature } from '../types/collaboration';
 import { addDaysToKey, dayKey } from '../utils/time';
+import { stripHtml } from './htmlContent';
 
 // ── S1-T7: Personal Activity Timeline selector (ECIS · DCX) ──────────────────
 // Answers "What have I been working on recently?" as a chronological feed of
@@ -176,7 +177,7 @@ function fromJournals(journals: JournalEntry[]): TimelineEvent[] {
       id: `journal:${j.id}`,
       kind: 'journal' as const,
       timestamp: j.createdAt,
-      title: j.content || 'Journal note',
+      title: stripHtml(j.content) || 'Journal note',
       description: 'Journal note',
     }));
 }

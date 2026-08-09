@@ -251,6 +251,33 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// ── GET /api/worklogs/by-task/:taskId ─────────────────────────────────────────
+// EEP2-P5.4.1 (s1): task-scoped persisted worklog read — the data source for the
+// sprint-board worklog panel. Same read-only effective-total computation as the
+// list route, scoped to ONE task. Returns [] when nothing is logged yet so the
+// panel can render a true empty state instead of inventing mock time.
+router.get('/by-task/:taskId', validate(null, { params: z.object({ taskId: objectId }) }), async (req, res, next) => {
+  try {
+    let logs = await WorkLog.find({ userId: req.user._id, taskRef: req.params.taskId })
+      .populate('taskRef', 'title color category totalTime')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId');
+
+    // IES-P1-02: GET computes effective totals without writing to the DB.
+    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone: userTimezone(req) });
+
+    // Keep the response lean (same heavy-array trim as the list route).
+    res.json(logs.map((log) => {
+      const json = typeof log.toObject === 'function' ? log.toObject() : log;
+      delete json.timelineEntries;
+      delete json.progressSnapshots;
+      delete json.attachments;
+      return json;
+    }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/worklogs/:id ─────────────────────────────────────────────────────
 router.get('/:id', async (req, res, next) => {
   try {

@@ -45,7 +45,7 @@ const project = (id: string): Project => ({
 const sprint = (id: string): Sprint => ({
   id, workspaceId: 'ws-1', projectId: 'p1', name: `Sprint ${id}`,
   startDate: '2026-01-01', endDate: '2026-01-07', goal: '',
-  status: 'future', capacityHours: 160, targetVelocity: 80,
+  status: 'draft', capacityHours: 160, targetVelocity: 80,
 });
 
 const feature = (id: string): Feature => ({

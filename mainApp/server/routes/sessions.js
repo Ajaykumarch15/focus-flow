@@ -3,6 +3,8 @@ const Session = require('../models/Session');
 const Task    = require('../models/Task');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
+const Workspace = require('../models/Workspace');
+const { findMember } = require('../middleware/workspace');
 const protect = require('../middleware/auth');
 const { serverTime } = require('../utils/sessionTime');
 const { finalizeSessionDoc, rewardAndSync, finalizeAndReward } = require('../utils/sessionFinalize');
@@ -81,8 +83,19 @@ router.post('/', validate(sessionCreateSchema), async (req, res, next) => {
     const { taskId, startTime, opId } = req.body;
     if (!taskId) return res.status(400).json({ message: 'taskId is required' });
 
-    const task = await Task.findOne({ _id: taskId, userId: req.user._id });
-    if (!task) return res.status(404).json({ message: 'Task not found' });
+    // EEP2-P5.4.2: the board timer can start on (a) the caller's own task —
+    // personal or an owned workspace card — or (b) a workspace task the caller
+    // is a member of. Sessions and the worklog rows they write stay
+    // user-scoped; only the ownership gate is relaxed for collab cards.
+    let task = await Task.findOne({ _id: taskId, userId: req.user._id });
+    if (!task) {
+      const collabTask = await Task.findOne({ _id: taskId, workspaceRef: { $ne: null } });
+      if (!collabTask) return res.status(404).json({ message: 'Task not found' });
+      const ws = await Workspace.findById(collabTask.workspaceRef).select('members');
+      const member = ws ? findMember(ws, req.user._id) : null;
+      if (!member) return res.status(403).json({ message: 'You are not a member of this workspace' });
+      task = collabTask;
+    }
 
     // IES-P1-05: a replayed START with the same opId must not create a second
     // session. The partial unique index on (userId, clientOpId) covers races.

@@ -327,3 +327,69 @@ describe('IES-R1 · DELETE /api/sprints/:id', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('EEP2-P4.2.3 · GET /api/sprints/:id/stats', () => {
+  it('returns load vs capacity and completed-only velocity for a member', async () => {
+    mockUser(user(DEV_ID));
+    vi.spyOn(Sprint, 'findById').mockResolvedValue(sprintDoc({ capacityHours: 40, targetVelocity: 30 }));
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({
+      select: () => Promise.resolve([
+        { _id: '5f0000000000000000000d20', estimatedHours: 12, status: 'done' },
+        { _id: '5f0000000000000000000d21', estimatedHours: 8, status: 'ready' },
+      ]),
+    }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({
+      select: () => Promise.resolve([
+        { _id: '5f0000000000000000000d30', estimatedHours: 3, sprintStatus: 'done' },
+        { _id: '5f0000000000000000000d31', estimatedHours: 2, sprintStatus: 'in_progress' },
+      ]),
+    }));
+
+    const res = await fetch(`${baseUrl}/api/sprints/${SPRINT_ID}/stats`, { headers: { Cookie: cookie(DEV_ID) } });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      sprintId: SPRINT_ID,
+      capacityHours: 40,
+      targetVelocity: 30,
+      load: 25,
+      loadBreakdown: { features: 20, tasks: 5 },
+      loadPct: 63,
+      remainingHours: 15,
+      overCapacity: false,
+      velocity: 15, // 12 (done feature) + 3 (done task) — ready/in_progress excluded
+      velocityBreakdown: { features: 12, tasks: 3 },
+      completedCount: { features: 1, tasks: 1 },
+    });
+  });
+
+  it('reports overCapacity when planned load exceeds the budget', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Sprint, 'findById').mockResolvedValue(sprintDoc({ capacityHours: 10 }));
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: 'f1', estimatedHours: 6, status: 'backlog' }]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: 't1', estimatedHours: 6, sprintStatus: 'backlog' }]) }));
+
+    const res = await fetch(`${baseUrl}/api/sprints/${SPRINT_ID}/stats`, { headers: { Cookie: cookie(OWNER_ID) } });
+    const body = await res.json();
+    expect(body.load).toBe(12);
+    expect(body.overCapacity).toBe(true);
+    expect(body.loadPct).toBe(120);
+    expect(body.remainingHours).toBe(0);
+  });
+
+  it('404s when the sprint does not exist and rejects a non-member', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Sprint, 'findById').mockResolvedValue(null);
+    const missing = await fetch(`${baseUrl}/api/sprints/${SPRINT_ID}/stats`, { headers: { Cookie: cookie(OWNER_ID) } });
+    expect(missing.status).toBe(404);
+
+    mockUser(user(OUTSIDER_ID));
+    vi.spyOn(Sprint, 'findById').mockResolvedValue(sprintDoc());
+    mockWorkspace(ALL_MEMBERS);
+    const outsider = await fetch(`${baseUrl}/api/sprints/${SPRINT_ID}/stats`, { headers: { Cookie: cookie(OUTSIDER_ID) } });
+    expect(outsider.status).toBe(403);
+  });
+});

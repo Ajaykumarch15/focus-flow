@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Building2, Plus, Users, Layers, ChevronRight, ArrowLeft,
-  GitBranch, Search, LayoutGrid, List
+  GitBranch, Search, LayoutGrid, List, Pencil, Trash2, AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
@@ -11,6 +11,7 @@ import { useStore } from '../store/useStore';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import type { Workspace, WorkspaceType } from '../types/collaboration';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -25,7 +26,7 @@ const itemVariants = {
 export function TeamProjects() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { workspaces, workspacesLoading, setActiveWorkspace, loadWorkspaces, createWorkspace, tasks } = useCollaborationStore();
+  const { workspaces, workspacesLoading, setActiveWorkspace, loadWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace, tasks } = useCollaborationStore();
   const { theme } = useStore();
 
   // IES-P2-07: real workspace list replaces the removed seed data.
@@ -33,11 +34,13 @@ export function TeamProjects() {
     loadWorkspaces();
   }, [loadWorkspaces]);
 
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingWs, setEditingWs] = useState<Workspace | null>(null);
+  const [deletingWs, setDeletingWs] = useState<Workspace | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [newWsName, setNewWsName] = useState('');
-  const [newWsType, setNewWsType] = useState<'Startup' | 'Personal' | 'Open Source' | 'College Project' | 'Internship' | 'Enterprise'>('Startup');
+  const [newWsType, setNewWsType] = useState<WorkspaceType>('Startup');
   const [newWsDesc, setNewWsDesc] = useState('');
 
   const filteredWorkspaces = workspaces.filter(ws =>
@@ -49,17 +52,51 @@ export function TeamProjects() {
 
   const handleSelectCollaborative = (workspaceId: string) => {
     setActiveWorkspace(workspaceId);
-    navigate(`/w/${workspaceId}/overview`);
+    navigate(`/w/${workspaceId}`);
   };
 
-  const handleCreateWorkspace = async (e: React.FormEvent) => {
+  const openCreate = () => {
+    setEditingWs(null);
+    setNewWsName('');
+    setNewWsType('Startup');
+    setNewWsDesc('');
+    setShowModal(true);
+  };
+
+  const openEdit = (ws: Workspace) => {
+    setEditingWs(ws);
+    setNewWsName(ws.name);
+    setNewWsType(ws.type);
+    setNewWsDesc(ws.description);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingWs(null);
+  };
+
+  const handleSubmitWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWsName.trim()) return;
-    const ws = await createWorkspace(newWsName.trim(), newWsType, newWsDesc.trim() || 'Engineering Workspace');
-    setShowCreateModal(false);
-    setNewWsName('');
-    setNewWsDesc('');
-    if (ws) handleSelectCollaborative(ws.id);
+    const name = newWsName.trim();
+    const description = newWsDesc.trim() || (editingWs ? editingWs.description : 'Engineering Workspace');
+    if (editingWs) {
+      const ws = await updateWorkspace(editingWs.id, { name, type: newWsType, description });
+      if (ws) closeModal();
+    } else {
+      const ws = await createWorkspace(name, newWsType, description);
+      if (ws) {
+        closeModal();
+        handleSelectCollaborative(ws.id);
+      }
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingWs) return;
+    const ok = await deleteWorkspace(deletingWs.id);
+    if (ok) setDeletingWs(null);
   };
 
   return (
@@ -129,17 +166,17 @@ export function TeamProjects() {
           <div className="flex items-center gap-2">
             {/* View Toggle */}
             <div className="flex items-center bg-surface-900 border border-surface-800 rounded-xl overflow-hidden">
-              <button onClick={() => setViewMode('grid')}
+              <button aria-label="View grid" onClick={() => setViewMode('grid')}
                 className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-cyan-500/15 text-cyan-400' : 'text-surface-500 hover:text-surface-300'}`}>
                 <LayoutGrid size={15} />
               </button>
-              <button onClick={() => setViewMode('list')}
+              <button aria-label="View list" onClick={() => setViewMode('list')}
                 className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-cyan-500/15 text-cyan-400' : 'text-surface-500 hover:text-surface-300'}`}>
                 <List size={15} />
               </button>
             </div>
 
-            <Button onClick={() => setShowCreateModal(true)}
+            <Button onClick={openCreate}
               className="text-xs font-bold" leftIcon={<Plus size={14} />}>
               New Workspace
             </Button>
@@ -163,7 +200,7 @@ export function TeamProjects() {
                   ? 'Try a different search term or create a new workspace.'
                   : 'Create your first engineering workspace to start collaborating with your team.'}
               action={!search && !workspacesLoading ? (
-                <Button size="lg" className="text-xs font-bold" onClick={() => setShowCreateModal(true)} leftIcon={<Plus size={14} />}>
+                <Button size="lg" className="text-xs font-bold" onClick={openCreate} leftIcon={<Plus size={14} />}>
                   Create Workspace
                 </Button>
               ) : undefined}
@@ -218,6 +255,16 @@ export function TeamProjects() {
                           )}
                         </div>
                       </div>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button type="button" onClick={() => openEdit(ws)} aria-label={`Edit ${ws.name}`}
+                          className="p-2 rounded-lg text-surface-500 hover:text-cyan-300 hover:bg-surface-800 transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button type="button" onClick={() => setDeletingWs(ws)} aria-label={`Delete ${ws.name}`}
+                          className="p-2 rounded-lg text-surface-500 hover:text-rose-400 hover:bg-surface-800 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-1 text-xs font-bold text-cyan-400 group-hover:text-white bg-cyan-500/10 group-hover:bg-cyan-500 px-3 py-1.5 rounded-xl transition-all">
                         Open <ChevronRight size={13} />
                       </div>
@@ -238,9 +285,21 @@ export function TeamProjects() {
                   <div className="space-y-3 relative z-10">
                     <div className="flex items-start justify-between">
                       <span className="text-3xl">{ws.icon}</span>
-                      <Badge tone="info" className="text-[9px] uppercase tracking-wider border border-cyan-500/20">
-                        {ws.type}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge tone="info" className="text-[9px] uppercase tracking-wider border border-cyan-500/20">
+                          {ws.type}
+                        </Badge>
+                        <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                          <button type="button" onClick={() => openEdit(ws)} aria-label={`Edit ${ws.name}`}
+                            className="p-1.5 rounded-lg text-surface-500 hover:text-cyan-300 hover:bg-surface-800 transition-colors">
+                            <Pencil size={13} />
+                          </button>
+                          <button type="button" onClick={() => setDeletingWs(ws)} aria-label={`Delete ${ws.name}`}
+                            className="p-1.5 rounded-lg text-surface-500 hover:text-rose-400 hover:bg-surface-800 transition-colors">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     <div>
                       <h4 className="font-display font-bold text-surface-50 text-base group-hover:text-cyan-300 transition-colors">
@@ -287,23 +346,23 @@ export function TeamProjects() {
         )}
       </main>
 
-      {/* Create Workspace Modal */}
+      {/* Create / Edit Workspace Modal */}
       <AnimatePresence>
-        {showCreateModal && (
+        {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="bg-surface-900 border border-surface-800 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5">
 
               <div className="flex items-center justify-between border-b border-surface-800 pb-4">
                 <h3 className="text-lg font-display font-extrabold text-surface-50 flex items-center gap-2">
-                  <Building2 size={20} className="text-brand-400" /> Create Workspace
+                  <Building2 size={20} className="text-brand-400" /> {editingWs ? 'Edit Workspace' : 'Create Workspace'}
                 </h3>
-                <button onClick={() => setShowCreateModal(false)} className="text-surface-500 hover:text-surface-200 font-bold">
+                <button onClick={closeModal} className="text-surface-500 hover:text-surface-200 font-bold" aria-label="Close">
                   ✕
                 </button>
               </div>
 
-              <form onSubmit={handleCreateWorkspace} className="space-y-4">
+              <form onSubmit={handleSubmitWorkspace} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-1.5">
                     Workspace Name *
@@ -317,7 +376,7 @@ export function TeamProjects() {
                   <label className="block text-xs font-bold text-surface-300 uppercase tracking-wider mb-1.5">
                     Workspace Type
                   </label>
-                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as typeof newWsType)}
+                  <select value={newWsType} onChange={(e) => setNewWsType(e.target.value as WorkspaceType)}
                     className="w-full bg-surface-850 border border-surface-700 focus:border-brand-500 rounded-xl px-4 py-2.5 text-sm text-surface-50 outline-none transition-colors">
                     <option value="Startup">Startup</option>
                     <option value="Personal">Personal Sandbox</option>
@@ -338,15 +397,49 @@ export function TeamProjects() {
                 </div>
 
                 <div className="pt-2 flex items-end justify-end gap-3">
-                  <button type="button" onClick={() => setShowCreateModal(false)}
+                  <button type="button" onClick={closeModal}
                     className="px-4 py-2.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
                     Cancel
                   </button>
                   <Button type="submit" size="lg" className="text-xs font-bold">
-                    Create & Enter →
+                    {editingWs ? 'Save Changes' : 'Create & Enter →'}
                   </Button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Workspace Confirm Modal */}
+      <AnimatePresence>
+        {deletingWs && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-surface-900 border border-rose-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5">
+
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={20} className="text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-extrabold text-surface-50">Delete {deletingWs.name}?</h3>
+                  <p className="text-xs text-surface-400 mt-1 leading-relaxed">
+                    This permanently deletes the workspace and its teams. Projects are detached but their data stays
+                    intact. This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setDeletingWs(null)}
+                  className="px-4 py-2.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors">
+                  Cancel
+                </button>
+                <Button type="button" variant="danger" size="lg" className="text-xs font-bold" onClick={handleConfirmDelete}>
+                  Delete Workspace
+                </Button>
+              </div>
             </motion.div>
           </div>
         )}

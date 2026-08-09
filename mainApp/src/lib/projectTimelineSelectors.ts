@@ -244,7 +244,7 @@ function deriveProjectEvents(
   }
 
   for (const s of sprints) {
-    if (s.status !== 'future') {
+    if (s.status === 'active' || s.status === 'completed') {
       events.push({
         id: `derived:sprint.started:${s.id}`,
         timestamp: s.startDate,

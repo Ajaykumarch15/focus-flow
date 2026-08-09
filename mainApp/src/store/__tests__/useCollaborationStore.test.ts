@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useCollaborationStore } from '../useCollaborationStore';
 import { useAuthStore } from '../useAuthStore';
-import type { Feature } from '../../types/collaboration';
+import type { Feature, Sprint } from '../../types/collaboration';
 
 // IES-P2-07: the store must be fully API-backed — no seed data. Loaders map
 // server docs into client models; mutations are optimistic with rollback.
@@ -12,6 +12,7 @@ vi.mock('../../utils/api', () => ({
       members: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+      remove: vi.fn(),
     },
     teams: {
       list: vi.fn(),
@@ -20,10 +21,14 @@ vi.mock('../../utils/api', () => ({
     projects: {
       list: vi.fn(),
       create: vi.fn(),
+      get: vi.fn(),
+      update: vi.fn(),
     },
     sprints: {
       list: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+      commit: vi.fn(),
     },
     features: {
       list: vi.fn(),
@@ -35,6 +40,22 @@ vi.mock('../../utils/api', () => ({
       create: vi.fn(),
       update: vi.fn(),
       patchGit: vi.fn(),
+      addSubtask: vi.fn(),
+      toggleSubtask: vi.fn(),
+      deleteSubtask: vi.fn(),
+      reorder: vi.fn(),
+    },
+    comments: {
+      list: vi.fn(),
+      create: vi.fn(),
+      addReaction: vi.fn(),
+      resolve: vi.fn(),
+      remove: vi.fn(),
+    },
+    attachments: {
+      list: vi.fn(),
+      create: vi.fn(),
+      remove: vi.fn(),
     },
   },
 }));
@@ -46,11 +67,16 @@ const mocks = {
   wsMembers: vi.mocked(api.workspaces.members),
   wsUpdate: vi.mocked(api.workspaces.update),
   wsCreate: vi.mocked(api.workspaces.create),
+  wsRemove: vi.mocked(api.workspaces.remove),
   teamList: vi.mocked(api.teams.list),
   projectList: vi.mocked(api.projects.list),
   projectCreate: vi.mocked(api.projects.create),
+  projectGet: vi.mocked(api.projects.get),
+  projectUpdate: vi.mocked(api.projects.update),
   sprintList: vi.mocked(api.sprints.list),
   sprintCreate: vi.mocked(api.sprints.create),
+  sprintUpdate: vi.mocked(api.sprints.update),
+  sprintCommit: vi.mocked(api.sprints.commit),
   featureList: vi.mocked(api.features.list),
   featureCreate: vi.mocked(api.features.create),
   featureUpdate: vi.mocked(api.features.update),
@@ -58,6 +84,18 @@ const mocks = {
   taskCreate: vi.mocked(api.tasks.create),
   taskUpdate: vi.mocked(api.tasks.update),
   taskPatchGit: vi.mocked(api.tasks.patchGit),
+  taskAddSubtask: vi.mocked(api.tasks.addSubtask),
+  taskToggleSubtask: vi.mocked(api.tasks.toggleSubtask),
+  taskDeleteSubtask: vi.mocked(api.tasks.deleteSubtask),
+  taskReorder: vi.mocked(api.tasks.reorder),
+  commentList: vi.mocked(api.comments.list),
+  commentCreate: vi.mocked(api.comments.create),
+  commentReaction: vi.mocked(api.comments.addReaction),
+  commentResolve: vi.mocked(api.comments.resolve),
+  commentRemove: vi.mocked(api.comments.remove),
+  attachmentList: vi.mocked(api.attachments.list),
+  attachmentCreate: vi.mocked(api.attachments.create),
+  attachmentRemove: vi.mocked(api.attachments.remove),
 };
 
 function reset() {
@@ -73,6 +111,7 @@ function reset() {
     tasks: [],
     activities: [],
     discussions: [],
+    attachments: [],
     notifications: [],
     docs: [],
     blockers: [],
@@ -277,6 +316,82 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     expect(useCollaborationStore.getState().activeWorkspaceId).toBe('');
   });
 
+  it('updateWorkspace patches the server doc and swaps the optimistically updated workspace', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [{
+        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+      }],
+    });
+    mocks.wsUpdate.mockResolvedValue({
+      id: 'ws-1', name: 'Acme AI', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+    } as any);
+
+    const promise = useCollaborationStore.getState().updateWorkspace('ws-1', { name: 'Acme AI', type: 'Enterprise', description: 'new desc' });
+    const optimistic = useCollaborationStore.getState().workspaces[0];
+    expect(optimistic).toMatchObject({ name: 'Acme AI', type: 'Enterprise', icon: '🏢', description: 'new desc' });
+
+    const updated = await promise;
+    expect(updated?.name).toBe('Acme AI');
+    expect(mocks.wsUpdate).toHaveBeenCalledWith('ws-1', { name: 'Acme AI', type: 'Enterprise', description: 'new desc' });
+    expect(useCollaborationStore.getState().workspaces[0].name).toBe('Acme AI');
+  });
+
+  it('updateWorkspace rolls back to the previous workspace on failure', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [{
+        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
+      }],
+    });
+    mocks.wsUpdate.mockRejectedValue(new Error('boom'));
+
+    const updated = await useCollaborationStore.getState().updateWorkspace('ws-1', { name: 'Nope', type: 'Startup', description: 'old' });
+
+    expect(updated).toBeUndefined();
+    expect(useCollaborationStore.getState().workspaces[0]).toMatchObject({ name: 'Acme', type: 'Startup' });
+  });
+
+  it('deleteWorkspace removes the workspace and reassigns the active workspace', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [
+        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-2', name: 'B', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+      ],
+    });
+    mocks.wsRemove.mockResolvedValue({ message: 'Workspace deleted' } as any);
+
+    const ok = await useCollaborationStore.getState().deleteWorkspace('ws-1');
+
+    expect(ok).toBe(true);
+    expect(mocks.wsRemove).toHaveBeenCalledWith('ws-1');
+    expect(useCollaborationStore.getState().workspaces.map((w) => w.id)).toEqual(['ws-2']);
+    expect(useCollaborationStore.getState().activeWorkspaceId).toBe('ws-2');
+  });
+
+  it('deleteWorkspace rolls back the workspace list and active id on failure', async () => {
+    useCollaborationStore.setState({
+      activeWorkspaceId: 'ws-1',
+      workspaces: [
+        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+      ],
+    });
+    mocks.wsRemove.mockRejectedValue(new Error('boom'));
+
+    const ok = await useCollaborationStore.getState().deleteWorkspace('ws-1');
+
+    expect(ok).toBe(false);
+    expect(useCollaborationStore.getState().workspaces).toHaveLength(1);
+    expect(useCollaborationStore.getState().activeWorkspaceId).toBe('ws-1');
+  });
+
   it('createProject optimistically adds, then replaces with the server doc', async () => {
     useCollaborationStore.setState({ activeWorkspaceId: 'ws-1' });
     mocks.projectCreate.mockResolvedValue({
@@ -299,6 +414,41 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
 
     expect(created).toBeUndefined();
     expect(useCollaborationStore.getState().projects).toHaveLength(0);
+  });
+
+  it('updateProjectMeta applies meta optimistically and calls api.projects.update', async () => {
+    useCollaborationStore.setState({
+      projects: [{
+        id: 'p1', workspaceId: 'ws-1', name: 'Agent Service', key: 'AG', description: 'old',
+        members: [], teamIds: [], status: 'active', milestones: [], createdAt: '2026-01-01',
+      }],
+    });
+    mocks.projectUpdate.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().updateProjectMeta('p1', { description: 'new', status: 'on_hold' });
+    expect(useCollaborationStore.getState().projects[0]).toMatchObject({ description: 'new', status: 'on_hold' });
+
+    await promise;
+    expect(mocks.projectUpdate).toHaveBeenCalledWith('p1', { description: 'new', status: 'on_hold' });
+  });
+
+  it('updateProjectMeta rolls back on failure', async () => {
+    useCollaborationStore.setState({
+      projects: [{
+        id: 'p1', workspaceId: 'ws-1', name: 'Agent Service', key: 'AG', description: 'old',
+        members: [], teamIds: [], status: 'active', milestones: [], createdAt: '2026-01-01',
+      }],
+    });
+    mocks.projectUpdate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().updateProjectMeta('p1', { description: 'new' });
+
+    expect(useCollaborationStore.getState().projects[0].description).toBe('old');
+  });
+
+  it('updateProjectMeta is a no-op for an unknown project', async () => {
+    await useCollaborationStore.getState().updateProjectMeta('missing', { description: 'x' });
+    expect(mocks.projectUpdate).not.toHaveBeenCalled();
   });
 
   it('createFeature optimistically adds a backlog feature with a real owner', async () => {
@@ -358,7 +508,7 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     mocks.sprintCreate.mockResolvedValue({
       _id: 's-real', name: 'Sprint 1', projectRef: 'p1', workspaceRef: 'ws-1', goal: 'g',
       startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-01-07T00:00:00.000Z',
-      status: 'future', capacityHours: 160, targetVelocity: 80,
+      status: 'draft', capacityHours: 160, targetVelocity: 80,
     } as any);
 
     const promise = useCollaborationStore.getState().createSprint('p1', 'Sprint 1', '2026-01-01', '2026-01-07', 'g');
@@ -470,16 +620,348 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     expect(mocks.taskPatchGit).toHaveBeenCalledWith('t1', { branch: 'main' });
   });
 
-  it('addComment and createDoc use the real authenticated user (no m1)', () => {
-    useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
+  // EEP2-P5.1.2 · assignTask (DDS §4.9 assignee).
+  it('assignTask optimistically applies and persists the assignee', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', assigneeId: 'm-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockResolvedValue({} as any);
 
-    useCollaborationStore.getState().addComment('task', 't1', 'hello');
+    const promise = useCollaborationStore.getState().assignTask('t1', 'm-2');
+    expect(useCollaborationStore.getState().tasks[0].assigneeId).toBe('m-2');
+
+    await promise;
+    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { assigneeId: 'm-2' });
+  });
+
+  it('assignTask rolls back the assignee on failure', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', assigneeId: 'm-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().assignTask('t1', 'm-2');
+
+    expect(useCollaborationStore.getState().tasks[0].assigneeId).toBe('m-1');
+  });
+
+  // EEP2-P5.1.3 · subtask CRUD + toggle (DDS §4.10).
+  it('addSubtask optimistically appends a subtask and persists', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskAddSubtask.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().addSubtask('t1', 'Write tests');
+    const optimistic = useCollaborationStore.getState().tasks[0].subtasks[0];
+    expect(optimistic).toMatchObject({ title: 'Write tests', completed: false });
+
+    await promise;
+    expect(mocks.taskAddSubtask).toHaveBeenCalledWith('t1', 'Write tests');
+  });
+
+  it('addSubtask rolls back on failure', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskAddSubtask.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().addSubtask('t1', 'Write tests');
+
+    expect(useCollaborationStore.getState().tasks[0].subtasks).toHaveLength(0);
+  });
+
+  it('toggleSubtask optimistically updates completed and persists', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0,
+        subtasks: [{ id: 's1', title: 'Write tests', completed: false }],
+        createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskToggleSubtask.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().toggleSubtask('t1', 's1', true);
+    expect(useCollaborationStore.getState().tasks[0].subtasks[0].completed).toBe(true);
+
+    await promise;
+    expect(mocks.taskToggleSubtask).toHaveBeenCalledWith('t1', 's1', true);
+  });
+
+  it('deleteSubtask optimistically removes a subtask and persists', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0,
+        subtasks: [{ id: 's1', title: 'Write tests', completed: false }],
+        createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskDeleteSubtask.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().deleteSubtask('t1', 's1');
+    expect(useCollaborationStore.getState().tasks[0].subtasks).toHaveLength(0);
+
+    await promise;
+    expect(mocks.taskDeleteSubtask).toHaveBeenCalledWith('t1', 's1');
+  });
+
+  it('deleteSubtask rolls back on failure', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: [],
+        estimatedHours: 8, actualHours: 0,
+        subtasks: [{ id: 's1', title: 'Write tests', completed: false }],
+        createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskDeleteSubtask.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().deleteSubtask('t1', 's1');
+
+    expect(useCollaborationStore.getState().tasks[0].subtasks).toHaveLength(1);
+  });
+
+  // EEP2-P5.2.2 · setDependencies (DDS §4.9 dependency list).
+  it('setDependencies optimistically replaces the dependency list and persists', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: ['t-old'],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockResolvedValue({} as any);
+
+    const promise = useCollaborationStore.getState().setDependencies('t1', ['t2', 't3']);
+    expect(useCollaborationStore.getState().tasks[0].dependencies).toEqual(['t2', 't3']);
+
+    await promise;
+    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { dependencies: ['t2', 't3'] });
+  });
+
+  it('setDependencies rolls back the list on failure', async () => {
+    useCollaborationStore.setState({
+      tasks: [{
+        id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
+        priority: 'medium', ownerId: 'u-1', followerIds: [], labels: [], dependencies: ['t-old'],
+        estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+    });
+    mocks.taskUpdate.mockRejectedValue(new Error('cycle'));
+
+    await useCollaborationStore.getState().setDependencies('t1', ['t2']);
+
+    expect(useCollaborationStore.getState().tasks[0].dependencies).toEqual(['t-old']);
+  });
+
+  it('addComment and createDoc use the real authenticated user (no m1)', async () => {
+    useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
+    mocks.commentCreate.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'Ajay Kumar' }, content: 'hello',
+      createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [], isResolved: false,
+    } as any);
+
+    await useCollaborationStore.getState().addComment('task', 't1', 'hello');
     const c = useCollaborationStore.getState().discussions[0];
     expect(c.author.id).toBe('u-1');
     expect(c.author.name).toBe('Ajay Kumar');
+    expect(c.targetId).toBe('t1');
+    expect(mocks.commentCreate).toHaveBeenCalledWith({ targetType: 'task', targetRef: 't1', content: 'hello', parentId: undefined });
 
     useCollaborationStore.getState().createDoc('Doc', 'Architecture', '# hi', []);
     expect(useCollaborationStore.getState().docs[0].authorId).toBe('u-1');
+  });
+
+  // EEP2-P5.3.1: comments are persisted — loadDiscussions maps the paginated
+  // server page into DiscussionComments (targetRef → targetId, nested replies).
+  it('loadDiscussions maps persisted thread docs into DiscussionComments', async () => {
+    mocks.commentList.mockResolvedValue({
+      items: [
+        { id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+          author: { id: 'u-1', name: 'Ajay' }, content: 'root', createdAt: '2026-01-02T00:00:00.000Z',
+          reactions: { '👍': ['u-1'] }, replies: [
+            { id: 'c-2', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: 'c-1',
+              author: { id: 'u-2', name: 'Bo' }, content: 'reply', createdAt: '2026-01-03T00:00:00.000Z',
+              reactions: {}, replies: [], isResolved: false },
+          ], isResolved: false },
+      ],
+      hasMore: true,
+      nextCursor: 'abc',
+    } as any);
+
+    await useCollaborationStore.getState().loadDiscussions('task', 't1');
+
+    const s = useCollaborationStore.getState();
+    expect(s.discussions).toHaveLength(1);
+    expect(s.discussions[0]).toMatchObject({ id: 'c-1', targetId: 't1', content: 'root' });
+    expect(s.discussions[0].reactions).toEqual({ '👍': ['u-1'] });
+    expect(s.discussions[0].replies[0].targetId).toBe('t1');
+    expect(s.discussions[0].replies[0].content).toBe('reply');
+    expect(s.discussionsHasMore).toBe(true);
+    expect(s.discussionsNextCursor).toBe('abc');
+  });
+
+  it('loadDiscussions appends the next cursor page without duplicating roots', async () => {
+    mocks.commentList
+      .mockResolvedValueOnce({ items: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null, author: { id: 'u-1', name: 'A' }, content: 'first', createdAt: '2026-01-03T00:00:00.000Z', reactions: {}, replies: [], isResolved: false }], hasMore: true, nextCursor: 'cur-2' } as any)
+      .mockResolvedValueOnce({ items: [{ id: 'c-0', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null, author: { id: 'u-1', name: 'A' }, content: 'second', createdAt: '2026-01-02T00:00:00.000Z', reactions: {}, replies: [], isResolved: false }], hasMore: false, nextCursor: null } as any);
+
+    await useCollaborationStore.getState().loadDiscussions('task', 't1');
+    await useCollaborationStore.getState().loadDiscussions('task', 't1', { cursor: 'cur-2', append: true });
+
+    expect(mocks.commentList).toHaveBeenNthCalledWith(2, 'task', 't1', { cursor: 'cur-2' });
+    expect(useCollaborationStore.getState().discussions.map((d) => d.id)).toEqual(['c-1', 'c-0']);
+    expect(useCollaborationStore.getState().discussionsHasMore).toBe(false);
+  });
+
+  it('addComment rolls back the optimistic comment when persistence fails', async () => {
+    mocks.commentCreate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().addComment('task', 't1', 'will-fail');
+
+    expect(useCollaborationStore.getState().discussions).toEqual([]);
+  });
+
+  it('addReaction toggles the current user and persists via PATCH', async () => {
+    mocks.commentReaction.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z',
+      reactions: { '👍': ['u-1'] }, replies: [], isResolved: false,
+    } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }],
+    });
+
+    await useCollaborationStore.getState().addReaction('c-1', '👍');
+
+    expect(mocks.commentReaction).toHaveBeenCalledWith('c-1', '👍');
+    expect(useCollaborationStore.getState().discussions[0].reactions['👍']).toEqual(['u-1']);
+  });
+
+  it('resolveThread persists the resolved flag', async () => {
+    mocks.commentResolve.mockResolvedValue({
+      id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', parentId: null,
+      author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z',
+      reactions: {}, replies: [], isResolved: true,
+    } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }],
+    });
+
+    await useCollaborationStore.getState().resolveThread('c-1');
+
+    expect(mocks.commentResolve).toHaveBeenCalledWith('c-1');
+    expect(useCollaborationStore.getState().discussions[0].isResolved).toBe(true);
+  });
+
+  it('deleteComment removes the comment and its replies optimistically', async () => {
+    mocks.commentRemove.mockResolvedValue({ message: 'deleted' } as any);
+    useCollaborationStore.setState({
+      discussions: [{ id: 'c-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-1', name: 'A' }, content: 'x', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [{ id: 'c-2', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', author: { id: 'u-2', name: 'B' }, content: 'y', createdAt: '2026-01-01T00:00:00.000Z', reactions: {}, replies: [] }] }],
+    });
+
+    await useCollaborationStore.getState().deleteComment('c-1');
+
+    expect(mocks.commentRemove).toHaveBeenCalledWith('c-1');
+    expect(useCollaborationStore.getState().discussions).toEqual([]);
+  });
+
+  // EEP2-P5.3.2: attachments are persisted — loadAttachments maps the paginated
+  // server page into TaskAttachments (targetRef → targetId, real uploader).
+  it('loadAttachments maps persisted docs into TaskAttachments', async () => {
+    mocks.attachmentList.mockResolvedValue({
+      items: [
+        { id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1',
+          name: 'Auth flow', type: 'image', url: 'https://x.test/a.png', sizeBytes: 2048,
+          description: 'diagram', uploadedBy: { id: 'u-1', name: 'Ajay' },
+          createdAt: '2026-01-02T00:00:00.000Z' },
+      ],
+      hasMore: true,
+      nextCursor: 'abc',
+    } as any);
+
+    await useCollaborationStore.getState().loadAttachments('task', 't1');
+
+    const s = useCollaborationStore.getState();
+    expect(s.attachments).toHaveLength(1);
+    expect(s.attachments[0]).toMatchObject({ id: 'a-1', targetId: 't1', name: 'Auth flow', url: 'https://x.test/a.png' });
+    expect(s.attachments[0].uploadedBy).toEqual({ id: 'u-1', name: 'Ajay' });
+    expect(s.attachmentsHasMore).toBe(true);
+    expect(s.attachmentsNextCursor).toBe('abc');
+  });
+
+  it('loadAttachments appends the next cursor page without duplicating', async () => {
+    mocks.attachmentList
+      .mockResolvedValueOnce({ items: [{ id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', name: 'one', type: 'file', url: 'https://x.test/1', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-03T00:00:00.000Z' }], hasMore: true, nextCursor: 'cur-2' } as any)
+      .mockResolvedValueOnce({ items: [{ id: 'a-2', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1', name: 'two', type: 'file', url: 'https://x.test/2', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-02T00:00:00.000Z' }], hasMore: false, nextCursor: null } as any);
+
+    await useCollaborationStore.getState().loadAttachments('task', 't1');
+    await useCollaborationStore.getState().loadAttachments('task', 't1', { cursor: 'cur-2', append: true });
+
+    expect(mocks.attachmentList).toHaveBeenNthCalledWith(2, 'task', 't1', { cursor: 'cur-2' });
+    expect(useCollaborationStore.getState().attachments.map((a) => a.id)).toEqual(['a-1', 'a-2']);
+    expect(useCollaborationStore.getState().attachmentsHasMore).toBe(false);
+  });
+
+  it('uploadAttachment optimistically adds then adopts the server doc (real uploader)', async () => {
+    useAuthStore.setState({ user: { _id: 'u-1', name: 'Ajay Kumar', email: 'a@f.io', role: 'user', settings: {} } });
+    mocks.attachmentCreate.mockResolvedValue({
+      id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetRef: 't1',
+      name: 'Diagram', type: 'image', url: 'https://x.test/d.png', sizeBytes: 4096,
+      description: 'auth flow', uploadedBy: { id: 'u-1', name: 'Ajay Kumar' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    } as any);
+
+    await useCollaborationStore.getState().uploadAttachment('task', 't1', {
+      name: 'Diagram', url: 'https://x.test/d.png', description: 'auth flow',
+    });
+
+    expect(mocks.attachmentCreate).toHaveBeenCalledWith({ targetType: 'task', targetRef: 't1', name: 'Diagram', url: 'https://x.test/d.png', description: 'auth flow' });
+    const a = useCollaborationStore.getState().attachments[0];
+    expect(a.id).toBe('a-1');
+    expect(a.uploadedBy).toEqual({ id: 'u-1', name: 'Ajay Kumar' });
+  });
+
+  it('uploadAttachment rolls back the optimistic attachment when persistence fails', async () => {
+    mocks.attachmentCreate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().uploadAttachment('task', 't1', { name: 'x', url: 'https://x.test/x' });
+
+    expect(useCollaborationStore.getState().attachments).toEqual([]);
+  });
+
+  it('deleteAttachment removes the attachment optimistically', async () => {
+    mocks.attachmentRemove.mockResolvedValue({ message: 'deleted' } as any);
+    useCollaborationStore.setState({
+      attachments: [{ id: 'a-1', workspaceId: 'ws-1', targetType: 'task', targetId: 't1', name: 'x', type: 'file', url: 'https://x.test/x', sizeBytes: 1, description: '', uploadedBy: { id: 'u-1', name: 'A' }, createdAt: '2026-01-01T00:00:00.000Z' }],
+    });
+
+    await useCollaborationStore.getState().deleteAttachment('a-1');
+
+    expect(mocks.attachmentRemove).toHaveBeenCalledWith('a-1');
+    expect(useCollaborationStore.getState().attachments).toEqual([]);
   });
 
   it('createSprint passes capacity/target from the modal opts (backlog-safe defaults)', async () => {
@@ -487,7 +969,7 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     mocks.sprintCreate.mockResolvedValue({
       _id: 's-real', name: 'Sprint 1', projectRef: 'p1', workspaceRef: 'ws-1', goal: 'g',
       startDate: '2026-01-01T00:00:00.000Z', endDate: '2026-01-07T00:00:00.000Z',
-      status: 'future', capacityHours: 200, targetVelocity: 90,
+      status: 'draft', capacityHours: 200, targetVelocity: 90,
     } as any);
 
     await useCollaborationStore.getState().createSprint('p1', 'Sprint 1', '2026-01-01', '2026-01-07', 'g', { capacityHours: 200, targetVelocity: 90 });
@@ -539,5 +1021,81 @@ describe('useCollaborationStore moveFeature (IES-R1-P6-T3)', () => {
 
     expect(useCollaborationStore.getState().features.find((f) => f.id === 'f1')?.sprintId).toBeUndefined();
     expect(mocks.featureUpdate).toHaveBeenCalledWith('f1', { sprintId: 's1' });
+  });
+});
+
+// EEP2-P4.3.2: planning-page persistence actions (DDS §10).
+describe('useCollaborationStore sprint planning actions (EEP2-P4.3.2)', () => {
+  const sprint = (overrides: Record<string, any> = {}): Sprint => ({
+    id: 's1', workspaceId: 'ws-1', projectId: 'p1', name: 'Sprint 1',
+    startDate: '2026-01-01', endDate: '2026-01-07', goal: 'Ship the alpha',
+    status: 'draft', capacityHours: 160, targetVelocity: 80, ...overrides,
+  });
+
+  it('updateSprint applies goal/capacity optimistically and PATCHes', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({ _id: 's1', goal: 'new goal' } as any);
+
+    const promise = useCollaborationStore.getState().updateSprint('s1', { goal: 'new goal', capacityHours: 200 });
+    expect(useCollaborationStore.getState().sprints[0]).toMatchObject({ goal: 'new goal', capacityHours: 200 });
+
+    await promise;
+    expect(mocks.sprintUpdate).toHaveBeenCalledWith('s1', { goal: 'new goal', capacityHours: 200 });
+  });
+
+  it('updateSprint normalizes date inputs to the client ISO-day shape', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({} as any);
+
+    await useCollaborationStore.getState().updateSprint('s1', { startDate: '2026-02-01T00:00:00.000Z' });
+
+    expect(useCollaborationStore.getState().sprints[0].startDate).toBe('2026-02-01');
+  });
+
+  it('updateSprint rolls back on failure', async () => {
+    useCollaborationStore.setState({ sprints: [sprint({ goal: 'old goal' })] });
+    mocks.sprintUpdate.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().updateSprint('s1', { goal: 'new goal' });
+
+    expect(useCollaborationStore.getState().sprints[0].goal).toBe('old goal');
+  });
+
+  it('updateSprint is a no-op for an unknown sprint', async () => {
+    await useCollaborationStore.getState().updateSprint('missing', { goal: 'x' });
+    expect(mocks.sprintUpdate).not.toHaveBeenCalled();
+  });
+
+  it('advanceSprintState delegates to updateSprint with the target status', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintUpdate.mockResolvedValue({} as any);
+
+    await useCollaborationStore.getState().advanceSprintState('s1', 'planned');
+
+    expect(mocks.sprintUpdate).toHaveBeenCalledWith('s1', { status: 'planned' });
+  });
+
+  it('commitSprint latches committed and advances draft → planned', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintCommit.mockResolvedValue({
+      _id: 's1', committed: true, commitmentDate: '2026-01-01T00:00:00.000Z', status: 'planned',
+    } as any);
+
+    const promise = useCollaborationStore.getState().commitSprint('s1');
+    expect(useCollaborationStore.getState().sprints[0]).toMatchObject({ committed: true, status: 'planned' });
+
+    await promise;
+    expect(mocks.sprintCommit).toHaveBeenCalledWith('s1');
+  });
+
+  it('commitSprint rolls back the committed latch on failure', async () => {
+    useCollaborationStore.setState({ sprints: [sprint()] });
+    mocks.sprintCommit.mockRejectedValue(new Error('boom'));
+
+    await useCollaborationStore.getState().commitSprint('s1');
+
+    const s = useCollaborationStore.getState().sprints[0];
+    expect(s.committed).toBeFalsy();
+    expect(s.status).toBe('draft');
   });
 });

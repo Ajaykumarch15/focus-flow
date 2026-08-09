@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TextEditor } from '@maple1521/rich-text-editor';
 import {
   Bold, Italic, Code, List, ListOrdered, Quote, Minus, Link2,
   Maximize2, Minimize2, Loader2, Save, Type, Hash, CheckSquare,
@@ -768,20 +769,113 @@ interface AutoProEditorProps {
 }
 
 export function AutoProEditor({
-  logId, field, value, placeholder, minRows, updateFn,
+  logId, field, value, placeholder, minRows, label, updateFn,
 }: AutoProEditorProps) {
+  // WorkLog persists markdown but TextEditor is HTML-based. Render markdown ->
+  // HTML for the editor and convert back to markdown on every edit, keeping the
+  // last HTML we emitted so self-edits round-trip without resetting the caret.
+  const lastHtmlRef = useRef('');
+  const lastMdRef = useRef('');
+  const [fullscreen, setFullscreen] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+
+  // Esc exits fullscreen.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
+
+  const ctlBtn =
+    'flex items-center justify-center rounded-lg p-1.5 text-surface-400 transition-colors hover:bg-surface-700/60 hover:text-surface-100';
+
+  const editor = (val: string, onChange: (v: string) => void) => (
+    <TextEditor
+      className="journal-editor"
+      value={val === lastMdRef.current ? lastHtmlRef.current : renderMarkdown(val)}
+      onChange={html => {
+        const md = htmlToMarkdown(html);
+        lastHtmlRef.current = html;
+        lastMdRef.current = md;
+        onChange(md);
+      }}
+      placeholder={placeholder}
+      minHeight={(minRows ?? 3) * 24 + 24}
+    />
+  );
+
   return (
     <AutoSaveEditor value={value} onSave={v => updateFn(logId, field, v)}>
-      {({ value: val, onChange, saving, saved }) => (
-        <ProEditor
-          value={val}
-          onChange={onChange}
-          placeholder={placeholder}
-          minRows={minRows}
-          saving={saving}
-          saved={saved}
-        />
-      )}
+      {({ value: val, onChange }) => {
+        if (fullscreen) {
+          return (
+            <div className="je-fullscreen fixed inset-0 z-[60] flex flex-col bg-surface-950/95 p-4 backdrop-blur-sm sm:p-6">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="truncate text-sm font-semibold text-surface-100">
+                  {label ?? placeholder ?? 'Editor'}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFullscreen(false)}
+                  className="flex items-center gap-1.5 rounded-lg border border-surface-700 bg-surface-800 px-3 py-1.5 text-xs text-surface-400 transition-colors hover:text-surface-50"
+                >
+                  <Minimize2 size={13} /> Exit fullscreen
+                  <kbd className="text-[10px] text-surface-600">Esc</kbd>
+                </button>
+              </div>
+              <div className="relative min-h-0 flex-1">{editor(val, onChange)}</div>
+            </div>
+          );
+        }
+
+        if (minimized) {
+          const preview = (val || placeholder || '')
+            .replace(/[#*_`>\-[\]]/g, '')
+            .replace(/\s*\n+\s*/g, ' ')
+            .trim();
+          return (
+            <button
+              type="button"
+              onClick={() => setMinimized(false)}
+              title="Expand editor"
+              className="flex w-full items-center gap-2 rounded-xl border border-surface-700 bg-surface-800/60 px-3 py-2 text-left text-xs text-surface-400 transition-colors hover:border-surface-600 hover:text-surface-200"
+            >
+              <Maximize2 size={13} className="flex-shrink-0 text-surface-500" />
+              <span className="truncate">{preview || 'Empty'}</span>
+              <span className="ml-auto flex-shrink-0 text-surface-500">Click to expand</span>
+            </button>
+          );
+        }
+
+        return (
+          <div>
+            <div className="relative">{editor(val, onChange)}</div>
+            <div className="mt-1.5 flex items-center justify-end gap-0.5">
+              <button
+                type="button"
+                onClick={() => setMinimized(true)}
+                title="Minimize"
+                aria-label="Minimize editor"
+                className={ctlBtn}
+              >
+                <Minimize2 size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setFullscreen(true)}
+                title="Fullscreen (Esc to exit)"
+                aria-label="Fullscreen editor"
+                className={ctlBtn}
+              >
+                <Maximize2 size={13} />
+              </button>
+            </div>
+          </div>
+        );
+      }}
     </AutoSaveEditor>
   );
 }

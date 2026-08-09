@@ -2,6 +2,7 @@ import type { TimerState } from '../types';
 import type { WorkLog, DecisionItem, StructuredBlocker, ProgressSnapshot, DailyReflection } from '../store/useWorkLogStore';
 import { selectFocusSession, type FocusChip, type FocusInput } from './focusSelectors';
 import { buildTimelineEvents, TIMELINE_KIND_LABELS } from './timelineSelectors';
+import { stripHtml } from './htmlContent';
 
 // ── S1-T6: pure Engineering Memory selector (ECIS §G · DCX) ────────────────────
 // ARK's Engineering Memory is a read-only projection of the existing
@@ -274,7 +275,7 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
     lastWorkLog: lastWorkLog ? toMemoryWorkLog(lastWorkLog) : null,
     lastJournalNote: lastJournalNote
       ? {
-          content: lastJournalNote.content,
+          content: stripHtml(lastJournalNote.content),
           createdAt: lastJournalNote.createdAt,
           mood: lastJournalNote.mood,
           focusRating: lastJournalNote.focusRating,
@@ -283,7 +284,7 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
       : null,
     taskJournalNote: taskJournalNote
       ? {
-          content: taskJournalNote.content,
+          content: stripHtml(taskJournalNote.content),
           createdAt: taskJournalNote.createdAt,
           mood: taskJournalNote.mood,
           focusRating: taskJournalNote.focusRating,

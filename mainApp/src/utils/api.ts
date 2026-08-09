@@ -5,9 +5,17 @@ import type {
   Feature,
   GitContext,
   Sprint,
+  SprintStats,
   WorkspaceActivity,
   NotificationItem,
   SearchResults,
+  ProjectPatch,
+  RoadmapMilestone,
+  RoadmapPhase,
+  RoadmapModule,
+  RoadmapStatus,
+  DiscussionComment,
+  TaskAttachment,
 } from '../types/collaboration';
 
 const BASE = import.meta.env.VITE_API_URL;
@@ -51,7 +59,7 @@ export type SprintCreatePayload = {
 };
 
 export type SprintUpdatePayload = Partial<Omit<SprintCreatePayload, 'projectId'>> & {
-  status?: 'future' | 'active' | 'completed';
+  status?: 'draft' | 'planned' | 'active' | 'completed';
 };
 
 export type FeatureCreatePayload = {
@@ -65,11 +73,49 @@ export type FeatureCreatePayload = {
   status?: Feature['status'];
   order?: number;
   sprintId?: string | null;
+  // EEP2-P3.2.4 / DDS §4.8: optional module ownership; null = project-level.
+  moduleId?: string | null;
 };
 
 export type FeatureUpdatePayload = Partial<Omit<FeatureCreatePayload, 'projectId'>> & {
   sprintId?: string | null;
+  moduleId?: string | null;
 };
+
+// ── EEP2-P3.3/P3.4: Roadmap spine payloads (routes in server/routes). ─────────
+// `projectId` is always sent by the client; `workspaceRef` is derived server-side.
+export type MilestoneCreatePayload = {
+  projectId: string;
+  name: string;
+  description?: string;
+  targetDate?: string | number | null;
+  order?: number;
+  status?: RoadmapStatus;
+};
+export type MilestoneUpdatePayload = Partial<Omit<MilestoneCreatePayload, 'projectId'>>;
+
+export type PhaseCreatePayload = {
+  projectId: string;
+  milestoneId: string;
+  name: string;
+  description?: string;
+  status?: RoadmapStatus;
+  order?: number;
+  startDate?: string | number | null;
+  endDate?: string | number | null;
+};
+export type PhaseUpdatePayload = Partial<Omit<PhaseCreatePayload, 'projectId'>>;
+
+export type ModuleCreatePayload = {
+  projectId: string;
+  phaseId: string;
+  name: string;
+  description?: string;
+  status?: RoadmapStatus;
+  order?: number;
+  ownerId?: string | null;
+};
+export type ModuleUpdatePayload = Partial<Omit<ModuleCreatePayload, 'projectId'>>;
 
 // IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
 // makes the browser attach it to every request (cross-origin in dev).
@@ -131,6 +177,10 @@ export const api = {
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'PATCH', body: JSON.stringify({ completed }) }),
     deleteSubtask: (taskId: string, subId: string) =>
       request<any>(`/tasks/${taskId}/subtasks/${subId}`, { method: 'DELETE' }),
+    // EEP2-P5.1.2: batch reorder — ids in display order; the server assigns each
+    // task's `order` its index (single-scope batches only).
+    reorder: (ids: string[]) =>
+      request<any[]>(`/tasks/reorder`, { method: 'POST', body: JSON.stringify({ ids }) }),
   },
 
   sessions: {
@@ -207,6 +257,8 @@ export const api = {
       const qs = active !== undefined ? `?active=${active}` : '';
       return request<any[]>(`/worklogs${qs}`);
     },
+    // EEP2-P5.4.1: task-scoped persisted worklog rows for the sprint board panel.
+    byTask: (taskId: string) => request<any[]>(`/worklogs/by-task/${taskId}`),
     get: (id: string) => request<any>(`/worklogs/${id}`),
     create: (body: any) => request<any>('/worklogs', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/worklogs/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
@@ -376,6 +428,10 @@ export const api = {
     },
     create: (data: { name: string; workspaceId?: string }) =>
       request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+    // EEP2-P2.2.1/P2.2.2: single-project read + Project Info PATCH.
+    get: (id: string) => request<any>(`/projects/${id}`),
+    update: (id: string, data: ProjectPatch) =>
+      request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
   },
 
@@ -389,6 +445,12 @@ export const api = {
       request<Sprint>(`/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) =>
       request<{ message: string }>(`/sprints/${id}`, { method: 'DELETE' }),
+    // EEP2-P4.1.4: one-way commitment latch (Owner/Admin). Idempotent; the
+    // original commitmentDate is never rewritten.
+    commit: (id: string) => request<Sprint>(`/sprints/${id}/commit`, { method: 'POST' }),
+    // EEP2-P4.2.3: capacity/velocity summary (DDS §10). Velocity is derived
+    // from completed items only.
+    stats: (id: string) => request<SprintStats>(`/sprints/${id}/stats`),
   },
 
   // IES-R1: real Feature CRUD backed by the Phase 3 route (server/routes/features.js).
@@ -408,6 +470,49 @@ export const api = {
       request<Feature>(`/features/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     remove: (id: string) =>
       request<{ message: string }>(`/features/${id}`, { method: 'DELETE' }),
+  },
+
+  // EEP2-P3.3/P3.4: Roadmap spine CRUD backed by Phase 3 routes. `workspaceRef`
+  // is derived server-side from the owning Project — never sent by the client.
+  milestones: {
+    list: (projectId: string) =>
+      request<RoadmapMilestone[]>(`/milestones?projectId=${encodeURIComponent(projectId)}`),
+    create: (body: MilestoneCreatePayload) =>
+      request<RoadmapMilestone>('/milestones', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: MilestoneUpdatePayload) =>
+      request<RoadmapMilestone>(`/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/milestones/${id}`, { method: 'DELETE' }),
+  },
+
+  phases: {
+    list: (projectId: string, milestoneId?: string) => {
+      const qs = milestoneId
+        ? `?projectId=${encodeURIComponent(projectId)}&milestoneId=${encodeURIComponent(milestoneId)}`
+        : `?projectId=${encodeURIComponent(projectId)}`;
+      return request<RoadmapPhase[]>(`/phases${qs}`);
+    },
+    create: (body: PhaseCreatePayload) =>
+      request<RoadmapPhase>('/phases', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: PhaseUpdatePayload) =>
+      request<RoadmapPhase>(`/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/phases/${id}`, { method: 'DELETE' }),
+  },
+
+  modules: {
+    list: (projectId: string, phaseId?: string) => {
+      const qs = phaseId
+        ? `?projectId=${encodeURIComponent(projectId)}&phaseId=${encodeURIComponent(phaseId)}`
+        : `?projectId=${encodeURIComponent(projectId)}`;
+      return request<RoadmapModule[]>(`/modules${qs}`);
+    },
+    create: (body: ModuleCreatePayload) =>
+      request<RoadmapModule>('/modules', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: ModuleUpdatePayload) =>
+      request<RoadmapModule>(`/modules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/modules/${id}`, { method: 'DELETE' }),
   },
 
   // IES-P2-01: real workspace CRUD + membership surface (IES-P2-07 wiring).
@@ -463,6 +568,62 @@ export const api = {
       if (opts?.limit) params.set('limit', String(opts.limit));
       return request<SearchResults>(`/search?${params.toString()}`);
     },
+  },
+
+  // EEP2-P5.3.1: persisted comment threads (was client-mock in the store).
+  // `targetRef` is the polymorphic id of the target the thread hangs off; the
+  // server validates it resolves to a Task/WorkLog/Project/doc the caller can see.
+  comments: {
+    list: (
+      targetType: DiscussionComment['targetType'],
+      targetRef: string,
+      opts?: { limit?: number; cursor?: string },
+    ) => {
+      const params = new URLSearchParams({ targetType, targetRef });
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.cursor) params.set('cursor', opts.cursor);
+      return request<Paginated<DiscussionComment>>(`/comments?${params.toString()}`);
+    },
+    create: (body: {
+      targetType: DiscussionComment['targetType'];
+      targetRef: string;
+      content: string;
+      parentId?: string | null;
+    }) => request<DiscussionComment>('/comments', { method: 'POST', body: JSON.stringify(body) }),
+    addReaction: (id: string, emoji: string) =>
+      request<DiscussionComment>(`/comments/${id}/reactions`, { method: 'PATCH', body: JSON.stringify({ emoji }) }),
+    resolve: (id: string) =>
+      request<DiscussionComment>(`/comments/${id}/resolve`, { method: 'PATCH' }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/comments/${id}`, { method: 'DELETE' }),
+  },
+
+  // EEP2-P5.3.2: persisted file attachments (was client-mock in the store).
+  // `targetRef` is the polymorphic id of the target the files hang off; the
+  // server validates it resolves to a Task/WorkLog/Project/doc the caller can
+  // see and enforces the size caps (25 MB per file, 200 per target).
+  attachments: {
+    list: (
+      targetType: TaskAttachment['targetType'],
+      targetRef: string,
+      opts?: { limit?: number; cursor?: string },
+    ) => {
+      const params = new URLSearchParams({ targetType, targetRef });
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.cursor) params.set('cursor', opts.cursor);
+      return request<Paginated<TaskAttachment>>(`/attachments?${params.toString()}`);
+    },
+    create: (body: {
+      targetType: TaskAttachment['targetType'];
+      targetRef: string;
+      name: string;
+      type?: string;
+      url: string;
+      sizeBytes?: number;
+      description?: string;
+    }) => request<TaskAttachment>('/attachments', { method: 'POST', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/attachments/${id}`, { method: 'DELETE' }),
   },
 
   google: {

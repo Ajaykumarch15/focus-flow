@@ -166,6 +166,8 @@ describe('IES-R1 · POST /api/features', () => {
     vi.spyOn(Project, 'findById').mockResolvedValue(projectDoc());
     mockWorkspace(ALL_MEMBERS);
     vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
     let created;
     vi.spyOn(Feature, 'create').mockImplementation(async (data) => {
       created = data;
@@ -176,14 +178,53 @@ describe('IES-R1 · POST /api/features', () => {
     const res = await fetch(`${baseUrl}/api/features`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(OWNER_ID) },
-      body: JSON.stringify({ ...body, sprintId: SPRINT_ID }),
+      body: JSON.stringify({ ...body, sprintId: SPRINT_ID, estimatedHours: 4 }),
     });
 
     expect(res.status).toBe(201);
     expect(created.workspaceRef).toBe(WS_ID);
     expect(created.sprintRef).toBe(SPRINT_ID);
+    expect(created.estimatedHours).toBe(4);
     expect(activity.mock.calls[0][0].action).toBe('feature.created');
     expect(activity.mock.calls[0][0].workspaceRef).toBe(WS_ID);
+  });
+
+  it('rejects creating into a sprint that is over capacity with 409', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Project, 'findById').mockResolvedValue(projectDoc());
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID, capacityHours: 8 });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: '5f0000000000000000000e20', estimatedHours: 5 }]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    const create = vi.spyOn(Feature, 'create');
+
+    const res = await fetch(`${baseUrl}/api/features`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie(OWNER_ID) },
+      body: JSON.stringify({ ...body, sprintId: SPRINT_ID, estimatedHours: 4 }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('accepts creating into a sprint that stays within capacity', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Project, 'findById').mockResolvedValue(projectDoc());
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID, capacityHours: 8 });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: '5f0000000000000000000e20', estimatedHours: 5 }]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    const create = vi.spyOn(Feature, 'create').mockImplementation(async (data) => ({ _id: FEATURE_ID, ...data }));
+
+    const res = await fetch(`${baseUrl}/api/features`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie(OWNER_ID) },
+      body: JSON.stringify({ ...body, sprintId: SPRINT_ID, estimatedHours: 3 }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(create).toHaveBeenCalledTimes(1);
   });
 
   it('creates a backlog feature when sprintId is absent', async () => {
@@ -237,6 +278,8 @@ describe('IES-R1 · PATCH /api/features/:id', () => {
     vi.spyOn(Feature, 'findById').mockResolvedValue(featureDoc());
     mockWorkspace(ALL_MEMBERS);
     vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
     const findByIdAndUpdate = vi.spyOn(Feature, 'findByIdAndUpdate').mockResolvedValue(featureDoc({ sprintRef: SPRINT_ID }));
     vi.spyOn(Activity, 'create').mockResolvedValue(undefined);
 
@@ -248,6 +291,44 @@ describe('IES-R1 · PATCH /api/features/:id', () => {
     expect(res.status).toBe(200);
     const [, update] = findByIdAndUpdate.mock.calls[0];
     expect(update.$set).toEqual({ sprintRef: SPRINT_ID });
+  });
+
+  it('rejects moving a feature into an over-capacity sprint with 409', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Feature, 'findById').mockResolvedValue(featureDoc({ estimatedHours: 4 }));
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID, capacityHours: 8 });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: '5f0000000000000000000e20', estimatedHours: 8 }]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    const findByIdAndUpdate = vi.spyOn(Feature, 'findByIdAndUpdate');
+
+    const res = await fetch(`${baseUrl}/api/features/${FEATURE_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie(OWNER_ID) },
+      body: JSON.stringify({ sprintId: SPRINT_ID }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(findByIdAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects re-estimating a feature inside a sprint over capacity with 409', async () => {
+    mockUser(user(OWNER_ID));
+    vi.spyOn(Feature, 'findById').mockResolvedValue(featureDoc({ sprintRef: SPRINT_ID, estimatedHours: 1 }));
+    mockWorkspace(ALL_MEMBERS);
+    vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID, capacityHours: 8 });
+    vi.spyOn(Feature, 'find').mockImplementation(() => ({ select: () => Promise.resolve([{ _id: '5f0000000000000000000e20', estimatedHours: 7 }]) }));
+    vi.spyOn(Task, 'find').mockImplementation(() => ({ select: () => Promise.resolve([]) }));
+    const findByIdAndUpdate = vi.spyOn(Feature, 'findByIdAndUpdate');
+
+    const res = await fetch(`${baseUrl}/api/features/${FEATURE_ID}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie(OWNER_ID) },
+      body: JSON.stringify({ estimatedHours: 2 }),
+    });
+
+    expect(res.status).toBe(409);
+    expect(findByIdAndUpdate).not.toHaveBeenCalled();
   });
 
   it('lets an editor move a feature back to the backlog (sprintId: null)', async () => {
