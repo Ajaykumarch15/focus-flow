@@ -12,8 +12,21 @@ import type { CentralBlocker, Feature } from '../../types/collaboration';
 
 const NOW = Date.now();
 
+// Fixed mid-week reference (Wed Aug 12 2026, local) so week-range assertions
+// are deterministic on every calendar day. Week buckets in the selectors are
+// Sunday-start, so "3 days back" must never straddle the boundary (which it
+// would when run on a Sunday with `new Date()`).
+const REF_NOW = new Date(2026, 7, 12, 12, 0, 0, 0).getTime();
+
 function atLocalDaysAgo(days: number): number {
   const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime() + 60_000; // just after that day's local midnight
+}
+
+function atOffsetFrom(ref: number, days: number): number {
+  const d = new Date(ref);
   d.setDate(d.getDate() - days);
   d.setHours(0, 0, 0, 0);
   return d.getTime() + 60_000; // just after that day's local midnight
@@ -217,10 +230,11 @@ describe('selectPersonalTimeline filters (S1-T7)', () => {
 
   it('range "week" keeps this week and drops earlier events', () => {
     const input = baseInput({
+      now: REF_NOW,
       journals: [
-        mkJournal('j-now', 'now', atLocalDaysAgo(0)),
-        mkJournal('j-week', 'week', atLocalDaysAgo(3)),
-        mkJournal('j-early', 'early', atLocalDaysAgo(10)),
+        mkJournal('j-now', 'now', atOffsetFrom(REF_NOW, 0)),
+        mkJournal('j-week', 'week', atOffsetFrom(REF_NOW, 3)),
+        mkJournal('j-early', 'early', atOffsetFrom(REF_NOW, 10)),
       ],
     });
     const events = selectPersonalTimeline(input, { range: 'week' });
@@ -253,12 +267,12 @@ describe('selectPersonalTimeline filters (S1-T7)', () => {
 describe('groupTimelineEvents (S1-T7)', () => {
   it('groups into Today / Yesterday / This Week / Earlier', () => {
     const events: TimelineEvent[] = [
-      { id: 'today', kind: 'journal', timestamp: atLocalDaysAgo(0), title: 't' },
-      { id: 'yesterday', kind: 'journal', timestamp: atLocalDaysAgo(1), title: 'y' },
-      { id: 'week', kind: 'journal', timestamp: atLocalDaysAgo(3), title: 'w' },
-      { id: 'earlier', kind: 'journal', timestamp: atLocalDaysAgo(10), title: 'e' },
+      { id: 'today', kind: 'journal', timestamp: atOffsetFrom(REF_NOW, 0), title: 't' },
+      { id: 'yesterday', kind: 'journal', timestamp: atOffsetFrom(REF_NOW, 1), title: 'y' },
+      { id: 'week', kind: 'journal', timestamp: atOffsetFrom(REF_NOW, 3), title: 'w' },
+      { id: 'earlier', kind: 'journal', timestamp: atOffsetFrom(REF_NOW, 10), title: 'e' },
     ];
-    const groups = groupTimelineEvents(events, NOW);
+    const groups = groupTimelineEvents(events, REF_NOW);
     const byKey: Record<TimelineGroupKey, string> = { today: '', yesterday: '', week: '', earlier: '' };
     for (const group of groups) {
       byKey[group.key] = group.events[0].id;
