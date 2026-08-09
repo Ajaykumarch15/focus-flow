@@ -16,6 +16,8 @@ import { Spinner }         from './components/ui/Spinner';
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
 const Register        = lazy(() => import('./pages/Register').then(module => ({ default: module.Register })));
+// TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
+const RteTestPage     = lazy(() => import('./pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
 const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
 const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
@@ -132,6 +134,9 @@ export default function App() {
             <Route path="/login"                       element={<Login />} />
             <Route path="/register"                    element={<Register />} />
             <Route path="/reports/share/token/:token"  element={<ShareReportPage />} />
+
+            {/* TEMP (Phase 3): isolated rich-text-editor test page (public, no auth) */}
+            <Route path="/rte-test"                    element={<RteTestPage />} />
 
             {/* Post-Login Workspace Hub */}
             <Route element={<ProtectedRoute />}>

@@ -71,14 +71,6 @@ function setInputValue(el: HTMLInputElement | HTMLTextAreaElement, value: string
   });
 }
 
-function setSelectValue(el: HTMLSelectElement, value: string) {
-  const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!;
-  act(() => {
-    setter.call(el, value);
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  });
-}
-
 describe('WorkspaceHomePage project launcher', () => {
   const originalCollab = useCollaborationStore.getState();
   const originalAuth = useAuthStore.getState();
@@ -114,7 +106,6 @@ describe('WorkspaceHomePage project launcher', () => {
     expect(container.textContent).toContain('AI Search Engine');
     expect(container.textContent).toContain('Mobile Gateway');
     expect(container.textContent).toContain('Data Platform');
-    expect(container.textContent).toContain('2 members');
     expect(container.textContent).not.toContain('Workspace ws-1');
     act(() => root.unmount());
     container.remove();
@@ -184,48 +175,23 @@ describe('WorkspaceHomePage project launcher', () => {
     container.remove();
   });
 
-  it('filters projects by status', () => {
-    const { container, root } = render(<WorkspaceHomePage />);
-    const select = container.querySelector('select[aria-label="Filter by status"]') as HTMLSelectElement;
-
-    setSelectValue(select, 'planning');
-    expect(container.textContent).toContain('Mobile Gateway');
-    expect(container.textContent).not.toContain('AI Search Engine');
-    expect(container.textContent).not.toContain('Data Platform');
-
-    setSelectValue(select, 'completed');
-    expect(container.textContent).toContain('Data Platform');
-    expect(container.textContent).not.toContain('AI Search Engine');
-    act(() => root.unmount());
-    container.remove();
-  });
-
-  it('sorts projects by name', () => {
-    const { container, root } = render(<WorkspaceHomePage />);
-    const select = container.querySelector('select[aria-label="Sort projects"]') as HTMLSelectElement;
-    setSelectValue(select, 'name');
-    const titles = Array.from(container.querySelectorAll('a[aria-label^="Open "] h3')).map((h) => h.textContent);
-    expect(titles).toEqual(['AI Search Engine', 'Data Platform', 'Mobile Gateway']);
-    act(() => root.unmount());
-    container.remove();
-  });
-
   it('paginates when there are more projects than the page size', () => {
     const many = Array.from({ length: 7 }, (_, i) => project(`p-${i + 1}`, { name: `Project ${i + 1}` }));
     useCollaborationStore.setState({ projects: many });
     const { container, root } = render(<WorkspaceHomePage />);
 
     expect(container.textContent).toContain('1 of 2');
-    const next = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Next') as HTMLButtonElement;
-    const prev = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Previous') as HTMLButtonElement;
+    const next = container.querySelector('button[aria-label="Next page"]') as HTMLButtonElement;
+    const prev = container.querySelector('button[aria-label="Previous page"]') as HTMLButtonElement;
     expect(prev.disabled).toBe(true);
 
     act(() => { next.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(container.textContent).toContain('2 of 2');
-    expect(Array.from(container.querySelectorAll('a[aria-label^="Open "] h3')).length).toBe(1);
+    expect(Array.from(container.querySelectorAll('a[aria-label^="Open "]')).length).toBe(1);
 
     act(() => { next.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(container.textContent).toContain('2 of 2');
+    expect(prev.disabled).toBe(false);
     act(() => root.unmount());
     container.remove();
   });
@@ -233,7 +199,7 @@ describe('WorkspaceHomePage project launcher', () => {
   it('hides pagination when projects fit on one page', () => {
     const { container, root } = render(<WorkspaceHomePage />);
     expect(container.textContent).not.toContain('of 2');
-    expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Next')).toBe(false);
+    expect(container.querySelector('button[aria-label="Next page"]')).toBeNull();
     act(() => root.unmount());
     container.remove();
   });

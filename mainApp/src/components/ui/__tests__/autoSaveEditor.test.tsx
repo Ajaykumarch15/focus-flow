@@ -3,6 +3,17 @@ import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AutoSaveEditor, AutoProEditor, AUTOSAVE_DEBOUNCE_MS } from '../proEditor';
 
+vi.mock('@maple1521/rich-text-editor', () => ({
+  TextEditor: ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) => (
+    <textarea
+      data-testid="mock-text-editor"
+      placeholder={placeholder}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    />
+  ),
+}));
+
 function render(node: ReactNode) {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -64,20 +75,17 @@ describe('AutoSaveEditor (single debounce source)', () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('AutoProEditor uses the same single debounce constant', async () => {
+  it('AutoProEditor converts editor HTML to markdown and saves via the shared debounce', async () => {
     const updateFn = vi.fn().mockResolvedValue(undefined);
     const { container } = render(<AutoProEditor logId="l1" field="problem" value="a" updateFn={updateFn} />);
 
-    const sourceBtn = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Source')!;
-    act(() => { sourceBtn.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-
-    const ta = container.querySelector('textarea') as HTMLTextAreaElement;
-    setInputValue(ta, 'ab');
+    const ta = container.querySelector('[data-testid="mock-text-editor"]') as HTMLTextAreaElement;
+    setInputValue(ta, '<p><strong>ab</strong></p>');
 
     await act(async () => {
       vi.advanceTimersByTime(AUTOSAVE_DEBOUNCE_MS);
     });
     expect(updateFn).toHaveBeenCalledTimes(1);
-    expect(updateFn).toHaveBeenCalledWith('l1', 'problem', 'ab');
+    expect(updateFn).toHaveBeenCalledWith('l1', 'problem', '**ab**');
   });
 });

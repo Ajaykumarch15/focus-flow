@@ -15,6 +15,7 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { RichContent } from '../components/ui/RichContent';
 import { TaskContinuationPanel } from '../components/continuation/TaskContinuationPanel';
 import type { Mood } from '../types';
 
@@ -446,7 +447,7 @@ export function TaskDetail() {
                       </span>
                       <span className="text-lg">{['😔', '😐', '🙂', '😊', '🔥'][j.mood - 1]}</span>
                     </div>
-                    <p className="text-sm text-surface-200 leading-relaxed">{j.content}</p>
+                    <RichContent content={j.content} className="text-sm text-surface-200 leading-relaxed" />
                   </motion.div>
                 ))}
               </div>

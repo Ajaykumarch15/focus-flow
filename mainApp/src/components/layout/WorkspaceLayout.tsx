@@ -44,12 +44,17 @@ export function WorkspaceLayout() {
     );
   }
 
+  const wsKey = workspaceId || activeWorkspaceId;
+  // The workspace root (launcher) stays clean — identity header and section
+  // tabs are shown on sub-pages only.
+  const isWorkspaceRoot = location.pathname === `/w/${wsKey}`;
+
   return (
     <div className="flex flex-col h-screen bg-surface-950 text-surface-50 overflow-hidden">
       <WorkspaceTopNav />
       <NowStrip />
-      <WorkspaceHeader />
-      <WorkspaceNav />
+      {!isWorkspaceRoot && <WorkspaceHeader />}
+      {!isWorkspaceRoot && <WorkspaceNav />}
 
       <main className="flex-1 overflow-y-auto min-h-0">
         <Outlet />

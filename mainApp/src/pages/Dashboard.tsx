@@ -16,6 +16,7 @@ import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
 import { MOOD_LABELS } from '../utils/colors';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { stripHtml } from '../lib/htmlContent';
 import { Card, CardHeader, CardTitle, CardBody } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -479,7 +480,7 @@ export function Dashboard() {
                               <p className="text-[11px] text-surface-500 mt-0.5">
                                 {new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </p>
-                              <p className="text-xs text-surface-300 line-clamp-2 mt-1.5 leading-relaxed">{j.content}</p>
+                              <p className="text-xs text-surface-300 line-clamp-2 mt-1.5 leading-relaxed">{stripHtml(j.content)}</p>
                             </div>
                             <ChevronRight size={12} className="text-surface-600 group-hover:text-surface-400 transition-colors mt-1 flex-shrink-0" />
                           </div>

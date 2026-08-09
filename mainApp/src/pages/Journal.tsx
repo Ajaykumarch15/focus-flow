@@ -1,17 +1,20 @@
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, BookOpen, Trash2, Search, Bold, Italic } from 'lucide-react';
-import { Markdown } from '../lib';
+import { Plus, BookOpen, Trash2, Search } from 'lucide-react';
+import { TextEditor } from '@maple1521/rich-text-editor';
+import { RichContent } from '../components/ui/RichContent';
+import { stripHtml } from '../lib/htmlContent';
 import { useStore } from '../store/useStore';
 import { MOOD_EMOJIS } from '../lib/config';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { Textarea } from '../components/ui/Textarea';
 import { EmptyState } from '../components/ui/EmptyState';
 import type { Mood } from '../types';
+
+const MAX_CHARS = 20000;
 
 export function Journal() {
   const { journals, tasks, addJournal, deleteJournal } = useStore();
@@ -22,44 +25,12 @@ export function Journal() {
   const [taskId, setTaskId] = useState('');
   const [search, setSearch] = useState('');
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const autoResize = () => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    textarea.style.height = 'auto';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-  };
-
-  const wrapSelection = (wrapper: string) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-
-    const selectedText = content.substring(start, end);
-
-    const newText =
-      content.substring(0, start) +
-      wrapper +
-      selectedText +
-      wrapper +
-      content.substring(end);
-
-    setContent(newText);
-
-    requestAnimationFrame(() => {
-      autoResize();
-      textarea.focus();
-      textarea.selectionStart = start + wrapper.length;
-      textarea.selectionEnd = end + wrapper.length;
-    });
+  const handleChange = (value: string) => {
+    setContent(value.slice(0, MAX_CHARS));
   };
 
   const handleAdd = () => {
-    if (!content.trim()) return;
+    if (!stripHtml(content)) return;
 
     addJournal({
       taskId,
@@ -71,16 +42,10 @@ export function Journal() {
     setContent('');
     setMood(3);
     setShowAdd(false);
-
-    requestAnimationFrame(() => {
-      if (textareaRef.current) {
-        textareaRef.current.style.height = '160px';
-      }
-    });
   };
 
   const filtered = journals.filter(j =>
-    !search || j.content.toLowerCase().includes(search.toLowerCase())
+    !search || stripHtml(j.content).toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -132,55 +97,13 @@ export function Journal() {
               ))}
             </Select>
 
-            {/* Toolbar */}
-            <div className="flex items-center gap-2 mb-3 border border-surface-700 bg-surface-900/80 rounded-xl p-2">
-              <button
-                type="button"
-                onClick={() => wrapSelection('**')}
-                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-50 transition-all"
-                title="Bold"
-              >
-                <Bold size={16} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => wrapSelection('*')}
-                className="p-2 rounded-lg bg-surface-800 hover:bg-surface-700 text-surface-50 transition-all"
-                title="Italic"
-              >
-                <Italic size={16} />
-              </button>
-            </div>
-
-            {/* Auto Growing Textarea */}
-            <Textarea
-              ref={textareaRef}
-              className="
-                resize-none
-                overflow-hidden
-                min-h-[160px]
-                max-h-[500px]
-                mb-2
-                leading-7
-                text-[15px]
-                transition-all
-                duration-200
-              "
-              placeholder="Write your thoughts, progress, and reflections..."
+            <TextEditor
+              className="mb-2 journal-editor"
               value={content}
-              onChange={(e) => {
-                setContent(e.target.value);
-                autoResize();
-              }}
-              autoFocus
-              rows={1}
+              onChange={handleChange}
+              placeholder="Write your thoughts, progress, and reflections..."
+              minHeight={160}
             />
-
-            {/* Character Count */}
-            <div className="text-right text-xs text-surface-500 mb-4">
-              {content.length} characters
-            </div>
 
             {/* Mood Selector */}
             <div className="flex items-center gap-4 mb-4 flex-wrap">
@@ -294,10 +217,8 @@ export function Journal() {
                     </button>
                   </div>
 
-                  {/* Markdown Render */}
-                  <div className="prose prose-invert max-w-none text-surface-200 leading-7 text-[15px]">
-                    <Markdown source={entry.content} />
-                  </div>
+                  {/* Content Render */}
+                  <RichContent content={entry.content} className="text-surface-200 leading-7 text-[15px]" />
                 </motion.div>
               );
             })}

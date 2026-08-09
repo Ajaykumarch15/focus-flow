@@ -480,6 +480,164 @@ html, body {
 }
 @keyframes skeleton-shimmer { 100% { transform: translateX(100%); } }
 
+/* ── Journal rich-text editor (dark theme integration) ───────────────────── */
+/*
+ * WHY THIS BLOCK EXISTS (debugged via headless browser, Aug 2026):
+ * @maple1521/rich-text-editor ships a light-only stylesheet compiled with
+ * Tailwind v4. Its rules live in NATIVE cascade layers (@layer theme, base,
+ * components, utilities) — only the `.tiptap` content rules are unlayered.
+ *
+ * This app uses Tailwind v3, which emits preflight + utilities as UNLAYERED
+ * CSS. Per the CSS cascade, unlayered rules beat layered rules regardless of
+ * specificity or source order. So the app's unlayered rules win over the
+ * package's layered, variable-based ones:
+ *   .bg-white { background-color: rgb(255 255 255 / ...) }   -> white canvas
+ *   * { border-color: rgb(229 231 235) }   (preflight)       -> light borders
+ *   button { color: inherit }              (preflight)       -> white icons
+ * That is why remapping the package's --color-* tokens had no visible effect
+ * on the canvas or toolbar.
+ *
+ * Fix strategy:
+ * 1. Remap the package's theme tokens so every NON-colliding layered utility
+ *    class (bg-neutral-*, text-neutral-*, bg-violet-*, ring-*, ...) resolves
+ *    to dark FocusFlow tokens.
+ * 2. Force the colliding properties (canvas bg, borders, button/icon color)
+ *    with scoped !important rules under .journal-editor, so they beat the
+ *    app's unlayered Tailwind v3 rules without touching global styles.
+ */
+.journal-editor {
+  --color-neutral-50: var(--color-surface-850);
+  --color-neutral-100: var(--color-surface-800);
+  --color-neutral-200: var(--color-surface-700);
+  --color-neutral-400: var(--color-surface-500);
+  --color-neutral-500: var(--color-surface-400);
+  --color-neutral-600: var(--color-surface-300);
+  --color-neutral-700: var(--color-surface-200);
+  --color-neutral-800: var(--color-surface-100);
+  --color-neutral-900: var(--color-surface-50);
+  --color-red-50: rgba(248, 113, 113, 0.12);
+  --color-red-300: #fca5a5;
+  --color-red-600: #f87171;
+  --color-violet-50: rgba(56, 189, 248, 0.14);
+  --color-violet-100: rgba(56, 189, 248, 0.22);
+  --color-violet-300: var(--color-brand-400);
+  --color-violet-400: var(--color-brand-400);
+  --color-violet-500: var(--color-brand-500);
+  --color-violet-600: var(--color-brand-500);
+  --color-violet-700: var(--color-brand-400);
+
+  /* Canvas: dark surface, dark border, light text. The !important rules are
+     the only thing that can beat the app's unlayered `.bg-white`, `.text-*`
+     and preflight `border-color`. Toolbar buttons use `color: inherit`
+     (app preflight), so this single color cascades to every icon/label. */
+  background-color: var(--color-surface-900) !important;
+  border-color: var(--color-surface-700) !important;
+  color: var(--color-surface-100) !important;
+}
+
+/* Toolbar divider line: app preflight `border-color` beats the package's
+   layered `.border-neutral-200`, so force it dark. */
+.journal-editor [role="toolbar"] {
+  border-bottom-color: var(--color-surface-700) !important;
+}
+
+/* Toolbar buttons: app preflight `button { color: inherit }` wins over the
+   package's layered `.text-neutral-600`, so force a light icon/label color. */
+.journal-editor [role="toolbar"] button {
+  color: var(--color-surface-200) !important;
+}
+
+/* Primary action (confirm/save): brand background with readable text. */
+.journal-editor [role="toolbar"] button[class~="bg-violet-600"] {
+  background-color: var(--color-brand-500) !important;
+  color: #082f49 !important;
+}
+
+/* Destructive controls (remove link) keep a red tint. */
+.journal-editor [role="toolbar"] button[class~="text-red-600"] {
+  color: #f87171 !important;
+}
+
+/* Dropdown popovers use `bg-white`; the app's unlayered `.bg-white` would
+   otherwise make them white with light text. Darken them. */
+.journal-editor [class~="bg-white"] {
+  background-color: var(--color-surface-850) !important;
+}
+
+/* Focus ring matching FocusFlow inputs. */
+.journal-editor:focus-within {
+  border-color: var(--color-brand-500) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-500) 18%, transparent) !important;
+}
+
+/* Content area (.tiptap): the package's `.tiptap` rules are unlayered, so
+   higher specificity plus !important guarantees the dark theme. */
+.journal-editor .tiptap {
+  color: var(--color-surface-100) !important;
+  caret-color: var(--color-brand-400) !important;
+}
+
+.journal-editor .tiptap h1,
+.journal-editor .tiptap h2,
+.journal-editor .tiptap h3 {
+  color: var(--color-surface-50) !important;
+}
+
+.journal-editor .tiptap a {
+  color: var(--color-brand-400) !important;
+}
+
+.journal-editor .tiptap blockquote {
+  color: var(--color-surface-300) !important;
+  border-left-color: var(--color-surface-600) !important;
+}
+
+.journal-editor .tiptap hr {
+  border-top-color: var(--color-surface-700) !important;
+}
+
+.journal-editor .tiptap code {
+  background: var(--color-surface-850) !important;
+  border: 1px solid var(--color-surface-800) !important;
+  color: var(--color-brand-400) !important;
+}
+
+.journal-editor .tiptap pre {
+  background: var(--color-surface-950) !important;
+}
+
+.journal-editor .tiptap pre code {
+  background: none !important;
+  border: none !important;
+  color: var(--color-surface-200) !important;
+}
+
+.journal-editor .tiptap mark {
+  background-color: #facc15 !important;
+  color: #111827 !important;
+}
+
+.journal-editor .tiptap p.is-editor-empty:first-child::before {
+  color: var(--color-surface-500) !important;
+}
+
+/* Fullscreen overlay: stretch the package TextEditor to fill the available
+   space (root flex column, content wrapper flexes, .tiptap scrolls). */
+.je-fullscreen .journal-editor {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100%;
+}
+.je-fullscreen .journal-editor > div:last-child {
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.je-fullscreen .journal-editor .tiptap {
+  flex: 1 1 auto !important;
+  overflow-y: auto;
+}
+
 /* ── Respect reduced-motion preference ───────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   *,

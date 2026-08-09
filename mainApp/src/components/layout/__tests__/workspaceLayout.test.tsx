@@ -9,16 +9,17 @@ import { useStore } from '../../../store/useStore';
 import { useCollaborationStore } from '../../../store/useCollaborationStore';
 import type { Project, Workspace } from '../../../types/collaboration';
 
-function render(node: ReactNode) {
+function render(node: ReactNode, path = '/w/ws-1') {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
     root.render(
-      <MemoryRouter initialEntries={['/w/ws-1']}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
             <Route index element={node} />
+            <Route path="overview" element={node} />
           </Route>
         </Routes>
       </MemoryRouter>,
@@ -114,8 +115,21 @@ describe('WorkspaceLayout engineering workspace shell', () => {
     container.remove();
   });
 
-  it('renders the workspace identity header with badges and quick actions', () => {
+  it('hides the identity header and section tabs on the workspace root page', () => {
     const { container, root } = render(<div>OUTLET</div>);
+    expect(container.textContent).toContain('FocusFlow');
+    expect(container.textContent).not.toContain('Edit Workspace');
+    expect(container.textContent).not.toContain('3 members');
+    expect(container.textContent).not.toContain('Mission Control');
+    expect(container.textContent).not.toContain('Sprint Board');
+    expect(container.textContent).not.toContain('Backlog');
+    expect(container.textContent).toContain('OUTLET');
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('renders the workspace identity header with badges and quick actions', () => {
+    const { container, root } = render(<div>OUTLET</div>, '/w/ws-1/overview');
     expect(container.textContent).toContain('Workspace ws-1');
     expect(container.textContent).toContain('A shared engineering workspace.');
     expect(container.textContent).toContain('3 members');
@@ -129,7 +143,7 @@ describe('WorkspaceLayout engineering workspace shell', () => {
   });
 
   it('renders the workspace section tabs as a horizontal bar (no sidebar)', () => {
-    const { container, root } = render(<div>OUTLET</div>);
+    const { container, root } = render(<div>OUTLET</div>, '/w/ws-1/overview');
     expect(container.textContent).toContain('Home');
     expect(container.textContent).toContain('Mission Control');
     expect(container.textContent).toContain('Sprint Board');
@@ -144,7 +158,7 @@ describe('WorkspaceLayout engineering workspace shell', () => {
   });
 
   it('opens the Edit Workspace modal from the header action', () => {
-    const { container, root } = render(<div>OUTLET</div>);
+    const { container, root } = render(<div>OUTLET</div>, '/w/ws-1/overview');
     const edit = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Edit Workspace'));
     expect(edit).toBeTruthy();
     act(() => edit!.click());
@@ -155,7 +169,7 @@ describe('WorkspaceLayout engineering workspace shell', () => {
   });
 
   it('opens the Create Project modal from the header action', () => {
-    const { container, root } = render(<div>OUTLET</div>);
+    const { container, root } = render(<div>OUTLET</div>, '/w/ws-1/overview');
     const create = [...container.querySelectorAll('button')].find((b) => b.textContent?.includes('Create Project'));
     expect(create).toBeTruthy();
     act(() => create!.click());
@@ -165,7 +179,7 @@ describe('WorkspaceLayout engineering workspace shell', () => {
   });
 
   it('renders without critical or serious accessibility violations', async () => {
-    const { container, root } = render(<div>OUTLET</div>);
+    const { container, root } = render(<div>OUTLET</div>, '/w/ws-1/overview');
     const violations = await scan(container);
     expect(violations).toEqual([]);
     act(() => root.unmount());

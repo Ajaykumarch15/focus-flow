@@ -3,6 +3,7 @@ import type { WorkLog } from '../store/useWorkLogStore';
 import type {
   CentralBlocker, CollaborativeTask, Feature, Project, Sprint, Workspace,
 } from '../types/collaboration';
+import { stripHtml } from './htmlContent';
 
 // ── S1-T5: pure Focus Session Panel selector (ECIS §G · DCX) ──────────────────
 // Answers "What am I working on right now?" and "What should I do next?" for
@@ -194,7 +195,7 @@ export function selectFocusSession(input: FocusInput): FocusSessionView {
     blocker: pickBlocker(input.blockers, input.workLogs, targetId),
     hasSessionNotes: journalsForTask.length > 0,
     latestNote: journalsForTask.length
-      ? { content: journalsForTask[0].content, createdAt: journalsForTask[0].createdAt }
+      ? { content: stripHtml(journalsForTask[0].content), createdAt: journalsForTask[0].createdAt }
       : null,
     workLog: findWorkLog(input.workLogs, targetId),
     lastWorkedAt: isPersonal ? personal!.updatedAt : toMs(collab!.updatedAt),

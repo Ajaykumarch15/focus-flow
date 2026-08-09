@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
+    "@maple1521/rich-text-editor": "^0.1.0",
     "date-fns": "^3.6.0",
     "docx": "^9.7.1",
     "dompurify": "^3.4.12",
