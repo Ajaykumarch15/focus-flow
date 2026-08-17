@@ -23,6 +23,7 @@ import type {
   Subtask, ThemeSettings, UserProfile,
 } from '../types';
 import { useWorkLogStore } from './useWorkLogStore';
+import { useRoadmapStore } from './useRoadmapStore';
 import { toast } from './useToastStore';
 import { generateBrandShades } from '../utils/colorUtils';
 
@@ -159,6 +160,9 @@ function mapTask(doc: any): Task {
     totalTime: doc.totalTime ?? 0,
     createdAt: new Date(doc.createdAt).getTime(),
     updatedAt: new Date(doc.updatedAt).getTime(),
+    roadmapRef: doc.roadmapRef ? String(doc.roadmapRef) : undefined,
+    phaseRef: doc.phaseRef ? String(doc.phaseRef) : undefined,
+    milestoneRef: doc.milestoneRef ? String(doc.milestoneRef) : undefined,
   };
 }
 
@@ -412,6 +416,13 @@ export const useStore = create<StoreState>((set, get) => {
         tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t),
       }));
       await api.tasks.update(id, updates);
+      // Refresh roadmap progress if a linked task's status changed
+      if (updates.status) {
+        const task = get().tasks.find(t => t.id === id);
+        if (task?.roadmapRef) {
+          useRoadmapStore.getState().refreshIfLinked(task.roadmapRef);
+        }
+      }
     },
 
     deleteTask: async (id) => {
@@ -430,6 +441,7 @@ export const useStore = create<StoreState>((set, get) => {
         await get().stopTimer(id);
       }
       await get().updateTask(id, { status: 'completed' });
+      // The updateTask handler already refreshes roadmap progress for linked tasks
     },
 
     reorderTasks: (tasks) => set({ tasks }),

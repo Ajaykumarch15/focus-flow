@@ -17,6 +17,13 @@ import type {
   DiscussionComment,
   TaskAttachment,
 } from '../types/collaboration';
+import type {
+  RoadmapListItem,
+  RoadmapDetail,
+  RoadmapPhaseDoc,
+  RoadmapMilestoneDoc,
+  RoadmapType,
+} from '../types/roadmap';
 
 const BASE = import.meta.env.VITE_API_URL;
 
@@ -629,5 +636,50 @@ export const api = {
   google: {
     getUrl: () => request<{ url: string }>('/auth/google/url'),
     disconnect: () => request<any>('/auth/google/disconnect', { method: 'POST' }),
+  },
+
+  // ── Personal Roadmaps ──────────────────────────────────────────────────────
+  personalRoadmaps: {
+    list: () => request<RoadmapListItem[]>('/roadmaps'),
+    get: (id: string) => request<RoadmapDetail>(`/roadmaps/${id}`),
+    create: (body: {
+      title: string;
+      description?: string;
+      type?: RoadmapType;
+      startDate?: string;
+      targetDate?: string;
+      icon?: string;
+      color?: string;
+    }) => request<RoadmapListItem>('/roadmaps', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Record<string, any>) =>
+      request<RoadmapListItem>(`/roadmaps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => request<{ message: string }>(`/roadmaps/${id}`, { method: 'DELETE' }),
+
+    // Phases
+    listPhases: (roadmapId: string) =>
+      request<RoadmapPhaseDoc[]>(`/roadmaps/${roadmapId}/phases`),
+    createPhase: (roadmapId: string, body: {
+      title: string;
+      description?: string;
+      order?: number;
+      startDate?: string;
+      targetDate?: string;
+    }) => request<RoadmapPhaseDoc>(`/roadmaps/${roadmapId}/phases`, { method: 'POST', body: JSON.stringify(body) }),
+    updatePhase: (id: string, body: Record<string, any>) =>
+      request<RoadmapPhaseDoc>(`/roadmaps/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    removePhase: (id: string) => request<{ message: string }>(`/roadmaps/phases/${id}`, { method: 'DELETE' }),
+
+    // Milestones
+    listMilestones: (phaseId: string) =>
+      request<RoadmapMilestoneDoc[]>(`/roadmaps/phases/${phaseId}/milestones`),
+    createMilestone: (phaseId: string, body: {
+      title: string;
+      description?: string;
+      order?: number;
+      targetDate?: string;
+    }) => request<RoadmapMilestoneDoc>(`/roadmaps/phases/${phaseId}/milestones`, { method: 'POST', body: JSON.stringify(body) }),
+    updateMilestone: (id: string, body: Record<string, any>) =>
+      request<RoadmapMilestoneDoc>(`/roadmaps/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    removeMilestone: (id: string) => request<{ message: string }>(`/roadmaps/milestones/${id}`, { method: 'DELETE' }),
   },
 };

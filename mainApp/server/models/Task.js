@@ -35,6 +35,11 @@ const taskSchema = new mongoose.Schema(
     estimatedHours: { type: Number, default: 0 },
     actualHours:    { type: Number, default: 0 },
     sprintStatus:   { type: String, enum: ['backlog', 'ready', 'in_progress', 'review', 'done'], default: 'backlog' },
+
+    // Personal Roadmap links — optional refs to the personal roadmap system.
+    roadmapRef:   { type: mongoose.Schema.Types.ObjectId, ref: 'Roadmap', default: null },
+    phaseRef:     { type: mongoose.Schema.Types.ObjectId, ref: 'RoadmapPhase', default: null },
+    milestoneRef: { type: mongoose.Schema.Types.ObjectId, ref: 'RoadmapMilestone', default: null },
     // R1-P3: git integration context — mirrors src/types/collaboration.ts GitContext.
     gitContext: {
       repository:     { type: String, default: '' },
@@ -59,5 +64,9 @@ taskSchema.index({ userId: 1, createdAt: 1 });
 taskSchema.index({ workspaceRef: 1, sprintRef: 1 });
 taskSchema.index({ featureRef: 1 });
 taskSchema.index({ projectRef: 1 });
+
+// Personal roadmap integration indexes.
+taskSchema.index({ roadmapRef: 1 });
+taskSchema.index({ milestoneRef: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

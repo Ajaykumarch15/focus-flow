@@ -46,6 +46,9 @@ export interface Task {
   totalTime: number;
   tags: string[];
   color: string;
+  roadmapRef?: string;
+  phaseRef?: string;
+  milestoneRef?: string;
 }
 
 export interface ThemeSettings {
