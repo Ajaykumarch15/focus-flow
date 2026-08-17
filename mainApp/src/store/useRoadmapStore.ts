@@ -49,6 +49,8 @@ interface RoadmapState {
 
   clearActiveRoadmap: () => void;
   refreshIfLinked: (roadmapId?: string | null) => Promise<void>;
+  linkTask: (data: { taskId: string; roadmapId: string; phaseId: string; milestoneId: string }) => Promise<void>;
+  unlinkTask: (taskId: string) => Promise<void>;
 }
 
 export const useRoadmapStore = create<RoadmapState>((set, get) => ({
@@ -202,5 +204,33 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
     }
     // Always refresh the list so card progress stays current
     await get().loadRoadmaps();
+  },
+
+  linkTask: async (data) => {
+    try {
+      await api.personalRoadmaps.linkTask(data);
+      const roadmap = get().activeRoadmap;
+      if (roadmap && roadmap._id === data.roadmapId) {
+        await get().getRoadmap(data.roadmapId);
+      }
+      await get().loadRoadmaps();
+      toast.success('Task linked to milestone');
+    } catch (err: any) {
+      toast.error('Failed to link task', err.message);
+      throw err;
+    }
+  },
+
+  unlinkTask: async (taskId) => {
+    try {
+      await api.personalRoadmaps.unlinkTask(taskId);
+      const roadmap = get().activeRoadmap;
+      if (roadmap) await get().getRoadmap(roadmap._id);
+      await get().loadRoadmaps();
+      toast.success('Task unlinked');
+    } catch (err: any) {
+      toast.error('Failed to unlink task', err.message);
+      throw err;
+    }
   },
 }));

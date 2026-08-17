@@ -77,6 +77,74 @@ const ALLOWED_ROADMAP_PATCH = ['title', 'description', 'type', 'startDate', 'tar
 const ALLOWED_PHASE_PATCH = ['title', 'description', 'order', 'startDate', 'targetDate', 'status'];
 const ALLOWED_MILESTONE_PATCH = ['title', 'description', 'order', 'targetDate', 'status'];
 
+// ── TASK LINKING ─────────────────────────────────────────────────────────────
+
+const linkTaskSchema = z.object({
+  taskId: objectId,
+  roadmapId: objectId,
+  phaseId: objectId,
+  milestoneId: objectId,
+}).passthrough();
+
+// GET /api/roadmaps/available-tasks — unlinked tasks for the user
+router.get('/available-tasks', async (req, res, next) => {
+  try {
+    const tasks = await Task.find({
+      userId: req.user._id,
+      milestoneRef: null,
+      status: { $ne: 'completed' },
+    }).select('title priority status category totalTime deadline').sort({ createdAt: -1 }).limit(100);
+    res.json(tasks);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/roadmaps/link-task — link an existing task to a milestone
+router.post('/link-task', validate(linkTaskSchema), async (req, res, next) => {
+  try {
+    const { taskId, roadmapId, phaseId, milestoneId } = req.body;
+
+    const [task, roadmap, phase, milestone] = await Promise.all([
+      Task.findOne({ _id: taskId, userId: req.user._id }),
+      Roadmap.findOne({ _id: roadmapId, userId: req.user._id }),
+      RoadmapPhase.findOne({ _id: phaseId, userId: req.user._id, roadmapId }),
+      RoadmapMilestone.findOne({ _id: milestoneId, userId: req.user._id, phaseId, roadmapId }),
+    ]);
+
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+    if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
+    if (!phase) return res.status(404).json({ message: 'Phase not found' });
+    if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
+
+    const updated = await Task.findByIdAndUpdate(
+      task._id,
+      { $set: { roadmapRef: roadmap._id, phaseRef: phase._id, milestoneRef: milestone._id } },
+      { new: true, runValidators: true },
+    );
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/roadmaps/unlink-task/:taskId — unlink a task from its roadmap
+router.delete('/unlink-task/:taskId', async (req, res, next) => {
+  try {
+    const task = await Task.findOne({ _id: req.params.taskId, userId: req.user._id });
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    await Task.findByIdAndUpdate(task._id, {
+      $set: { roadmapRef: null, phaseRef: null, milestoneRef: null },
+    });
+
+    res.json({ message: 'Task unlinked' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── ROADMAP CRUD ──────────────────────────────────────────────────────────────
 
 // GET /api/roadmaps

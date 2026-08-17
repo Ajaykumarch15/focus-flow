@@ -681,5 +681,12 @@ export const api = {
     updateMilestone: (id: string, body: Record<string, any>) =>
       request<RoadmapMilestoneDoc>(`/roadmaps/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     removeMilestone: (id: string) => request<{ message: string }>(`/roadmaps/milestones/${id}`, { method: 'DELETE' }),
+
+    // Task linking
+    availableTasks: () => request<any[]>('/roadmaps/available-tasks'),
+    linkTask: (body: { taskId: string; roadmapId: string; phaseId: string; milestoneId: string }) =>
+      request<any>('/roadmaps/link-task', { method: 'POST', body: JSON.stringify(body) }),
+    unlinkTask: (taskId: string) =>
+      request<{ message: string }>(`/roadmaps/unlink-task/${taskId}`, { method: 'DELETE' }),
   },
 };

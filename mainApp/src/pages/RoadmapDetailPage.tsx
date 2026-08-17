@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Map, Plus, Calendar, Clock, Target, CheckCircle2,
-  Circle, Trash2, Edit3, Pause, Play,
+  Circle, Trash2, Edit3, Pause, Play, Link,
   ChevronRight, Zap, AlertCircle, Info,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { useStore } from '../store/useStore';
+import { api } from '../utils/api';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
@@ -68,6 +69,7 @@ export function RoadmapDetailPage() {
   const [editingMilestone, setEditingMilestone] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showAddTaskToMilestone, setShowAddTaskToMilestone] = useState<string | null>(null);
+  const [showLinkTaskForMilestone, setShowLinkTaskForMilestone] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
   const [showHealthDetail, setShowHealthDetail] = useState(false);
@@ -591,12 +593,21 @@ export function RoadmapDetailPage() {
                                     <Button size="xs" variant="ghost" onClick={() => { setShowAddTaskToMilestone(null); setNewTaskTitle(''); }}>Cancel</Button>
                                   </div>
                                 ) : (
-                                  <button
-                                    onClick={() => setShowAddTaskToMilestone(milestone._id)}
-                                    className="text-[11px] text-surface-500 hover:text-brand-400 transition-colors flex items-center gap-1"
-                                  >
-                                    <Plus size={11} /> Add Task
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={() => setShowAddTaskToMilestone(milestone._id)}
+                                      className="text-[11px] text-surface-500 hover:text-brand-400 transition-colors flex items-center gap-1"
+                                    >
+                                      <Plus size={11} /> Add Task
+                                    </button>
+                                    <span className="text-surface-700">·</span>
+                                    <button
+                                      onClick={() => setShowLinkTaskForMilestone(milestone._id)}
+                                      className="text-[11px] text-surface-500 hover:text-brand-400 transition-colors flex items-center gap-1"
+                                    >
+                                      <Link size={11} /> Link Task
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             ))}
@@ -724,6 +735,16 @@ export function RoadmapDetailPage() {
           </p>
         </Dialog>
       )}
+
+      {/* Link Task Modal */}
+      {showLinkTaskForMilestone && roadmap && (
+        <LinkTaskModal
+          roadmapId={roadmap._id}
+          phaseId={roadmap.milestones.find(m => m._id === showLinkTaskForMilestone)?.phaseId || ''}
+          milestoneId={showLinkTaskForMilestone}
+          onClose={() => setShowLinkTaskForMilestone(null)}
+        />
+      )}
     </div>
   );
 }
@@ -845,6 +866,94 @@ function EditMilestoneDialog({ milestone, onClose, onSubmit }: { milestone: Road
           <label htmlFor="edit-ms-date" className="block text-sm font-semibold text-surface-200 mb-1.5">Target Date</label>
           <Input id="edit-ms-date" type="date" className="h-10 rounded-xl" value={form.targetDate} onChange={e => setForm(p => ({ ...p, targetDate: e.target.value }))} />
         </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function LinkTaskModal({ roadmapId, phaseId, milestoneId, onClose }: {
+  roadmapId: string;
+  phaseId: string;
+  milestoneId: string;
+  onClose: () => void;
+}) {
+  const { linkTask } = useRoadmapStore();
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [linking, setLinking] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.personalRoadmaps.availableTasks()
+      .then(setTasks)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = tasks.filter(t =>
+    t.title.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleLink = async (taskId: string) => {
+    setLinking(taskId);
+    try {
+      await linkTask({ taskId, roadmapId, phaseId, milestoneId });
+      onClose();
+    } catch {
+      // toast handled by store
+    } finally {
+      setLinking(null);
+    }
+  };
+
+  return (
+    <Dialog open={true} onClose={onClose} title="Link Existing Task" size="lg">
+      <div className="space-y-3">
+        <Input
+          className="h-10 rounded-xl"
+          placeholder="Search tasks..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          autoFocus
+        />
+        {loading ? (
+          <div className="py-8 text-center text-sm text-surface-400">Loading tasks...</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center text-sm text-surface-500">
+            {tasks.length === 0 ? 'No unlinked tasks available.' : 'No tasks match your search.'}
+          </div>
+        ) : (
+          <div className="max-h-64 overflow-y-auto space-y-1 scrollbar-thin">
+            {filtered.map(task => (
+              <div
+                key={task._id}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-surface-800/50 transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-surface-200 truncate">{task.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'neutral'}>
+                      {task.priority}
+                    </Badge>
+                    <span className="text-[11px] text-surface-500">{task.category}</span>
+                    {task.totalTime > 0 && (
+                      <span className="text-[11px] text-surface-500">{formatMs(task.totalTime)}</span>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => handleLink(task._id)}
+                  loading={linking === task._id}
+                  disabled={linking !== null}
+                >
+                  Link
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Dialog>
   );

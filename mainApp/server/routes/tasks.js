@@ -16,6 +16,7 @@ const { localDateToUtc, userTimezone } = require('../utils/dates');
 const { logger } = require('../utils/logger');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 const { assertWithinCapacity } = require('../utils/sprintMetrics');
+const { cascadeTaskStatusChange } = require('../utils/roadmapCascade');
 
 const router = express.Router();
 router.use(protect);
@@ -379,6 +380,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       workspaceId, projectId, sprintId, featureId,
       assigneeId, reviewerId, followerIds, labels, dependencies,
       estimatedHours, actualHours, sprintStatus, gitContext,
+      roadmapRef, phaseRef, milestoneRef,
     } = req.body;
     const hasCollabScope = workspaceId || projectId || sprintId || featureId;
 
@@ -436,6 +438,9 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         projectRef: scope.projectRef || undefined,
         sprintRef: scope.sprintRef || undefined,
         featureRef: scope.featureRef || undefined,
+        roadmapRef: roadmapRef || undefined,
+        phaseRef: phaseRef || undefined,
+        milestoneRef: milestoneRef || undefined,
         assigneeId: assigneeId ?? undefined,
         reviewerId: reviewerId ?? undefined,
         followerIds: followerIds || [],
@@ -470,6 +475,9 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       tags: tags || [],
       subtasks: subtasks || [],
       deadline: encodeDeadline(deadline, userTimezone(req.user)) || undefined,
+      roadmapRef: roadmapRef || undefined,
+      phaseRef: phaseRef || undefined,
+      milestoneRef: milestoneRef || undefined,
     });
 
     logger.debug('task created');
@@ -591,6 +599,10 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
       { new: true, runValidators: true }
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
+    // Cascade milestone/phase auto-status for roadmap-linked tasks (before response)
+    if (task.milestoneRef && patch.status) {
+      await cascadeTaskStatusChange(task).catch(() => {});
+    }
     res.json(task);
     if (req.body.status === 'completed') {
       Activity.create({ userId: req.user._id, action: 'task.completed', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
