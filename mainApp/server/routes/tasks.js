@@ -91,6 +91,10 @@ const collabCreateFields = {
   actualHours: z.number().finite('Invalid actualHours').min(0, 'actualHours must be at least 0').optional(),
   sprintStatus: z.enum(COLLAB_TASK_STATUS).optional(),
   gitContext: gitContextSchema.optional(),
+  // Personal roadmap refs
+  roadmapRef: objectId.optional(),
+  phaseRef: objectId.optional(),
+  milestoneRef: objectId.optional(),
 };
 
 const taskCreateSchema = z.object({
@@ -113,6 +117,10 @@ const taskPatchSchema = z.object({
   dependencies: z.array(objectId).max(100, 'Too many dependencies').optional(),
   estimatedHours: z.number().finite('Invalid estimatedHours').min(0, 'estimatedHours must be at least 0').optional(),
   actualHours: z.number().finite('Invalid actualHours').min(0, 'actualHours must be at least 0').optional(),
+  // Personal roadmap refs
+  roadmapRef: objectId.nullable().optional(),
+  phaseRef: objectId.nullable().optional(),
+  milestoneRef: objectId.nullable().optional(),
 }).partial().passthrough();
 
 const taskParamsSchema = z.object({ id: objectId });

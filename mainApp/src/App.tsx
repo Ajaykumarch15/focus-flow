@@ -41,6 +41,8 @@ const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => 
 const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
 const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
+const RoadmapsPage    = lazy(() => import('./pages/RoadmapsPage').then(module => ({ default: module.RoadmapsPage })));
+const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage').then(module => ({ default: module.RoadmapDetailPage })));
 
 // Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
@@ -198,6 +200,8 @@ export default function App() {
                 <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
+                <Route path="/roadmaps"    element={<RoadmapsPage />} />
+                <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />
                 <Route path="/journal"     element={<Journal />} />
                 <Route path="/habits"      element={<Habits />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />

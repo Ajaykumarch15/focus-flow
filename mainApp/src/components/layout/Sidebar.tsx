@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare, BookOpen,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Lightbulb,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Lightbulb, Map,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -12,6 +12,7 @@ import { useStore } from '../../store/useStore';
 
 const NAV_ITEMS = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Today'  },
+  { to: '/roadmaps',  icon: Map,            label: 'Roadmaps' },
   { to: '/hub',       icon: Building2,       label: 'Workspace Hub' },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
   { to: '/knowledge', icon: Library,         label: 'Knowledge'  },
