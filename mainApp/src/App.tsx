@@ -43,6 +43,8 @@ const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(mo
 const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
 const RoadmapsPage    = lazy(() => import('./pages/RoadmapsPage').then(module => ({ default: module.RoadmapsPage })));
 const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage').then(module => ({ default: module.RoadmapDetailPage })));
+const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
+const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 
 // Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
@@ -105,8 +107,6 @@ function AdminWorkspaceRouter() {
 }
 
 function PersonalWorkspaceRouter() {
-  const { workspace, user } = useAuthStore();
-  if (user?.role === 'admin' && workspace !== 'personal') return <Navigate to="/workspace" replace />;
   return <AppLayout />;
 }
 
@@ -180,11 +180,17 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Workspace Selector (admin users only) */}
+            {/* Workspace Selector */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/workspace" element={
-                user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/hub" replace />
-              } />
+              <Route path="/workspace" element={<WorkspaceSelector />} />
+            </Route>
+
+            {/* WorkLog Workspace Dashboard */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/worklog/dashboard" element={<WorkLogDashboard />} />
+                <Route path="/collab/dashboard" element={<CollabDashboard />} />
+              </Route>
             </Route>
 
             {/* Personal Workspace */}

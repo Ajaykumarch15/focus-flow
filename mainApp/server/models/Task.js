@@ -40,6 +40,9 @@ const taskSchema = new mongoose.Schema(
     roadmapRef:   { type: mongoose.Schema.Types.ObjectId, ref: 'Roadmap', default: null },
     phaseRef:     { type: mongoose.Schema.Types.ObjectId, ref: 'RoadmapPhase', default: null },
     milestoneRef: { type: mongoose.Schema.Types.ObjectId, ref: 'RoadmapMilestone', default: null },
+
+    // Workspace context: 'personal' | 'work' | 'collab'
+    workspaceContext: { type: String, enum: ['personal', 'work', 'collab'], default: 'personal', index: true },
     // R1-P3: git integration context — mirrors src/types/collaboration.ts GitContext.
     gitContext: {
       repository:     { type: String, default: '' },

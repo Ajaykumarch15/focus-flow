@@ -3,28 +3,35 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useStore } from '../../store/useStore';
+import { WORKSPACES, WORKSPACE_LIST, type WorkspaceType } from '../../types/workspace';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
-import { WorkspaceBadge } from './WorkspaceBadge';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '../collaboration/NotificationCenter';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 
 export function GlobalHeader() {
-  const { user, logout, workspace } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const { activeWorkspace, setWorkspace } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [wsOpen, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const wsRef = useRef<HTMLDivElement>(null);
+
+  const wsConfig = WORKSPACES[activeWorkspace];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) setWsOpen(false);
     };
     const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
+      if (e.key === 'Escape') { setMenuOpen(false); setWsOpen(false); }
     };
     document.addEventListener('mousedown', handler);
     document.addEventListener('keydown', keyHandler);
@@ -33,6 +40,14 @@ export function GlobalHeader() {
       document.removeEventListener('keydown', keyHandler);
     };
   }, []);
+
+  const handleSwitch = (ws: WorkspaceType) => {
+    setWorkspace(ws);
+    setWsOpen(false);
+    navigate(ws === 'personal' ? '/dashboard' : ws === 'work' ? '/worklog/dashboard' : '/collab/dashboard');
+  };
+
+  const WsIcon = wsConfig.icon;
 
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
@@ -43,11 +58,62 @@ export function GlobalHeader() {
           aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
           <Menu size={18} />
         </button>
-        <button onClick={() => navigate(workspace === 'admin' ? '/admin/audit' : '/dashboard')}
+        <button onClick={() => navigate(activeWorkspace === 'work' ? '/worklog/dashboard' : activeWorkspace === 'collab' ? '/collab/dashboard' : '/dashboard')}
           className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
           <FocusFlowLogo size="sm" showText={false} />
         </button>
-        <WorkspaceBadge />
+
+        {/* Workspace Switcher */}
+        <div className="relative" ref={wsRef}>
+          <button
+            onClick={() => setWsOpen(!wsOpen)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-800/60 hover:bg-surface-800 border border-surface-800 transition-colors text-xs"
+            aria-label="Switch workspace"
+            aria-expanded={wsOpen}
+          >
+            <WsIcon size={13} style={{ color: wsConfig.color }} />
+            <span className="text-surface-300 font-medium hidden sm:inline">{wsConfig.title}</span>
+            <ChevronDown size={12} className={`text-surface-500 transition-transform duration-150 ${wsOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          <AnimatePresence>
+            {wsOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setWsOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute right-0 top-full mt-2 w-56 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 p-1.5"
+                >
+                  <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-surface-500">
+                    Switch Workspace
+                  </div>
+                  {WORKSPACE_LIST.map((ws) => {
+                    const Ic = ws.icon;
+                    const isActive = ws.id === activeWorkspace;
+                    return (
+                      <button
+                        key={ws.id}
+                        onClick={() => handleSwitch(ws.id)}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                          isActive ? 'bg-surface-700 text-surface-50' : 'text-surface-300 hover:bg-surface-700/50 hover:text-surface-100'
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${ws.color}15`, color: ws.color }}>
+                          <Ic size={12} />
+                        </div>
+                        <span className="text-xs font-semibold truncate">{ws.title}</span>
+                        {isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Center: Breadcrumbs */}

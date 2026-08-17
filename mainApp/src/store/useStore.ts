@@ -24,6 +24,7 @@ import type {
 } from '../types';
 import { useWorkLogStore } from './useWorkLogStore';
 import { useRoadmapStore } from './useRoadmapStore';
+import { useWorkspaceStore } from './useWorkspaceStore';
 import { toast } from './useToastStore';
 import { generateBrandShades } from '../utils/colorUtils';
 
@@ -163,6 +164,7 @@ function mapTask(doc: any): Task {
     roadmapRef: doc.roadmapRef ? String(doc.roadmapRef) : undefined,
     phaseRef: doc.phaseRef ? String(doc.phaseRef) : undefined,
     milestoneRef: doc.milestoneRef ? String(doc.milestoneRef) : undefined,
+    workspaceContext: doc.workspaceContext || 'personal',
   };
 }
 
@@ -401,7 +403,8 @@ export const useStore = create<StoreState>((set, get) => {
       };
       set(s => ({ tasks: [tempTask, ...s.tasks] }));
       try {
-        const doc = await api.tasks.create({ ...data, deadline: data.deadline || undefined });
+        const wsCtx = useWorkspaceStore.getState().activeWorkspace;
+        const doc = await api.tasks.create({ ...data, deadline: data.deadline || undefined, workspaceContext: data.workspaceContext || wsCtx });
         const real = mapTask(doc);
         set(s => ({ tasks: s.tasks.map(t => t.id === tempId ? real : t) }));
         return real.id;

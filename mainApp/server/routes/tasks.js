@@ -381,6 +381,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       assigneeId, reviewerId, followerIds, labels, dependencies,
       estimatedHours, actualHours, sprintStatus, gitContext,
       roadmapRef, phaseRef, milestoneRef,
+      workspaceContext,
     } = req.body;
     const hasCollabScope = workspaceId || projectId || sprintId || featureId;
 
@@ -441,6 +442,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         roadmapRef: roadmapRef || undefined,
         phaseRef: phaseRef || undefined,
         milestoneRef: milestoneRef || undefined,
+        workspaceContext: workspaceContext || 'personal',
         assigneeId: assigneeId ?? undefined,
         reviewerId: reviewerId ?? undefined,
         followerIds: followerIds || [],
@@ -478,6 +480,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       roadmapRef: roadmapRef || undefined,
       phaseRef: phaseRef || undefined,
       milestoneRef: milestoneRef || undefined,
+      workspaceContext: workspaceContext || 'personal',
     });
 
     logger.debug('task created');

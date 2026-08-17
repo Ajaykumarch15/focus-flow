@@ -49,6 +49,7 @@ export interface Task {
   roadmapRef?: string;
   phaseRef?: string;
   milestoneRef?: string;
+  workspaceContext?: 'personal' | 'work' | 'collab';
 }
 
 export interface ThemeSettings {

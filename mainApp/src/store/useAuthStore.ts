@@ -14,7 +14,7 @@ interface AuthUser {
   driveSyncError?: string;
 }
 
-export type Workspace = 'personal' | 'admin';
+export type Workspace = 'personal' | 'admin' | 'work' | 'collab';
 
 interface AuthState {
   user:    AuthUser | null;
