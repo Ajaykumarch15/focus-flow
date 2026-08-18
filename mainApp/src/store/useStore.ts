@@ -61,11 +61,16 @@ function saveCache(key: string, value: unknown): void {
 const HEARTBEAT_INTERVAL_MS = 30_000;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-function startHeartbeat(sessionId: string | null): void {
+function startHeartbeat(sessionId: string | null, onStale?: () => void): void {
   stopHeartbeat();
   if (!sessionId) return;
   heartbeatTimer = setInterval(() => {
-    api.sessions.heartbeat(sessionId).catch(() => { /* silent: next beat retries */ });
+    api.sessions.heartbeat(sessionId).catch((err: any) => {
+      if (err?.message?.includes('404') || err?.message?.includes('not found')) {
+        stopHeartbeat();
+        onStale?.();
+      }
+    });
   }, HEARTBEAT_INTERVAL_MS);
 }
 
@@ -364,7 +369,16 @@ export const useStore = create<StoreState>((set, get) => {
 
         // IES-P1-26: a timer restored from the backend (or local storage) must
         // resume beating, or the reaper will close it as a zombie.
-        startHeartbeat(engineSnap.sessionId);
+        startHeartbeat(engineSnap.sessionId, () => {
+          timerEngine.hydrate(null);
+          set({
+            activeTaskId: null,
+            activeSessionId: null,
+            activeTimerState: 'idle',
+            currentSessionStart: undefined,
+            currentPauseStart: undefined,
+          });
+        });
 
         set({
           tasks: baseTasks,
@@ -476,6 +490,11 @@ export const useStore = create<StoreState>((set, get) => {
       if (!ids.length) return;
       const now = Date.now();
       try {
+        for (const id of ids) {
+          if (timerEngine.getActiveTaskId() === id) {
+            await get().stopTimer(id);
+          }
+        }
         set(s => ({
           tasks: s.tasks.map(t => ids.includes(t.id) ? { ...t, status: 'completed' as const, completedAt: now } : t),
           selectedTaskIds: new Set(),
@@ -545,7 +564,16 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         const sessionDoc = await api.sessions.start(taskId, now, opId);
         timerEngine.setSessionId(sessionDoc._id);
-        startHeartbeat(sessionDoc._id);
+        startHeartbeat(sessionDoc._id, () => {
+          timerEngine.hydrate(null);
+          set({
+            activeTaskId: null,
+            activeSessionId: null,
+            activeTimerState: 'idle',
+            currentSessionStart: undefined,
+            currentPauseStart: undefined,
+          });
+        });
       } catch (err) {
         console.warn('Network issue on session start. Enqueuing offline op.');
         offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId);
