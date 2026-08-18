@@ -232,10 +232,6 @@ async function buildSummaryDays({ userId, fromKey, toKey, timeZone }) {
     }
     dayMap[day].completedCount += 1;
   }
-    dayMap[day].totalMs += session.activeTime || 0;
-    dayMap[day].sessionCount += 1;
-    if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());
-  }
 
   for (const log of workLogs) {
     const entryDays = (log.workEntries || [])
