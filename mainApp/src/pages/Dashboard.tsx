@@ -10,7 +10,7 @@ import { useStore } from '../store/useStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { timerEngine } from '../utils/timerEngine';
 import { api } from '../utils/api';
-import { formatHours, formatMs, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, startOfDay } from '../utils/time';
+import { formatHours, formatMs, getWeekDays, isToday, isOverdue, startOfToday, getWeekStart, startOfDayInTz } from '../utils/time';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -110,7 +110,7 @@ export function Dashboard() {
 
   useEffect(() => {
     api.sessions.list().then(setSessions).catch(console.error);
-  }, [activeTaskId]);
+  }, []);
 
   useEffect(() => {
     if (activeTimerState !== 'idle') {
@@ -123,7 +123,7 @@ export function Dashboard() {
 
   // ── Time calculations ────────────────────────────────────────────────────
 
-  const todayMs = getTodayTime();
+  const todayMs = useMemo(() => getTodayTime(), [activeTimerState, tick]);
 
   const weekMs = useMemo(() => {
     const ws = getWeekStart();
@@ -150,19 +150,46 @@ export function Dashboard() {
   // ── Weekly chart data ────────────────────────────────────────────────────
 
   const days = getWeekDays();
-  const weekData = useMemo(() => days.map((day, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const start = startOfDay(d); const end = start + 86399999;
+  const tz = profile.timezone;
+  const dayRanges = useMemo(() => {
+    const ranges: { start: number; end: number }[] = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const start = startOfDayInTz(d.getTime(), tz);
+      ranges.push({ start, end: start + 86399999 });
+    }
+    return ranges;
+  }, [tz]);
+  const todayIdx = dayRanges.length - 1;
+
+  const pastWeekData = useMemo(() => {
+    return dayRanges.slice(0, todayIdx).map((range, i) => {
+      let hours = 0;
+      for (const s of sessions) {
+        if (s.startTime >= range.start && s.startTime <= range.end) hours += (s.activeTime || 0) / 3600000;
+      }
+      return { day: days[i], hours: Math.round(hours * 10) / 10 };
+    });
+  }, [sessions, dayRanges, todayIdx, days.join()]);
+
+  const todayRange = dayRanges[todayIdx];
+  const liveTodayHours = useMemo(() => {
     let hours = 0;
     for (const s of sessions) {
-      if (s.startTime >= start && s.startTime <= end) hours += (s.activeTime || 0) / 3600000;
+      if (s.startTime >= todayRange.start && s.startTime <= todayRange.end) hours += (s.activeTime || 0) / 3600000;
     }
     if (activeTimerState !== 'idle' && currentSessionStart &&
-        currentSessionStart >= start && currentSessionStart <= end) {
+        currentSessionStart >= todayRange.start && currentSessionStart <= todayRange.end) {
       hours += timerEngine.getElapsedMs() / 3600000;
     }
-    return { day, hours: Math.round(hours * 10) / 10 };
-  }), [sessions, activeTimerState, currentSessionStart, days.join(), tick]);
+    return Math.round(hours * 10) / 10;
+  }, [sessions, activeTimerState, currentSessionStart, todayRange, tick]);
+
+  const weekData = useMemo(() => {
+    return [...pastWeekData, { day: days[todayIdx], hours: liveTodayHours }];
+  }, [pastWeekData, days, todayIdx, liveTodayHours]);
 
   const weekHoursTotal = weekData.reduce((s, d) => s + d.hours, 0);
   const weekAvg = weekHoursTotal / 7;
@@ -170,12 +197,12 @@ export function Dashboard() {
 
   // ── Motivational message ─────────────────────────────────────────────────
 
-  const greeting = useMemo(() => {
+  const greeting = (() => {
     const h = new Date().getHours();
     if (h < 12) return 'Good morning';
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
-  }, []);
+  })();
 
   const motivation = useMemo(() => {
     if (dailyGoalProgress >= 100) return "You've crushed today's goal. Incredible focus.";

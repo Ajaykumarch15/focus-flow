@@ -202,8 +202,8 @@ async function buildSummaryDays({ userId, fromKey, toKey, timeZone }) {
       userId,
       $or: [
         { createdAt: { $gte: from, $lt: to } },
-        { updatedAt: { $gte: from, $lt: end } },
-        { 'workEntries.date': { $gte: from, $lt: end } },
+        { updatedAt: { $gte: from, $lt: to } },
+        { 'workEntries.date': { $gte: from, $lt: to } },
       ],
     }),
     Task.find({

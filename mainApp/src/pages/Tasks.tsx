@@ -38,6 +38,12 @@ export function Tasks() {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const handleStatusFilter = (status: TaskStatus | 'all') => {
+    setFilterStatus(status);
+    if (status === 'completed') setShowCompleted(true);
+    else if (status !== 'all') setShowCompleted(false);
+  };
+
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 
   const filtered = useMemo(() => tasks.filter(task => {
@@ -49,7 +55,7 @@ export function Tasks() {
       const q = search.toLowerCase();
       if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
     }
-    if (showOverdueOnly && !isOverdue(task.deadline)) return false;
+    if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
     return true;
   }), [tasks, filterStatus, filterPriority, filterCategory, search, showCompleted, showOverdueOnly]);
 
@@ -190,7 +196,7 @@ export function Tasks() {
 
         <select
           value={filterStatus}
-          onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
+          onChange={e => handleStatusFilter(e.target.value as TaskStatus | 'all')}
           className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
         >
           <option value="all">All Status</option>
@@ -234,7 +240,11 @@ export function Tasks() {
         <Button
           variant={showCompleted ? 'primary' : 'ghost'}
           size="sm"
-          onClick={() => setShowCompleted(!showCompleted)}
+          onClick={() => {
+            const next = !showCompleted;
+            setShowCompleted(next);
+            setFilterStatus(next ? 'completed' : 'all');
+          }}
           className="gap-1.5"
         >
           <CheckCircle size={14} />
@@ -290,10 +300,10 @@ export function Tasks() {
         </motion.div>
       ) : (
         <EmptyState
-          icon={search || filterStatus !== 'all' || filterPriority !== 'all' ? <Search size={24} /> : <Target size={24} />}
-          title={search || filterStatus !== 'all' || filterPriority !== 'all' ? 'No matching tasks' : 'No tasks yet'}
-          description={search || filterStatus !== 'all' || filterPriority !== 'all' ? 'Try adjusting your filters or search query.' : 'Create your first task to get started with focused work.'}
-          action={!search && filterStatus === 'all' && filterPriority === 'all' ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : undefined}
+          icon={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? <Search size={24} /> : <Target size={24} />}
+          title={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? 'No matching tasks' : 'No tasks yet'}
+          description={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? 'Try adjusting your filters or search query.' : 'Create your first task to get started with focused work.'}
+          action={!search && filterStatus === 'all' && filterPriority === 'all' && showCompleted && !showOverdueOnly ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : undefined}
         />
       )}
 
