@@ -1,18 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Search, CheckCircle, AlertTriangle, Circle,
-  Target, Flame, Zap, X,
+  Plus, Search, CheckCircle, AlertTriangle,
+  Target,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TaskCard } from '../components/tasks/TaskCard';
+import { BulkActionBar } from '../components/tasks/BulkActionBar';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Priority, TaskStatus } from '../types';
 import { CATEGORIES } from '../utils/colors';
 import { isOverdue } from '../utils/time';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { EmptyState } from '../components/ui/EmptyState';
 
@@ -20,7 +21,11 @@ const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export function Tasks() {
-  const { tasks, profile } = useStore();
+  const {
+    tasks,
+    selectedTaskIds, toggleTaskSelection, selectAllTasks, clearTaskSelection,
+    bulkCompleteTasks, bulkDeleteTasks, persistTaskOrder, reorderTasks,
+  } = useStore();
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
@@ -29,239 +34,291 @@ export function Tasks() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'default' | 'deadline' | 'priority'>('default');
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 
   const filtered = useMemo(() => tasks.filter(task => {
     if (!showCompleted && task.status === 'completed') return false;
-    if (search && !task.title.toLowerCase().includes(search.toLowerCase())) return false;
     if (filterStatus !== 'all' && task.status !== filterStatus) return false;
     if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
     if (filterCategory !== 'all' && task.category !== filterCategory) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
+    }
     if (showOverdueOnly && !isOverdue(task.deadline)) return false;
     return true;
-  }), [tasks, showCompleted, search, filterStatus, filterPriority, filterCategory, showOverdueOnly]);
+  }), [tasks, filterStatus, filterPriority, filterCategory, search, showCompleted, showOverdueOnly]);
 
-  const active = filtered.filter(t => t.status !== 'completed');
-  const completed = filtered.filter(t => t.status === 'completed');
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sortBy === 'deadline') arr.sort((a, b) => (a.deadline || Infinity) - (b.deadline || Infinity));
+    else if (sortBy === 'priority') arr.sort((a, b) => (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99));
+    else arr.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return arr;
+  }, [filtered, sortBy]);
 
-  const sortedActive = useMemo(() => [...active].sort((a, b) => {
-    if (sortBy === 'deadline') {
-      if (!a.deadline && !b.deadline) return 0;
-      if (!a.deadline) return 1;
-      if (!b.deadline) return -1;
-      return a.deadline - b.deadline;
+  const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
+
+  const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
+  const hasSelection = selectedArray.length > 0;
+
+  // ── Keyboard Shortcuts ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const inDialog = (e.target as HTMLElement).closest('[role="dialog"]');
+      if (inDialog) return;
+
+      // Escape → clear selection
+      if (e.key === 'Escape' && hasSelection) {
+        e.preventDefault();
+        clearTaskSelection();
+        return;
+      }
+
+      // Delete/Backspace → open bulk delete confirm
+      if ((e.key === 'Delete' || e.key === 'Backspace') && hasSelection) {
+        e.preventDefault();
+        setShowBulkDeleteConfirm(true);
+        return;
+      }
+
+      // Ctrl/Cmd + A → select all visible
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        if (filteredIds.length > 0) selectAllTasks(filteredIds);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [hasSelection, filteredIds, clearTaskSelection, selectAllTasks]);
+
+  // ── Drag & Drop ─────────────────────────────────────────────────────────────
+  const dragIdRef = useRef<string | null>(null);
+
+  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
+    dragIdRef.current = id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', id);
+    const el = e.currentTarget as HTMLElement;
+    requestAnimationFrame(() => { el.style.opacity = '0.4'; });
+  }, []);
+
+  const handleDragEnd = useCallback((e: React.DragEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    el.style.opacity = '1';
+    dragIdRef.current = null;
+    setDragOverId(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragIdRef.current && dragIdRef.current !== id) {
+      setDragOverId(id);
     }
-    if (sortBy === 'priority') {
-      return (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2);
-    }
-    return 0;
-  }), [active, sortBy]);
+  }, []);
 
-  const overdueCount = tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length;
-  const totalCompleted = tasks.filter(t => t.status === 'completed').length;
-  const totalActive = tasks.filter(t => t.status !== 'completed').length;
-  const hasFilters = search || filterStatus !== 'all' || filterPriority !== 'all' || filterCategory !== 'all' || showOverdueOnly;
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    const sourceId = dragIdRef.current;
+    if (!sourceId || sourceId === targetId) { setDragOverId(null); return; }
 
-  const clearFilters = () => {
-    setSearch(''); setFilterStatus('all'); setFilterPriority('all');
-    setFilterCategory('all'); setShowOverdueOnly(false); setSortBy('default');
+    const currentTasks = useStore.getState().tasks;
+    const sourceIdx = currentTasks.findIndex(t => t.id === sourceId);
+    const targetIdx = currentTasks.findIndex(t => t.id === targetId);
+    if (sourceIdx === -1 || targetIdx === -1) { setDragOverId(null); return; }
+
+    const reordered = [...currentTasks];
+    const [moved] = reordered.splice(sourceIdx, 1);
+    reordered.splice(targetIdx, 0, moved);
+
+    const orderedIds = reordered.map(t => t.id);
+    reorderTasks(reordered.map((t, i) => ({ ...t, order: i })));
+    persistTaskOrder(orderedIds);
+    setDragOverId(null);
+  }, [reorderTasks, persistTaskOrder]);
+
+  const handleDragLeave = useCallback(() => { setDragOverId(null); }, []);
+
+  // ── Bulk Actions ────────────────────────────────────────────────────────────
+  const handleBulkComplete = () => {
+    if (selectedArray.length === 0) return;
+    bulkCompleteTasks(selectedArray);
+  };
+
+  const handleBulkDeleteConfirm = () => {
+    if (selectedArray.length === 0) return;
+    bulkDeleteTasks(selectedArray);
+    setShowBulkDeleteConfirm(false);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedArray.length === filteredIds.length) clearTaskSelection();
+    else selectAllTasks(filteredIds);
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6" ref={containerRef}>
+      {/* Header */}
+      <PageHeader
+        title="Tasks"
+        description="Manage your personal tasks and focus sessions."
+        actions={
+          <Button onClick={() => setShowCreate(true)} className="gap-2">
+            <Plus size={16} /> Add Task
+          </Button>
+        }
+      />
 
-      {/* ═══ Hero Header ═══ */}
-      <motion.div variants={fadeUp} initial="hidden" animate="show"
-        className="relative rounded-2xl border border-surface-800/60 bg-surface-900 p-6 lg:p-8 overflow-hidden">
-        <div className="absolute top-0 right-0 w-[400px] h-[200px] opacity-10 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at top right, var(--color-brand-500), transparent 70%)' }} />
-        <div className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <PageHeader title="Tasks" description={`${totalActive} active · ${totalCompleted} completed${overdueCount > 0 ? ` · ${overdueCount} overdue` : ''}`}
-            actions={
-              <Button leftIcon={<Plus size={16} />} onClick={() => setShowCreate(true)}>
-                New Task
-              </Button>
-            } />
+      {/* Filters */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-wrap gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <Input
+            placeholder="Search tasks..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
         </div>
 
-        {/* Quick stats */}
-        <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
-          {[
-            { icon: Target, label: 'Active Tasks', value: String(totalActive), color: 'text-brand-400', bg: 'bg-brand-500/10' },
-            { icon: Flame, label: 'Streak', value: `${profile.streak?.current || 0}d`, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-            { icon: Zap, label: 'Points', value: (profile.totalPoints || 0).toLocaleString(), color: 'text-purple-400', bg: 'bg-purple-500/10' },
-          ].map(({ icon: Icon, label, value, color, bg }) => (
-            <motion.div key={label} variants={fadeUp}>
-              <Card className="flex items-center gap-3 p-3">
-                <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center flex-shrink-0`}>
-                  <Icon size={14} className={color} />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-surface-100">{value}</p>
-                  <p className="text-[10px] text-surface-400 font-medium">{label}</p>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
+          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+        >
+          <option value="all">All Status</option>
+          <option value="todo">To Do</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="completed">Completed</option>
+        </select>
+
+        <select
+          value={filterPriority}
+          onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
+          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+        >
+          <option value="all">All Priority</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+
+        <select
+          value={filterCategory}
+          onChange={e => setFilterCategory(e.target.value)}
+          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+        >
+          <option value="all">All Categories</option>
+          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={sortBy}
+          onChange={e => setSortBy(e.target.value as typeof sortBy)}
+          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+        >
+          <option value="default">Default Order</option>
+          <option value="deadline">Deadline</option>
+          <option value="priority">Priority</option>
+        </select>
+
+        <Button
+          variant={showCompleted ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setShowCompleted(!showCompleted)}
+          className="gap-1.5"
+        >
+          <CheckCircle size={14} />
+          Completed
+        </Button>
+
+        <Button
+          variant={showOverdueOnly ? 'primary' : 'ghost'}
+          size="sm"
+          onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+          className="gap-1.5"
+        >
+          <AlertTriangle size={14} />
+          Overdue
+        </Button>
+      </motion.div>
+
+      {/* Selection info */}
+      {hasSelection && (
+        <div className="flex items-center gap-2 text-xs text-surface-400">
+          <span>{selectedArray.length} task{selectedArray.length > 1 ? 's' : ''} selected</span>
+          <button onClick={clearTaskSelection} className="text-brand-400 hover:text-brand-300 underline">Clear</button>
+        </div>
+      )}
+
+      {/* Task List */}
+      {sorted.length > 0 ? (
+        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+          <AnimatePresence mode="popLayout">
+            {sorted.map(task => (
+              <motion.div
+                key={task.id}
+                variants={fadeUp}
+                layout
+                onDragOver={(e) => handleDragOver(e as any, task.id)}
+                onDrop={(e) => handleDrop(e as any, task.id)}
+                onDragLeave={handleDragLeave}
+                className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
+              >
+                <TaskCard
+                  task={task}
+                  selected={selectedTaskIds.has(task.id)}
+                  onToggleSelect={toggleTaskSelection}
+                  dragHandleProps={{
+                    draggable: true,
+                    onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
+                    onDragEnd: handleDragEnd,
+                  }}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </motion.div>
-      </motion.div>
+      ) : (
+        <EmptyState
+          icon={search || filterStatus !== 'all' || filterPriority !== 'all' ? <Search size={24} /> : <Target size={24} />}
+          title={search || filterStatus !== 'all' || filterPriority !== 'all' ? 'No matching tasks' : 'No tasks yet'}
+          description={search || filterStatus !== 'all' || filterPriority !== 'all' ? 'Try adjusting your filters or search query.' : 'Create your first task to get started with focused work.'}
+          action={!search && filterStatus === 'all' && filterPriority === 'all' ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : undefined}
+        />
+      )}
 
-      {/* ═══ Overdue Warning ═══ */}
-      <AnimatePresence>
-        {overdueCount > 0 && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
-            <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle size={16} className="text-danger-500" />
-            </div>
-            <p className="text-sm text-danger-400 font-semibold">
-              {overdueCount} overdue task{overdueCount !== 1 ? 's' : ''}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        visible={hasSelection}
+        selectedIds={selectedArray}
+        onSelectAll={handleSelectAll}
+        totalCount={filteredIds.length}
+        onComplete={handleBulkComplete}
+        onDelete={() => setShowBulkDeleteConfirm(true)}
+      />
 
-      {/* ═══ Command Toolbar ═══ */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <Card className="p-4 lg:p-5 space-y-3">
-          {/* Search */}
-          <div className="relative">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-            <Input className="h-11 pl-10 pr-4"
-              placeholder="Search tasks…" value={search} onChange={e => setSearch(e.target.value)} />
-            {search && (
-              <button onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
-                <X size={14} />
-              </button>
-            )}
-          </div>
+      {/* Bulk Delete Confirm */}
+      <ConfirmDialog
+        isOpen={showBulkDeleteConfirm}
+        title={`Delete ${selectedArray.length} task${selectedArray.length > 1 ? 's' : ''}?`}
+        message={`This will permanently remove ${selectedArray.length} task${selectedArray.length > 1 ? 's' : ''} and all their associated data. This action cannot be undone.`}
+        confirmLabel="Delete Tasks"
+        onConfirm={handleBulkDeleteConfirm}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+      />
 
-          {/* Filter chips row */}
-          <div className="flex gap-1.5 flex-wrap items-center">
-            {/* Status */}
-            {(['all', 'todo', 'active', 'paused'] as const).map(s => (
-              <FilterChip key={s} active={filterStatus === s} onClick={() => setFilterStatus(s)}>
-                {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-              </FilterChip>
-            ))}
-
-            <div className="w-px h-5 bg-surface-800 mx-1" />
-
-            {/* Priority */}
-            {(['all', 'urgent', 'high', 'medium', 'low'] as const).map(p => (
-              <FilterChip key={p} active={filterPriority === p} onClick={() => setFilterPriority(p)}>
-                {p === 'all' ? 'Priority' : p.charAt(0).toUpperCase() + p.slice(1)}
-              </FilterChip>
-            ))}
-
-            <div className="w-px h-5 bg-surface-800 mx-1" />
-
-            {/* Category */}
-            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-850 text-surface-400 border border-surface-800 hover:text-surface-200 hover:border-surface-700 transition-all cursor-pointer outline-none">
-              <option value="all">Category</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-
-            <div className="w-px h-5 bg-surface-800 mx-1" />
-
-            {/* Overdue */}
-            <FilterChip active={showOverdueOnly} activeClass="bg-danger-500/15 text-danger-400 border-danger-500/30"
-              onClick={() => setShowOverdueOnly(!showOverdueOnly)}>
-              <AlertTriangle size={12} />
-              Overdue {overdueCount > 0 && `(${overdueCount})`}
-            </FilterChip>
-
-            {/* Sort */}
-            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface-850 text-surface-400 border border-surface-800 hover:text-surface-200 hover:border-surface-700 transition-all cursor-pointer outline-none">
-              <option value="default">Default Order</option>
-              <option value="deadline">Deadline</option>
-              <option value="priority">Priority</option>
-            </select>
-
-            {/* Clear */}
-            {hasFilters && (
-              <button onClick={clearFilters}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-danger-400 hover:bg-danger-500/10 border border-danger-500/20 transition-all flex items-center gap-1">
-                <X size={11} /> Clear
-              </button>
-            )}
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* ═══ Task List ═══ */}
-      <div className="space-y-3">
-        <AnimatePresence mode="popLayout">
-          {sortedActive.map(task => (
-            <TaskCard key={task.id} task={task} />
-          ))}
-        </AnimatePresence>
-
-        {active.length === 0 && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
-            <EmptyState
-              icon={<Circle size={28} className="text-brand-400" />}
-              title={hasFilters ? 'No matching tasks' : 'No tasks yet'}
-              description={hasFilters
-                ? "Try adjusting your filters or search query to find what you're looking for."
-                : 'Create your first task to start tracking focus time and building momentum.'}
-              action={
-                hasFilters
-                  ? <Button variant="secondary" onClick={clearFilters}>Clear Filters</Button>
-                  : <Button leftIcon={<Plus size={15} />} onClick={() => setShowCreate(true)}>Create Task</Button>
-              }
-            />
-          </motion.div>
-        )}
-
-        {/* Completed Section */}
-        {completed.length > 0 && (
-          <div className="pt-4">
-            <Button variant="ghost" size="sm"
-              leftIcon={<CheckCircle size={15} className="text-success-400" />}
-              onClick={() => setShowCompleted(!showCompleted)}>
-              Completed ({completed.length})
-              <motion.span animate={{ rotate: showCompleted ? 180 : 0 }} transition={{ duration: 0.2 }}
-                className="inline-block text-surface-500">
-                ↓
-              </motion.span>
-            </Button>
-            <AnimatePresence>
-              {showCompleted && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden mt-3">
-                  {completed.map(task => <TaskCard key={task.id} task={task} />)}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-
-      <AnimatePresence>
-        {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} />}
-      </AnimatePresence>
+      {/* Create Task Modal */}
+      {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} />}
     </div>
-  );
-}
-
-function FilterChip({ active, activeClass, onClick, children }: {
-  active: boolean; activeClass?: string; onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-        active
-          ? activeClass || 'bg-brand-500/15 text-brand-400 border-brand-500/30'
-          : 'bg-surface-850 text-surface-400 border-surface-800 hover:text-surface-200 hover:border-surface-700'
-      }`}>
-      {children}
-    </button>
   );
 }

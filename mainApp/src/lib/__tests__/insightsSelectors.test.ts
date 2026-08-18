@@ -54,6 +54,7 @@ function task(id: string, overrides: Partial<Task> = {}): Task {
     subtasks: [],
     sessions: [],
     totalTime: 0,
+    order: 0,
     tags: [],
     ...overrides,
   };

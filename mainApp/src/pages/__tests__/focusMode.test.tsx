@@ -135,7 +135,7 @@ describe('FocusMode page (S1-T6)', () => {
 
   it('keeps both columns readable when a focus task is selected', async () => {
     useStore.setState({
-      tasks: [{ id: 't-1', title: 'Build the focus workspace', description: '', priority: 'medium', status: 'todo', category: 'Work', color: '#0ea5e9', tags: [], subtasks: [], sessions: [], totalTime: 1_800_000, createdAt: Date.now() - 60_000, updatedAt: Date.now() - 60_000 }],
+      tasks: [{ id: 't-1', title: 'Build the focus workspace', description: '', priority: 'medium', status: 'todo', category: 'Work', color: '#0ea5e9', tags: [], subtasks: [], sessions: [], totalTime: 1_800_000, order: 0, createdAt: Date.now() - 60_000, updatedAt: Date.now() - 60_000 }],
       activeTaskId: 't-1',
     });
     const { container, root } = render(<FocusMode />);

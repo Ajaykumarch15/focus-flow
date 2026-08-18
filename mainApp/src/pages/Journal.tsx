@@ -41,6 +41,7 @@ export function Journal() {
 
     setContent('');
     setMood(3);
+    setTaskId('');
     setShowAdd(false);
   };
 

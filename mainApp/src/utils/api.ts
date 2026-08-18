@@ -641,6 +641,10 @@ export const api = {
   // ── Personal Roadmaps ──────────────────────────────────────────────────────
   personalRoadmaps: {
     list: () => request<RoadmapListItem[]>('/roadmaps'),
+    analytics: (days?: number) => {
+      const q = days && days > 0 ? `?days=${days}` : '';
+      return request<any>(`/roadmaps/analytics${q}`);
+    },
     get: (id: string) => request<RoadmapDetail>(`/roadmaps/${id}`),
     create: (body: {
       title: string;
@@ -689,4 +693,30 @@ export const api = {
     unlinkTask: (taskId: string) =>
       request<{ message: string }>(`/roadmaps/unlink-task/${taskId}`, { method: 'DELETE' }),
   },
+
+  schedules: {
+    list: (params?: { date?: string; from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.date) qs.set('date', params.date);
+      if (params?.from) qs.set('from', params.from);
+      if (params?.to) qs.set('to', params.to);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return request<import('../types').ScheduleItem[]>(`/schedules${query}`);
+    },
+    create: (payload: import('../types').ScheduleCreatePayload) =>
+      request<{ schedule: import('../types').ScheduleItem; warning?: string }>('/schedules', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    update: (id: string, payload: import('../types').ScheduleUpdatePayload) =>
+      request<{ schedule: import('../types').ScheduleItem; warning?: string }>(`/schedules/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean; message: string }>(`/schedules/${id}`, {
+        method: 'DELETE',
+      }),
+  },
 };
+

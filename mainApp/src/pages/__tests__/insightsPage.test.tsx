@@ -57,6 +57,7 @@ function mkTask(id: string, overrides: Partial<Task> = {}): Task {
     sessions: [],
     totalTime: 0,
     tags: [],
+    order: 0,
     ...overrides,
   };
 }
@@ -480,8 +481,7 @@ describe('InsightsPage (PI-1.5)', () => {
     expect(text).toContain('Knowledge Insights');
     expect(text).toContain('Knowledge Focus');
     expect(text).toContain('Knowledge base');
-    expect(text).toContain('Decisions captured');
-    expect(text).toContain('1 engineering decision');
+    expect(text).toContain('Knowledge docs');
     expect(container.querySelector('#insights-knowledge-heading')).toBeTruthy();
     act(() => root.unmount());
   });

@@ -20,6 +20,8 @@ const taskSchema = new mongoose.Schema(
     // Total ms of active (non-paused) work — updated on every session stop
     totalTime: { type: Number, default: 0 },
     order: { type: Number, default: 0 },
+    // Timestamp when the task was marked completed; cleared on reopen
+    completedAt: { type: Date, default: null },
     // R1-P3: collaboration links (docs/migration-recommendation-1.md §3.3).
     // All default to null/empty so existing personal-task behavior is unchanged.
     // A personal task is exactly one with `userId` set AND `workspaceRef: null`.

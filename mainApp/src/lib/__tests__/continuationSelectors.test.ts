@@ -22,6 +22,7 @@ function mkTask(id: string, overrides: Partial<Task> = {}): Task {
     subtasks: [],
     sessions: [],
     totalTime: 0,
+    order: 0,
     createdAt: NOW - 60_000,
     updatedAt: NOW - 60_000,
     ...overrides,

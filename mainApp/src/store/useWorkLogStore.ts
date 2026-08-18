@@ -417,21 +417,31 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   },
 
   updateNestedField: async (id, parentField, childField, value) => {
-    set(s => {
-      const updateObj = (l: WorkLog) => {
-        if (l._id !== id) return l;
-        const parent = { ...((l[parentField as keyof WorkLog] as Record<string, unknown> | undefined) || {}), [childField]: value };
-        return { ...l, [parentField as keyof WorkLog]: parent };
-      };
-      const activeLogs = s.activeLogs.map(updateObj);
-      const closedLogs = s.closedLogs.map(updateObj);
-      const todayLog = s.todayLog?._id === id
-        ? activeLogs.find(l => l._id === id) ?? s.todayLog
-        : getTodayLog(activeLogs);
-      cacheLogs(activeLogs, closedLogs, todayLog);
-      return { activeLogs, closedLogs, todayLog };
-    });
-    await api.workLogs.update(id, { [`${parentField}.${childField}`]: value });
+    const prev = get();
+    await runMutation(
+      () => {
+        set(s => {
+          const updateObj = (l: WorkLog) => {
+            if (l._id !== id) return l;
+            const parent = { ...((l[parentField as keyof WorkLog] as unknown as Record<string, unknown>) || {}), [childField]: value };
+            return { ...l, [parentField as keyof WorkLog]: parent };
+          };
+          const activeLogs = s.activeLogs.map(updateObj);
+          const closedLogs = s.closedLogs.map(updateObj);
+          const todayLog = s.todayLog?._id === id
+            ? activeLogs.find(l => l._id === id) ?? s.todayLog
+            : getTodayLog(activeLogs);
+          cacheLogs(activeLogs, closedLogs, todayLog);
+          return { activeLogs, closedLogs, todayLog };
+        });
+        return () => {
+          cacheLogs(prev.activeLogs, prev.closedLogs, prev.todayLog);
+          set({ activeLogs: prev.activeLogs, closedLogs: prev.closedLogs, todayLog: prev.todayLog });
+        };
+      },
+      () => api.workLogs.update(id, { [`${parentField}.${childField}`]: value }),
+      { errorTitle: 'Failed to save changes' },
+    );
   },
 
   linkTask: async (id, taskRefId) => {
@@ -599,102 +609,152 @@ export const useWorkLogStore = create<WorkLogState>((set, get) => ({
   // ── Sub-Document Actions ─────────────────────────────────────────────────
 
   addTimelineEntry: async (id, entry) => {
-    const doc = await api.workLogs.addTimeline(id, entry);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.addTimeline(id, entry);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to add timeline entry');
+    }
   },
 
   addDecision: async (id, decision) => {
-    const doc = await api.workLogs.addDecision(id, decision);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.addDecision(id, decision);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to add decision');
+    }
   },
 
   deleteDecision: async (id, decId) => {
-    const doc = await api.workLogs.deleteDecision(id, decId);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.deleteDecision(id, decId);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to delete decision');
+    }
   },
 
   addBlocker: async (id, blocker) => {
-    const doc = await api.workLogs.addBlocker(id, blocker);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.addBlocker(id, blocker);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to add blocker');
+    }
   },
 
   updateBlocker: async (id, blkId, updates) => {
-    const doc = await api.workLogs.updateBlocker(id, blkId, updates);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.updateBlocker(id, blkId, updates);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to update blocker');
+    }
   },
 
   deleteBlocker: async (id, blkId) => {
-    const doc = await api.workLogs.deleteBlocker(id, blkId);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.deleteBlocker(id, blkId);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to delete blocker');
+    }
   },
 
   addSnapshot: async (id, period, text) => {
-    const doc = await api.workLogs.addSnapshot(id, { period, text });
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.addSnapshot(id, { period, text });
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to add snapshot');
+    }
   },
 
   deleteSnapshot: async (id, snapId) => {
-    const doc = await api.workLogs.deleteSnapshot(id, snapId);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.deleteSnapshot(id, snapId);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to delete snapshot');
+    }
   },
 
   addAttachment: async (id, attachment) => {
-    const doc = await api.workLogs.addAttachment(id, attachment);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.addAttachment(id, attachment);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to add attachment');
+    }
   },
 
   deleteAttachment: async (id, attId) => {
-    const doc = await api.workLogs.deleteAttachment(id, attId);
-    const updated = mapLog(doc);
-    set(s => ({
-      activeLogs: patchList(s.activeLogs, id, updated),
-      closedLogs: patchList(s.closedLogs, id, updated),
-      todayLog: s.todayLog?._id === id ? updated : s.todayLog,
-    }));
+    try {
+      const doc = await api.workLogs.deleteAttachment(id, attId);
+      const updated = mapLog(doc);
+      set(s => ({
+        activeLogs: patchList(s.activeLogs, id, updated),
+        closedLogs: patchList(s.closedLogs, id, updated),
+        todayLog: s.todayLog?._id === id ? updated : s.todayLog,
+      }));
+    } catch (err: any) {
+      const { toast } = await import('./useToastStore');
+      toast.error('Failed to delete attachment');
+    }
   },
 }));

@@ -40,10 +40,11 @@ function getHealth(roadmap: RoadmapListItem) {
 
   const now = Date.now();
   const target = new Date(roadmap.targetDate).getTime();
-  const totalMs = target - now;
+  const startMs = new Date(roadmap.startDate || roadmap.createdAt).getTime();
+  const totalMs = target - startMs;
   if (totalMs <= 0) return { label: 'Behind', tone: 'danger' as BadgeTone };
 
-  const elapsed = now - new Date(roadmap.startDate || roadmap.createdAt).getTime();
+  const elapsed = now - startMs;
   const expectedProgress = Math.min(100, (elapsed / totalMs) * 100);
 
   if (roadmap.progress >= expectedProgress - 10) return { label: 'On Track', tone: 'success' as BadgeTone };

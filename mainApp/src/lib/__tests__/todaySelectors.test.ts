@@ -23,6 +23,7 @@ function makeTask(overrides: Partial<Task> & { id: string }): Task {
     totalTime: 0,
     tags: [],
     color: '#0ea5e9',
+    order: 0,
     ...overrides,
   };
 }

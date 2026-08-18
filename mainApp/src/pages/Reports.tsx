@@ -41,14 +41,22 @@ interface DayDetail {
   tasks: {
     taskId: string; title: string; color: string;
     category: string; priority: string; totalMs: number;
-    sessions: { _id: string; startTime: number; endTime: number; activeTime: number; totalPauseDuration: number }[];
+    sessions: { _id: string; startTime: number; endTime: number; activeTime: number }[];
   }[];
   workLogs: {
     _id: string; title: string; problem: string; gitBranch: string;
-    currentWork: string; plan: string; designNotes: string; blockers: string;
-    completedItems: { _id: string; text: string }[];
-    links: { _id: string; label: string; url: string }[];
-    status: string; mood: number; tags: string[];
+    currentWork: string; plan: string; status: string; mood: number;
+    completedItems: { _id: string; title: string; completedAt: number }[];
+    links: { _id: string; url: string; label: string }[];
+    tags: string[];
+    designNotes: string;
+    blockers: string[];
+    createdAt: number;
+  }[];
+  completedTasks: {
+    taskId: string; title: string; color: string;
+    category: string; priority: string; totalTime: number;
+    completedAt: string;
   }[];
   sessionCount: number;
   workLogCount: number;
@@ -99,7 +107,7 @@ function formatMs(ms: number): string {
 
 const STATUS_COLOR: Record<string, string> = {
   planning:    'text-purple-400 bg-purple-400/10 border-purple-400/20',
-  'in-progress':'text-brand-400 bg-brand-400/10 border-brand-400/20',
+  'in-progress':'text-sky-400 bg-sky-500/10 border-sky-500/20',
   reviewing:   'text-yellow-400 bg-yellow-400/10 border-yellow-400/20',
   blocked:     'text-red-400 bg-red-400/10 border-red-400/20',
   done:        'text-emerald-400 bg-emerald-400/10 border-emerald-400/20',
@@ -111,6 +119,12 @@ function heatLevel(hours: number): number {
   if (hours < 4)   return 2;
   if (hours < 6)   return 3;
   return 4;
+}
+
+function isFutureDate(dateStr: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(dateStr) > today;
 }
 const HEAT_STYLES = [
   'bg-surface-800/60 border-surface-700/50',
@@ -230,7 +244,7 @@ function buildDayExport(data: DayDetail): string {
     if (log.gitBranch) lines.push(`  Branch: ${log.gitBranch}`);
     if (log.currentWork) lines.push(`  What I did: ${log.currentWork}`);
     if (log.blockers) lines.push(`  Blockers: ${log.blockers}`);
-    for (const item of log.completedItems) lines.push(`  Done: ${item.text}`);
+    for (const item of log.completedItems) lines.push(`  Done: ${item.title}`);
   }
   lines.push('', 'Time by Task');
   for (const task of data.tasks) lines.push(`- ${task.title}: ${formatMs(task.totalMs)}`);
@@ -238,7 +252,7 @@ function buildDayExport(data: DayDetail): string {
 }
 
 // ── Day detail panel ──────────────────────────────────────────────────────────
-function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: () => void; viewUserId?: string }) {
+function DayDetailPanel({ date, onBack, onDateChange, viewUserId }: { date: string; onBack: () => void; onDateChange: (date: string) => void; viewUserId?: string }) {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [data, setData]       = useState<DayDetail | null>(null);
@@ -300,9 +314,25 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
             <ArrowLeft size={16} />
           </button>
           <div>
-            <h2 className="font-display font-bold text-surface-50 text-xl">{dateLabel}</h2>
+            <h2 className="font-display font-bold text-surface-50 text-xl flex items-center gap-2">
+              <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() - 1); onDateChange(format(d, 'yyyy-MM-dd')); }}
+                className="p-1 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-surface-200 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <span>{dateLabel}</span>
+              <button onClick={() => { const d = new Date(date); d.setDate(d.getDate() + 1); onDateChange(format(d, 'yyyy-MM-dd')); }}
+                className="p-1 rounded-lg hover:bg-surface-800 text-surface-400 hover:text-surface-200 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+              {!isToday(parseISO(date)) && (
+                <button onClick={() => onDateChange(format(new Date(), 'yyyy-MM-dd'))}
+                  className="text-[10px] font-medium text-brand-400 hover:text-brand-300 bg-brand-500/10 border border-brand-500/20 px-2 py-0.5 rounded-md transition-colors">
+                  Today
+                </button>
+              )}
+            </h2>
             <p className="text-xs text-surface-400 mt-0.5">
-              {data.workLogCount} work log{data.workLogCount !== 1 ? 's' : ''} · {data.sessionCount} session{data.sessionCount !== 1 ? 's' : ''}
+              {data.workLogCount} work log{data.workLogCount !== 1 ? 's' : ''} · {data.sessionCount} session{data.sessionCount !== 1 ? 's' : ''} · {data.completedCount} task{data.completedCount !== 1 ? 's' : ''} completed
             </p>
           </div>
         </div>
@@ -340,7 +370,7 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         {[
           { icon: Clock, label: 'Time Worked', value: formatMs(data.totalMs), color: 'text-brand-400', bg: 'bg-brand-500/10' },
-          { icon: CheckCircle2, label: 'Completed', value: String(data.completedCount), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { icon: CheckCircle2, label: 'Tasks Completed', value: String(data.completedCount), color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
           { icon: BarChart3, label: 'Tasks Tracked', value: String(data.tasks.length), color: 'text-purple-400', bg: 'bg-purple-500/10' },
           { icon: GitBranch, label: 'Branches', value: String(data.branches.length), color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
         ].map(({ icon: Icon, label, value, color, bg }) => (
@@ -417,7 +447,7 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                     <div className="space-y-1">
                       {log.completedItems.map(item => (
                         <div key={item._id} className="flex items-start gap-1.5 text-xs text-surface-200">
-                          <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0 mt-0.5" /> {item.text}
+                          <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0 mt-0.5" /> {item.title}
                         </div>
                       ))}
                     </div>
@@ -428,7 +458,7 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
                     <p className="text-[11px] text-yellow-400 mb-1 flex items-center gap-1 font-semibold uppercase tracking-wider">
                       <AlertTriangle size={10} /> Blockers
                     </p>
-                    <div className="prose-editor text-xs text-surface-200"><Markdown source={log.blockers} /></div>
+                    <div className="prose-editor text-xs text-surface-200"><Markdown source={Array.isArray(log.blockers) ? log.blockers.join('\n') : log.blockers} /></div>
                   </div>
                 )}
                 {log.plan && (
@@ -509,6 +539,56 @@ function DayDetailPanel({ date, onBack, viewUserId }: { date: string; onBack: ()
               </div>
             </div>
           )}
+
+          {/* Completed Tasks */}
+          <div className="mt-4">
+            <h3 className="font-display font-bold text-surface-50 flex items-center gap-2 text-[15px] mb-3">
+              <CheckCircle2 size={15} className="text-emerald-400" /> Completed Tasks
+            </h3>
+            {data.completedTasks && data.completedTasks.length > 0 ? (
+              <div className="space-y-2">
+                {data.completedTasks.map(task => (
+                  <div key={task.taskId} className="flex items-center gap-3 rounded-2xl border border-surface-800 bg-surface-900 p-3">
+                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: task.color }} />
+                    <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-surface-50 font-medium truncate block">{task.title}</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-semibold bg-surface-800 text-surface-400 px-1.5 py-0.5 rounded">{task.category}</span>
+                        <span className="text-[10px] text-surface-500">{task.priority}</span>
+                        {task.completedAt && (
+                          <span className="text-[10px] text-surface-500">
+                            at {format(parseISO(task.completedAt), 'h:mm a')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-sm font-mono text-emerald-400 font-semibold flex-shrink-0">
+                      {formatMs(task.totalTime)}
+                    </span>
+                  </div>
+                ))}
+                <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold text-surface-100">Tasks Completed</span>
+                    <span className="text-xl font-display font-bold text-emerald-400">{data.completedCount}</span>
+                  </div>
+                </div>
+              </div>
+            ) : isFutureDate(data.date) ? (
+              <div className="rounded-2xl border border-dashed border-surface-700 p-8 text-center">
+                <Calendar size={24} className="text-surface-600 mx-auto mb-2" />
+                <p className="text-sm text-surface-300 font-medium mb-0.5">No activity yet</p>
+                <p className="text-xs text-surface-500">This day hasn't happened yet.</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-surface-700 p-8 text-center">
+                <CheckCircle2 size={24} className="text-surface-600 mx-auto mb-2" />
+                <p className="text-sm text-surface-300 font-medium mb-0.5">No tasks completed</p>
+                <p className="text-xs text-surface-500">Nothing was completed on this day.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </motion.div>
@@ -795,7 +875,7 @@ export function ReportsPage() {
       </motion.div>
 
       {selectedDate ? (
-        <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} viewUserId={selectedUserId || undefined} />
+        <DayDetailPanel date={selectedDate} onBack={() => setSelectedDate(null)} onDateChange={setSelectedDate} viewUserId={selectedUserId || undefined} />
       ) : view === 'focus' ? (
         <div className="space-y-6">
           {/* Shared range filter drives the focus KPIs and charts */}

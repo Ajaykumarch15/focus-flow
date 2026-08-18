@@ -73,9 +73,9 @@ const milestonePatchSchema = z.object({
   status: z.enum(MILESTONE_STATUS).optional(),
 }).passthrough();
 
-const ALLOWED_ROADMAP_PATCH = ['title', 'description', 'type', 'startDate', 'targetDate', 'status', 'icon', 'color'];
-const ALLOWED_PHASE_PATCH = ['title', 'description', 'order', 'startDate', 'targetDate', 'status'];
-const ALLOWED_MILESTONE_PATCH = ['title', 'description', 'order', 'targetDate', 'status'];
+const ALLOWED_ROADMAP_PATCH = { title: true, description: true, type: true, startDate: true, targetDate: true, status: true, icon: true, color: true };
+const ALLOWED_PHASE_PATCH = { title: true, description: true, order: true, startDate: true, targetDate: true, status: true };
+const ALLOWED_MILESTONE_PATCH = { title: true, description: true, order: true, targetDate: true, status: true };
 
 // ── TASK LINKING ─────────────────────────────────────────────────────────────
 
@@ -140,6 +140,182 @@ router.delete('/unlink-task/:taskId', async (req, res, next) => {
     });
 
     res.json({ message: 'Task unlinked' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PERSONAL ANALYTICS ──────────────────────────────────────────────────────
+
+// GET /api/roadmaps/analytics?days=30
+router.get('/analytics', async (req, res, next) => {
+  try {
+    const days = parseInt(req.query.days, 10) || 0;
+    const sinceDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
+
+    const roadmaps = await Roadmap.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const roadmapIds = roadmaps.map(r => r._id);
+
+    if (roadmapIds.length === 0) {
+      return res.json({
+        overview: { progress: 0, activeRoadmaps: 0, completedMilestones: 0, totalMilestones: 0, completedTasks: 0, totalTasks: 0 },
+        today: { tasksCompleted: 0, milestonesCompleted: 0, activeRoadmaps: 0 },
+        roadmaps: [],
+        phases: [],
+        activity: { activeDays: 0, completedMilestones: 0, completedTasks: 0 },
+        recentActivity: [],
+      });
+    }
+
+    const [allPhases, allMilestones, allTasks] = await Promise.all([
+      RoadmapPhase.find({ roadmapId: { $in: roadmapIds }, userId: req.user._id }),
+      RoadmapMilestone.find({ roadmapId: { $in: roadmapIds }, userId: req.user._id }),
+      Task.find({ roadmapRef: { $in: roadmapIds }, userId: req.user._id }),
+    ]);
+
+    // Overview
+    const totalMilestones = allMilestones.length;
+    const completedMilestones = allMilestones.filter(m => m.status === 'completed').length;
+    const totalTasks = allTasks.length;
+    const completedTasks = allTasks.filter(t => t.status === 'completed').length;
+    const activeRoadmaps = roadmaps.filter(r => r.status === 'active' || r.status === 'planning').length;
+    const overallProgress = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
+
+    // Per-roadmap breakdown
+    const roadmapStats = roadmaps.map(r => {
+      const rPhases = allPhases.filter(p => String(p.roadmapId) === String(r._id));
+      const rMilestones = allMilestones.filter(m => String(m.roadmapId) === String(r._id));
+      const rTasks = allTasks.filter(t => String(t.roadmapRef) === String(r._id));
+      const rCompletedMilestones = rMilestones.filter(m => m.status === 'completed').length;
+      const rCompletedTasks = rTasks.filter(t => t.status === 'completed').length;
+      const rProgress = rMilestones.length > 0 ? Math.round((rCompletedMilestones / rMilestones.length) * 100) : 0;
+      const completedPhases = rPhases.filter(p => p.status === 'completed').length;
+      return {
+        _id: r._id,
+        title: r.title,
+        description: r.description,
+        status: r.status,
+        color: r.color,
+        icon: r.icon,
+        targetDate: r.targetDate,
+        progress: rProgress,
+        phaseTotal: rPhases.length,
+        phaseCompleted: completedPhases,
+        milestoneTotal: rMilestones.length,
+        milestoneCompleted: rCompletedMilestones,
+        taskTotal: rTasks.length,
+        taskCompleted: rCompletedTasks,
+      };
+    });
+
+    // Phase progress (all phases across all roadmaps, sorted by roadmap then order)
+    const phaseStats = allPhases
+      .sort((a, b) => {
+        const ri = roadmapIds.indexOf(String(a.roadmapId));
+        const rj = roadmapIds.indexOf(String(b.roadmapId));
+        if (ri !== rj) return ri - rj;
+        return a.order - b.order;
+      })
+      .map(p => {
+        const pMilestones = allMilestones.filter(m => String(m.phaseId) === String(p._id));
+        const pCompleted = pMilestones.filter(m => m.status === 'completed').length;
+        const pTotal = pMilestones.length;
+        const roadmap = roadmaps.find(r => String(r._id) === String(p.roadmapId));
+        return {
+          _id: p._id,
+          title: p.title,
+          status: p.status,
+          order: p.order,
+          roadmapId: p.roadmapId,
+          roadmapTitle: roadmap?.title || '',
+          progress: pTotal > 0 ? Math.round((pCompleted / pTotal) * 100) : 0,
+          milestoneTotal: pTotal,
+          milestoneCompleted: pCompleted,
+        };
+      });
+
+    // Activity / consistency (derived from task updatedAt timestamps)
+    const completedTaskDates = allTasks
+      .filter(t => t.status === 'completed' && t.updatedAt)
+      .map(t => {
+        const d = new Date(t.updatedAt);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      });
+    const uniqueActiveDays = new Set(completedTaskDates);
+
+    // Milestone completion dates (from updatedAt)
+    const completedMilestoneDates = allMilestones
+      .filter(m => m.status === 'completed' && m.updatedAt)
+      .map(m => {
+        const d = new Date(m.updatedAt);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      });
+
+    // Filter by time range if specified
+    let filteredActiveDays = uniqueActiveDays;
+    let filteredCompletedMilestones = completedMilestones;
+    let filteredCompletedTasks = completedTasks;
+    if (sinceDate) {
+      const sinceStr = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
+      filteredActiveDays = new Set([...uniqueActiveDays].filter(d => d >= sinceStr));
+      filteredCompletedMilestones = completedMilestoneDates.filter(d => d >= sinceStr).length;
+      filteredCompletedTasks = completedTaskDates.filter(d => d >= sinceStr).length;
+    }
+
+    // Recent activity (last 10 completions from tasks and milestones)
+    const recentTaskActivity = allTasks
+      .filter(t => t.status === 'completed' && t.updatedAt)
+      .map(t => ({
+        type: 'task',
+        title: t.title,
+        date: t.updatedAt,
+        roadmapId: t.roadmapRef,
+      }));
+    const recentMilestoneActivity = allMilestones
+      .filter(m => m.status === 'completed' && m.updatedAt)
+      .map(m => ({
+        type: 'milestone',
+        title: m.title,
+        date: m.updatedAt,
+        roadmapId: m.roadmapId,
+      }));
+    const recentActivity = [...recentTaskActivity, ...recentMilestoneActivity]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 15);
+
+    // Today's stats
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+    const todayTasksCompleted = allTasks.filter(t => t.status === 'completed' && t.updatedAt && (() => { const d = new Date(t.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })()).length;
+    const todayMilestonesCompleted = allMilestones.filter(m => m.status === 'completed' && m.updatedAt && (() => { const d = new Date(m.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })()).length;
+    const todayActiveRoadmaps = roadmaps.filter(r => {
+      if (r.status !== 'active' && r.status !== 'planning') return false;
+      const rTasks = allTasks.filter(t => String(t.roadmapRef) === String(r._id));
+      return rTasks.some(t => t.updatedAt && (() => { const d = new Date(t.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })());
+    }).length;
+
+    res.json({
+      overview: {
+        progress: overallProgress,
+        activeRoadmaps,
+        completedMilestones,
+        totalMilestones,
+        completedTasks,
+        totalTasks,
+      },
+      today: {
+        tasksCompleted: todayTasksCompleted,
+        milestonesCompleted: todayMilestonesCompleted,
+        activeRoadmaps: todayActiveRoadmaps,
+      },
+      roadmaps: roadmapStats,
+      phases: phaseStats,
+      activity: {
+        activeDays: filteredActiveDays.size,
+        completedMilestones: filteredCompletedMilestones,
+        completedTasks: filteredCompletedTasks,
+      },
+      recentActivity,
+    });
   } catch (err) {
     next(err);
   }

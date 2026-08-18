@@ -17,7 +17,9 @@ import type { CollaborativeTask } from '../types/collaboration';
 import type { Task } from '../types';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
+import { TodayPlanWidget } from '../components/schedule/TodayPlanWidget';
 import { Card, CardHeader, CardTitle, CardBody } from '../components/ui/Card';
+
 import { Button } from '../components/ui/Button';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -25,6 +27,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Progress } from '../components/ui/Progress';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '../components/ui/Skeleton';
 import { formatHours, formatMs } from '../utils/time';
+import { KpiCounter } from '../components/ui/KpiCounter';
 
 // ── Motion ────────────────────────────────────────────────────────────────────
 
@@ -386,6 +389,11 @@ export function TodayPage() {
             )}
           </motion.section>
 
+          {/* ─── Today's Plan ─── */}
+          <motion.section variants={fadeUp} initial="hidden" animate="show">
+            <TodayPlanWidget />
+          </motion.section>
+
           {/* ─── Attention ─── */}
           <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-attention" className="space-y-3">
             <h2 id="today-attention" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
@@ -429,6 +437,11 @@ export function TodayPage() {
 function Stat({ icon, label, value, sub, color }: {
   icon: ReactNode; label: string; value: string; sub?: string; color: string;
 }) {
+  // Extract leading numeric portion for animated counting
+  const numMatch = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
+  const numPart = numMatch ? parseFloat(numMatch[1]) : null;
+  const suffix = numMatch ? numMatch[2] : '';
+
   return (
     <motion.div variants={fadeUp}
       className="rounded-2xl border border-surface-800/60 bg-surface-900 p-5 relative overflow-hidden hover:border-surface-700 transition-colors">
@@ -438,7 +451,11 @@ function Stat({ icon, label, value, sub, color }: {
           {icon}
         </div>
       </div>
-      <p className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 mb-0.5">{value}</p>
+      <p className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 mb-0.5">
+        {numPart !== null
+          ? <KpiCounter value={numPart} suffix={suffix} duration={700} />
+          : value}
+      </p>
       <p className="text-xs text-surface-400 font-medium">{label}</p>
       {sub && <p className="text-[10px] text-surface-500 mt-1">{sub}</p>}
     </motion.div>

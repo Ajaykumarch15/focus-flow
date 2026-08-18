@@ -215,10 +215,15 @@ export function InsightsPage() {
     return [...completed, ...liveSessions].filter((s) => s.taskId && s.activeTime > 0);
   }, [apiSessions, liveSessions]);
 
-  const workLogs = useMemo(
-    () => [todayLog, ...activeLogs, ...closedLogs].filter((l): l is NonNullable<typeof todayLog> => Boolean(l)),
-    [todayLog, activeLogs, closedLogs],
-  );
+  const workLogs = useMemo(() => {
+    const seen = new Set<string>();
+    return [todayLog, ...activeLogs, ...closedLogs].filter((l): l is NonNullable<typeof todayLog> => {
+      if (!l) return false;
+      if (seen.has(l._id)) return false;
+      seen.add(l._id);
+      return true;
+    });
+  }, [todayLog, activeLogs, closedLogs]);
 
   const view = useMemo(
     () => selectDailyInsights({ sessions, tasks, journals, workLogs, dailyGoalMs: profile?.dailyGoal ?? 0 }),
