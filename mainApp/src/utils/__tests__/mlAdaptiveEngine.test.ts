@@ -14,10 +14,8 @@ import {
   isValidSession,
   isValidScheduleForTraining,
   getStoredLearningExamples,
-  saveStoredLearningExamples,
   addLearningExample,
   resetLearningDataset,
-  getModelVersions,
   recordModelVersion,
   getLatestModelVersion,
   LearningExample,
@@ -27,13 +25,10 @@ import {
   deriveCategoryStats,
   deriveHourlyStats,
   adaptivePredictDuration,
-  adaptivePredictCompletion,
   scoreSlot,
   computeModelMetrics,
   detectModelDrift,
   generateDailyInsight,
-  generateWeeklySummary,
-  runDailyLearningJob,
   getExplicitPreferences,
   setExplicitPreference,
   removeExplicitPreference,
@@ -179,7 +174,6 @@ describe('Prediction Error', () => {
   it('calculates correct baseline error', () => {
     const task = mkTask({ totalTime: 80 * 60 * 1000, subtasks: [{ id: 'a', title: 'x', completed: true, createdAt: 1 }] });
     const ex = buildLearningExample(task, mkSchedule(), 60)!;
-    const baseline = computeBaselineMinutes(task); // 1 subtask * 30m = 30m
     expect(ex.baselineMinutes).toBe(30);
     expect(ex.baselineErrorMins).toBe(80 - 30); // 50
   });

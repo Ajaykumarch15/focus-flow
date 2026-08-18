@@ -21,24 +21,19 @@
 
 import { Task, ScheduleItem } from '../types';
 import {
-  MLPersonalProfile,
   MLPredictionDuration,
   MLPredictionCompletion,
   MLSlotRecommendation,
-  MLDeadlineRisk,
   MLPredictionOutcomeRecord,
   MLExplicitPreference,
   MLModelMetrics,
   ModelStatus,
   ModelConfidence,
 } from '../types/mlIntelligence';
-import { timeToMinutes } from './scheduleAnalytics';
 import {
   LearningExample,
-  ModelVersion,
   computeBaselineMinutes,
   getStoredLearningExamples,
-  saveStoredLearningExamples,
   buildLearningExample,
   addLearningExample,
   getLatestModelVersion,

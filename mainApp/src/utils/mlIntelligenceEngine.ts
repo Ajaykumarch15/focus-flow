@@ -1,13 +1,11 @@
-import { Task, ScheduleItem, AppState } from '../types';
+import { Task, ScheduleItem } from '../types';
 import {
   MLPersonalProfile,
   MLPredictionDuration,
   MLPredictionCompletion,
-  MLSlotRecommendation,
   MLDeadlineRisk,
   MLFeedbackItem,
 } from '../types/mlIntelligence';
-import { timeToMinutes } from './scheduleAnalytics';
 
 const FEEDBACK_STORAGE_KEY = 'focusflow_ml_feedback_v1';
 

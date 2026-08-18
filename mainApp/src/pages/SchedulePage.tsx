@@ -15,14 +15,10 @@ import {
   Sparkles,
   Inbox,
   Wand2,
-  RefreshCw,
-  Shield,
-  LifeBuoy,
   ArrowUpDown,
-  TrendingUp,
   X,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { useScheduleStore, getTodayDateString } from '../store/useScheduleStore';
 import { useStore } from '../store/useStore';
 import { ScheduleModal } from '../components/schedule/ScheduleModal';
@@ -123,7 +119,6 @@ export function SchedulePage() {
   // Interactive modes
   const [showPlanMyDay, setShowPlanMyDay] = useState(false);
   const [proposedPlan, setProposedPlan] = useState<{ task: Task; start: string; end: string; predMins: number; slotScore?: number; reason?: string }[]>([]);
-  const [showRecoveryMode, setShowRecoveryMode] = useState(false);
 
   // Refresh clock every 10s for live current-time indicator
   useEffect(() => {

@@ -4,7 +4,6 @@ import {
   derivePersonalProductivityProfile,
   predictTaskDuration,
   predictCompletionProbability,
-  calculateDeadlineRisk,
 } from '../mlIntelligenceEngine';
 
 describe('Personal ML Intelligence Engine (Phase 7)', () => {
