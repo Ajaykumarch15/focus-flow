@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const WorkLog = require('../models/WorkLog');
 const Session = require('../models/Session');
+const Task = require('../models/Task');
 const User = require('../models/User');
 const ReportShare = require('../models/ReportShare');
 const protect = require('../middleware/auth');
@@ -78,7 +79,7 @@ async function buildDayReport(userId, date, timeZone, includeSessionDetails = tr
   }
 
   const { start, end } = range;
-  const [sessions, workLogs] = await Promise.all([
+  const [sessions, workLogs, completedTasks] = await Promise.all([
     Session.find({
       userId,
       startTime: { $gte: start.getTime(), $lt: end.getTime() },
@@ -92,6 +93,11 @@ async function buildDayReport(userId, date, timeZone, includeSessionDetails = tr
         { 'workEntries.date': { $gte: start, $lt: end } },
       ],
     }).sort({ updatedAt: -1 }),
+    Task.find({
+      userId,
+      status: 'completed',
+      completedAt: { $gte: start, $lt: end },
+    }).select('title color category priority totalTime completedAt').sort({ completedAt: -1 }),
   ]);
 
   const taskMap = {};
@@ -149,7 +155,16 @@ async function buildDayReport(userId, date, timeZone, includeSessionDetails = tr
     workLogs: workLogs.map(sanitizeWorkLog),
     sessionCount: sessions.length,
     workLogCount: workLogs.length,
-    completedCount: countCompletedItemsInRange(workLogs, start, end),
+    completedCount: completedTasks.length,
+    completedTasks: completedTasks.map(t => ({
+      taskId: t._id,
+      title: t.title,
+      color: t.color,
+      category: t.category,
+      priority: t.priority,
+      totalTime: t.totalTime,
+      completedAt: t.completedAt,
+    })),
     branches: [...new Set(workLogs.map(log => log.gitBranch).filter(Boolean))],
   };
 }
@@ -177,7 +192,7 @@ async function buildSummaryDays({ userId, fromKey, toKey, timeZone }) {
   const from = dayRange(fromKey, timeZone).start;
   const to = dayRange(toKey, timeZone).end;
 
-  const [sessions, workLogs] = await Promise.all([
+  const [sessions, workLogs, completedTasks] = await Promise.all([
     Session.find({
       userId,
       startTime: { $gte: from.getTime(), $lt: to.getTime() },
@@ -187,10 +202,15 @@ async function buildSummaryDays({ userId, fromKey, toKey, timeZone }) {
       userId,
       $or: [
         { createdAt: { $gte: from, $lt: to } },
-        { updatedAt: { $gte: from, $lt: to } },
-        { 'workEntries.date': { $gte: from, $lt: to } },
+        { updatedAt: { $gte: from, $lt: end } },
+        { 'workEntries.date': { $gte: from, $lt: end } },
       ],
     }),
+    Task.find({
+      userId,
+      status: 'completed',
+      completedAt: { $gte: from, $lt: to },
+    }).select('completedAt'),
   ]);
 
   const dayMap = {};
@@ -199,6 +219,19 @@ async function buildSummaryDays({ userId, fromKey, toKey, timeZone }) {
     if (!dayMap[day]) {
       dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
     }
+    dayMap[day].totalMs += session.activeTime || 0;
+    dayMap[day].sessionCount += 1;
+    if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());
+  }
+
+  for (const task of completedTasks) {
+    if (!task.completedAt) continue;
+    const day = dayKey(task.completedAt.getTime(), timeZone);
+    if (!dayMap[day]) {
+      dayMap[day] = { date: day, totalMs: 0, sessionCount: 0, taskIds: new Set(), workLogCount: 0, completedCount: 0 };
+    }
+    dayMap[day].completedCount += 1;
+  }
     dayMap[day].totalMs += session.activeTime || 0;
     dayMap[day].sessionCount += 1;
     if (session.taskId) dayMap[day].taskIds.add(session.taskId._id?.toString());

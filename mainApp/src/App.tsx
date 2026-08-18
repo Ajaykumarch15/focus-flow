@@ -28,7 +28,10 @@ const WorkspaceHomePage = lazy(() => import('./pages/collaboration/WorkspaceHome
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
+const SchedulePage    = lazy(() => import('./pages/SchedulePage').then(module => ({ default: module.SchedulePage })));
 const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
+
+const PersonalPage     = lazy(() => import('./pages/PersonalPage').then(module => ({ default: module.PersonalPage })));
 const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({ default: module.FocusMode })));
 const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
@@ -43,6 +46,11 @@ const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(mo
 const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
 const RoadmapsPage    = lazy(() => import('./pages/RoadmapsPage').then(module => ({ default: module.RoadmapsPage })));
 const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage').then(module => ({ default: module.RoadmapDetailPage })));
+const RoadmapPhaseDetail = lazy(() => import('./pages/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
+const RoadmapMilestoneDetail = lazy(() => import('./pages/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
+const PersonalAnalyticsPage = lazy(() => import('./pages/PersonalAnalyticsPage').then(module => ({ default: module.PersonalAnalyticsPage })));
+const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
+const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 
 // Developer Collaboration Workspace Pages
 const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
@@ -105,8 +113,6 @@ function AdminWorkspaceRouter() {
 }
 
 function PersonalWorkspaceRouter() {
-  const { workspace, user } = useAuthStore();
-  if (user?.role === 'admin' && workspace !== 'personal') return <Navigate to="/workspace" replace />;
   return <AppLayout />;
 }
 
@@ -180,28 +186,38 @@ export default function App() {
               </Route>
             </Route>
 
-            {/* Workspace Selector (admin users only) */}
+            {/* Workspace Selector */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/workspace" element={
-                user?.role === 'admin' ? <WorkspaceSelector /> : <Navigate to="/hub" replace />
-              } />
+              <Route path="/workspace" element={<WorkspaceSelector />} />
+            </Route>
+
+            {/* WorkLog Workspace Dashboard */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<AppLayout />}>
+                <Route path="/worklog/dashboard" element={<WorkLogDashboard />} />
+                <Route path="/collab/dashboard" element={<CollabDashboard />} />
+              </Route>
             </Route>
 
             {/* Personal Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/dashboard"   element={<TodayPage />} />
+                <Route path="/personal"   element={<PersonalPage />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
                 <Route path="/worklog/:id" element={<WorkLogPage />} />
                 <Route path="/knowledge"  element={<KnowledgePage />} />
                 <Route path="/search"      element={<SearchResultsPage />} />
                 <Route path="/reports"     element={<ReportsPage />} />
                 <Route path="/insights"    element={<InsightsPage />} />
-                <Route path="/analytics"   element={<Navigate to="/reports" replace />} />
+                <Route path="/analytics"   element={<PersonalAnalyticsPage />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
+                <Route path="/schedule"    element={<SchedulePage />} />
                 <Route path="/roadmaps"    element={<RoadmapsPage />} />
                 <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />
+                <Route path="/roadmaps/:id/phases/:phaseId" element={<RoadmapPhaseDetail />} />
+                <Route path="/roadmaps/:id/phases/:phaseId/milestones/:milestoneId" element={<RoadmapMilestoneDetail />} />
                 <Route path="/journal"     element={<Journal />} />
                 <Route path="/habits"      element={<Habits />} />
                 <Route path="/leaderboard" element={<Leaderboard />} />

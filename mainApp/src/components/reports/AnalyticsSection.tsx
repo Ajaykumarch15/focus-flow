@@ -206,7 +206,7 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
           </div>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={chartData} barGap={3}>
-              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
               {avgDailyFocus > 0 && <ReferenceLine y={avgDailyFocus} stroke="#52525b" strokeDasharray="4 4" label={{ value: `Avg ${avgDailyFocus}h`, position: 'right', fill: '#71717a', fontSize: 10 }} />}
               <Tooltip
@@ -241,7 +241,7 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
                   <stop offset="95%" stopColor={accent} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} />
               {avgDailyFocus > 0 && <ReferenceLine y={avgDailyFocus} stroke="#52525b" strokeDasharray="4 4" label={{ value: `Avg ${avgDailyFocus}h`, position: 'right', fill: '#71717a', fontSize: 10 }} />}
               <Tooltip

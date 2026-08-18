@@ -24,6 +24,7 @@ import type {
 } from '../types';
 import { useWorkLogStore } from './useWorkLogStore';
 import { useRoadmapStore } from './useRoadmapStore';
+import { useWorkspaceStore } from './useWorkspaceStore';
 import { toast } from './useToastStore';
 import { generateBrandShades } from '../utils/colorUtils';
 
@@ -158,11 +159,14 @@ function mapTask(doc: any): Task {
     })),
     sessions: [],
     totalTime: doc.totalTime ?? 0,
+    order: doc.order ?? 0,
     createdAt: new Date(doc.createdAt).getTime(),
     updatedAt: new Date(doc.updatedAt).getTime(),
+    completedAt: doc.completedAt ? new Date(doc.completedAt).getTime() : null,
     roadmapRef: doc.roadmapRef ? String(doc.roadmapRef) : undefined,
     phaseRef: doc.phaseRef ? String(doc.phaseRef) : undefined,
     milestoneRef: doc.milestoneRef ? String(doc.milestoneRef) : undefined,
+    workspaceContext: doc.workspaceContext || 'personal',
   };
 }
 
@@ -220,11 +224,20 @@ interface StoreState {
   setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
-  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline'> & { deadline?: string | number }) => Promise<string>;
+  addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline' | 'order'> & { deadline?: string | number }) => Promise<string>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   completeTask: (id: string) => Promise<void>;
   reorderTasks: (tasks: Task[]) => void;
+
+  // ── Selection & Bulk Ops ────────────────────────────────────────────────────
+  selectedTaskIds: Set<string>;
+  toggleTaskSelection: (id: string) => void;
+  selectAllTasks: (ids: string[]) => void;
+  clearTaskSelection: () => void;
+  bulkCompleteTasks: (ids: string[]) => Promise<void>;
+  bulkDeleteTasks: (ids: string[]) => Promise<void>;
+  persistTaskOrder: (orderedIds: string[]) => Promise<void>;
 
   // EEP2-P5.4.2: `baseMs` lets the sprint board pass a collab task's accumulated
   // totalTime as the resume base (collab tasks live in the collaboration store,
@@ -277,6 +290,7 @@ export const useStore = create<StoreState>((set, get) => {
     dataLoading: false,
     dataError: null,
     mobileSidebarOpen: false,
+    selectedTaskIds: new Set<string>(),
     setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
     activeTaskId: snapshot.taskId,
     activeSessionId: snapshot.sessionId,
@@ -394,14 +408,15 @@ export const useStore = create<StoreState>((set, get) => {
       const { deadline, ...rest } = data;
       const tempTask: Task = {
         ...rest,
-        id: tempId, sessions: [], totalTime: 0,
+        id: tempId, sessions: [], totalTime: 0, order: 0,
         createdAt: Date.now(), updatedAt: Date.now(),
         deadline: typeof deadline === 'number' ? deadline
           : deadline ? new Date(deadline).getTime() : undefined,
       };
       set(s => ({ tasks: [tempTask, ...s.tasks] }));
       try {
-        const doc = await api.tasks.create({ ...data, deadline: data.deadline || undefined });
+        const wsCtx = useWorkspaceStore.getState().activeWorkspace;
+        const doc = await api.tasks.create({ ...data, deadline: data.deadline || undefined, workspaceContext: data.workspaceContext || wsCtx });
         const real = mapTask(doc);
         set(s => ({ tasks: s.tasks.map(t => t.id === tempId ? real : t) }));
         return real.id;
@@ -440,11 +455,67 @@ export const useStore = create<StoreState>((set, get) => {
       if (timerEngine.getActiveTaskId() === id) {
         await get().stopTimer(id);
       }
-      await get().updateTask(id, { status: 'completed' });
+      await get().updateTask(id, { status: 'completed', completedAt: Date.now() });
       // The updateTask handler already refreshes roadmap progress for linked tasks
     },
 
     reorderTasks: (tasks) => set({ tasks }),
+
+    // ── Selection & Bulk Ops ─────────────────────────────────────────────────
+    toggleTaskSelection: (id) => set(s => {
+      const next = new Set(s.selectedTaskIds);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return { selectedTaskIds: next };
+    }),
+
+    selectAllTasks: (ids) => set({ selectedTaskIds: new Set(ids) }),
+
+    clearTaskSelection: () => set({ selectedTaskIds: new Set() }),
+
+    bulkCompleteTasks: async (ids) => {
+      if (!ids.length) return;
+      const now = Date.now();
+      try {
+        set(s => ({
+          tasks: s.tasks.map(t => ids.includes(t.id) ? { ...t, status: 'completed' as const, completedAt: now } : t),
+          selectedTaskIds: new Set(),
+        }));
+        await Promise.all(ids.map(id => api.tasks.update(id, { status: 'completed', completedAt: now })));
+        toast.success('Tasks completed', `${ids.length} task${ids.length > 1 ? 's' : ''} marked as complete.`);
+      } catch {
+        toast.error('Failed to complete tasks');
+        get().fetchTasks();
+      }
+    },
+
+    bulkDeleteTasks: async (ids) => {
+      if (!ids.length) return;
+      try {
+        set(s => ({
+          tasks: s.tasks.filter(t => !ids.includes(t.id)),
+          selectedTaskIds: new Set(),
+        }));
+        await Promise.all(ids.map(id => api.tasks.delete(id)));
+        toast.success('Tasks deleted', `${ids.length} task${ids.length > 1 ? 's' : ''} removed.`);
+      } catch {
+        toast.error('Failed to delete tasks');
+        get().fetchTasks();
+      }
+    },
+
+    persistTaskOrder: async (orderedIds) => {
+      try {
+        set(s => ({
+          tasks: s.tasks.map(t => {
+            const idx = orderedIds.indexOf(t.id);
+            return idx >= 0 ? { ...t, order: idx } : t;
+          }),
+        }));
+        await api.tasks.reorder(orderedIds);
+      } catch {
+        get().fetchTasks();
+      }
+    },
 
     // ── Timer Operations (Delegated to TimerEngine & OfflineQueue) ────────────
     startTimer: async (taskId, baseMs) => {
@@ -537,7 +608,7 @@ export const useStore = create<StoreState>((set, get) => {
       }
 
       set(s => ({
-        tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'todo' } : t),
+        tasks: s.tasks.map(t => t.id === taskId ? { ...t } : t),
       }));
 
       if (sessionId) {

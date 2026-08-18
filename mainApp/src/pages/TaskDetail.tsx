@@ -4,15 +4,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Play, Pause, Square, Plus, Trash2,
   CheckCircle, Circle, Clock, Edit2, Check, X,
-  Timer, Zap, BookOpen, ChevronDown,
+  Timer, Zap, BookOpen, ChevronDown, Calendar,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { useScheduleStore } from '../store/useScheduleStore';
+import { ScheduleModal } from '../components/schedule/ScheduleModal';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
+
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { RichContent } from '../components/ui/RichContent';
@@ -28,9 +32,11 @@ export function TaskDetail() {
   const {
     getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
     addSubtask, toggleSubtask, deleteSubtask, addJournal,
-    journals, updateTask,
+    journals, updateTask, deleteTask, theme,
   } = useStore();
   const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
+  const { openModal: openScheduleModal, isModalOpen, closeModal } = useScheduleStore();
+  const isReducedMotion = theme?.reducedMotion;
 
   const task = getTask(id!);
   const [newSubtask, setNewSubtask] = useState('');
@@ -39,6 +45,7 @@ export function TaskDetail() {
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
   const [showSessions, setShowSessions] = useState(true);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   if (!task) {
     return (
@@ -133,9 +140,19 @@ export function TaskDetail() {
             ) : (
               <div className="flex items-center gap-2 group">
                 <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50">{task.title}</h1>
-                <button onClick={() => setEditTitle(true)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all">
-                  <Edit2 size={14} />
+                <button
+                  type="button"
+                  onClick={() => setEditTitle(true)}
+                  aria-label={`Edit task title: ${task.title}`}
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                  <Edit2 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmDelete(true)}
+                  aria-label={`Delete task ${task.title}`}
+                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                  <Trash2 size={14} aria-hidden="true" />
                 </button>
               </div>
             )}
@@ -191,7 +208,7 @@ export function TaskDetail() {
 
             <div className="my-6 relative">
               {/* Pulse rings when running */}
-              {isRunning && (
+              {isRunning && !isReducedMotion && (
                 <>
                   <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/20"
                     animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
@@ -229,33 +246,55 @@ export function TaskDetail() {
             {/* Controls */}
             <div className="flex gap-2.5 justify-center flex-wrap">
               {!isActive && (
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                <motion.button
+                  type="button"
+                  whileHover={isReducedMotion ? {} : { scale: 1.02 }}
+                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
                   onClick={() => startTimer(task.id)}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
-                  <Play size={15} fill="white" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
+                  aria-label={task.totalTime > 0 ? `Resume timer for ${task.title}` : `Start timer for ${task.title}`}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                  <Play size={15} fill="white" aria-hidden="true" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
                 </motion.button>
               )}
               {isRunning && (
-                <motion.button whileTap={{ scale: 0.97 }}
+                <motion.button
+                  type="button"
+                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
                   onClick={() => pauseTimer(task.id)}
-                  className="btn-secondary rounded-xl flex items-center gap-2">
-                  <Pause size={15} /> Pause
+                  aria-label={`Pause timer for ${task.title}`}
+                  className="btn-secondary rounded-xl flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                  <Pause size={15} aria-hidden="true" /> Pause
                 </motion.button>
               )}
               {isPaused && (
-                <motion.button whileTap={{ scale: 0.97 }}
+                <motion.button
+                  type="button"
+                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
                   onClick={() => resumeTimer(task.id)}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2">
-                  <Play size={15} fill="white" /> Resume
+                  aria-label={`Resume timer for ${task.title}`}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                  <Play size={15} fill="white" aria-hidden="true" /> Resume
                 </motion.button>
               )}
               {isActive && (
-                <motion.button whileTap={{ scale: 0.97 }}
+                <motion.button
+                  type="button"
+                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
                   onClick={() => stopTimer(task.id)}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20">
-                  <Square size={14} fill="currentColor" /> Stop
+                  aria-label={`Stop timer for ${task.title}`}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                  <Square size={14} fill="currentColor" aria-hidden="true" /> Stop
                 </motion.button>
               )}
+              <motion.button
+                type="button"
+                whileHover={isReducedMotion ? {} : { scale: 1.02 }}
+                whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+                onClick={() => openScheduleModal(task.id)}
+                aria-label={`Schedule ${task.title}`}
+                className="btn-secondary rounded-xl flex items-center gap-2 px-5 py-2.5 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                <Calendar size={15} aria-hidden="true" /> Schedule
+              </motion.button>
             </div>
           </motion.div>
 
@@ -373,9 +412,12 @@ export function TaskDetail() {
                     <span className={`flex-1 text-sm ${st.completed ? 'line-through text-surface-500' : 'text-surface-200'}`}>
                       {st.title}
                     </span>
-                    <button onClick={() => deleteSubtask(task.id, st.id)}
-                      className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1">
-                      <Trash2 size={12} />
+                    <button
+                      type="button"
+                      onClick={() => deleteSubtask(task.id, st.id)}
+                      aria-label={`Delete subtask: ${st.title}`}
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                      <Trash2 size={12} aria-hidden="true" />
                     </button>
                   </motion.div>
                 ))}
@@ -455,6 +497,24 @@ export function TaskDetail() {
           )}
         </motion.div>
       </div>
+
+      <ScheduleModal isOpen={isModalOpen} onClose={closeModal} />
+
+      {/* Task Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={showConfirmDelete}
+        title="Delete Task"
+        message={`Are you sure you want to delete "${task.title}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => {
+          setShowConfirmDelete(false);
+          deleteTask(task.id);
+          navigate('/tasks');
+        }}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
     </div>
   );
 }
+

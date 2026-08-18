@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../utils/api';
+import { useWorkspaceStore } from './useWorkspaceStore';
 import { toast } from './useToastStore';
 import type {
   RoadmapListItem,
@@ -24,6 +25,7 @@ interface RoadmapState {
     targetDate?: string;
     icon?: string;
     color?: string;
+    workspaceContext?: string;
   }) => Promise<RoadmapListItem>;
   updateRoadmap: (id: string, updates: Record<string, any>) => Promise<void>;
   deleteRoadmap: (id: string) => Promise<void>;
@@ -81,7 +83,8 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
   },
 
   createRoadmap: async (data) => {
-    const roadmap = await api.personalRoadmaps.create(data);
+    const wsCtx = useWorkspaceStore.getState().activeWorkspace;
+    const roadmap = await api.personalRoadmaps.create({ ...data, workspaceContext: data.workspaceContext || wsCtx } as any);
     set(s => ({ roadmaps: [roadmap, ...s.roadmaps] }));
     toast.success('Roadmap created');
     return roadmap;

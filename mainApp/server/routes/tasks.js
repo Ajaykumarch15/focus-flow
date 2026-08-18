@@ -159,6 +159,7 @@ const TASK_PATCH_FIELDS = {
   dependencies: true,
   estimatedHours: true,
   actualHours: true,
+  completedAt: true,
 };
 
 // IES-R1 ownership invariant: workspaceRef is derived from the owning Project
@@ -381,6 +382,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       assigneeId, reviewerId, followerIds, labels, dependencies,
       estimatedHours, actualHours, sprintStatus, gitContext,
       roadmapRef, phaseRef, milestoneRef,
+      workspaceContext,
     } = req.body;
     const hasCollabScope = workspaceId || projectId || sprintId || featureId;
 
@@ -441,6 +443,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         roadmapRef: roadmapRef || undefined,
         phaseRef: phaseRef || undefined,
         milestoneRef: milestoneRef || undefined,
+        workspaceContext: workspaceContext || 'personal',
         assigneeId: assigneeId ?? undefined,
         reviewerId: reviewerId ?? undefined,
         followerIds: followerIds || [],
@@ -478,6 +481,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       roadmapRef: roadmapRef || undefined,
       phaseRef: phaseRef || undefined,
       milestoneRef: milestoneRef || undefined,
+      workspaceContext: workspaceContext || 'personal',
     });
 
     logger.debug('task created');
@@ -591,6 +595,13 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
         excludeTaskId: req.params.id,
       });
       if (capErr) return res.status(capErr.status).json({ message: capErr.message });
+    }
+
+    // Auto-set/clear completedAt based on status change
+    if (patch.status === 'completed' && existing.status !== 'completed') {
+      patch.completedAt = new Date();
+    } else if (patch.status && patch.status !== 'completed' && existing.status === 'completed') {
+      patch.completedAt = null;
     }
 
     const task = await Task.findOneAndUpdate(

@@ -87,6 +87,7 @@ const moduleRoutes = require('./routes/modules');            // EEP2-P3.2.3
 const commentRoutes = require('./routes/comments');          // EEP2-P5.3.1
 const attachmentRoutes = require('./routes/attachments');    // EEP2-P5.3.2
 const personalRoadmapRoutes = require('./routes/personalRoadmaps'); // Personal Roadmaps
+const scheduleRoutes = require('./routes/schedules');         // Schedule & Planner
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
@@ -139,6 +140,7 @@ app.use('/api/modules', moduleRoutes);             // EEP2-P3.2.3
 app.use('/api/comments', commentRoutes);           // EEP2-P5.3.1
 app.use('/api/attachments', attachmentRoutes);     // EEP2-P5.3.2
 app.use('/api/roadmaps', personalRoadmapRoutes);   // Personal Roadmaps
+app.use('/api/schedules', scheduleRoutes);         // Schedule & Planner
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());

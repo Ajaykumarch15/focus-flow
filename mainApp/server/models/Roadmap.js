@@ -11,6 +11,7 @@ const roadmapSchema = new mongoose.Schema(
     status:      { type: String, enum: ['planning', 'active', 'completed', 'paused', 'archived'], default: 'planning' },
     icon:        { type: String, default: 'Map' },
     color:       { type: String, default: '#0ea5e9' },
+    workspaceContext: { type: String, enum: ['personal', 'work', 'collab'], default: 'personal', index: true },
   },
   { timestamps: true }
 );

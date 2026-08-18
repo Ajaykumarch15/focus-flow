@@ -193,11 +193,15 @@ export function FocusSessionPanel() {
     if (view.taskId) void toggleSubtask(view.taskId, subtaskId, completed);
   };
 
-  const saveNote = () => {
+  const saveNote = async () => {
     if (!view.taskId || !noteText.trim()) return;
-    void addJournal({ taskId: view.taskId, content: noteText.trim(), mood: 3, focusRating: 3 });
-    setNoteText('');
-    setNoteOpen(false);
+    try {
+      await addJournal({ taskId: view.taskId, content: noteText.trim(), mood: 3, focusRating: 3 });
+      setNoteText('');
+      setNoteOpen(false);
+    } catch {
+      // Note stays in editor so user can retry
+    }
   };
 
   const openTask = () => {
@@ -309,7 +313,7 @@ export function FocusSessionPanel() {
                 .map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </Select>
             <p className="text-center text-[11px] text-surface-500 mt-1.5">
-              Switching tasks starts a new session on the selected task and closes the current one.
+              Select a task, then start a focus session on it.
             </p>
           </div>
         </div>

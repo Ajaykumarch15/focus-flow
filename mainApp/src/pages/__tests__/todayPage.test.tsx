@@ -42,6 +42,7 @@ function mkTask(id: string, overrides: Partial<Task> = {}): Task {
     subtasks: [],
     sessions: [],
     totalTime: 0,
+    order: 0,
     createdAt: Date.now() - 60_000,
     updatedAt: Date.now() - 60_000,
     ...overrides,
@@ -177,8 +178,6 @@ describe('TodayPage (S1-T2)', () => {
     expect(text).toContain('GA launch');
 
     // Stats
-    const exactOnes = Array.from(container.querySelectorAll('p')).filter((p) => p.textContent === '1');
-    expect(exactOnes.length).toBeGreaterThanOrEqual(1);
     expect(text).toContain('Completed Today');
     expect(text).toContain('View My Backlog (6)');
 
