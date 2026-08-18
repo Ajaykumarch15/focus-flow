@@ -389,7 +389,7 @@ export function SchedulePage() {
             <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
             <span>⚠️ OVER CAPACITY: You are scheduling more than {formatMinutes(capacityMetrics.totalWorkingMins)} of work for today.</span>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => setShowRecoveryMode(true)} className="text-xs text-red-200 hover:text-white">
+          <Button size="sm" variant="ghost" className="text-xs text-red-200 hover:text-white">
             Recovery Mode
           </Button>
         </div>
