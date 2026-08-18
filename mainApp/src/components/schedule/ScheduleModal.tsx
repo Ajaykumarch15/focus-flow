@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, AlertTriangle, Sparkles, CheckCircle } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 import { useScheduleStore, getTodayDateString } from '../../store/useScheduleStore';
+import { toast } from '../../store/useToastStore';
 import { Priority, ScheduleItem } from '../../types';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -244,17 +245,24 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
           return;
         }
 
-        targetTaskId = await addTask({
-          title: newTitle.trim(),
-          priority: newPriority,
-          category: newCategory,
-          deadline: newDeadline || undefined,
-          description: newDescription.trim(),
-          color: newColor,
-          status: 'todo',
-          tags: [],
-          subtasks: [],
-        });
+        try {
+          targetTaskId = await addTask({
+            title: newTitle.trim(),
+            priority: newPriority,
+            category: newCategory,
+            deadline: newDeadline || undefined,
+            description: newDescription.trim(),
+            color: newColor,
+            status: 'todo',
+            tags: [],
+            subtasks: [],
+          });
+        } catch (taskErr: any) {
+          console.error('Failed to create task:', taskErr);
+          toast.error('Task creation failed', taskErr?.message || 'Could not create the task. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       if (!targetTaskId) {
@@ -262,8 +270,9 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
         return;
       }
 
+      let result: ScheduleItem | null = null;
       if (editingSchedule) {
-        await updateSchedule(editingSchedule._id, {
+        result = await updateSchedule(editingSchedule._id, {
           taskId: targetTaskId,
           date,
           startTime,
@@ -271,7 +280,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
           notes,
         });
       } else {
-        await createSchedule({
+        result = await createSchedule({
           taskId: targetTaskId,
           date,
           startTime,
@@ -280,9 +289,12 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
         });
       }
 
-      onClose();
-    } catch (err) {
+      if (result) {
+        onClose();
+      }
+    } catch (err: any) {
       console.error(err);
+      toast.error('Schedule Failed', err?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

@@ -31,6 +31,7 @@ export interface OfflineOperation {
 
 const QUEUE_KEY = 'ff_offline_timer_queue';
 const MAX_RETRY_DELAY_MS = 5 * 60 * 1000;
+const MAX_ATTEMPTS = 10;
 
 export function createOpId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -154,14 +155,22 @@ export class OfflineQueue {
             this.save();
           }
         } catch (err: any) {
-          console.warn(`[OfflineQueue] Operation ${op.type} failed (attempt ${op.attempts}):`, err?.message);
-          // Persist the incremented attempts so a reload knows this op was
-          // already sent and will not resend a client timestamp.
+          const msg = err?.message || '';
+          const isNotFound = msg.includes('404') || msg.toLowerCase().includes('not found');
+
+          if (isNotFound || op.attempts >= MAX_ATTEMPTS) {
+            console.warn(`[OfflineQueue] Discarding ${op.type} after ${op.attempts} attempt(s): ${isNotFound ? 'session not found' : 'max retries exceeded'}`);
+            this.queue.shift();
+            this.save();
+            if (typeof navigator !== 'undefined' && !navigator.onLine) break;
+            continue;
+          }
+
+          console.warn(`[OfflineQueue] Operation ${op.type} failed (attempt ${op.attempts}):`, msg);
           this.save();
           if (typeof navigator !== 'undefined' && !navigator.onLine) {
             break;
           }
-          // Keep the op queued and retry with exponential backoff.
           this.scheduleRetry(op.attempts);
           break;
         }
