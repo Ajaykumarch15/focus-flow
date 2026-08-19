@@ -116,9 +116,9 @@ export function WorkspaceHub() {
 
               <div>
                 <h3 className="text-lg font-display font-extrabold text-surface-50 mb-0.5">Personal Workspace</h3>
-                <p className="text-xs text-surface-400 mt-1 leading-relaxed">
+                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
                   Your private productivity intelligence. Personal overview, roadmaps, analytics, patterns, and ML-powered insights.
-                </p>
+                </p>*/}
               </div>
 
               {/* Stats pill */}
@@ -159,9 +159,9 @@ export function WorkspaceHub() {
 
               <div>
                 <h3 className="text-lg font-display font-extrabold text-surface-50 mb-0.5">WorkLog</h3>
-                <p className="text-xs text-surface-400 mt-1 leading-relaxed">
+                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
                   Work logs, work history, tasks, schedule, focus timer, journal, habits, reports, and daily insights.
-                </p>
+                </p>*/}
               </div>
 
               <div className="pt-3 flex items-center gap-4 text-xs font-semibold text-surface-300">
@@ -205,9 +205,9 @@ export function WorkspaceHub() {
                 <h3 className="text-xl font-display font-extrabold text-surface-50 group-hover:text-cyan-300 transition-colors">
                   Team Collaboration
                 </h3>
-                <p className="text-xs text-surface-400 mt-1 leading-relaxed">
+                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
                   Shared engineering workspaces. Projects, sprints, features, team members, QA dashboards, reports, and real-time collaboration.
-                </p>
+                </p>*/}
               </div>
 
               {/* Summary stats */}
@@ -218,9 +218,9 @@ export function WorkspaceHub() {
                 <Badge tone="neutral" icon={<Users size={14} className="text-violet-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
                   {totalMembers} Members
                 </Badge>
-                <Badge tone="neutral" icon={<Shield size={14} className="text-emerald-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
+                {/*<Badge tone="neutral" icon={<Shield size={14} className="text-emerald-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
                   RBAC
-                </Badge>
+                </Badge>*/}
               </div>
             </div>
 
