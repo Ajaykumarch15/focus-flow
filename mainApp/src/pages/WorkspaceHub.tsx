@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   User, Building2, ArrowRight, Users, CheckCircle2,
-  Flame, GitBranch, Shield, BookMarked
+  Flame, GitBranch, BookMarked
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
