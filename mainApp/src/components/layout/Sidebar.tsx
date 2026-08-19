@@ -22,11 +22,11 @@ const WORKLOG_NAV = [
   { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },
   { to: '/schedule',  icon: Calendar,        label: 'Schedule'   },
   { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
-  { to: '/journal',   icon: BookOpen,        label: 'Journal'    },
+  //{ to: '/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },
-  { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
+ // { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
   { to: '/knowledge', icon: Library,         label: 'Knowledge'  },
 ];
 
@@ -132,11 +132,11 @@ export function Sidebar() {
             {PERSONAL_ROADMAPS_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
             ))}
-            <div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
+            {/*<div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
             <SectionLabel collapsed={collapsed}>WorkLog</SectionLabel>
             {WORKLOG_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
-            ))}
+            ))}*/}
           </>
         ) : workspace === 'collab' ? (
           <>
@@ -156,11 +156,11 @@ export function Sidebar() {
             {WORKLOG_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
             ))}
-            <div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
+            {/*<div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
             <SectionLabel collapsed={collapsed}>Collaboration</SectionLabel>
             {COLLAB_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
-            ))}
+            ))}*/}
           </>
         )}
 
