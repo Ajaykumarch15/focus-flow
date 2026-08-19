@@ -1,9 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  LayoutDashboard, CheckSquare, BookOpen,
+  LayoutDashboard, CheckSquare,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Lightbulb, Map, BarChart3, Calendar, Clock, Brain,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Map, BarChart3, Calendar, Clock, Brain,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
