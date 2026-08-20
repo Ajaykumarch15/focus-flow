@@ -17,6 +17,11 @@ export const RICH_CONTENT_STYLES = `
 .rich-content pre code { background: none; border: none; padding: 0; color: var(--color-surface-200); }
 .rich-content a { color: var(--color-brand-500); text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
 .rich-content a:hover { color: var(--color-brand-400); }
+.rich-content u { text-decoration: underline; }
+.rich-content s { text-decoration: line-through; color: var(--color-surface-500); }
+.rich-content [data-md-align="center"] { text-align: center; }
+.rich-content [data-md-align="right"] { text-align: right; }
+.rich-content [data-md-align="justify"] { text-align: justify; }
 .rich-content strong { font-weight: 600; color: var(--color-surface-50); }
 .rich-content hr { border: none; border-top: 1px solid var(--color-surface-800); margin: 1rem 0; }
 .rich-content mark { background: #fef08a; color: #101828; border-radius: 3px; padding: 0.1em 0.2em; }
