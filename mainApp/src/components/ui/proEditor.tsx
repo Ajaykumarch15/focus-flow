@@ -11,36 +11,50 @@ import { renderMarkdown } from '../../lib/markdown';
 // ── HTML to Markdown Converter ───────────────────────────────────────────────
 function htmlToMarkdown(html: string): string {
   let md = html
+    // ── Block elements ──────────────────────────────────────────────────────
     .replace(/<h1>(.*?)<\/h1>/gi, '# $1\n\n')
     .replace(/<h2>(.*?)<\/h2>/gi, '## $1\n\n')
     .replace(/<h3>(.*?)<\/h3>/gi, '### $1\n\n')
     .replace(/<blockquote>(.*?)<\/blockquote>/gi, '> $1\n\n')
     .replace(/<hr.*?>/gi, '---\n\n')
-    .replace(/<pre class="md-pre"><code.*?>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
+    // Code blocks — match both TipTap (<pre><code>) and md-pre format
+    .replace(/<pre(?:\s+class="md-pre")?>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, '```\n$1\n```\n\n')
     .replace(/<code.*?>(.*?)<\/code>/gi, '`$1`')
-    .replace(/<ul class="md-ul">([\s\S]*?)<\/ul>/gi, '$1\n')
-    .replace(/<ol class="md-ol">([\s\S]*?)<\/ol>/gi, '$1\n')
+    // ── Alignment — preserve as data attribute (survives DOMPurify) ─────────
+    .replace(/style="text-align:\s*(left|center|right|justify)"/gi, 'data-md-align="$1"')
+    // ── Unwrap TipTap list wrappers (before task-list & li matching) ────────
+    .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, '$1')
+    .replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, '$1')
+    // ── Strip <p> inside <li> (TipTap wraps list text in <p>) ───────────────
+    .replace(/<li([^>]*)><p>([\s\S]*?)<\/p><\/li>/gi, '<li$1>$2</li>')
+    // ── Task list items ─────────────────────────────────────────────────────
     .replace(/<li class="md-li md-task-li"><input type="checkbox" disabled="" class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [ ] $1\n')
     .replace(/<li class="md-li md-task-li"><input type="checkbox" checked="" disabled="" class="md-task-checkbox"> <span class="line-through text-surface-500">(.*?)<\/span><\/li>/gi, '- [x] $1\n')
     .replace(/<li class="md-li md-task-li"><input type="checkbox" checked="" disabled="" class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [x] $1\n')
     .replace(/<li class="md-li md-task-li"><input type="checkbox" disabled class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [ ] $1\n')
     .replace(/<li class="md-li md-task-li"><input type="checkbox" checked disabled class="md-task-checkbox"> <span class="line-through text-surface-500">(.*?)<\/span><\/li>/gi, '- [x] $1\n')
     .replace(/<li class="md-li md-task-li"><input type="checkbox" checked disabled class="md-task-checkbox"> <span>(.*?)<\/span><\/li>/gi, '- [x] $1\n')
+    // ── Ordered / unordered list items (specific BEFORE catch-all) ──────────
     .replace(/<li class="md-li md-oli">(.*?)<\/li>/gi, '1. $1\n')
+    .replace(/<li class="md-li">(.*?)<\/li>/gi, '- $1\n')
     .replace(/<li.*?>(.*?)<\/li>/gi, '- $1\n')
+    // ── Inline formatting ───────────────────────────────────────────────────
     .replace(/<strong><em>(.*?)<\/em><\/strong>/gi, '***$1***')
     .replace(/<b><i>(.*?)<\/i><\/b>/gi, '***$1***')
     .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
     .replace(/<b>(.*?)<\/b>/gi, '**$1**')
     .replace(/<em>(.*?)<\/em>/gi, '*$1*')
     .replace(/<i>(.*?)<\/i>/gi, '*$1*')
+    // ── Color / font ────────────────────────────────────────────────────────
     .replace(/<span style="color:\s*(.*?);?">(.*?)<\/span>/gi, '<font color="$1">$2</font>')
     .replace(/<font color="(.*?)">(.*?)<\/font>/gi, '<font color="$1">$2</font>')
     .replace(/<font color="(.*?)" size="(.*?)">(.*?)<\/font>/gi, '<font color="$1" size="$2">$3</font>')
     .replace(/<a href="(.*?)"\s*>(.*?)<\/a>/gi, '[$2]($1)')
+    // ── Strip remaining block wrappers ──────────────────────────────────────
     .replace(/<p.*?>(.*?)<\/p>/gi, '$1\n\n')
     .replace(/<div.*?>(.*?)<\/div>/gi, '$1\n')
     .replace(/<br\s*\/?>/gi, '\n')
+    // ── Restore HTML entities ───────────────────────────────────────────────
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -900,4 +914,9 @@ export const PROSE_STYLES = `
 .prose-editor .md-task-checkbox { width: 14px; height: 14px; accent-color: var(--color-brand-500); margin: 0; cursor: default; }
 .prose-editor .md-link   { color: var(--color-brand-500); text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
 .prose-editor .md-link:hover { color: var(--color-brand-400); }
+.prose-editor u { text-decoration: underline; }
+.prose-editor s  { text-decoration: line-through; color: var(--color-surface-500); }
+.prose-editor [data-md-align="center"] { text-align: center; }
+.prose-editor [data-md-align="right"] { text-align: right; }
+.prose-editor [data-md-align="justify"] { text-align: justify; }
 `;
