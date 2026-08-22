@@ -72,6 +72,9 @@ export function TaskDetail() {
     ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
     : 0;
 
+  const timerDisplay = isActive ? activeDisplay : formatDuration(task.totalTime);
+  const timerHasHours = timerDisplay.includes(':') && timerDisplay.split(':').length > 2;
+
   const handleAddSubtask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubtask.trim()) return;
@@ -192,7 +195,7 @@ export function TaskDetail() {
 
           {/* Timer Card */}
           <motion.div variants={fadeUp}
-            className={`rounded-2xl border p-6 text-center transition-all duration-300 ${
+            className={`rounded-2xl border p-6 text-center overflow-hidden transition-all duration-300 ${
               isRunning
                 ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/5 to-surface-900 shadow-lg shadow-amber-500/10'
                 : isPaused
@@ -206,22 +209,24 @@ export function TaskDetail() {
               <span className="text-xs font-semibold uppercase tracking-wider text-surface-400">Focus Timer</span>
             </div>
 
-            <div className="my-6 relative">
+            <div className="my-6 relative min-w-0 px-2">
               {/* Pulse rings when running */}
               {isRunning && !isReducedMotion && (
                 <>
                   <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/20"
-                    animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+                    animate={{ scale: [1, 1.06, 1], opacity: [0.3, 0, 0.3] }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
                   <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/15"
-                    animate={{ scale: [1, 1.25, 1], opacity: [0.15, 0, 0.15] }}
+                    animate={{ scale: [1, 1.1, 1], opacity: [0.15, 0, 0.15] }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
                 </>
               )}
-              <div className={`font-mono text-5xl lg:text-6xl font-extrabold tracking-wider transition-colors duration-300 ${
-                isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
-              }`}>
-                {isActive ? activeDisplay : formatDuration(task.totalTime)}
+              <div className={`font-mono font-extrabold tabular-nums tracking-normal transition-colors duration-300 ${
+                timerHasHours
+                  ? 'text-[clamp(1.5rem,6vw,2.75rem)]'
+                  : 'text-[clamp(2.25rem,10vw,3.75rem)]'
+              } ${isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'}`}>
+                {timerDisplay}
               </div>
             </div>
 
