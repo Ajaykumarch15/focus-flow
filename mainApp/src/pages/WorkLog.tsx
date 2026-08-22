@@ -434,7 +434,7 @@ function TaskLinkControl({ log }: { log: WorkLog }) {
   const [selected, setSelected] = useState(log.taskRef?._id || '');
   const [saving, setSaving] = useState(false);
   const activeTasks = tasks.filter(t => t.status !== 'completed' || t.id === log.taskRef?._id);
-  useEffect(() => { setSelected(log.taskRef?._id || ''); }, [log.taskRef?._id]);
+  useEffect(() => { setSelected(log.taskRef?._id || ''); }, [log._id]);
 
   const save = async () => {
     setSaving(true);

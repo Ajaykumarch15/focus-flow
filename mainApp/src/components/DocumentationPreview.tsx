@@ -32,6 +32,15 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
   }, [open]);
 
   useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
+
+  useEffect(() => {
     if (iframeRef.current && open) {
       const doc = iframeRef.current.contentDocument;
       if (doc) {
@@ -93,8 +102,8 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
             exit={{ opacity: 0, scale: 0.95, y: 12 }}
             transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
             onClick={e => e.stopPropagation()}
-            className={`relative bg-surface-900 border border-surface-700 rounded-2xl shadow-2xl shadow-black/40 flex flex-col overflow-hidden ${
-              fullscreen ? 'fixed inset-2 z-10' : 'w-full max-w-6xl h-[85vh]'
+            className={`bg-surface-900 border border-surface-700 rounded-2xl shadow-2xl shadow-black/40 flex flex-col overflow-hidden ${
+              fullscreen ? 'fixed inset-2 z-10' : 'relative w-full max-w-6xl h-[85vh]'
             }`}
           >
             {/* Header */}
