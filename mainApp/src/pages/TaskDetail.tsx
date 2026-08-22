@@ -72,6 +72,9 @@ export function TaskDetail() {
     ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
     : 0;
 
+  const timerDisplay = isActive ? activeDisplay : formatDuration(task.totalTime);
+  const timerHasHours = timerDisplay.includes(':') && timerDisplay.split(':').length > 2;
+
   const handleAddSubtask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubtask.trim()) return;
@@ -218,10 +221,12 @@ export function TaskDetail() {
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
                 </>
               )}
-              <div className={`font-mono text-[clamp(2.25rem,10vw,3.75rem)] font-extrabold tabular-nums tracking-normal transition-colors duration-300 ${
-                isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'
-              }`}>
-                {isActive ? activeDisplay : formatDuration(task.totalTime)}
+              <div className={`font-mono font-extrabold tabular-nums tracking-normal transition-colors duration-300 ${
+                timerHasHours
+                  ? 'text-[clamp(1.5rem,6vw,2.75rem)]'
+                  : 'text-[clamp(2.25rem,10vw,3.75rem)]'
+              } ${isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'}`}>
+                {timerDisplay}
               </div>
             </div>
 
