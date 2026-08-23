@@ -133,6 +133,7 @@ export function Register() {
           <AuthInput
             label="Password"
             name="password"
+            type="password"
             icon={<Lock size={15} />}
             autoComplete="new-password"
             placeholder="Create a password (min. 12 characters)"

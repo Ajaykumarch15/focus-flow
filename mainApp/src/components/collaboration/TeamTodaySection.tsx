@@ -4,6 +4,7 @@ import type { NowContext } from '../../lib/nowSelectors';
 import type { TeamTodayItem, TeamTodayView, TeamWorkingMember } from '../../lib/missionControlSelectors';
 import { Button } from '../ui/Button';
 import { Badge, type BadgeTone } from '../ui/Badge';
+import { Avatar, AvatarGroup } from '../ui/Avatar';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Progress } from '../ui/Progress';
 import { Skeleton } from '../ui/Skeleton';
@@ -139,7 +140,16 @@ export function TeamTodaySection({
       {/* ── Team Today lists ── */}
       {!showSkeleton && !showError && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TodayCard icon={<Users size={15} className="text-cyan-400" />} title="Working Now" count={view.working.length}>
+          <TodayCard
+            icon={<Users size={15} className="text-cyan-400" />}
+            title="Working Now"
+            count={view.working.length}
+            headerExtra={
+              view.working.length > 0 ? (
+                <AvatarGroup items={view.working.map(m => ({ name: m.memberName }))} max={3} size="xs" className="ml-auto" />
+              ) : undefined
+            }
+          >
             {view.working.length === 0 ? (
               <p className="text-xs text-surface-500 italic py-4 text-center">No one is in focus right now.</p>
             ) : (
@@ -164,8 +174,8 @@ export function TeamTodaySection({
   );
 }
 
-function TodayCard({ icon, title, count, children }: {
-  icon: ReactNode; title: string; count: number; children: ReactNode;
+function TodayCard({ icon, title, count, headerExtra, children }: {
+  icon: ReactNode; title: string; count: number; headerExtra?: ReactNode; children: ReactNode;
 }) {
   return (
     <div className="rounded-2xl border border-surface-800 bg-surface-900 p-6 space-y-3">
@@ -173,6 +183,7 @@ function TodayCard({ icon, title, count, children }: {
         {icon}
         {title}
         <Badge tone="neutral" className="text-[10px] font-extrabold">{count}</Badge>
+        {headerExtra && <span className="ml-auto">{headerExtra}</span>}
       </h3>
       {children}
     </div>
@@ -182,9 +193,7 @@ function TodayCard({ icon, title, count, children }: {
 function WorkingRow({ member }: { member: TeamWorkingMember }) {
   return (
     <div className="p-3 rounded-xl bg-surface-850 border border-surface-800 flex items-center gap-3 text-xs">
-      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-brand-500 ring-2 ring-surface-950 flex items-center justify-center text-[11px] font-bold text-white shrink-0">
-        {member.memberName.charAt(0)}
-      </div>
+      <Avatar name={member.memberName} size="sm" className="ring-2 ring-surface-850" />
       <div className="min-w-0 flex-1">
         <p className="font-bold text-surface-100 truncate">{member.memberName}</p>
         <p className="text-[10px] text-surface-400 truncate">{member.focusTask ?? 'No current task'}</p>
