@@ -172,14 +172,13 @@ export function TodayPage() {
   return (
     <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
       {/* ═══════════════ HEADER ═══════════════ */}
-      <motion.div variants={fadeUp} initial="hidden" animate="show"
-        className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 p-8 lg:p-10">
-        <div className="absolute top-0 right-0 w-[500px] h-[300px] opacity-20 dark:opacity-15 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse at top right, ${accent}30, transparent 70%)` }} />
-
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
+        className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 dark:bg-[#05070D]
+                   shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:shadow-[0_16px_40px_-16px_rgba(0,0,0,0.5)]
+                   p-6 sm:p-8 lg:p-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-10">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
                 {todayLabel}
               </Badge>
@@ -190,17 +189,17 @@ export function TodayPage() {
               )}
             </div>
 
-            <h1 className="text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
+            <h1 className="mt-4 text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
               {greeting}, {firstName}
             </h1>
 
-            <p className="text-surface-300 text-sm mt-3 max-w-lg leading-relaxed">
+            <p className="text-surface-300 text-sm mt-2.5 max-w-lg leading-relaxed">
               {activeTask
                 ? `You're focusing on "${activeTask.title}"`
                 : 'What should you do now?'}
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 mt-6">
+            <div className="flex flex-wrap items-center gap-3 mt-7">
               {activeTask ? (
                 <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
@@ -220,20 +219,35 @@ export function TodayPage() {
             </div>
           </div>
 
-          {/* Daily goal */}
-          <div className="flex flex-col items-center gap-3 flex-shrink-0 w-full sm:w-auto">
-            <div className="w-full sm:w-52 rounded-2xl border border-surface-800/60 bg-surface-950/40 p-5 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 mb-2">Daily Goal</p>
+          {/* CENTER — decorative productivity illustration */}
+          <div className="relative mx-auto shrink-0">
+            <div aria-hidden="true"
+              className="hidden dark:block absolute -inset-8 rounded-full blur-3xl bg-blue-500/[0.05] pointer-events-none" />
+            <motion.img
+              variants={fadeUp}
+              src={theme?.mode === 'dark' ? '/hero_img.png' : '/personal_workspace_hub_light.jpg'}
+              alt=""
+              aria-hidden="true"
+              loading="eager"
+              draggable={false}
+              className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none"
+            />
+          </div>
+
+          {/* RIGHT — compact Daily Goal card */}
+          <div className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0">
+            <div className="w-full rounded-2xl border border-surface-800 bg-surface-850 p-5 text-center">
+              <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
               {view.stats.progressPct === null ? (
                 <>
-                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none">—</div>
+                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none mt-3">—</div>
                   <p className="text-xs text-surface-500 mt-2">Set a daily goal in Settings to track progress.</p>
                 </>
               ) : (
                 <>
-                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none">{view.stats.progressPct}%</div>
+                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none mt-3">{view.stats.progressPct}%</div>
                   <Progress value={view.stats.progressPct} tone={view.stats.progressPct >= 100 ? 'success' : 'brand'} className="mt-3" ariaLabel="Daily goal progress" />
-                  <p className="text-sm font-semibold text-surface-200 mt-2">
+                  <p className="text-sm font-semibold text-surface-200 mt-2 pt-3 border-t border-surface-800/70">
                     {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
                   </p>
                   {remainingMs != null && remainingMs > 0 && view.stats.progressPct < 100 && (
@@ -244,7 +258,7 @@ export function TodayPage() {
             </div>
           </div>
         </div>
-      </motion.div>
+      </motion.section>
 
       {/* Overdue banner */}
       <AnimatePresence>

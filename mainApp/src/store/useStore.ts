@@ -229,6 +229,7 @@ interface StoreState {
   setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
+  fetchProfile: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline' | 'order'> & { deadline?: string | number }) => Promise<string>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -407,6 +408,17 @@ export const useStore = create<StoreState>((set, get) => {
       }
     },
 
+    fetchProfile: async () => {
+      try {
+        const userDoc = await api.profile.get();
+        const { profile } = mapSettings(userDoc);
+        saveCache(PROFILE_KEY, profile);
+        set({ profile });
+      } catch (err) {
+        console.error('❌ fetchProfile failed:', err);
+      }
+    },
+
     fetchJournals: async () => {
       try {
         const docs = await api.journals.list();
@@ -574,6 +586,7 @@ export const useStore = create<StoreState>((set, get) => {
             currentPauseStart: undefined,
           });
         });
+        get().fetchProfile();
       } catch (err) {
         console.warn('Network issue on session start. Enqueuing offline op.');
         offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId);
@@ -644,6 +657,7 @@ export const useStore = create<StoreState>((set, get) => {
           await api.sessions.stop(sessionId, now, opId);
           stopHeartbeat();
           await get().fetchTasks();
+          get().fetchProfile();
           // Auto-sync WorkLog store
           useWorkLogStore.getState().loadToday().catch(() => {});
         } catch {

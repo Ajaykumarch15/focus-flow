@@ -7,6 +7,8 @@ import {
   LayoutDashboard, CheckSquare, LineChart, Sparkles,
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { useStore } from '../store/useStore';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -41,6 +43,7 @@ const stats = [
 
 export function Landing() {
   const navigate = useNavigate();
+  const themeMode = useStore(s => s.theme.mode);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -58,13 +61,16 @@ export function Landing() {
           scrolled ? 'bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/50 shadow-lg shadow-black/20' : ''
         }`}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/30">
-              <Target size={16} className="text-white" />
-            </div>
-            <span className="font-display font-extrabold text-surface-50 text-lg tracking-tight">FocusFlow</span>
+          <div className="flex items-center">
+            <img
+              src={themeMode === 'dark' ? '/focusflow-logo-dark.png' : '/focusflow-logo-light.png'}
+              alt="FocusFlow"
+              className="h-9 w-auto"
+              draggable={false}
+            />
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Button variant="ghost" className="hidden sm:block px-3 py-2" onClick={() => navigate('/login')}>
               Sign In
             </Button>
@@ -398,11 +404,13 @@ export function Landing() {
       <footer className="border-t border-surface-800/60">
         <div className="max-w-6xl mx-auto px-6 py-10">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-brand-500 flex items-center justify-center">
-                <Target size={14} className="text-white" />
-              </div>
-              <span className="font-display font-bold text-surface-200">FocusFlow</span>
+            <div className="flex items-center">
+              <img
+                src={themeMode === 'dark' ? '/focusflow-logo-dark.png' : '/focusflow-logo-light.png'}
+                alt="FocusFlow"
+                className="h-7 w-auto"
+                draggable={false}
+              />
             </div>
             <div className="flex items-center gap-6 text-xs text-surface-500">
               <span>Privacy</span>

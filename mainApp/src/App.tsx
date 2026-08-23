@@ -11,7 +11,7 @@ import { AdminLayout }     from './components/layout/AdminLayout';
 import { ProtectedRoute, AdminRoute } from './components/auth/ProtectedRoute';
 import { Card }            from './components/ui/Card';
 import { Button }          from './components/ui/Button';
-import { Spinner }         from './components/ui/Spinner';
+import SwarmCursor         from './components/ui/SwarmCursor';
 
 const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
 const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
@@ -84,9 +84,10 @@ const AdminTeams      = lazy(() => import('./pages/admin/AdminTeams').then(modul
 const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
+  const accent = useStore(s => s.theme.accentColor) || '#0ea5e9';
   return (
-    <div className="min-h-screen bg-surface-950 text-surface-50 flex items-center justify-center">
-      <Spinner size={40} className="text-brand-500" />
+    <div className="min-h-screen bg-surface-950 text-surface-50" role="status" aria-label="Loading">
+      <SwarmCursor color={accent} accentColor="#ffffff" count={14} size={9} speed={2.5} spread={90} />
     </div>
   );
 }
@@ -119,6 +120,11 @@ function PersonalWorkspaceRouter() {
 export default function App() {
   const { user, loading, restoreSession } = useAuthStore();
   const { loadAll }                              = useStore();
+
+  // FocusFlow pre-React loader handoff: signal readiness after first commit.
+  useEffect(() => {
+    window.dispatchEvent(new Event('focusflow:app-ready'));
+  }, []);
 
   useEffect(() => {
     restoreSession();
