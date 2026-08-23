@@ -26,6 +26,7 @@ const WorkspaceHomePage = lazy(() => import('./pages/collaboration/WorkspaceHome
 
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
+const NotFoundPage    = lazy(() => import('./pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
 const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
 const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
 const SchedulePage    = lazy(() => import('./pages/SchedulePage').then(module => ({ default: module.SchedulePage })));
@@ -247,7 +248,7 @@ export default function App() {
               </Route>
             </Route>
 
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </ErrorBoundary>
         </Suspense>

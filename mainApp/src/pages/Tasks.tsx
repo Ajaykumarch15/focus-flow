@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Search, CheckCircle, AlertTriangle,
-  Target,
+  Plus, Search, AlertTriangle,
+  Target, X, ArrowUpDown,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { cn } from '../lib/cn';
 import { TaskCard } from '../components/tasks/TaskCard';
 import { BulkActionBar } from '../components/tasks/BulkActionBar';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
@@ -68,6 +69,43 @@ export function Tasks() {
   }, [filtered, sortBy]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
+
+  // ── Filter metadata (counts, active state, clear) ──────────────────────────
+  const statusCounts = useMemo(() => {
+    const counts: Record<TaskStatus | 'all', number> = { all: 0, todo: 0, active: 0, paused: 0, completed: 0 };
+    for (const t of tasks) {
+      if (filterPriority !== 'all' && t.priority !== filterPriority) continue;
+      if (filterCategory !== 'all' && t.category !== filterCategory) continue;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) continue;
+      }
+      if (showOverdueOnly && (t.status === 'completed' || !isOverdue(t.deadline))) continue;
+      counts.all++;
+      counts[t.status]++;
+    }
+    if (!showCompleted && filterStatus !== 'completed') counts.all -= counts.completed;
+    return counts;
+  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly, showCompleted, filterStatus]);
+
+  const overdueCount = useMemo(
+    () => tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length,
+    [tasks],
+  );
+
+  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterPriority !== 'all'
+    || filterCategory !== 'all' || showOverdueOnly;
+
+  const clearFilters = useCallback(() => {
+    setSearch('');
+    setFilterStatus('all');
+    setFilterPriority('all');
+    setFilterCategory('all');
+    setShowCompleted(false);
+    setShowOverdueOnly(false);
+  }, []);
+
+  const isUnfiltered = !hasActiveFilters && filterCategory === 'all';
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -185,82 +223,140 @@ export function Tasks() {
       />
 
       {/* Filters */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-wrap gap-3">
-        <div className="flex-1 min-w-[200px]">
-          <Input
-            placeholder="Search tasks..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+        {/* Row 1 — search + secondary filters */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
+            <Input
+              placeholder="Search tasks..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
+              aria-label="Search tasks"
+              className="h-10 pl-10 pr-9"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          <select
+            value={filterPriority}
+            onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
+            aria-label="Filter by priority"
+            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          >
+            <option value="all">All Priority</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+
+          <select
+            value={filterCategory}
+            onChange={e => setFilterCategory(e.target.value)}
+            aria-label="Filter by category"
+            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+          >
+            <option value="all">All Categories</option>
+            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+
+          <div className="relative">
+            <ArrowUpDown size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              aria-label="Sort tasks"
+              className="h-10 pl-9 pr-8 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 appearance-none"
+            >
+              <option value="default">Default Order</option>
+              <option value="deadline">Deadline</option>
+              <option value="priority">Priority</option>
+            </select>
+          </div>
+
+          <Button
+            variant={showOverdueOnly ? 'primary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+            aria-pressed={showOverdueOnly}
+            className="gap-1.5 h-10"
+          >
+            <AlertTriangle size={14} />
+            Overdue
+            {overdueCount > 0 && (
+              <span
+                className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${
+                  showOverdueOnly ? 'bg-white/25 text-white' : 'bg-red-500/15 text-red-400'
+                }`}
+              >
+                {overdueCount}
+              </span>
+            )}
+          </Button>
         </div>
 
-        <select
-          value={filterStatus}
-          onChange={e => handleStatusFilter(e.target.value as TaskStatus | 'all')}
-          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-        >
-          <option value="all">All Status</option>
-          <option value="todo">To Do</option>
-          <option value="active">Active</option>
-          <option value="paused">Paused</option>
-          <option value="completed">Completed</option>
-        </select>
-
-        <select
-          value={filterPriority}
-          onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
-          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-        >
-          <option value="all">All Priority</option>
-          <option value="urgent">Urgent</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-
-        <select
-          value={filterCategory}
-          onChange={e => setFilterCategory(e.target.value)}
-          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-        >
-          <option value="all">All Categories</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-
-        <select
-          value={sortBy}
-          onChange={e => setSortBy(e.target.value as typeof sortBy)}
-          className="px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-        >
-          <option value="default">Default Order</option>
-          <option value="deadline">Deadline</option>
-          <option value="priority">Priority</option>
-        </select>
-
-        <Button
-          variant={showCompleted ? 'primary' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            const next = !showCompleted;
-            setShowCompleted(next);
-            setFilterStatus(next ? 'completed' : 'all');
-          }}
-          className="gap-1.5"
-        >
-          <CheckCircle size={14} />
-          Completed
-        </Button>
-
-        <Button
-          variant={showOverdueOnly ? 'primary' : 'ghost'}
-          size="sm"
-          onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-          className="gap-1.5"
-        >
-          <AlertTriangle size={14} />
-          Overdue
-        </Button>
+        {/* Row 2 — status pills */}
+        <div role="group" aria-label="Filter by status" className="flex flex-wrap items-center gap-1.5">
+          {([
+            ['all', 'All'],
+            ['todo', 'To Do'],
+            ['active', 'Active'],
+            ['paused', 'Paused'],
+            ['completed', 'Done'],
+          ] as const).map(([value, label]) => {
+            const active = filterStatus === value;
+            const count = statusCounts[value];
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => handleStatusFilter(value)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border text-xs font-bold transition-all',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
+                  active
+                    ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
+                    : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
+                )}
+              >
+                {label}
+                <span
+                  className={cn(
+                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
+                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
+                  )}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </motion.div>
+
+      {/* Results summary */}
+      {hasActiveFilters && (
+        <div className="flex items-center justify-between text-xs text-surface-500">
+          <p>
+            Showing <span className="font-bold text-surface-300">{sorted.length}</span> of {tasks.length} task{tasks.length !== 1 ? 's' : ''}
+          </p>
+          <button onClick={clearFilters} className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:text-brand-300 transition-colors">
+            <X size={12} /> Clear filters
+          </button>
+        </div>
+      )}
 
       {/* Selection info */}
       {hasSelection && (
@@ -300,10 +396,12 @@ export function Tasks() {
         </motion.div>
       ) : (
         <EmptyState
-          icon={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? <Search size={24} /> : <Target size={24} />}
-          title={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? 'No matching tasks' : 'No tasks yet'}
-          description={search || filterStatus !== 'all' || filterPriority !== 'all' || showOverdueOnly || !showCompleted ? 'Try adjusting your filters or search query.' : 'Create your first task to get started with focused work.'}
-          action={!search && filterStatus === 'all' && filterPriority === 'all' && showCompleted && !showOverdueOnly ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : undefined}
+          icon={isUnfiltered ? <Target size={24} /> : <Search size={24} />}
+          title={isUnfiltered ? 'No tasks yet' : 'No matching tasks'}
+          description={isUnfiltered ? 'Create your first task to get started with focused work.' : 'Try adjusting your filters or search query.'}
+          action={isUnfiltered ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : (
+            <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
+          )}
         />
       )}
 

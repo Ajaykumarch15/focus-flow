@@ -69,8 +69,9 @@ describe('P0-31 auth flows land on the role-aware default', () => {
 
   it('exposes browser-autofill hints on the login form', () => {
     const { container } = renderAt('/login', <Login />);
-    expect(container.querySelector('input[name="email"]')?.getAttribute('autoComplete')).toBe('email');
+    expect(container.querySelector('input[name="email"]')?.getAttribute('autoComplete')).toBe('username');
     expect(container.querySelector('input[name="password"]')?.getAttribute('autoComplete')).toBe('current-password');
+    expect(container.querySelector('input[name="password"]')?.getAttribute('type')).toBe('password');
   });
 
   it('exposes browser-autofill hints on the register form', () => {
@@ -78,7 +79,7 @@ describe('P0-31 auth flows land on the role-aware default', () => {
     expect(container.querySelector('input[name="name"]')?.getAttribute('autoComplete')).toBe('name');
     expect(container.querySelector('input[name="email"]')?.getAttribute('autoComplete')).toBe('email');
     expect(container.querySelector('input[name="password"]')?.getAttribute('autoComplete')).toBe('new-password');
-    expect(container.querySelector('input[name="confirmPassword"]')?.getAttribute('autoComplete')).toBe('new-password');
+    expect(container.querySelector('input[name="password"]')?.getAttribute('type')).toBe('password');
   });
 
   it('lands on /hub after a successful login', async () => {
@@ -106,7 +107,6 @@ describe('P0-31 auth flows land on the role-aware default', () => {
     setInput(container, 'name', 'Ajay Kumar');
     setInput(container, 'email', 'ajay@example.com');
     setInput(container, 'password', 'correct-horse-battery');
-    setInput(container, 'confirmPassword', 'correct-horse-battery');
     await submitForm(container);
     expect(registerSpy).toHaveBeenCalledWith('Ajay Kumar', 'ajay@example.com', 'correct-horse-battery');
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/hub');

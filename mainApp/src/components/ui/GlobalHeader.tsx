@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useStore } from '../../store/useStore';
-import { WORKSPACES, WORKSPACE_LIST, type WorkspaceType } from '../../types/workspace';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
 import { FocusFlowLogo } from './FocusFlowLogo';
@@ -14,16 +13,14 @@ import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 
 export function GlobalHeader() {
   const { user, logout } = useAuthStore();
-  const { activeWorkspace, setWorkspace } = useWorkspaceStore();
+  const { activeWorkspace } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [wsOpen, setWsOpen] = useState(false);
+  const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<HTMLDivElement>(null);
-
-  const wsConfig = WORKSPACES[activeWorkspace];
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -41,14 +38,6 @@ export function GlobalHeader() {
     };
   }, []);
 
-  const handleSwitch = (ws: WorkspaceType) => {
-    setWorkspace(ws);
-    setWsOpen(false);
-    navigate(ws === 'personal' ? '/dashboard' : ws === 'work' ? '/worklog/dashboard' : '/collab/dashboard');
-  };
-
-  const WsIcon = wsConfig.icon;
-
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
       {/* Left: Hamburger (mobile only) + Logo + Workspace Badge */}
@@ -64,6 +53,7 @@ export function GlobalHeader() {
         </button>
 
         {/* Workspace Switcher */}
+        {/*}
         <div className="relative" ref={wsRef}>
           <button
             onClick={() => setWsOpen(!wsOpen)}
@@ -113,7 +103,7 @@ export function GlobalHeader() {
               </>
             )}
           </AnimatePresence>
-        </div>
+        </div>*/}
       </div>
 
       {/* Center: Breadcrumbs */}
@@ -124,7 +114,7 @@ export function GlobalHeader() {
       {/* Right: Search + Theme + Notifications + User */}
       <div className="flex items-center gap-1 flex-shrink-0">
         {/* Search — opens the global command palette (Ctrl/Cmd+K) */}
-        <button
+        {/*<button
           type="button"
           onClick={() => setSearchOpen(true)}
           aria-label="Search workspace (Ctrl+K)"
@@ -137,7 +127,7 @@ export function GlobalHeader() {
           <kbd className="hidden lg:inline text-[10px] text-surface-500 bg-surface-800 border border-surface-700 px-1.5 py-0.5 rounded font-mono">
             Ctrl K
           </kbd>
-        </button>
+        </button>*/}
         <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
         <ThemeToggle />
 

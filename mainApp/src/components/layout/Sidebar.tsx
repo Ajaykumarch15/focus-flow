@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { useStore } from '../../store/useStore';
+import { Avatar } from '../ui/Avatar';
 
 
 const PERSONAL_ROADMAPS_NAV = [
@@ -230,9 +231,7 @@ export function Sidebar() {
       {/* User */}
       <div className="p-3 border-t border-surface-800">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-400 to-cyan-400 flex items-center justify-center flex-shrink-0 text-sm font-bold text-white">
-            {user?.name?.charAt(0).toUpperCase() || 'U'}
-          </div>
+          <Avatar name={user?.name} src={user?.avatar} size="sm" />
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1 min-w-0">

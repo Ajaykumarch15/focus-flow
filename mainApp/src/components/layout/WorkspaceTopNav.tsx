@@ -6,6 +6,7 @@ import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useAuthStore } from '../../store/useAuthStore';
 import { FocusFlowLogo } from '../ui/FocusFlowLogo';
 import { Button } from '../ui/Button';
+import { Avatar } from '../ui/Avatar';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
 
 // Engineering Workspace top bar: product identity + breadcrumb (left), global
@@ -79,9 +80,7 @@ export function WorkspaceTopNav() {
       {/* RIGHT — avatar / notifications / settings / workspace switcher */}
       <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
         <div className="hidden md:flex items-center gap-2.5 mr-1">
-          <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-cyan-500 flex items-center justify-center font-bold text-white text-xs shrink-0">
-            {user?.name?.charAt(0) || 'U'}
-          </span>
+          <Avatar name={user?.name} src={user?.avatar} size="sm" />
           <span className="text-xs font-bold text-surface-100 truncate max-w-32">{user?.name}</span>
         </div>
 

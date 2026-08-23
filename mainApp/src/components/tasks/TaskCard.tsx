@@ -91,13 +91,23 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        whileHover={{ y: -2 }}
-        className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer group relative overflow-hidden
+        whileHover={{ y: -4 }}
+        onKeyDown={(e: React.KeyboardEvent) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !(e.target as HTMLElement).closest('button, input, [data-no-nav]')) {
+            e.preventDefault();
+            navigate(`/tasks/${task.id}`);
+          }
+        }}
+        className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50
           ${isRunning ? 'border-amber-400/50 bg-[#FFFDF5] dark:bg-amber-500/10' : isOverdue ? 'border-red-500/30 bg-red-500/5' : ''}
           ${task.status === 'completed' ? 'opacity-70 bg-surface-900/60' : ''}
           ${selected ? 'ring-2 ring-brand-400/50 border-brand-400/30 bg-brand-500/5' : ''}
         `}
         onClick={handleCardClick}
+        tabIndex={0}
+        role="button"
+        aria-label={`Open task: ${task.title}`}
       >
         {/* Color accent — cyan->blue gradient for running, red for overdue, task color otherwise */}
         <div
@@ -121,7 +131,7 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
           {dragHandleProps && (
             <button
               {...dragHandleProps}
-              className="mt-0.5 p-1 rounded text-surface-500 hover:text-surface-300 hover:bg-surface-800 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
+              className="mt-0.5 p-1 rounded text-surface-500 hover:text-surface-300 hover:bg-surface-800 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50 transition-opacity"
               data-no-nav
             >
               <GripVertical size={16} />
@@ -147,7 +157,11 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
           {/* Task Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${PRIORITY_DOT[task.priority] || 'bg-surface-500'}`} />
+              <span
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${PRIORITY_DOT[task.priority] || 'bg-surface-500'}`}
+                title={`${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)} priority`}
+              />
+              <span className="sr-only">{`${task.priority.charAt(0).toUpperCase()}${task.priority.slice(1)}`} priority</span>
               <h3 className={`text-sm font-semibold truncate ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-50'}`}>
                 {task.title}
               </h3>
