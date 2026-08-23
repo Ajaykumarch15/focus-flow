@@ -60,32 +60,6 @@ function AnimatedValue({ value, decimals = 0, duration = 800 }: { value: number;
 
 // ── SVG Circular Progress ────────────────────────────────────────────────────
 
-function CircularProgress({ progress, size = 140, strokeWidth = 8, color }: {
-  progress: number; size?: number; strokeWidth?: number; color?: string;
-}) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (Math.min(progress, 100) / 100) * circumference;
-
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={radius}
-        stroke="currentColor" strokeWidth={strokeWidth}
-        fill="none" className="text-surface-800" />
-      <motion.circle
-        cx={size / 2} cy={size / 2} r={radius}
-        stroke={color || 'var(--color-brand-500)'}
-        strokeWidth={strokeWidth} fill="none"
-        strokeLinecap="round"
-        strokeDasharray={circumference}
-        initial={{ strokeDashoffset: circumference }}
-        animate={{ strokeDashoffset: offset }}
-        transition={{ duration: 1.2, ease: [0.25, 0.46, 0.45, 0.94], delay: 0.3 }}
-      />
-    </svg>
-  );
-}
-
 // ── Chart Tooltip ────────────────────────────────────────────────────────────
 
 function ChartTooltipContent({ active, payload, label }: any) {
@@ -209,7 +183,7 @@ export function Dashboard() {
     if (dailyGoalProgress >= 75) return "Almost there. Keep the momentum going.";
     if (dailyGoalProgress >= 40) return "Solid progress. Stay locked in.";
     if (dailyGoalProgress > 0) return "Great start. Build on this momentum.";
-    return "Ready to focus? Start your first session.";
+    return "What should you do now?";
   }, [dailyGoalProgress]);
 
   // ── Loading skeleton ─────────────────────────────────────────────────────
@@ -258,19 +232,19 @@ export function Dashboard() {
 
   return (
     <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      {/* ═══════════════ MINIMALIST HERO (Developer Focus) ═══════════════ */}
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
+        className="relative overflow-hidden rounded-3xl border border-surface-800/60 bg-surface-900
+                   shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:shadow-[0_16px_40px_-16px_rgba(0,0,0,0.5)]
+                   p-6 sm:p-8 lg:p-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-10">
 
-      {/* ═══════════════ EXECUTION HERO (Developer Focus) ═══════════════ */}
-      <motion.div variants={fadeUp} initial="hidden" animate="show"
-        className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 p-8 lg:p-10">
-        <div className="absolute top-0 right-0 w-[500px] h-[300px] opacity-20 dark:opacity-15 pointer-events-none"
-          style={{
-            background: `radial-gradient(ellipse at top right, ${accent}30, transparent 70%)`,
-          }} />
-
-        <div className="relative flex flex-col lg:flex-row lg:items-center justify-between gap-8">
-          {/* Left Hero Context */}
+          {/* LEFT — date, greeting, subtitle, actions */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-surface-400">
+                {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              </span>
               <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
                 Developer Mission Control
               </Badge>
@@ -281,17 +255,17 @@ export function Dashboard() {
               )}
             </div>
 
-            <motion.h1 variants={fadeUp} className="text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
+            <h1 className="mt-4 text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
               {greeting}, {profile.name.split(' ')[0]} 👋
-            </motion.h1>
+            </h1>
 
-            <motion.p variants={fadeUp} className="text-surface-300 text-sm mt-3 max-w-lg leading-relaxed">
+            <p className="text-surface-300 text-sm mt-2.5 max-w-lg leading-relaxed">
               {activeTaskId
                 ? `Active Session: You are focusing on "${tasks.find(t => t.id === activeTaskId)?.title || 'current task'}"`
                 : motivation}
-            </motion.p>
+            </p>
 
-            <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-3 mt-6">
+            <div className="flex flex-wrap items-center gap-3 mt-7">
               {activeTaskId ? (
                 <Button
                   size="lg"
@@ -305,8 +279,7 @@ export function Dashboard() {
                 <Button
                   size="lg"
                   leftIcon={<Plus size={16} />}
-                  className="shadow-lg"
-                  style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
+                  className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white font-bold shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/35"
                   onClick={() => setShowCreate(true)}
                 >
                   Start New Task
@@ -315,21 +288,41 @@ export function Dashboard() {
               <Button variant="secondary" size="lg" rightIcon={<ChevronRight size={14} />} onClick={() => navigate('/tasks')}>
                 View My Backlog ({activeTasks.length})
               </Button>
-            </motion.div>
+            </div>
           </div>
 
-          {/* Right — Progress Ring */}
-          <motion.div variants={scaleIn} className="flex flex-col items-center gap-3 flex-shrink-0">
-            <div className="relative">
-              <CircularProgress progress={dailyGoalProgress} color={accent} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-display font-extrabold text-surface-50">
-                  <AnimatedValue value={Math.round(dailyGoalProgress)} />%
-                </span>
-                <span className="text-[11px] text-surface-400 font-medium">Daily Goal</span>
-              </div>
+          {/* CENTER — decorative illustration */}
+          <motion.img
+            variants={fadeIn}
+            src={theme.mode === 'dark' ? '/personal_workspace_hub_dark.png' : '/personal_workspace_hub_light.jpg'}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            draggable={false}
+            className="mx-auto w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none shrink-0"
+          />
+
+          {/* RIGHT — compact Daily Goal card */}
+          <motion.div variants={scaleIn}
+            className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0 rounded-2xl border border-surface-800 bg-surface-850 p-5">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
+            <p className="mt-3 text-center text-4xl font-display font-extrabold text-surface-50">
+              <AnimatedValue value={Math.round(dailyGoalProgress)} />%
+            </p>
+            <div
+              className="mt-4 h-1.5 rounded-full bg-surface-800 overflow-hidden"
+              role="progressbar"
+              aria-label="Daily goal progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(dailyGoalProgress)}
+            >
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-700"
+                style={{ width: `${Math.min(100, Math.max(0, dailyGoalProgress))}%` }}
+              />
             </div>
-            <div className="text-center">
+            <div className="mt-4 pt-3 border-t border-surface-800/70 text-center">
               <p className="text-sm font-semibold text-surface-200">
                 {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
               </p>
@@ -339,7 +332,7 @@ export function Dashboard() {
             </div>
           </motion.div>
         </div>
-      </motion.div>
+      </motion.section>
 
       {/* ═══════════════ ACTION NEEDED PANEL ═══════════════ */}
       <AnimatePresence>

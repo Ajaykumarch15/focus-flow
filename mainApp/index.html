@@ -17,73 +17,116 @@
       *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
       html, body, #root { width: 100%; min-height: 100%; }
       body { background: #09090b; overflow-x: hidden; }
-      #ff-loader {
+
+      /* ── FocusFlow pre-React loader ──────────────────────────────────────── */
+      #focusflow-preloader {
         position: fixed; inset: 0; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        background: #09090b;
-        transition: opacity 0.4s ease-out;
+        gap: 22px;
+        background: #ffffff;
+        color: #111827;
+        transition: opacity 0.35s ease-out;
+        font-family: 'Syne', system-ui, -apple-system, sans-serif;
       }
-      #ff-loader.ff-hide { opacity: 0; pointer-events: none; }
-      .ff-loader-ring {
-        width: 72px; height: 72px; position: relative; margin-bottom: 20px;
+      #focusflow-preloader.theme-dark {
+        background: #05070d;
+        color: #ffffff;
       }
-      .ff-loader-ring svg {
-        width: 72px; height: 72px; animation: ff-spin 1.4s linear infinite;
+      #focusflow-preloader.ff-hide { opacity: 0; pointer-events: none; }
+
+      .focusflow-loader { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+      /* Bouncing focus dot */
+      .focusflow-loader-mark {
+        height: 34px; display: flex; align-items: flex-end; justify-content: center;
       }
-      .ff-loader-ring circle {
-        fill: none; stroke: #0ea5e9; stroke-width: 3;
-        stroke-dasharray: 160; stroke-dashoffset: 60;
-        stroke-linecap: round;
+      .focusflow-loader-dot {
+        width: 13px; height: 13px; border-radius: 50%;
+        background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+        animation: ff-bounce 1.2s cubic-bezier(0.45, 0, 0.35, 1) infinite;
+        transform-origin: 50% 100%;
       }
-      .ff-loader-icon {
-        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 40px; height: 40px; border-radius: 10px; overflow: hidden;
+      @keyframes ff-bounce {
+        0%, 100% { transform: translateY(0) scale(1, 1); }
+        12%      { transform: translateY(-2px) scale(0.92, 1.12); }
+        42%      { transform: translateY(-26px) scale(1.06, 0.94); }
+        58%      { transform: translateY(-26px) scale(1.06, 0.94); }
+        88%      { transform: translateY(-2px) scale(0.92, 1.12); }
+        94%      { transform: translateY(0) scale(1.28, 0.72); }
       }
-      .ff-loader-icon img { width: 100%; height: 100%; }
-      .ff-loader-name {
-        font-family: 'Syne', system-ui, sans-serif; font-weight: 700;
-        font-size: 20px; letter-spacing: -0.02em;
-        background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 50%, #0ea5e9 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 8px;
+
+      /* Progressing task lines */
+      .focusflow-loader-track {
+        display: flex; flex-direction: column; align-items: center; gap: 7px;
       }
-      .ff-loader-tagline {
-        font-family: 'DM Sans', system-ui, sans-serif;
-        font-size: 12px; color: #52525b; letter-spacing: 0.08em;
-        text-transform: uppercase;
+      .focusflow-loader-track span {
+        position: relative; display: block; overflow: hidden;
+        height: 4px; border-radius: 999px;
+        background: #e6eaf0;
       }
-      .ff-loader-dots { display: flex; gap: 4px; margin-top: 20px; }
-      .ff-loader-dots span {
-        width: 4px; height: 4px; border-radius: 50%; background: #27272a;
-        animation: ff-pulse 1.2s ease-in-out infinite;
+      #focusflow-preloader.theme-dark .focusflow-loader-track span { background: #161c2a; }
+      .focusflow-loader-track span::after {
+        content: ''; position: absolute; inset: 0; border-radius: inherit;
+        background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
+        transform: scaleX(0); transform-origin: 0 50%;
+        animation: ff-progress 2.4s ease-in-out infinite;
       }
-      .ff-loader-dots span:nth-child(2) { animation-delay: 0.15s; }
-      .ff-loader-dots span:nth-child(3) { animation-delay: 0.3s; }
-      @keyframes ff-spin { to { transform: rotate(360deg); } }
-      @keyframes ff-pulse {
-        0%, 80%, 100% { background: #27272a; transform: scale(1); }
-        40% { background: #0ea5e9; transform: scale(1.3); }
+      .focusflow-loader-track span:nth-child(1) { width: 56px; }
+      .focusflow-loader-track span:nth-child(1)::after { animation-delay: 0s; }
+      .focusflow-loader-track span:nth-child(2) { width: 88px; }
+      .focusflow-loader-track span:nth-child(2)::after { animation-delay: 0.25s; }
+      .focusflow-loader-track span:nth-child(3) { width: 120px; }
+      .focusflow-loader-track span:nth-child(3)::after { animation-delay: 0.5s; }
+      @keyframes ff-progress {
+        0%   { transform: scaleX(0); opacity: 0.85; }
+        45%  { transform: scaleX(1); opacity: 0.95; }
+        70%  { transform: scaleX(1); opacity: 0.55; }
+        100% { transform: scaleX(0); opacity: 0; transform-origin: 100% 50%; }
+      }
+
+      /* Brand + message */
+      .focusflow-loader-brand {
+        font-weight: 700; font-size: 20px; letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #0ea5e9 0%, #38bdf8 45%, #8b5cf6 100%);
+        -webkit-background-clip: text; background-clip: text;
+        -webkit-text-fill-color: transparent; color: transparent;
+      }
+      .focusflow-loader-message {
+        margin-top: -14px;
+        font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+        font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+        color: #64748b;
+      }
+      #focusflow-preloader.theme-dark .focusflow-loader-message { color: #7d8296; }
+
+      /* Reduced motion: calm static indicator */
+      @media (prefers-reduced-motion: reduce) {
+        #focusflow-preloader { transition: none; }
+        .focusflow-loader-dot { animation: none; }
+        .focusflow-loader-track span::after {
+          animation: none; transform: scaleX(1); opacity: 0.9;
+        }
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="ff-loader">
-        <div class="ff-loader-ring">
-          <svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="30" /></svg>
-          <svg class="ff-loader-icon" viewBox="0 0 100 100">
-            <rect x="5" y="5" width="90" height="90" rx="22" fill="#0ea5e9"/>
-            <circle cx="50" cy="50" r="28" fill="none" stroke="white" stroke-width="4"/>
-            <line x1="50" y1="22" x2="50" y2="50" stroke="white" stroke-width="4" stroke-linecap="round"/>
-            <line x1="50" y1="50" x2="68" y2="58" stroke="white" stroke-width="3" stroke-linecap="round"/>
-          </svg>
+      <div id="focusflow-preloader" role="status" aria-label="FocusFlow is loading">
+        <div class="focusflow-loader">
+          <div class="focusflow-loader-mark">
+            <span class="focusflow-loader-dot"></span>
+          </div>
+          <div class="focusflow-loader-track">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
         </div>
-        <div class="ff-loader-name">FocusFlow</div>
-        <div class="ff-loader-tagline">Productivity Tracker</div>
-        <div class="ff-loader-dots"><span></span><span></span><span></span></div>
+        <div class="focusflow-loader-brand">FocusFlow</div>
+        <div class="focusflow-loader-message">Preparing your focus workspace…</div>
       </div>
     </div>
+    <script src="/focusflow-preloader.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

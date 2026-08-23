@@ -1,232 +1,170 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, UserPlus, Building2, ShieldCheck } from 'lucide-react';
+import { User, Mail, Lock, UserPlus, Building2 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
-import { useStore } from '../store/useStore';
 import { resolveDefaultLanding } from '../lib/navigation';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Card } from '../components/ui/Card';
 import { PUBLIC_REGISTRATION_ENABLED, ORGANIZATION_CONFIG } from '../utils/config';
+import { AuthLayout } from '../components/auth/AuthLayout';
+import { AuthCard } from '../components/auth/AuthCard';
+import { AuthInput } from '../components/auth/AuthInput';
+import { SocialAuthButton, AuthDivider } from '../components/auth/SocialAuthButton';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface FieldErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+}
 
 export function Register() {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const { register, loading, error, clearError } = useAuthStore();
-  const { theme } = useStore();
-  const [form, setForm]     = useState({ name: '', email: '', password: '', confirm: '' });
-  const [showPass, setShowPass] = useState(false);
-  const [localErr, setLocalErr] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
+  const validate = (): boolean => {
+    const next: FieldErrors = {};
+    if (!form.name.trim()) next.name = 'Please enter your name.';
+    if (!form.email.trim()) next.email = 'Please enter your email address.';
+    else if (!EMAIL_RE.test(form.email.trim())) next.email = 'Please enter a valid email address.';
+    if (!form.password) next.password = 'Please create a password.';
+    else if (form.password.length < 12) next.password = 'Password must be at least 12 characters.';
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     clearError();
-    setLocalErr('');
-
-    if (form.password !== form.confirm) {
-      setLocalErr('Passwords do not match');
-      return;
-    }
-    if (form.password.length < 12) {
-      setLocalErr('Password must be at least 12 characters');
-      return;
-    }
-
+    if (!validate()) return;
     try {
-      await register(form.name, form.email, form.password);
+      await register(form.name.trim(), form.email.trim(), form.password);
       navigate(resolveDefaultLanding(useAuthStore.getState().user?.role));
     } catch {
-      // Error shown from store
+      // Error surfaced via the store; mapped to friendly copy below.
     }
   };
 
-  const displayError = localErr || error;
+  const friendlyError = (): string | null => {
+    if (!error) return null;
+    const m = error.toLowerCase();
+    if (m.includes('exist') || m.includes('duplicate') || m.includes('already')) {
+      return 'An account with this email already exists. Try signing in instead.';
+    }
+    if (m.includes('password') || m.includes('12')) {
+      return 'Your password must be at least 12 characters long.';
+    }
+    if (m.includes('network') || m.includes('fetch')) {
+      return 'FocusFlow is unreachable right now. Check your connection and try again.';
+    }
+    return 'Unable to create your account right now. Please try again in a moment.';
+  };
 
-  // Enterprise Managed Workspace Access Notice (Public Registration Disabled)
   if (!PUBLIC_REGISTRATION_ENABLED) {
     return (
-      <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4 py-8 relative">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-brand-500/8 rounded-full blur-3xl pointer-events-none" />
-
-        <Link
-          to="/"
-          className="absolute top-5 left-5 flex items-center gap-1.5 text-xs font-semibold text-surface-400 hover:text-surface-100 transition-colors"
+      <AuthLayout>
+        <AuthCard
+          title="Create your account"
+          subtitle="Start your focused journey"
+          error="Public self-registration is disabled for this workspace."
         >
-          <ArrowLeft size={15} />
-          Back to Portal
-        </Link>
-
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
-          <Card className="p-8 text-center space-y-5 border-surface-800 shadow-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center mx-auto">
-              <Building2 size={26} className="text-brand-400" />
-            </div>
-
-            <div>
-              <div className="flex items-center justify-center gap-1.5 mb-1">
-                <ShieldCheck size={15} className="text-emerald-400" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                  Managed Enterprise Workspace
-                </span>
-              </div>
-              <h2 className="text-xl font-display font-extrabold text-surface-50">Public Self-Registration Disabled</h2>
-            </div>
-
-            <div className="p-4 rounded-xl bg-surface-850 border border-surface-800 text-xs text-surface-300 leading-relaxed text-left space-y-2">
-              <p className="font-semibold text-surface-100">This FocusFlow environment is managed by your organization.</p>
-              <p>
-                Accounts can only be created by Workspace Administrators. Self-registration is currently disabled for security and governance.
-              </p>
-              <p className="text-surface-400">
-                Contact your IT Administrator or email <code className="text-brand-300 font-mono">{ORGANIZATION_CONFIG.supportEmail}</code> to request an account.
-              </p>
-            </div>
-
-            <Button onClick={() => navigate('/login')} className="w-full text-xs font-bold shadow-lg shadow-brand-500/20">
-              Return to Login
+          <div className="space-y-2 rounded-xl border border-surface-800 bg-surface-850 p-4 text-xs leading-relaxed text-surface-300">
+            <p className="flex items-center gap-1.5 font-bold text-surface-100">
+              <Building2 size={13} className="text-brand-400" />
+              Managed Workspace Access
+            </p>
+            <p>
+              This FocusFlow engineering environment is strictly provisioned and managed by your organization's IT / Workspace Administrators.
+            </p>
+            <p className="text-surface-400">
+              To request access, please contact your engineering lead or email{' '}
+              <code className="font-mono text-brand-300">{ORGANIZATION_CONFIG.supportEmail}</code>.
+            </p>
+          </div>
+          <Link to="/login" className="mt-4 block">
+            <Button variant="secondary" className="h-11 w-full text-sm font-bold">
+              Back to Sign In
             </Button>
-          </Card>
-        </motion.div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4 py-8 overflow-y-auto relative">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-brand-500/8 rounded-full blur-3xl pointer-events-none" />
-
-      <Link
-        to="/"
-        className="absolute top-5 left-5 flex items-center gap-1.5 text-sm text-surface-400 hover:text-surface-100 transition-colors"
-      >
-        <ArrowLeft size={16} />
-        Back to home
-      </Link>
-
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md relative"
-      >
-        <div className="flex flex-col items-center mb-8">
-          <Link to="/" aria-label="FocusFlow home" className="block mb-4">
-            <div className="w-12 h-12 rounded-2xl overflow-hidden shadow-lg shadow-brand-500/25">
-              <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full" />
-            </div>
           </Link>
-          <h1 className="text-2xl font-display font-bold text-surface-50">Create account</h1>
-          <p className="text-surface-400 mt-1 text-sm">Start tracking your focus with FocusFlow</p>
-        </div>
-
-        <Card className="p-8">
-          {displayError && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-5 p-3 bg-danger-500/10 border border-danger-500/20 rounded-xl text-sm text-danger-600 dark:text-danger-400"
-            >
-              {displayError}
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Full Name</label>
-              <div className="relative">
-                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-                <Input
-                  name="name"
-                  autoComplete="name"
-                  className="pl-10"
-                  placeholder="Alex Johnson"
-                  value={form.name}
-                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  required
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Email</label>
-              <div className="relative">
-                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-                <Input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  className="pl-10"
-                  placeholder="you@example.com"
-                  value={form.email}
-                  onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Password</label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-                <Input
-                  type={showPass ? 'text' : 'password'}
-                  name="password"
-                  autoComplete="new-password"
-                  className="pl-10 pr-10"
-                  placeholder="Min 12 characters"
-                  value={form.password}
-                  onChange={e => setForm(p => ({ ...p, password: e.target.value }))}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  aria-label={showPass ? 'Hide password' : 'Show password'}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
-                >
-                  {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm text-surface-300 mb-1.5">Confirm Password</label>
-              <div className="relative">
-                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-                <Input
-                  type={showPass ? 'text' : 'password'}
-                  name="confirmPassword"
-                  autoComplete="new-password"
-                  className="pl-10"
-                  placeholder="Repeat password"
-                  value={form.confirm}
-                  onChange={e => setForm(p => ({ ...p, confirm: e.target.value }))}
-                  required
-                />
-              </div>
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full mt-2"
-              loading={loading}
-              leftIcon={!loading ? <UserPlus size={16} /> : undefined}
-              aria-label={loading ? 'Creating account' : 'Create Account'}
-            >
-              Create Account
-            </Button>
-          </form>
-
-          <p className="text-center text-sm text-surface-400 mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
-              Sign in
-            </Link>
-          </p>
-        </Card>
-      </motion.div>
-    </div>
+        </AuthCard>
+      </AuthLayout>
   );
 }
 
+  return (
+    <AuthLayout>
+      <AuthCard
+        title="Create your account"
+        subtitle="Start your focused journey"
+        error={friendlyError()}
+      >
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          <AuthInput
+            label="Name"
+            name="name"
+            type="text"
+            icon={<User size={15} />}
+            autoComplete="name"
+            placeholder="Enter your name"
+            value={form.name}
+            onChange={e => {
+              setForm(p => ({ ...p, name: e.target.value }));
+              if (fieldErrors.name) setFieldErrors(p => ({ ...p, name: undefined }));
+            }}
+          />
+
+          <AuthInput
+            label="Email"
+            name="email"
+            type="email"
+            icon={<Mail size={15} />}
+            autoComplete="email"
+            placeholder="Enter your email"
+            value={form.email}
+            onChange={e => {
+              setForm(p => ({ ...p, email: e.target.value }));
+              if (fieldErrors.email) setFieldErrors(p => ({ ...p, email: undefined }));
+            }}
+          />
+
+          <AuthInput
+            label="Password"
+            name="password"
+            icon={<Lock size={15} />}
+            autoComplete="new-password"
+            placeholder="Create a password (min. 12 characters)"
+            showToggle
+            value={form.password}
+            onChange={e => {
+              setForm(p => ({ ...p, password: e.target.value }));
+              if (fieldErrors.password) setFieldErrors(p => ({ ...p, password: undefined }));
+            }}
+          />
+
+          <Button
+            type="submit"
+            disabled={loading}
+            loading={loading}
+            leftIcon={!loading ? <UserPlus size={15} /> : undefined}
+            className="h-11 w-full bg-gradient-to-r from-brand-500 via-brand-600 to-violet-600 text-sm font-bold shadow-lg shadow-brand-500/25 hover:shadow-xl hover:shadow-brand-500/30"
+          >
+            {loading ? 'Creating account…' : 'Create Account'}
+          </Button>
+        </form>
+
+        <AuthDivider label="or continue with" />
+        <SocialAuthButton />
+
+        <p className="mt-6 text-center text-xs text-surface-400">
+          Already have an account?{' '}
+          <Link to="/login" className="font-semibold text-brand-400 transition-colors hover:text-brand-300 hover:underline">
+            Sign In
+          </Link>
+        </p>
+      </AuthCard>
+    </AuthLayout>
+  );
+}

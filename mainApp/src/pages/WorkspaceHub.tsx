@@ -2,13 +2,15 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  User, Building2, ArrowRight, Users, CheckCircle2,
+  Users, CheckCircle2,
   Flame, GitBranch, BookMarked
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
 import { useStore } from '../store/useStore';
 import { Badge } from '../components/ui/Badge';
+import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { WorkspaceCard } from '../components/hub/WorkspaceCard';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -73,6 +75,7 @@ export function WorkspaceHub() {
         </div>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Badge tone="neutral" icon={<span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />} className="px-3.5 py-1.5 border border-surface-800">
             {user?.name || 'Developer'}
           </Badge>
@@ -90,147 +93,59 @@ export function WorkspaceHub() {
           <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-surface-50">
             {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-400">{user?.name || 'Ajay'}</span>
           </h2>
-          <p className="text-sm text-surface-400 max-w-md mx-auto">
+          {/*<p className="text-sm text-surface-400 max-w-md mx-auto">
             Choose where you want to work today. Switch between your personal productivity system and engineering workspaces anytime.
-          </p>
+          </p>*/}
         </motion.div>
 
         {/* Workspaces Grid */}
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          {/* ───────── 1. PERSONAL WORKSPACE CARD ───────── */}
-          <motion.div variants={itemVariants} className="group relative rounded-3xl border border-surface-800 bg-surface-900/90 hover:border-brand-500/50 transition-all duration-300 p-6 shadow-xl hover:shadow-2xl hover:shadow-brand-500/10 flex flex-col justify-between overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <User size={140} className="text-brand-400" />
-            </div>
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-400 text-xl font-bold">
-                  👤
-                </div>
-                <Badge tone="brand" className="px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider border border-brand-500/20">
-                  Private & Personal
-                </Badge>
-              </div>
+          <WorkspaceCard
+            variants={itemVariants}
+            accent="green"
+            badges={['Private', 'Personal']}
+            title="Personal Workspace"
+            // description="Your private productivity intelligence — overview, roadmaps, analytics, and ML-powered insights."
+            image={{ light: '/personal_workspace_hub_light.jpg', dark: '/personal_workspace_hub_dark.png' }}
+            chips={[
+              { icon: <Flame size={14} className="text-emerald-400" />, label: 'Intelligence' },
+              { icon: <CheckCircle2 size={14} className="text-cyan-400" />, label: 'Roadmaps & Analytics' },
+            ]}
+            actionLabel="Continue to Personal Workspace"
+            onAction={handleSelectPersonal}
+          />
 
-              <div>
-                <h3 className="text-lg font-display font-extrabold text-surface-50 mb-0.5">Personal Workspace</h3>
-                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
-                  Your private productivity intelligence. Personal overview, roadmaps, analytics, patterns, and ML-powered insights.
-                </p>*/}
-              </div>
+          <WorkspaceCard
+            variants={itemVariants}
+            accent="cyan"
+            badges={['Work', 'Logging']}
+            title="WorkLog"
+            // description="Work logs, tasks, schedule, focus timer, journal, habits, reports, and daily insights."
+            image={{ light: '/worklog_hub_light.jpg', dark: '/worklog_hub_dark.png' }}
+            chips={[
+              { icon: <BookMarked size={14} className="text-cyan-400" />, label: 'Work Logs' },
+              { icon: <CheckCircle2 size={14} className="text-sky-400" />, label: 'Tasks & Focus' },
+            ]}
+            actionLabel="Continue to WorkLog"
+            onAction={handleSelectWorkLog}
+          />
 
-              {/* Stats pill */}
-              <div className="pt-3 flex items-center gap-4 text-xs font-semibold text-surface-300">
-                <Badge tone="neutral" icon={<Flame size={14} className="text-amber-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  Intelligence
-                </Badge>
-                <Badge tone="neutral" icon={<CheckCircle2 size={14} className="text-emerald-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  Roadmaps & Analytics
-                </Badge>
-              </div>
-            </div>
-
-            <div className="pt-6 relative z-10">
-              <button onClick={handleSelectPersonal}
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-5 bg-surface-800 hover:bg-brand-500 text-surface-100 hover:text-white font-bold text-xs rounded-2xl transition-all duration-200 group-hover:shadow-lg group-hover:shadow-brand-500/25">
-                Continue to Personal Workspace <ArrowRight size={16} />
-              </button>
-            </div>
-          </motion.div>
-
-          {/* ───────── 2. WORKLOG CARD ───────── */}
-          <motion.div variants={itemVariants}
-            className="group relative rounded-3xl border border-surface-800 bg-surface-900/90 hover:border-emerald-500/50 transition-all duration-300 p-6 shadow-xl hover:shadow-2xl hover:shadow-emerald-500/10 flex flex-col justify-between overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <BookMarked size={140} className="text-emerald-400" />
-            </div>
-
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl font-bold">
-                  📒
-                </div>
-                <Badge tone="success" className="px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider border border-emerald-500/20">
-                  Work Logging
-                </Badge>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-display font-extrabold text-surface-50 mb-0.5">WorkLog</h3>
-                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
-                  Work logs, work history, tasks, schedule, focus timer, journal, habits, reports, and daily insights.
-                </p>*/}
-              </div>
-
-              <div className="pt-3 flex items-center gap-4 text-xs font-semibold text-surface-300">
-                <Badge tone="neutral" icon={<BookMarked size={14} className="text-emerald-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  Work Logs
-                </Badge>
-                <Badge tone="neutral" icon={<CheckCircle2 size={14} className="text-sky-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  Tasks & Focus
-                </Badge>
-              </div>
-            </div>
-
-            <div className="pt-6 relative z-10">
-              <button onClick={handleSelectWorkLog}
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-5 bg-surface-800 hover:bg-emerald-500 text-surface-100 hover:text-white font-bold text-xs rounded-2xl transition-all duration-200 group-hover:shadow-lg group-hover:shadow-emerald-500/25">
-                Continue to WorkLog <ArrowRight size={16} />
-              </button>
-            </div>
-          </motion.div>
-
-          {/* ───────── 3. TEAM COLLABORATION CARD ───────── */}
-          <motion.div variants={itemVariants}
-            className="group relative rounded-3xl border border-surface-800 bg-surface-900/90 hover:border-cyan-500/50 transition-all duration-300 p-6 shadow-xl hover:shadow-2xl hover:shadow-cyan-500/10 flex flex-col justify-between overflow-hidden">
-
-            {/* Background decoration */}
-            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
-              <Building2 size={140} className="text-cyan-400" />
-            </div>
-
-            <div className="space-y-4 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-xl font-bold">
-                  🏢
-                </div>
-                <Badge tone="info" className="px-2.5 py-1 rounded-md text-[10px] font-extrabold uppercase tracking-wider border border-cyan-500/20">
-                  Team & Engineering
-                </Badge>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-display font-extrabold text-surface-50 group-hover:text-cyan-300 transition-colors">
-                  Team Collaboration
-                </h3>
-                {/*<p className="text-xs text-surface-400 mt-1 leading-relaxed">
-                  Shared engineering workspaces. Projects, sprints, features, team members, QA dashboards, reports, and real-time collaboration.
-                </p>*/}
-              </div>
-
-              {/* Summary stats */}
-              <div className="pt-3 flex items-center gap-4 text-xs font-semibold text-surface-300 flex-wrap">
-                <Badge tone="neutral" icon={<GitBranch size={14} className="text-cyan-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  {workspaces.length} Workspace{workspaces.length !== 1 ? 's' : ''}
-                </Badge>
-                <Badge tone="neutral" icon={<Users size={14} className="text-violet-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  {totalMembers} Members
-                </Badge>
-                {/*<Badge tone="neutral" icon={<Shield size={14} className="text-emerald-400" />} className="px-3 py-1.5 rounded-xl border border-surface-800">
-                  RBAC
-                </Badge>*/}
-              </div>
-            </div>
-
-            <div className="pt-6 relative z-10">
-              <button onClick={() => navigate('/team')}
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-5 bg-surface-800 hover:bg-cyan-500 text-surface-100 hover:text-white font-bold text-xs rounded-2xl transition-all duration-200 group-hover:shadow-lg group-hover:shadow-cyan-500/25">
-                View Projects & Workspaces <ArrowRight size={16} />
-              </button>
-            </div>
-          </motion.div>
+          <WorkspaceCard
+            variants={itemVariants}
+            accent="violet"
+            className="md:col-span-2 lg:col-span-1"
+            badges={['Team', 'Engineering']}
+            title="Team Collaboration"
+            // description="Shared engineering workspaces — projects, sprints, members, QA dashboards, and real-time collaboration."
+            image={{ light: '/collab_hub_light.jpg', dark: '/collab_hub_dark.png' }}
+            chips={[
+              { icon: <GitBranch size={14} className="text-blue-400" />, label: `${workspaces.length} Workspace${workspaces.length !== 1 ? 's' : ''}` },
+              { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },
+            ]}
+            actionLabel="View Projects & Workspaces"
+            onAction={() => navigate('/team')}
+          />
 
         </motion.div>
       </main>
