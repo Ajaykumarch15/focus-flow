@@ -24,6 +24,7 @@ const PENDING_ALL = [
   '0012_roadmap_collections.js',
   '0013_migrate_project_milestones.js',
   '0014_sprint_lifecycle.js',
+  '0015_task_phase_ref_index.js',
 ];
 
 const silentLog = () => {};
@@ -40,6 +41,7 @@ function createFakeDb({
   activityIndexes = [],
   sprintIndexes = [],
   featureIndexes = [],
+  tasksIndexes = [],
 } = {}) {
   const schemaMigrations = { rows: [] };
   const created = [];
@@ -99,10 +101,10 @@ function createFakeDb({
     },
     worklogs: worklogCollection,
     tasks: {
+      ...makeIndexedWithState('tasks', tasksIndexes),
       find: () => ({ toArray: () => Promise.resolve(tasks) }),
       updateOne: vi.fn(async (filter, update) => ({ filter, update })),
       updateMany: vi.fn(async (filter, update) => ({ filter, update, modifiedCount: 1 })),
-      ...makeIndexed('tasks'),
     },
     habits: {
       find: () => ({ toArray: () => Promise.resolve(habits) }),
@@ -280,7 +282,7 @@ describe('IES-P1-04 · report/analytics index migration', () => {
     const secondRun = await runMigrations({ db, migrationsDir: MIGRATIONS_DIR, dryRun: false, log: silentLog });
 
     expect(secondRun).toEqual([]);
-    expect(created).toHaveLength(29);
+    expect(created).toHaveLength(30);
   });
 });
 
@@ -788,6 +790,38 @@ describe('EEP2-P3.1.4 · roadmap collection migration', () => {
 
     for (const { collection, spec } of migration.INDEXES) {
       const found = MODELS[collection].schema.indexes().some(
+        ([key]) => JSON.stringify(key) === JSON.stringify(spec)
+      );
+      expect(found, `${collection} is missing schema index ${JSON.stringify(spec)}`).toBe(true);
+    }
+  });
+});
+
+describe('B2 · task phaseRef index migration', () => {
+  const migration = require(path.join(MIGRATIONS_DIR, '0015_task_phase_ref_index.js'));
+
+  it('creates the { userId: 1, phaseRef: 1 } index on tasks', async () => {
+    const { db, created } = createFakeDb();
+    await migration.up({ db });
+
+    expect(created.map((c) => `${c.collection}:${c.options.name}`)).toEqual([
+      'tasks:userId_1_phaseRef_1',
+    ]);
+  });
+
+  it('is idempotent — skips when the index already exists', async () => {
+    const { db, created } = createFakeDb({
+      tasksIndexes: [{ name: 'userId_1_phaseRef_1', key: { userId: 1, phaseRef: 1 } }],
+    });
+
+    await migration.up({ db });
+    expect(created).toEqual([]);
+  });
+
+  it('schema declarations match the migration specs (no drift)', () => {
+    const Task = require('../models/Task');
+    for (const { collection, spec } of migration.INDEXES) {
+      const found = Task.schema.indexes().some(
         ([key]) => JSON.stringify(key) === JSON.stringify(spec)
       );
       expect(found, `${collection} is missing schema index ${JSON.stringify(spec)}`).toBe(true);

@@ -17,6 +17,7 @@ const { logger } = require('../utils/logger');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 const { assertWithinCapacity } = require('../utils/sprintMetrics');
 const { cascadeTaskStatusChange } = require('../utils/roadmapCascade');
+const { resolveRoadmapLink } = require('../utils/roadmapLinks');
 
 const router = express.Router();
 router.use(protect);
@@ -385,6 +386,14 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       workspaceContext,
     } = req.body;
     const hasCollabScope = workspaceId || projectId || sprintId || featureId;
+
+    // B2 roadmap-link integrity: refs arrive from the client body, so they must
+    // be validated for existence + user ownership + mutual consistency before a
+    // Task is ever written. Rejects cross-user links ("Roadmap not found") and
+    // mismatched chains (400).
+    const roadmapLink = await resolveRoadmapLink(req.user._id, { roadmapRef, phaseRef, milestoneRef });
+    if (!roadmapLink.ok) return res.status(roadmapLink.status).json({ message: roadmapLink.message });
+
 
     // IES-R1: workspace task create — derive workspaceRef from the owning
     // project, enforce the same-project invariant, and gate on editor role.

@@ -17,4 +17,21 @@ const roadmapMilestoneSchema = new mongoose.Schema(
 roadmapMilestoneSchema.index({ phaseId: 1, order: 1 });
 roadmapMilestoneSchema.index({ roadmapId: 1 });
 
+// B2 referential integrity: a Milestone's phase must exist AND belong to the
+// same roadmap, so milestone.phaseId/roadmapId can never disagree. Only fires
+// when the refs change (status-only saves in the cascade skip it).
+roadmapMilestoneSchema.pre('validate', async function () {
+  if (!this.isModified('phaseId') && !this.isModified('roadmapId')) return;
+  if (!this.phaseId || !this.roadmapId) return;
+  const RoadmapPhase = mongoose.model('RoadmapPhase');
+  const phase = await RoadmapPhase.findById(this.phaseId).select('roadmapId');
+  if (!phase) {
+    this.invalidate('phaseId', 'Phase does not exist');
+    return;
+  }
+  if (String(phase.roadmapId) !== String(this.roadmapId)) {
+    this.invalidate('phaseId', 'Phase does not belong to the given roadmap');
+  }
+});
+
 module.exports = mongoose.model('RoadmapMilestone', roadmapMilestoneSchema);
