@@ -10,47 +10,20 @@ import {
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { Badge, type BadgeTone } from '../components/ui/Badge';
+import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { formatMs } from '../utils/time';
 import {
   ROADMAP_TYPE_LABELS,
-  type RoadmapListItem,
 } from '../types/roadmap';
 import { CreateRoadmapModal } from '../components/roadmap/CreateRoadmapModal';
+import { safeProgress, getListHealth } from '../utils/roadmapProgress';
 
 const ICON_MAP: Record<string, any> = {
   Map, GraduationCap, Rocket, Target, Trophy, BookOpen,
   Code, Briefcase, Lightbulb, Brain, Palette, Globe,
   Heart, Star, Zap, Award,
 };
-
-function safeProgress(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(100, Math.round(n));
-}
-
-function getHealth(roadmap: RoadmapListItem) {
-  if (roadmap.status === 'completed') return { label: 'Completed', tone: 'success' as BadgeTone };
-  if (roadmap.status === 'paused') return { label: 'Paused', tone: 'warning' as BadgeTone };
-  if (roadmap.status === 'archived') return { label: 'Archived', tone: 'neutral' as BadgeTone };
-
-  if (!roadmap.targetDate || roadmap.progress === 0) return { label: 'On Track', tone: 'success' as BadgeTone };
-
-  const now = Date.now();
-  const target = new Date(roadmap.targetDate).getTime();
-  const startMs = new Date(roadmap.startDate || roadmap.createdAt).getTime();
-  const totalMs = target - startMs;
-  if (totalMs <= 0) return { label: 'Behind', tone: 'danger' as BadgeTone };
-
-  const elapsed = now - startMs;
-  const expectedProgress = Math.min(100, (elapsed / totalMs) * 100);
-
-  if (roadmap.progress >= expectedProgress - 10) return { label: 'On Track', tone: 'success' as BadgeTone };
-  if (roadmap.progress >= expectedProgress - 25) return { label: 'At Risk', tone: 'warning' as BadgeTone };
-  return { label: 'Behind', tone: 'danger' as BadgeTone };
-}
 
 function SkeletonCard() {
   return (
@@ -138,7 +111,7 @@ export function RoadmapsPage() {
           <AnimatePresence mode="popLayout">
             {roadmaps.map((roadmap, i) => {
               const Icon = ICON_MAP[roadmap.icon] || Map;
-              const health = getHealth(roadmap);
+              const health = getListHealth(roadmap);
               const progress = safeProgress(roadmap.progress);
 
               return (

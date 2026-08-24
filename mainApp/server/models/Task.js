@@ -73,5 +73,7 @@ taskSchema.index({ projectRef: 1 });
 // Personal roadmap integration indexes.
 taskSchema.index({ roadmapRef: 1 });
 taskSchema.index({ milestoneRef: 1 });
+// B2: phaseRef is filtered in phase-detail task queries; scope by owner too.
+taskSchema.index({ userId: 1, phaseRef: 1 });
 
 module.exports = mongoose.model('Task', taskSchema);

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, CheckCircle2, Circle, Play, Clock, Plus,
-  Pencil, Trash2, MoreVertical,
+  Pencil, Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { useStore } from '../store/useStore';
@@ -13,7 +13,9 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { toast } from '../store/useToastStore';
-import type { RoadmapTaskSummary } from '../types/roadmap';
+import type { RoadmapTaskSummary, RoadmapMilestoneStatus } from '../types/roadmap';
+import { safeProgress, formatProgress } from '../utils/roadmapProgress';
+import { nextMilestoneStatuses } from '../utils/roadmapLifecycle';
 
 const PRIORITY_COLORS: Record<string, string> = {
   critical: 'text-red-400',
@@ -35,16 +37,10 @@ const MILESTONE_STATUS_OPTIONS = [
   { value: 'completed', label: 'Completed' },
 ];
 
-function safeProgress(v: unknown): number {
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(100, Math.round(n));
-}
-
 export function MilestoneDetailPage() {
   const { id, phaseId, milestoneId } = useParams<{ id: string; phaseId: string; milestoneId: string }>();
   const navigate = useNavigate();
-  const { activeRoadmap, detailLoading, getRoadmap } = useRoadmapStore();
+  const { activeRoadmap, detailLoading, getRoadmap, linkTask, unlinkTask } = useRoadmapStore();
   const { completeTask, deleteTask } = useStore();
 
   // Milestone edit state
@@ -61,9 +57,25 @@ export function MilestoneDetailPage() {
   const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium' });
   const [creatingTask, setCreatingTask] = useState(false);
 
+  // Link existing task state
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [availableTasks, setAvailableTasks] = useState<any[]>([]);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+
+  // Move task state
+  const [moveTarget, setMoveTarget] = useState<RoadmapTaskSummary | null>(null);
+  const [movePhaseId, setMovePhaseId] = useState('');
+  const [moveMilestoneId, setMoveMilestoneId] = useState('');
+  const [moving, setMoving] = useState(false);
+
   // Task menu state
   const [taskMenu, setTaskMenu] = useState<string | null>(null);
   const taskMenuRef = useRef<HTMLDivElement>(null);
+
+  // Task delete confirm state
+  const [taskDeleteTarget, setTaskDeleteTarget] = useState<RoadmapTaskSummary | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
 
   useEffect(() => {
     if (id && (!activeRoadmap || activeRoadmap._id !== id)) getRoadmap(id);
@@ -169,15 +181,74 @@ export function MilestoneDetailPage() {
     if (id) getRoadmap(id);
   };
 
-  const handleDeleteTask = async (task: RoadmapTaskSummary) => {
+  const handleDeleteTask = async () => {
+    if (!taskDeleteTarget || deletingTask) return;
+    setDeletingTask(true);
     setTaskMenu(null);
-    await deleteTask(task.id);
-    if (id) getRoadmap(id);
-    toast.success('Task deleted');
+    try {
+      await deleteTask(taskDeleteTarget.id);
+      toast.success('Task deleted');
+      setTaskDeleteTarget(null);
+      if (id) getRoadmap(id);
+    } catch (e: any) {
+      toast.error('Failed to delete task', e?.message);
+    } finally {
+      setDeletingTask(false);
+    }
   };
 
   const handleStartTask = (task: RoadmapTaskSummary) => {
     navigate('/focus', { state: { taskId: task.id, taskTitle: task.title } });
+  };
+
+  // ── Link / Unlink / Move ──
+  const openLinkModal = async () => {
+    setLinkOpen(true);
+    setLoadingAvailable(true);
+    try {
+      setAvailableTasks(await api.personalRoadmaps.availableTasks());
+    } catch (e: any) { toast.error('Failed', e?.message); }
+    finally { setLoadingAvailable(false); }
+  };
+
+  const handleLinkTask = async (taskId: string) => {
+    if (!id || !phaseId || !milestoneId) return;
+    setLinkingId(taskId);
+    try {
+      await linkTask({ taskId, roadmapId: id, phaseId, milestoneId });
+      setAvailableTasks(prev => prev.filter(t => t._id !== taskId));
+    } catch {
+      // Failure toast is surfaced by the store.
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
+  const handleUnlinkTask = async (task: RoadmapTaskSummary) => {
+    setTaskMenu(null);
+    try {
+      await unlinkTask(task.id);
+    } catch {
+      // Failure toast is surfaced by the store.
+    }
+  };
+
+  const handleMoveTask = async () => {
+    if (!moveTarget || !movePhaseId || !moveMilestoneId || !id) return;
+    setMoving(true);
+    try {
+      await linkTask({
+        taskId: moveTarget.id,
+        roadmapId: id,
+        phaseId: movePhaseId,
+        milestoneId: moveMilestoneId,
+      });
+      setMoveTarget(null);
+    } catch {
+      // Failure toast is surfaced by the store.
+    } finally {
+      setMoving(false);
+    }
   };
 
   // ── Loading / Error ──
@@ -221,7 +292,7 @@ export function MilestoneDetailPage() {
           <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50 truncate">{milestone.title}</h1>
           <div className="flex items-center gap-3">
             <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
-            <span className="text-xs text-surface-400">{progress}% · {completedCount}/{tasks.length} tasks</span>
+            <span className="text-xs text-surface-400">{formatProgress(progress, tasks.length)} · {completedCount}/{tasks.length} tasks</span>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -239,7 +310,9 @@ export function MilestoneDetailPage() {
         className="rounded-2xl border border-surface-800 bg-surface-900/90 p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-surface-400">Progress</span>
-          <span className="text-sm font-bold text-surface-50">{progress}%</span>
+          <span className="text-sm font-bold text-surface-50">
+            {formatProgress(progress, tasks.length)}
+          </span>
         </div>
         <div className="h-2 bg-surface-800 rounded-full overflow-hidden mb-2">
           <div className="h-full rounded-full bg-brand-500/70 transition-all duration-500" style={{ width: `${progress}%` }} />
@@ -254,10 +327,16 @@ export function MilestoneDetailPage() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Tasks</h2>
-          <button onClick={() => setAddTaskOpen(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors">
-            <Plus size={14} /> Add Task
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={openLinkModal}
+              className="flex items-center gap-1.5 text-xs font-medium text-surface-400 hover:text-surface-200 transition-colors">
+              <Link2 size={14} /> Link Task
+            </button>
+            <button onClick={() => setAddTaskOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors">
+              <Plus size={14} /> Add Task
+            </button>
+          </div>
         </div>
 
         {tasks.length === 0 ? (
@@ -316,8 +395,20 @@ export function MilestoneDetailPage() {
                             <MoreVertical size={13} />
                           </button>
                           {taskMenu === task.id && (
-                            <div className="absolute right-0 top-full mt-1 z-20 w-32 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1">
-                              <button onClick={() => handleDeleteTask(task)}
+                            <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1">
+                              <button onClick={() => { setTaskMenu(null); navigate('/tasks'); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
+                                <ExternalLink size={13} /> Open in Tasks
+                              </button>
+                              <button onClick={() => { setTaskMenu(null); setMoveTarget(task); setMovePhaseId(''); setMoveMilestoneId(''); }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
+                                <ArrowRightLeft size={13} /> Move to Milestone
+                              </button>
+                              <button onClick={() => handleUnlinkTask(task)}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
+                                <Unlink size={13} /> Unlink
+                              </button>
+                              <button onClick={() => { setTaskMenu(null); setTaskDeleteTarget(task); }}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
                                 <Trash2 size={13} /> Delete
                               </button>
@@ -361,7 +452,13 @@ export function MilestoneDetailPage() {
               <label className="block text-xs font-medium text-surface-400 mb-1.5">Status</label>
               <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
                 className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-                {MILESTONE_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {(milestone
+                  ? nextMilestoneStatuses(milestone.status as RoadmapMilestoneStatus)
+                  : MILESTONE_STATUS_OPTIONS.map(o => o.value)
+                ).map(val => {
+                  const o = MILESTONE_STATUS_OPTIONS.find(x => x.value === val) ?? { value: val, label: val };
+                  return <option key={o.value} value={o.value}>{o.label}</option>;
+                })}
               </select>
             </div>
           </div>
@@ -412,6 +509,91 @@ export function MilestoneDetailPage() {
             </select>
           </div>
         </div>
+      </Dialog>
+      {/* Link Existing Task Modal */}
+      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} title="Link Existing Task" size="sm"
+        footer={
+          <button onClick={() => setLinkOpen(false)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Close</button>
+        }>
+        {loadingAvailable ? (
+          <div className="space-y-2 py-2">
+            {[1, 2, 3].map(i => <div key={i} className="h-12 bg-surface-800 rounded-xl animate-pulse" />)}
+          </div>
+        ) : availableTasks.length === 0 ? (
+          <p className="text-sm text-surface-400 text-center py-4">
+            No unlinked tasks available. Tasks already linked to a milestone won't appear here.
+          </p>
+        ) : (
+          <div className="space-y-2 max-h-72 overflow-y-auto">
+            {availableTasks.map(t => (
+              <div key={t._id} className="flex items-center gap-2 p-2.5 rounded-xl border border-surface-800">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-surface-100 truncate">{t.title}</p>
+                  <p className="text-[11px] text-surface-500">{t.priority} · {t.status}</p>
+                </div>
+                <button onClick={() => handleLinkTask(t._id)} disabled={linkingId === t._id}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors disabled:opacity-50">
+                  {linkingId === t._id ? 'Linking…' : 'Link'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Dialog>
+
+      {/* Move Task Modal */}
+      <Dialog open={!!moveTarget} onClose={() => setMoveTarget(null)} title={`Move "${moveTarget?.title ?? ''}"`} size="sm"
+        footer={
+          <>
+            <button onClick={() => setMoveTarget(null)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
+            <button onClick={handleMoveTask} disabled={!movePhaseId || !moveMilestoneId || moving}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {moving ? 'Moving...' : 'Move Task'}
+            </button>
+          </>
+        }>
+        <div className="space-y-4">
+          <p className="text-xs text-surface-500">The task keeps all of its data — only its roadmap placement changes.</p>
+          <div>
+            <label className="block text-xs font-medium text-surface-400 mb-1.5">Phase</label>
+            <select value={movePhaseId}
+              onChange={e => { setMovePhaseId(e.target.value); setMoveMilestoneId(''); }}
+              className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              <option value="">Select phase…</option>
+              {(activeRoadmap?.phases || []).map(p => (
+                <option key={p._id} value={p._id}>{p.title}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-surface-400 mb-1.5">Milestone</label>
+            <select value={moveMilestoneId} onChange={e => setMoveMilestoneId(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              <option value="">Select milestone…</option>
+              {(activeRoadmap?.milestones || [])
+                .filter(m => m.phaseId === movePhaseId && m._id !== milestoneId)
+                .map(m => (
+                  <option key={m._id} value={m._id}>{m.title}</option>
+                ))}
+            </select>
+          </div>
+        </div>
+      </Dialog>
+      {/* Delete Task Confirm */}
+      <Dialog open={!!taskDeleteTarget} onClose={() => { if (!deletingTask) setTaskDeleteTarget(null); }} title="Delete Task" size="sm"
+        footer={<>
+          <button onClick={() => setTaskDeleteTarget(null)} disabled={deletingTask}
+            className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors disabled:opacity-50">Cancel</button>
+          <button onClick={handleDeleteTask} disabled={deletingTask}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50">
+            {deletingTask ? 'Deleting...' : 'Delete Task'}
+          </button>
+        </>}>
+        <p className="text-sm text-surface-300">
+          Delete <span className="font-semibold text-surface-100">"{taskDeleteTarget?.title}"</span> permanently?
+          Its focus sessions and work logs will also be removed.
+        </p>
+        <p className="text-xs text-surface-500 mt-2">This action cannot be undone. Milestone progress will update.</p>
       </Dialog>
 
     </div>

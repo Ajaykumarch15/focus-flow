@@ -16,4 +16,13 @@ const roadmapPhaseSchema = new mongoose.Schema(
 
 roadmapPhaseSchema.index({ roadmapId: 1, order: 1 });
 
+// B2 referential integrity: a Phase may never point at a non-existent Roadmap.
+// Only fires when roadmapId changes (status-only saves in the cascade skip it).
+roadmapPhaseSchema.pre('validate', async function () {
+  if (!this.isModified('roadmapId') || !this.roadmapId) return;
+  const Roadmap = mongoose.model('Roadmap');
+  const roadmap = await Roadmap.findById(this.roadmapId).select('_id');
+  if (!roadmap) this.invalidate('roadmapId', 'Roadmap does not exist');
+});
+
 module.exports = mongoose.model('RoadmapPhase', roadmapPhaseSchema);
