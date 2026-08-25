@@ -24,6 +24,7 @@ function requireApiUrl() {
 // origin. Inject VITE_API_URL's origin into index.html at build time.
 function apiOriginCsp() {
   let apiOrigin = ''
+  let mlOrigin = ''
   return {
     name: 'inject-api-origin-csp',
     configResolved(config: { mode: string; root: string }) {
@@ -33,9 +34,17 @@ function apiOriginCsp() {
       } catch {
         apiOrigin = ''
       }
+      // IES-P0-22b: also allow the Python ML service origin in connect-src so
+      // the SPA can call it cross-origin. Falls back to the local dev ML port.
+      try {
+        mlOrigin = env.VITE_ML_API_URL ? new URL(env.VITE_ML_API_URL).origin : 'http://localhost:8000'
+      } catch {
+        mlOrigin = 'http://localhost:8000'
+      }
     },
     transformIndexHtml(html: string) {
-      return apiOrigin ? html.replace(/__VITE_API_ORIGIN__/g, apiOrigin) : html
+      const out = apiOrigin ? html.replace(/__VITE_API_ORIGIN__/g, apiOrigin) : html
+      return out.replace(/__VITE_ML_API_ORIGIN__/g, mlOrigin)
     },
   }
 }
