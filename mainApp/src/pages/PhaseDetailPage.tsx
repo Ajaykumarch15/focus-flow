@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { api } from '../utils/api';
 import { Dialog } from '../components/ui/Dialog';
@@ -180,20 +180,6 @@ export function PhaseDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
-      {/* Breadcrumbs */}
-      <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        className="flex items-center gap-1.5 text-sm">
-        <button onClick={() => navigate('/roadmaps')} className="text-surface-400 hover:text-surface-200 transition-colors flex items-center gap-1">
-          <ArrowLeft size={14} /> Roadmaps
-        </button>
-        <span className="text-surface-600">/</span>
-        <button onClick={() => navigate(`/roadmaps/${id}`)} className="text-surface-400 hover:text-surface-200 transition-colors truncate max-w-[200px]">
-          {activeRoadmap?.title}
-        </button>
-        <span className="text-surface-600">/</span>
-        <span className="text-surface-200 truncate">{phase.title}</span>
-      </motion.div>
-
       {/* Phase header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
         <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50">{phase.title}</h1>

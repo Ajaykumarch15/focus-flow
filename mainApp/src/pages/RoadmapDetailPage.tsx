@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Map, Calendar, CheckCircle2,
+  Map, Calendar, CheckCircle2,
   ChevronRight, ChevronUp, ChevronDown, Zap, AlertCircle, Target,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award, Info,
@@ -96,7 +96,6 @@ export function RoadmapDetailPage() {
           <p className="text-surface-300 mb-1 font-medium">Something went wrong</p>
           <p className="text-surface-500 text-sm mb-4">{error}</p>
           <div className="flex gap-3 justify-center">
-            <button onClick={() => navigate('/roadmaps')} className="px-4 py-2 rounded-xl bg-surface-800 text-surface-200 text-sm font-medium hover:bg-surface-700 transition-colors">Back to Roadmaps</button>
             <button onClick={() => id && getRoadmap(id)} className="px-4 py-2 rounded-xl bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors">Retry</button>
           </div>
         </Card>
@@ -145,17 +144,6 @@ export function RoadmapDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
-      {/* Back */}
-      <motion.button
-        initial={{ opacity: 0, x: -8 }}
-        animate={{ opacity: 1, x: 0 }}
-        onClick={() => navigate('/roadmaps')}
-        className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors"
-      >
-        <ArrowLeft size={16} />
-        Back to Roadmaps
-      </motion.button>
-
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}

@@ -63,7 +63,7 @@ const taskBase = {
   status: z.enum(TASK_STATUS),
   category: z.string().trim().max(50, 'Category too long'),
   deadline: dateInput.optional(),
-  color: z.string().trim().max(20, 'Color too long'),
+  color: z.string().trim().max(20, 'Color too long').optional(),
   tags: z.array(z.string().trim().max(50, 'Tag too long')).max(50, 'Too many tags'),
 };
 
