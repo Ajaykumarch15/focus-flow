@@ -7,6 +7,7 @@ import { useWorkspaceStore } from '../../store/useWorkspaceStore';
 import { useStore } from '../../store/useStore';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
+import { NowIndicator } from '../now/NowIndicator';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '../collaboration/NotificationCenter';
 import { GlobalCommandPalette } from '../collaboration/GlobalCommandPalette';
@@ -129,6 +130,7 @@ export function GlobalHeader() {
           </kbd>
         </button>*/}
         <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+        <NowIndicator />
         <ThemeToggle />
 
         {/* Notifications */}

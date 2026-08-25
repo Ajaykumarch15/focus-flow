@@ -107,7 +107,7 @@ export function WorkspaceHub() {
             badges={['Private', 'Personal']}
             title="Personal Workspace"
             // description="Your private productivity intelligence — overview, roadmaps, analytics, and ML-powered insights."
-            image={{ light: '/personal_workspace_hub_light.jpg', dark: '/personal_workspace_hub_dark.png' }}
+            image={{ light: '/personal_workspace_hub_light.jpg', dark: '/personal_workspace_hub_light.jpg' }}
             chips={[
               { icon: <Flame size={14} className="text-emerald-400" />, label: 'Intelligence' },
               { icon: <CheckCircle2 size={14} className="text-cyan-400" />, label: 'Roadmaps & Analytics' },
@@ -122,7 +122,7 @@ export function WorkspaceHub() {
             badges={['Work', 'Logging']}
             title="WorkLog"
             // description="Work logs, tasks, schedule, focus timer, journal, habits, reports, and daily insights."
-            image={{ light: '/worklog_hub_light.jpg', dark: '/worklog_hub_dark.png' }}
+            image={{ light: '/girl_with_laptop.png', dark: '/girl_with_laptop.png' }}
             chips={[
               { icon: <BookMarked size={14} className="text-cyan-400" />, label: 'Work Logs' },
               { icon: <CheckCircle2 size={14} className="text-sky-400" />, label: 'Tasks & Focus' },
@@ -138,7 +138,7 @@ export function WorkspaceHub() {
             badges={['Team', 'Engineering']}
             title="Team Collaboration"
             // description="Shared engineering workspaces — projects, sprints, members, QA dashboards, and real-time collaboration."
-            image={{ light: '/collab_hub_light.jpg', dark: '/collab_hub_dark.png' }}
+            image={{ light: '/team_photo.png', dark: '/team_photo.png' }}
             chips={[
               { icon: <GitBranch size={14} className="text-blue-400" />, label: `${workspaces.length} Workspace${workspaces.length !== 1 ? 's' : ''}` },
               { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },

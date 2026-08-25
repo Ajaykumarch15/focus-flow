@@ -210,7 +210,22 @@ export function Tasks() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1000px] mx-auto space-y-6" ref={containerRef}>
+    <div className="relative px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 max-w-[1400px] space-y-6" ref={containerRef}>
+      {/* ── Decorative spots ── */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full
+          bg-brand-400/[0.12] dark:bg-brand-400/[0.06] blur-3xl" />
+        <div className="absolute top-[15%] -right-12 w-40 h-40 rounded-full
+          bg-info-400/[0.10] dark:bg-info-300/[0.05] blur-3xl" />
+        <div className="absolute top-[40%] left-[5%] w-36 h-36 rounded-[1.5rem] rotate-12
+          bg-success-400/[0.08] dark:bg-success-300/[0.04] blur-2xl" />
+        <div className="absolute top-[60%] right-[8%] w-44 h-44 rounded-full
+          bg-brand-300/[0.08] dark:bg-brand-400/[0.04] blur-3xl" />
+        <div className="absolute top-[80%] left-[20%] w-32 h-32 rounded-full
+          bg-info-300/[0.08] dark:bg-info-400/[0.04] blur-2xl" />
+        <div className="absolute top-[90%] right-[30%] w-40 h-28 rounded-full
+          bg-brand-400/[0.07] dark:bg-brand-500/[0.04] blur-3xl" />
+      </div>
       {/* Header */}
       <PageHeader
         title="Tasks"

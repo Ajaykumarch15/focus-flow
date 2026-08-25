@@ -46,8 +46,8 @@ function AuthIllustration({ variant }: AuthIllustrationProps) {
   const theme = useStore(s => s.theme);
   const isDark = theme.mode === 'dark';
   const src = variant === 'person'
-    ? (isDark ? '/auth-illustration-person-dark.png' : '/auth-illustration-person-light.png')
-    : (isDark ? '/auth-illustration-growth-dark.png' : '/auth-illustration-growth-light.png');
+    ? (isDark ? '/login_page_01.png' : '/login_page_01.png')
+    : (isDark ? '/login_page_02.png' : '/login_page_02.png');
   return (
     <motion.div
       initial={{ opacity: 0 }}

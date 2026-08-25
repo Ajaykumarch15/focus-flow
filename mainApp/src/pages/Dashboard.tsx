@@ -294,7 +294,7 @@ export function Dashboard() {
           {/* CENTER — decorative illustration */}
           <motion.img
             variants={fadeIn}
-            src={theme.mode === 'dark' ? '/personal_workspace_hub_dark.png' : '/personal_workspace_hub_light.jpg'}
+            src={theme.mode === 'dark' ? '/personal_workspace_hub_light.jpg' : '/personal_workspace_hub_light.jpg'}
             alt=""
             aria-hidden="true"
             loading="eager"

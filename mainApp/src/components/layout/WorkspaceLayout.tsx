@@ -3,7 +3,6 @@ import { Outlet, useLocation, useParams } from 'react-router-dom';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import { useStore } from '../../store/useStore';
 import { ToastContainer } from '../ui/ToastContainer';
-import { NowStrip } from '../now/NowStrip';
 import { WorkspaceTopNav } from './WorkspaceTopNav';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { WorkspaceNav } from './WorkspaceNav';
@@ -52,7 +51,6 @@ export function WorkspaceLayout() {
   return (
     <div className="flex flex-col h-screen bg-surface-950 text-surface-50 overflow-hidden">
       <WorkspaceTopNav />
-      <NowStrip />
       {!isWorkspaceRoot && <WorkspaceHeader />}
       {!isWorkspaceRoot && <WorkspaceNav />}
 

@@ -170,12 +170,26 @@ export function TodayPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+    <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+
       {/* ═══════════════ HEADER ═══════════════ */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
         className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 dark:bg-[#05070D]
                    shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:shadow-[0_16px_40px_-16px_rgba(0,0,0,0.5)]
+                   dark:border-brand-500/[0.08]
                    p-6 sm:p-8 lg:p-10">
+        {/* ── Hero card decorative spots ── */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          {/* Spot — top left corner */}
+          <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full
+            bg-brand-400/[0.18] dark:bg-brand-400/[0.06] blur-2xl" />
+          {/* Spot — behind buttons area */}
+          <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full
+            bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
+          {/* Spot — right edge between corner */}
+          <div className="absolute top-[35%] -right-10 w-36 h-44 rounded-full
+            bg-brand-300/[0.14] dark:bg-brand-400/[0.05] blur-2xl" />
+        </div>
         <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-10">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -189,8 +203,9 @@ export function TodayPage() {
               )}
             </div>
 
-            <h1 className="mt-4 text-3xl lg:text-[2.25rem] font-display font-extrabold text-surface-50 tracking-tight leading-tight">
-              {greeting}, {firstName}
+            <h1 className="mt-4 text-3xl lg:text-[2.25rem] font-display font-extrabold tracking-tight leading-tight">
+              <span className="text-surface-50">{greeting}</span>,{' '}
+              <span className="text-brand-500">{firstName}</span>
             </h1>
 
             <p className="text-surface-300 text-sm mt-2.5 max-w-lg leading-relaxed">
@@ -221,22 +236,31 @@ export function TodayPage() {
 
           {/* CENTER — decorative productivity illustration */}
           <div className="relative mx-auto shrink-0">
+            {/* Localized horizontal glow behind illustration */}
             <div aria-hidden="true"
-              className="hidden dark:block absolute -inset-8 rounded-full blur-3xl bg-blue-500/[0.05] pointer-events-none" />
+              className="absolute top-1/2 -translate-y-1/2 -inset-x-16 h-40 pointer-events-none
+                         bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent
+                         dark:via-brand-400/[0.04] blur-2xl" />
             <motion.img
               variants={fadeUp}
-              src={theme?.mode === 'dark' ? '/hero_img.png' : '/personal_workspace_hub_light.jpg'}
+              src={theme?.mode === 'dark' ? '/personal_workspace_hub_light.jpg' : '/personal_workspace_hub_light.jpg'}
               alt=""
               aria-hidden="true"
               loading="eager"
               draggable={false}
               className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none"
             />
+            {/* Subtle accent gradient flowing left → right across the image */}
+            <div aria-hidden="true"
+              className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-24 pointer-events-none
+                         bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06]
+                         dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03]
+                         blur-xl" />
           </div>
 
           {/* RIGHT — compact Daily Goal card */}
           <div className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0">
-            <div className="w-full rounded-2xl border border-surface-800 bg-surface-850 p-5 text-center">
+            <div className="w-full rounded-2xl border border-surface-800 bg-surface-850 dark:border-brand-500/[0.08] shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] p-5 text-center">
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
               {view.stats.progressPct === null ? (
                 <>
@@ -292,10 +316,10 @@ export function TodayPage() {
       </motion.div>
 
       {/* ═══════════════ MAIN GRID ═══════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-6">
 
         {/* ─── Continue Working ─── */}
-        <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-continue" className="lg:col-span-2 space-y-3">
+        <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-continue" className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 id="today-continue" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
               <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-brand-400">
@@ -336,73 +360,73 @@ export function TodayPage() {
           )}
         </motion.section>
 
-        {/* ─── Right rail: Focus + Attention ─── */}
-        <div className="space-y-6">
-          {/* ─── Today's Focus ─── */}
-          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-focus" className="space-y-3">
-            <h2 id="today-focus" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-              <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-amber-400">
-                <Target size={14} />
-              </span>
-              Today's Focus
-              {view.doNow.length > 0 && <Badge tone="neutral">{view.doNow.length}</Badge>}
-            </h2>
+        {/* ─── Today's Focus ─── */}
+        <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-focus" className="space-y-3">
+          <h2 id="today-focus" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
+            <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-amber-400">
+              <Target size={14} />
+            </span>
+            Today's Focus
+            {view.doNow.length > 0 && <Badge tone="neutral">{view.doNow.length}</Badge>}
+          </h2>
 
-            {activeTask && (
-              <Card className="border-amber-500/20">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap size={15} className="text-amber-400" /> Focus Now
-                  </CardTitle>
-                  <StatusBadge status={activeTimerState} />
-                </CardHeader>
-                <CardBody>
-                  <p className="font-semibold text-surface-50 truncate">{activeTask.title}</p>
-                  <div className="flex items-end justify-between mt-3 gap-3">
-                    <div>
-                      {activeTask.subtasks.length > 0 && (
-                        <p className="text-xs text-surface-400">
-                          {activeTask.subtasks.filter((s) => s.completed).length}/{activeTask.subtasks.length} subtasks
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="timer-display text-2xl font-display font-extrabold text-brand-400" aria-live="polite">{display}</div>
-                      <p className="text-[10px] text-surface-500 uppercase tracking-wider mt-0.5">Session clock</p>
-                    </div>
+          {activeTask && (
+            <Card className="border-amber-500/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap size={15} className="text-amber-400" /> Focus Now
+                </CardTitle>
+                <StatusBadge status={activeTimerState} />
+              </CardHeader>
+              <CardBody>
+                <p className="font-semibold text-surface-50 truncate">{activeTask.title}</p>
+                <div className="flex items-end justify-between mt-3 gap-3">
+                  <div>
+                    {activeTask.subtasks.length > 0 && (
+                      <p className="text-xs text-surface-400">
+                        {activeTask.subtasks.filter((s) => s.completed).length}/{activeTask.subtasks.length} subtasks
+                      </p>
+                    )}
                   </div>
-                  <div className="flex gap-2 mt-4">
-                    <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/focus')}>Open Focus</Button>
-                    <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${activeTask.id}`)}>Open Task</Button>
+                  <div className="text-right">
+                    <div className="timer-display text-2xl font-display font-extrabold text-brand-400" aria-live="polite">{display}</div>
+                    <p className="text-[10px] text-surface-500 uppercase tracking-wider mt-0.5">Session clock</p>
                   </div>
-                </CardBody>
-              </Card>
-            )}
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/focus')}>Open Focus</Button>
+                  <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${activeTask.id}`)}>Open Task</Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
 
-            {view.doNow.length === 0 ? (
-              <Card>
-                <EmptyState
-                  icon={<Target size={26} className="text-amber-400" />}
-                  title="No tasks yet"
-                  description="Create your first task to start tracking focus time."
-                  action={
-                    <Button leftIcon={<Plus size={15} />} className="shadow-lg"
-                      style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
-                      onClick={() => setShowCreate(true)}>
-                      Create Task
-                    </Button>
-                  }
-                />
-              </Card>
-            ) : (
-              <div className="space-y-2.5">
-                {view.doNow.map((item) => (
-                  <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/tasks/${item.task.id}`)} />
-                ))}
-              </div>
-            )}
-          </motion.section>
+          {view.doNow.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={<Target size={26} className="text-amber-400" />}
+                title="No tasks yet"
+                description="Create your first task to start tracking focus time."
+                action={
+                  <Button leftIcon={<Plus size={15} />} className="shadow-lg"
+                    style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
+                    onClick={() => setShowCreate(true)}>
+                    Create Task
+                  </Button>
+                }
+              />
+            </Card>
+          ) : (
+            <div className="space-y-2.5">
+              {view.doNow.map((item) => (
+                <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/tasks/${item.task.id}`)} />
+              ))}
+            </div>
+          )}
+        </motion.section>
 
+        {/* ─── Today's Plan + Attention ─── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* ─── Today's Plan ─── */}
           <motion.section variants={fadeUp} initial="hidden" animate="show">
             <TodayPlanWidget />
@@ -435,6 +459,7 @@ export function TodayPage() {
             )}
           </motion.section>
         </div>
+
       </div>
 
       <AnimatePresence>
@@ -458,8 +483,8 @@ function Stat({ icon, label, value, sub, color }: {
 
   return (
     <motion.div variants={fadeUp}
-      className="rounded-2xl border border-surface-800/60 bg-surface-900 p-5 relative overflow-hidden hover:border-surface-700 transition-colors">
-      <div className="absolute top-0 right-0 w-24 h-24 opacity-5 pointer-events-none rounded-bl-full" style={{ backgroundColor: color }} />
+      className="rounded-2xl border border-surface-800/60 bg-surface-900 shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] dark:border-surface-700/50 p-5 relative overflow-hidden hover:border-surface-700 transition-colors">
+      <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.12] dark:opacity-[0.06] pointer-events-none rounded-bl-full" style={{ backgroundColor: color }} />
       <div className="flex items-center justify-between mb-3">
         <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}10` }}>
           {icon}
