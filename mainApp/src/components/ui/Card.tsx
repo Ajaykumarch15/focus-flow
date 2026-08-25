@@ -2,7 +2,7 @@ import type { HTMLAttributes } from 'react';
 import { cn } from '../../lib/cn';
 
 export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('card', className)} {...props} />;
+  return <div className={cn('card card-hover', className)} {...props} />;
 }
 
 export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -11,7 +11,7 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
 
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn('font-display font-bold text-surface-50 text-base tracking-tight', className)} {...props} />
+    <h3 className={cn('font-display font-bold text-surface-100 text-base tracking-tight', className)} {...props} />
   );
 }
 

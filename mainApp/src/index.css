@@ -20,6 +20,10 @@
 
     --card-shadow: 0 10px 30px -4px rgba(15, 23, 42, 0.05), 0 4px 12px -2px rgba(15, 23, 42, 0.03);
 
+    /* Ambient gradient — subtle blue/cyan wash behind content */
+    --ambient-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(14, 165, 233, 0.10), transparent 70%);
+    --hero-glow: radial-gradient(circle, rgba(14, 165, 233, 0.12), transparent 70%);
+
     /* Brand defaults — overridden at runtime by applyThemeToDOM */
     --color-brand-50: #f0f9ff;
     --color-brand-100: #e0f2fe;
@@ -104,6 +108,10 @@
 
     --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
 
+    /* Ambient gradient — subtle blue/cyan glow behind content */
+    --ambient-gradient: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(14, 165, 233, 0.10), transparent 70%);
+    --hero-glow: radial-gradient(circle, rgba(14, 165, 233, 0.12), transparent 70%);
+
     --color-brand-50: #f0f9ff;
     --color-brand-100: #e0f2fe;
     --color-brand-200: #bae6fd;
@@ -175,6 +183,8 @@
   body {
     font-family: 'DM Sans', sans-serif;
     background-color: var(--color-surface-950);
+    background-image: var(--ambient-gradient);
+    background-attachment: fixed;
     color: var(--color-surface-50);
     -webkit-font-smoothing: antialiased;
   }
@@ -193,7 +203,7 @@
   .card {
     background-color: var(--color-surface-900);
     border: 1px solid var(--color-surface-800);
-    box-shadow: var(--card-shadow);
+    box-shadow: var(--shadow-sm);
     border-radius: 1.375rem; /* 22px */
   }
   .card-hover {
@@ -201,7 +211,7 @@
   }
   .card-hover:hover {
     border-color: var(--color-surface-700);
-    box-shadow: 0 16px 36px -6px rgba(15, 23, 42, 0.08), 0 6px 16px -4px rgba(15, 23, 42, 0.04);
+    box-shadow: var(--shadow-md);
     transform: translateY(-2px);
   }
 

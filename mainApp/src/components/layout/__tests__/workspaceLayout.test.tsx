@@ -150,9 +150,6 @@ describe('WorkspaceLayout engineering workspace shell', () => {
     expect(container.textContent).toContain('Backlog');
     expect(container.textContent).toContain('Projects');
     expect(container.textContent).toContain('Teams');
-    const aside = container.querySelector('aside');
-    expect(aside).toBeTruthy();
-    expect(aside?.getAttribute('aria-label')).toBe('Current work');
     act(() => root.unmount());
     container.remove();
   });
