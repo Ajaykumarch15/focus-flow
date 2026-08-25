@@ -22,6 +22,13 @@ const { resolveRoadmapLink } = require('../utils/roadmapLinks');
 const router = express.Router();
 router.use(protect);
 
+// B3: clients sometimes send empty-string refs (""); treat those as absent so
+// zod's 24-hex ObjectId rule doesn't 400 the whole create/patch.
+const optObjectId = z.preprocess(
+  (v) => (v === '' || v === null || v === undefined ? undefined : v),
+  objectId.optional()
+);
+
 // IES-P1-06: deadlines are calendar dates ("YYYY-MM-DD") in the user's timezone,
 // stored as that day's tz-midnight instant so `dayKey(deadline, tz)` always
 // round-trips to the picked date. A raw "YYYY-MM-DD" from a date input is used
@@ -94,14 +101,14 @@ const collabCreateFields = {
   sprintStatus: z.enum(COLLAB_TASK_STATUS).optional(),
   gitContext: gitContextSchema.optional(),
   // Personal roadmap refs
-  roadmapRef: objectId.optional(),
-  phaseRef: objectId.optional(),
-  milestoneRef: objectId.optional(),
+  roadmapRef: optObjectId,
+  phaseRef: optObjectId,
+  milestoneRef: optObjectId,
 };
 
 const taskCreateSchema = z.object({
   ...taskBase,
-  subtasks: z.array(subtaskItem).max(100, 'Too many subtasks'),
+  subtasks: z.array(subtaskItem).max(100, 'Too many subtasks').optional().default([]),
   ...collabCreateFields,
 }).passthrough();
 
@@ -120,9 +127,9 @@ const taskPatchSchema = z.object({
   estimatedHours: z.number().finite('Invalid estimatedHours').min(0, 'estimatedHours must be at least 0').optional(),
   actualHours: z.number().finite('Invalid actualHours').min(0, 'actualHours must be at least 0').optional(),
   // Personal roadmap refs
-  roadmapRef: objectId.nullable().optional(),
-  phaseRef: objectId.nullable().optional(),
-  milestoneRef: objectId.nullable().optional(),
+  roadmapRef: optObjectId,
+  phaseRef: optObjectId,
+  milestoneRef: optObjectId,
 }).partial().passthrough();
 
 const taskParamsSchema = z.object({ id: objectId });
