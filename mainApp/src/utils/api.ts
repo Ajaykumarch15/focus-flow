@@ -21,6 +21,8 @@ import type {
   RoadmapListItem,
   RoadmapDetail,
   RoadmapPhaseDoc,
+  RoadmapPhaseStatus,
+  RoadmapMilestoneStatus,
   RoadmapMilestoneDoc,
   RoadmapType,
 } from '../types/roadmap';
@@ -666,12 +668,15 @@ export const api = {
       title: string;
       description?: string;
       order?: number;
+      status?: RoadmapPhaseStatus;
       startDate?: string;
       targetDate?: string;
     }) => request<RoadmapPhaseDoc>(`/roadmaps/${roadmapId}/phases`, { method: 'POST', body: JSON.stringify(body) }),
     updatePhase: (id: string, body: Record<string, any>) =>
       request<RoadmapPhaseDoc>(`/roadmaps/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     removePhase: (id: string) => request<{ message: string }>(`/roadmaps/phases/${id}`, { method: 'DELETE' }),
+    reorderPhases: (roadmapId: string, phaseIds: string[]) =>
+      request<{ message: string }>(`/roadmaps/${roadmapId}/phases/reorder`, { method: 'POST', body: JSON.stringify({ phaseIds }) }),
 
     // Milestones
     listMilestones: (phaseId: string) =>
@@ -680,11 +685,14 @@ export const api = {
       title: string;
       description?: string;
       order?: number;
+      status?: RoadmapMilestoneStatus;
       targetDate?: string;
     }) => request<RoadmapMilestoneDoc>(`/roadmaps/phases/${phaseId}/milestones`, { method: 'POST', body: JSON.stringify(body) }),
     updateMilestone: (id: string, body: Record<string, any>) =>
       request<RoadmapMilestoneDoc>(`/roadmaps/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     removeMilestone: (id: string) => request<{ message: string }>(`/roadmaps/milestones/${id}`, { method: 'DELETE' }),
+    reorderMilestones: (phaseId: string, milestoneIds: string[]) =>
+      request<{ message: string }>(`/roadmaps/phases/${phaseId}/milestones/reorder`, { method: 'POST', body: JSON.stringify({ milestoneIds }) }),
 
     // Task linking
     availableTasks: () => request<any[]>('/roadmaps/available-tasks'),

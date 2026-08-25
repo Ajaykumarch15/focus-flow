@@ -5,13 +5,22 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import {
-  TrendingUp, Target, CheckCircle2, Map,
+  TrendingUp, Target, CheckCircle2, Map, Clock,
   ChevronRight, Calendar, Flame, BarChart3, AlertTriangle,
 } from 'lucide-react';
 import { api } from '../utils/api';
 import { Card, CardBody } from '../components/ui/Card';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { Progress } from '../components/ui/Progress';
+
+const formatFocusedTime = (ms: number): string => {
+  if (!ms || ms <= 0) return '0m';
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h}h ${m}m` : `${h}h`;
+};
 
 const TIME_FILTERS = [
   { label: '7 Days', value: 7 },
@@ -38,6 +47,7 @@ interface AnalyticsOverview {
   totalMilestones: number;
   completedTasks: number;
   totalTasks: number;
+  focusedTimeMs: number;
 }
 
 interface RoadmapStat {
@@ -55,6 +65,7 @@ interface RoadmapStat {
   milestoneCompleted: number;
   taskTotal: number;
   taskCompleted: number;
+  focusedTimeMs?: number;
 }
 
 interface PhaseStat {
@@ -188,12 +199,13 @@ export function PersonalAnalyticsPage() {
       {/* Section 1 — Overview */}
       {overview && (
         <motion.div variants={stagger} initial="hidden" animate="show"
-          className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             { label: 'Overall Progress', value: `${overview.progress}%`, icon: TrendingUp, color: 'text-brand-400' },
             { label: 'Active Roadmaps', value: overview.activeRoadmaps, icon: Map, color: 'text-sky-400' },
             { label: 'Milestones', value: `${overview.completedMilestones}/${overview.totalMilestones}`, icon: Target, color: 'text-violet-400' },
             { label: 'Tasks', value: `${overview.completedTasks}/${overview.totalTasks}`, icon: CheckCircle2, color: 'text-emerald-400' },
+            { label: 'Focused Time', value: formatFocusedTime(overview.focusedTimeMs ?? 0), icon: Clock, color: 'text-amber-400' },
           ].map((m) => (
             <motion.div key={m.label} variants={fadeUp}>
               <Card className="p-4">

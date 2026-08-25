@@ -6,6 +6,20 @@ const Task = require('../models/Task');
 const protect = require('../middleware/auth');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 const { buildPatch } = require('../utils/patchSanitizer');
+const {
+  ROADMAP_TRANSITIONS,
+  PHASE_TRANSITIONS,
+  MILESTONE_TRANSITIONS,
+  canTransition,
+  completeChildrenForRoadmap,
+  completeMilestonesForPhase,
+} = require('../utils/roadmapLifecycle');
+const {
+  milestoneProgress,
+  phaseProgress,
+  roadmapProgress,
+  serializeProgress,
+} = require('../utils/roadmapProgress');
 
 const router = express.Router();
 router.use(protect);
@@ -42,7 +56,9 @@ const roadmapParamsSchema = z.object({ id: objectId });
 const phaseCreateSchema = z.object({
   title: requiredString(200, 'title', 'Title is required'),
   description: z.string().max(1000, 'Description too long').default(''),
-  order: z.number().finite('Invalid order').default(0),
+  // B4: intentionally NOT defaulted — an absent order triggers deterministic
+  // append (max+1) in the handler; a schema default would mask omission as 0.
+  order: z.number().finite('Invalid order').optional(),
   startDate: dateInput.optional(),
   targetDate: dateInput.optional(),
   status: z.enum(PHASE_STATUS).default('upcoming'),
@@ -60,7 +76,9 @@ const phasePatchSchema = z.object({
 const milestoneCreateSchema = z.object({
   title: requiredString(200, 'title', 'Title is required'),
   description: z.string().max(1000, 'Description too long').default(''),
-  order: z.number().finite('Invalid order').default(0),
+  // B5: intentionally NOT defaulted — an absent order triggers deterministic
+  // append (max+1 within the phase) in the handler.
+  order: z.number().finite('Invalid order').optional(),
   targetDate: dateInput.optional(),
   status: z.enum(MILESTONE_STATUS).default('todo'),
 }).passthrough();
@@ -73,9 +91,20 @@ const milestonePatchSchema = z.object({
   status: z.enum(MILESTONE_STATUS).optional(),
 }).passthrough();
 
+// Reordering ships the full desired sequence; anything less than a complete
+// permutation of the roadmap's phases is rejected (B4: deterministic order).
+const phaseReorderSchema = z.object({
+  phaseIds: z.array(objectId).min(1),
+}).passthrough();
+
+// Same contract for milestones within a phase (B5).
+const milestoneReorderSchema = z.object({
+  milestoneIds: z.array(objectId).min(1),
+}).passthrough();
+
 const ALLOWED_ROADMAP_PATCH = { title: true, description: true, type: true, startDate: true, targetDate: true, status: true, icon: true, color: true };
-const ALLOWED_PHASE_PATCH = { title: true, description: true, order: true, startDate: true, targetDate: true, status: true };
-const ALLOWED_MILESTONE_PATCH = { title: true, description: true, order: true, targetDate: true, status: true };
+const ALLOWED_PHASE_PATCH = { title: true, description: true, startDate: true, targetDate: true, status: true };
+const ALLOWED_MILESTONE_PATCH = { title: true, description: true, targetDate: true, status: true };
 
 // ── TASK LINKING ─────────────────────────────────────────────────────────────
 
@@ -148,17 +177,23 @@ router.delete('/unlink-task/:taskId', async (req, res, next) => {
 // ── PERSONAL ANALYTICS ──────────────────────────────────────────────────────
 
 // GET /api/roadmaps/analytics?days=30
+// B11: stabilized analytics. Every query/aggregation is scoped to the
+// authenticated user. Heavy counting runs as MongoDB aggregations - full
+// task/session history is never loaded into memory or shipped to the client.
+// Focused time reuses Task.totalTime accumulated by the existing focus timer;
+// no second time-tracking mechanism exists.
 router.get('/analytics', async (req, res, next) => {
   try {
     const days = parseInt(req.query.days, 10) || 0;
     const sinceDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
+    const userId = req.user._id;
 
-    const roadmaps = await Roadmap.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const roadmaps = await Roadmap.find({ userId }).sort({ createdAt: -1 });
     const roadmapIds = roadmaps.map(r => r._id);
 
     if (roadmapIds.length === 0) {
       return res.json({
-        overview: { progress: 0, activeRoadmaps: 0, completedMilestones: 0, totalMilestones: 0, completedTasks: 0, totalTasks: 0 },
+        overview: { progress: 0, activeRoadmaps: 0, completedMilestones: 0, totalMilestones: 0, completedTasks: 0, totalTasks: 0, focusedTimeMs: 0 },
         today: { tasksCompleted: 0, milestonesCompleted: 0, activeRoadmaps: 0 },
         roadmaps: [],
         phases: [],
@@ -167,29 +202,92 @@ router.get('/analytics', async (req, res, next) => {
       });
     }
 
-    const [allPhases, allMilestones, allTasks] = await Promise.all([
-      RoadmapPhase.find({ roadmapId: { $in: roadmapIds }, userId: req.user._id }),
-      RoadmapMilestone.find({ roadmapId: { $in: roadmapIds }, userId: req.user._id }),
-      Task.find({ roadmapRef: { $in: roadmapIds }, userId: req.user._id }),
+    const idIn = { $in: roadmapIds };
+    const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
+
+    const [
+      phases,
+      msByRoadmap,
+      msByPhase,
+      tasksByRoadmap,
+      completedTaskDays,
+      recentTasks,
+      recentMilestones,
+      todayTasks,
+      todayMilestones,
+      windowedMilestones,
+    ] = await Promise.all([
+      // Phase docs are small bounded metadata needed for titles/status/order.
+      RoadmapPhase.find({ userId, roadmapId: idIn }),
+      RoadmapMilestone.aggregate([
+        { $match: { userId, roadmapId: idIn } },
+        { $group: { _id: '$roadmapId', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } },
+      ]),
+      RoadmapMilestone.aggregate([
+        { $match: { userId, roadmapId: idIn } },
+        { $group: { _id: '$phaseId', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } },
+      ]),
+      Task.aggregate([
+        { $match: { userId, roadmapRef: idIn } },
+        { $group: {
+          _id: '$roadmapRef',
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          focusedTimeMs: { $sum: { $ifNull: ['$totalTime', 0] } },
+        } },
+      ]),
+      Task.aggregate([
+        { $match: {
+          userId,
+          roadmapRef: idIn,
+          status: 'completed',
+          updatedAt: { $ne: null, ...(sinceDate ? { $gte: sinceDate } : {}) },
+        } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } }, count: { $sum: 1 } } },
+      ]),
+      Task.find({ userId, roadmapRef: idIn, status: 'completed' })
+        .sort({ updatedAt: -1 }).limit(15).select('title updatedAt roadmapRef'),
+      RoadmapMilestone.find({ userId, roadmapId: idIn, status: 'completed' })
+        .sort({ updatedAt: -1 }).limit(15).select('title updatedAt roadmapId'),
+      Task.aggregate([
+        { $match: { userId, roadmapRef: idIn, status: 'completed', updatedAt: { $gte: startOfToday } } },
+        { $group: { _id: null, count: { $sum: 1 }, roadmapIds: { $addToSet: '$roadmapRef' } } },
+      ]),
+      RoadmapMilestone.aggregate([
+        { $match: { userId, roadmapId: idIn, status: 'completed', updatedAt: { $gte: startOfToday } } },
+        { $group: { _id: null, count: { $sum: 1 } } },
+      ]),
+      // Windowed milestone completions for ?days=N (server-side, exact).
+      RoadmapMilestone.aggregate([
+        { $match: {
+          userId,
+          roadmapId: idIn,
+          status: 'completed',
+          ...(sinceDate ? { updatedAt: { $gte: sinceDate } } : {}),
+        } },
+        { $group: { _id: null, count: { $sum: 1 } } },
+      ]),
     ]);
 
-    // Overview
-    const totalMilestones = allMilestones.length;
-    const completedMilestones = allMilestones.filter(m => m.status === 'completed').length;
-    const totalTasks = allTasks.length;
-    const completedTasks = allTasks.filter(t => t.status === 'completed').length;
-    const activeRoadmaps = roadmaps.filter(r => r.status === 'active' || r.status === 'planning').length;
-    const overallProgress = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
+    // Index aggregation buckets by key.
+    const msRoadmapMap = Object.fromEntries(msByRoadmap.map(b => [String(b._id), b]));
+    const msPhaseMap = Object.fromEntries(msByPhase.map(b => [String(b._id), b]));
+    const taskRoadmapMap = Object.fromEntries(tasksByRoadmap.map(b => [String(b._id), b]));
 
-    // Per-roadmap breakdown
+    const sumOf = (buckets, field) => buckets.reduce((acc, b) => acc + (b[field] || 0), 0);
+    const totalMilestones = sumOf(msByRoadmap, 'total');
+    const completedMilestones = sumOf(msByRoadmap, 'completed');
+    const totalTasks = sumOf(tasksByRoadmap, 'total');
+    const completedTasks = sumOf(tasksByRoadmap, 'completed');
+    const focusedTimeMs = sumOf(tasksByRoadmap, 'focusedTimeMs');
+    const activeRoadmaps = roadmaps.filter(r => r.status === 'active' || r.status === 'planning').length;
+    const overallProgress = roadmapProgress(completedMilestones, totalMilestones) || 0;
+
     const roadmapStats = roadmaps.map(r => {
-      const rPhases = allPhases.filter(p => String(p.roadmapId) === String(r._id));
-      const rMilestones = allMilestones.filter(m => String(m.roadmapId) === String(r._id));
-      const rTasks = allTasks.filter(t => String(t.roadmapRef) === String(r._id));
-      const rCompletedMilestones = rMilestones.filter(m => m.status === 'completed').length;
-      const rCompletedTasks = rTasks.filter(t => t.status === 'completed').length;
-      const rProgress = rMilestones.length > 0 ? Math.round((rCompletedMilestones / rMilestones.length) * 100) : 0;
-      const completedPhases = rPhases.filter(p => p.status === 'completed').length;
+      const key = String(r._id);
+      const ms = msRoadmapMap[key] || { total: 0, completed: 0 };
+      const ts = taskRoadmapMap[key] || { total: 0, completed: 0, focusedTimeMs: 0 };
+      const ph = phases.filter(p => String(p.roadmapId) === key);
       return {
         _id: r._id,
         title: r.title,
@@ -198,28 +296,27 @@ router.get('/analytics', async (req, res, next) => {
         color: r.color,
         icon: r.icon,
         targetDate: r.targetDate,
-        progress: rProgress,
-        phaseTotal: rPhases.length,
-        phaseCompleted: completedPhases,
-        milestoneTotal: rMilestones.length,
-        milestoneCompleted: rCompletedMilestones,
-        taskTotal: rTasks.length,
-        taskCompleted: rCompletedTasks,
+        progress: roadmapProgress(ms.completed, ms.total) || 0,
+        phaseTotal: ph.length,
+        phaseCompleted: ph.filter(p => p.status === 'completed').length,
+        milestoneTotal: ms.total,
+        milestoneCompleted: ms.completed,
+        taskTotal: ts.total,
+        taskCompleted: ts.completed,
+        focusedTimeMs: ts.focusedTimeMs || 0,
       };
     });
 
-    // Phase progress (all phases across all roadmaps, sorted by roadmap then order)
-    const phaseStats = allPhases
+    const phaseOrder = new Map(roadmapIds.map((id, i) => [String(id), i]));
+    const phaseStats = phases
       .sort((a, b) => {
-        const ri = roadmapIds.indexOf(String(a.roadmapId));
-        const rj = roadmapIds.indexOf(String(b.roadmapId));
+        const ri = phaseOrder.get(String(a.roadmapId)) ?? 0;
+        const rj = phaseOrder.get(String(b.roadmapId)) ?? 0;
         if (ri !== rj) return ri - rj;
-        return a.order - b.order;
+        return (a.order ?? 0) - (b.order ?? 0);
       })
       .map(p => {
-        const pMilestones = allMilestones.filter(m => String(m.phaseId) === String(p._id));
-        const pCompleted = pMilestones.filter(m => m.status === 'completed').length;
-        const pTotal = pMilestones.length;
+        const ms = msPhaseMap[String(p._id)] || { total: 0, completed: 0 };
         const roadmap = roadmaps.find(r => String(r._id) === String(p.roadmapId));
         return {
           _id: p._id,
@@ -228,70 +325,26 @@ router.get('/analytics', async (req, res, next) => {
           order: p.order,
           roadmapId: p.roadmapId,
           roadmapTitle: roadmap?.title || '',
-          progress: pTotal > 0 ? Math.round((pCompleted / pTotal) * 100) : 0,
-          milestoneTotal: pTotal,
-          milestoneCompleted: pCompleted,
+          progress: phaseProgress(ms.completed, ms.total) || 0,
+          milestoneTotal: ms.total,
+          milestoneCompleted: ms.completed,
         };
       });
 
-    // Activity / consistency (derived from task updatedAt timestamps)
-    const completedTaskDates = allTasks
-      .filter(t => t.status === 'completed' && t.updatedAt)
-      .map(t => {
-        const d = new Date(t.updatedAt);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      });
-    const uniqueActiveDays = new Set(completedTaskDates);
-
-    // Milestone completion dates (from updatedAt)
-    const completedMilestoneDates = allMilestones
-      .filter(m => m.status === 'completed' && m.updatedAt)
-      .map(m => {
-        const d = new Date(m.updatedAt);
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      });
-
-    // Filter by time range if specified
-    let filteredActiveDays = uniqueActiveDays;
-    let filteredCompletedMilestones = completedMilestones;
-    let filteredCompletedTasks = completedTasks;
-    if (sinceDate) {
-      const sinceStr = `${sinceDate.getFullYear()}-${String(sinceDate.getMonth() + 1).padStart(2, '0')}-${String(sinceDate.getDate()).padStart(2, '0')}`;
-      filteredActiveDays = new Set([...uniqueActiveDays].filter(d => d >= sinceStr));
-      filteredCompletedMilestones = completedMilestoneDates.filter(d => d >= sinceStr).length;
-      filteredCompletedTasks = completedTaskDates.filter(d => d >= sinceStr).length;
-    }
-
-    // Recent activity (last 10 completions from tasks and milestones)
-    const recentTaskActivity = allTasks
-      .filter(t => t.status === 'completed' && t.updatedAt)
-      .map(t => ({
-        type: 'task',
-        title: t.title,
-        date: t.updatedAt,
-        roadmapId: t.roadmapRef,
-      }));
-    const recentMilestoneActivity = allMilestones
-      .filter(m => m.status === 'completed' && m.updatedAt)
-      .map(m => ({
-        type: 'milestone',
-        title: m.title,
-        date: m.updatedAt,
-        roadmapId: m.roadmapId,
-      }));
-    const recentActivity = [...recentTaskActivity, ...recentMilestoneActivity]
+    const recentActivity = [
+      ...recentTasks.map(t => ({ type: 'task', title: t.title, date: t.updatedAt, roadmapId: t.roadmapRef })),
+      ...recentMilestones.map(m => ({ type: 'milestone', title: m.title, date: m.updatedAt, roadmapId: m.roadmapId })),
+    ]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 15);
 
-    // Today's stats
-    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-    const todayTasksCompleted = allTasks.filter(t => t.status === 'completed' && t.updatedAt && (() => { const d = new Date(t.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })()).length;
-    const todayMilestonesCompleted = allMilestones.filter(m => m.status === 'completed' && m.updatedAt && (() => { const d = new Date(m.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })()).length;
-    const todayActiveRoadmaps = roadmaps.filter(r => {
-      if (r.status !== 'active' && r.status !== 'planning') return false;
-      const rTasks = allTasks.filter(t => String(t.roadmapRef) === String(r._id));
-      return rTasks.some(t => t.updatedAt && (() => { const d = new Date(t.updatedAt); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayStr; })());
-    }).length;
+    const todayTaskBucket = todayTasks[0] || { count: 0, roadmapIds: [] };
+    const todayActiveRoadmapIds = new Set(
+      (todayTaskBucket.roadmapIds || []).map(id => String(id)),
+    );
+    const todayActiveRoadmaps = roadmaps.filter(
+      r => (r.status === 'active' || r.status === 'planning') && todayActiveRoadmapIds.has(String(r._id)),
+    ).length;
 
     res.json({
       overview: {
@@ -301,18 +354,23 @@ router.get('/analytics', async (req, res, next) => {
         totalMilestones,
         completedTasks,
         totalTasks,
+        focusedTimeMs,
       },
       today: {
-        tasksCompleted: todayTasksCompleted,
-        milestonesCompleted: todayMilestonesCompleted,
+        tasksCompleted: todayTaskBucket.count || 0,
+        milestonesCompleted: (todayMilestones[0] || {}).count || 0,
         activeRoadmaps: todayActiveRoadmaps,
       },
       roadmaps: roadmapStats,
       phases: phaseStats,
       activity: {
-        activeDays: filteredActiveDays.size,
-        completedMilestones: filteredCompletedMilestones,
-        completedTasks: filteredCompletedTasks,
+        activeDays: completedTaskDays.length,
+        completedMilestones: sinceDate
+          ? sumOf(windowedMilestones, 'count')
+          : completedMilestones,
+        completedTasks: sinceDate
+          ? completedTaskDays.reduce((acc, b) => acc + (b.count || 0), 0)
+          : completedTasks,
       },
       recentActivity,
     });
@@ -360,7 +418,7 @@ router.get('/', async (req, res, next) => {
         totalTasks: ts.totalTasks,
         completedTasks: ts.completedTasks,
         totalTime: ts.totalTime,
-        progress: ms.total > 0 ? Math.round((ms.completed / ms.total) * 100) : 0,
+        ...serializeProgress(roadmapProgress(ms.completed, ms.total)),
       };
     });
 
@@ -406,7 +464,7 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
         ...phase.toObject(),
         milestoneTotal: phaseMilestoneTotal,
         milestoneCompleted: phaseMilestoneCompleted,
-        progress: phaseMilestoneTotal > 0 ? Math.round((phaseMilestoneCompleted / phaseMilestoneTotal) * 100) : 0,
+        ...serializeProgress(phaseProgress(phaseMilestoneCompleted, phaseMilestoneTotal)),
       };
     });
 
@@ -418,11 +476,9 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
         ...milestone.toObject(),
         totalTasks: mtTotal,
         completedTasks: mtCompleted,
-        progress: mtTotal > 0 ? Math.round((mtCompleted / mtTotal) * 100) : 0,
+        ...serializeProgress(milestoneProgress(mtCompleted, mtTotal)),
       };
     });
-
-    const progress = milestoneTotal > 0 ? Math.round((milestoneCompleted / milestoneTotal) * 100) : 0;
 
     res.json({
       ...roadmap.toObject(),
@@ -438,7 +494,7 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
         phaseRef: t.phaseRef,
         deadline: t.deadline,
       })),
-      progress,
+      ...serializeProgress(roadmapProgress(milestoneCompleted, milestoneTotal)),
       milestoneTotal,
       milestoneCompleted,
       totalTasks,
@@ -457,7 +513,17 @@ router.patch('/:id', validate(roadmapPatchSchema), async (req, res, next) => {
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
     const patch = buildPatch(req.body, ALLOWED_ROADMAP_PATCH);
+    if (!canTransition(ROADMAP_TRANSITIONS, roadmap.status, patch.status)) {
+      return res.status(400).json({
+        message: `Cannot move roadmap from '${roadmap.status}' to '${patch.status}'`,
+      });
+    }
     const updated = await Roadmap.findByIdAndUpdate(roadmap._id, patch, { new: true, runValidators: true });
+    // B8: completing a roadmap completes remaining phases + milestones so
+    // stored status never contradicts derived progress. Tasks are untouched.
+    if (patch.status === 'completed' && roadmap.status !== 'completed') {
+      await completeChildrenForRoadmap(RoadmapPhase, RoadmapMilestone, roadmap._id, req.user._id);
+    }
     res.json(updated);
   } catch (err) {
     next(err);
@@ -469,8 +535,6 @@ router.delete('/:id', validate(null, { params: roadmapParamsSchema }), async (re
   try {
     const roadmap = await Roadmap.findOne({ _id: req.params.id, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
-
-    const milestoneIds = (await RoadmapMilestone.find({ roadmapId: roadmap._id })).map(m => m._id);
 
     await Promise.all([
       RoadmapPhase.deleteMany({ roadmapId: roadmap._id, userId: req.user._id }),
@@ -504,7 +568,7 @@ router.get('/:roadmapId/phases', async (req, res, next) => {
         ...phase.toObject(),
         milestoneTotal: total,
         milestoneCompleted: completed,
-        progress: total > 0 ? Math.round((completed / total) * 100) : 0,
+        ...serializeProgress(phaseProgress(completed, total)),
       };
     });
 
@@ -520,13 +584,59 @@ router.post('/:roadmapId/phases', validate(phaseCreateSchema), async (req, res, 
     const roadmap = await Roadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
+    // B4: deterministic ordering — when the client does not pin an order,
+    // append after the current last phase instead of defaulting to 0
+    // (which would stack every phase on top of each other).
+    let { order } = req.body;
+    if (order === undefined) {
+      const last = await RoadmapPhase.findOne({ roadmapId: roadmap._id, userId: req.user._id })
+        .sort({ order: -1 })
+        .select('order')
+        .lean();
+      order = last && Number.isFinite(Number(last.order)) ? Number(last.order) + 1 : 0;
+    }
+
     const phase = await RoadmapPhase.create({
       ...req.body,
+      order,
       userId: req.user._id,
       roadmapId: roadmap._id,
     });
 
     res.status(201).json({ ...phase.toObject(), milestoneTotal: 0, milestoneCompleted: 0, progress: 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/roadmaps/:roadmapId/phases/reorder
+router.post('/:roadmapId/phases/reorder', validate(phaseReorderSchema), async (req, res, next) => {
+  try {
+    const roadmap = await Roadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
+    if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
+
+    const phases = await RoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).select('_id');
+    const existingIds = new Set(phases.map(p => String(p._id)));
+    const requested = req.body.phaseIds;
+
+    // Must be a complete permutation — no duplicates, no missing phases,
+    // no phases belonging to another roadmap or user.
+    if (
+      requested.length !== phases.length ||
+      new Set(requested.map(String)).size !== requested.length ||
+      !requested.every(id => existingIds.has(String(id)))
+    ) {
+      return res.status(400).json({ message: 'phaseIds must contain every phase of this roadmap exactly once' });
+    }
+
+    // Normalize to dense 0..n-1 positions; other fields are untouched.
+    await RoadmapPhase.bulkWrite(
+      requested.map((id, index) => ({
+        updateOne: { filter: { _id: id, roadmapId: roadmap._id }, update: { $set: { order: index } } },
+      })),
+    );
+
+    res.json({ message: 'Phases reordered' });
   } catch (err) {
     next(err);
   }
@@ -539,7 +649,16 @@ router.patch('/phases/:id', validate(phasePatchSchema), async (req, res, next) =
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
     const patch = buildPatch(req.body, ALLOWED_PHASE_PATCH);
+    if (!canTransition(PHASE_TRANSITIONS, phase.status, patch.status)) {
+      return res.status(400).json({
+        message: `Cannot move phase from '${phase.status}' to '${patch.status}'`,
+      });
+    }
     const updated = await RoadmapPhase.findByIdAndUpdate(phase._id, patch, { new: true, runValidators: true });
+    // B8: completing a phase completes its remaining milestones (only those).
+    if (patch.status === 'completed' && phase.status !== 'completed') {
+      await completeMilestonesForPhase(RoadmapMilestone, phase._id, req.user._id);
+    }
     res.json(updated);
   } catch (err) {
     next(err);
@@ -551,9 +670,6 @@ router.delete('/phases/:id', async (req, res, next) => {
   try {
     const phase = await RoadmapPhase.findOne({ _id: req.params.id, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
-
-    const milestones = await RoadmapMilestone.find({ phaseId: phase._id });
-    const milestoneIds = milestones.map(m => m._id);
 
     await Promise.all([
       Task.updateMany({ phaseRef: phase._id, userId: req.user._id }, { $set: { phaseRef: null, milestoneRef: null } }),
@@ -582,11 +698,12 @@ router.get('/phases/:phaseId/milestones', async (req, res, next) => {
 
     const enriched = milestones.map(m => {
       const mt = tasks.filter(t => String(t.milestoneRef) === String(m._id));
+      const mtCompleted = mt.filter(t => t.status === 'completed').length;
       return {
         ...m.toObject(),
         totalTasks: mt.length,
-        completedTasks: mt.filter(t => t.status === 'completed').length,
-        progress: mt.length > 0 ? Math.round((mt.filter(t => t.status === 'completed').length / mt.length) * 100) : 0,
+        completedTasks: mtCompleted,
+        ...serializeProgress(milestoneProgress(mtCompleted, mt.length)),
       };
     });
 
@@ -602,14 +719,59 @@ router.post('/phases/:phaseId/milestones', validate(milestoneCreateSchema), asyn
     const phase = await RoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
+    // B5: deterministic ordering — append after the current last milestone
+    // within this phase when the client does not pin an order.
+    let { order } = req.body;
+    if (order === undefined) {
+      const last = await RoadmapMilestone.findOne({ phaseId: phase._id, userId: req.user._id })
+        .sort({ order: -1 })
+        .select('order')
+        .lean();
+      order = last && Number.isFinite(Number(last.order)) ? Number(last.order) + 1 : 0;
+    }
+
     const milestone = await RoadmapMilestone.create({
       ...req.body,
+      order,
       userId: req.user._id,
       roadmapId: phase.roadmapId,
       phaseId: phase._id,
     });
 
     res.status(201).json({ ...milestone.toObject(), totalTasks: 0, completedTasks: 0, progress: 0 });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/phases/:phaseId/milestones/reorder
+router.post('/phases/:phaseId/milestones/reorder', validate(milestoneReorderSchema), async (req, res, next) => {
+  try {
+    const phase = await RoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
+    if (!phase) return res.status(404).json({ message: 'Phase not found' });
+
+    const milestones = await RoadmapMilestone.find({ phaseId: phase._id, userId: req.user._id }).select('_id');
+    const existingIds = new Set(milestones.map(m => String(m._id)));
+    const requested = req.body.milestoneIds;
+
+    // Must be a complete permutation of this phase's milestones — no
+    // duplicates, no missing entries, no milestones from another phase/user.
+    if (
+      requested.length !== milestones.length ||
+      new Set(requested.map(String)).size !== requested.length ||
+      !requested.every(id => existingIds.has(String(id)))
+    ) {
+      return res.status(400).json({ message: 'milestoneIds must contain every milestone of this phase exactly once' });
+    }
+
+    // Normalize to dense 0..n-1 positions; other fields are untouched.
+    await RoadmapMilestone.bulkWrite(
+      requested.map((id, index) => ({
+        updateOne: { filter: { _id: id, phaseId: phase._id }, update: { $set: { order: index } } },
+      })),
+    );
+
+    res.json({ message: 'Milestones reordered' });
   } catch (err) {
     next(err);
   }
@@ -622,6 +784,11 @@ router.patch('/milestones/:id', validate(milestonePatchSchema), async (req, res,
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
 
     const patch = buildPatch(req.body, ALLOWED_MILESTONE_PATCH);
+    if (!canTransition(MILESTONE_TRANSITIONS, milestone.status, patch.status)) {
+      return res.status(400).json({
+        message: `Cannot move milestone from '${milestone.status}' to '${patch.status}'`,
+      });
+    }
     const updated = await RoadmapMilestone.findByIdAndUpdate(milestone._id, patch, { new: true, runValidators: true });
     res.json(updated);
   } catch (err) {

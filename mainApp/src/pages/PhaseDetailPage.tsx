@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Map, ChevronRight, CheckCircle2, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { api } from '../utils/api';
 import { Dialog } from '../components/ui/Dialog';
@@ -9,7 +9,9 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { toast } from '../store/useToastStore';
-import type { RoadmapMilestoneDoc } from '../types/roadmap';
+import type { RoadmapMilestoneDoc, RoadmapMilestoneStatus } from '../types/roadmap';
+import { safeProgress, formatProgress } from '../utils/roadmapProgress';
+import { nextMilestoneStatuses } from '../utils/roadmapLifecycle';
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'todo', label: 'To Do' },
@@ -23,18 +25,13 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
   completed: 'success',
 };
 
-function safeProgress(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(100, Math.round(n));
-}
-
 export function PhaseDetailPage() {
   const { id, phaseId } = useParams<{ id: string; phaseId: string }>();
   const navigate = useNavigate();
-  const { activeRoadmap, detailLoading, getRoadmap } = useRoadmapStore();
+  const { activeRoadmap, detailLoading, getRoadmap, reorderMilestones } = useRoadmapStore();
   const [milestones, setMilestones] = useState<(RoadmapMilestoneDoc & { totalTasks: number; completedTasks: number })[]>([]);
   const [loadingMilestones, setLoadingMilestones] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -61,9 +58,13 @@ export function PhaseDetailPage() {
   const fetchMilestones = () => {
     if (!phaseId) return;
     setLoadingMilestones(true);
+    setLoadError(null);
     api.personalRoadmaps.listMilestones(phaseId)
       .then(data => { setMilestones(data); setLoadingMilestones(false); })
-      .catch(() => setLoadingMilestones(false));
+      .catch((e: any) => {
+        setLoadError(e?.message || 'Failed to load milestones');
+        setLoadingMilestones(false);
+      });
   };
 
   useEffect(() => { fetchMilestones(); }, [phaseId]);
@@ -113,12 +114,13 @@ export function PhaseDetailPage() {
         await api.personalRoadmaps.updateMilestone(editingMilestone._id, body);
         toast.success('Milestone updated', `"${form.title}" has been updated.`);
       } else {
-        const maxOrder = milestones.length > 0 ? Math.max(...milestones.map(m => m.order)) + 1 : 0;
+        // Order is assigned server-side (deterministic append after the
+        // current last milestone in this phase).
         await api.personalRoadmaps.createMilestone(phaseId, {
           title: form.title.trim(),
           description: form.description.trim() || undefined,
-          order: maxOrder,
           targetDate: form.targetDate || undefined,
+          status: form.status as RoadmapMilestoneStatus,
         });
         toast.success('Milestone created', `"${form.title}" has been added.`);
       }
@@ -160,8 +162,21 @@ export function PhaseDetailPage() {
     );
   }
 
-  const phaseProgress = safeProgress(phase.progress);
   const sortedMilestones = [...milestones].sort((a, b) => a.order - b.order);
+
+  const moveMilestone = async (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (!phaseId || target < 0 || target >= sortedMilestones.length) return;
+    const ids = sortedMilestones.map(m => m._id);
+    [ids[idx], ids[target]] = [ids[target], ids[idx]];
+    setMenuOpen(null);
+    try {
+      await reorderMilestones(phaseId, ids);
+    } catch {
+      // Failure toast is surfaced by the store.
+    }
+    fetchMilestones();
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
@@ -184,7 +199,7 @@ export function PhaseDetailPage() {
         <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50">{phase.title}</h1>
         <div className="flex items-center gap-3">
           <Badge tone={phase.status === 'completed' ? 'success' : phase.status === 'active' ? 'brand' : 'neutral'} className="text-[10px]">{phase.status}</Badge>
-          <span className="text-xs text-surface-400">{phaseProgress}% · {phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
+          <span className="text-xs text-surface-400">{formatProgress(phase.progress, phase.milestoneTotal)} · {phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
         </div>
       </motion.div>
 
@@ -206,6 +221,16 @@ export function PhaseDetailPage() {
         {loadingMilestones ? (
           <div className="space-y-2">
             {[1,2,3].map(i => <div key={i} className="h-16 bg-surface-800 rounded-2xl animate-pulse" />)}
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-8">
+            <AlertTriangle className="mx-auto mb-2 text-red-400" size={24} />
+            <p className="text-sm text-surface-300 font-medium mb-1">Failed to load milestones</p>
+            <p className="text-xs text-surface-500 mb-3">{loadError}</p>
+            <button onClick={fetchMilestones}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors">
+              Retry
+            </button>
           </div>
         ) : sortedMilestones.length === 0 ? (
           <div className="text-center py-8">
@@ -264,6 +289,16 @@ export function PhaseDetailPage() {
                         </button>
                         {menuOpen === milestone._id && (
                           <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1">
+                            <button onClick={(e) => { e.stopPropagation(); moveMilestone(idx, -1); }}
+                              disabled={idx === 0}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+                              <ChevronUp size={13} /> Move Up
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); moveMilestone(idx, 1); }}
+                              disabled={idx === sortedMilestones.length - 1}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
+                              <ChevronDown size={13} /> Move Down
+                            </button>
                             <button onClick={(e) => { e.stopPropagation(); openEditModal(milestone); }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
                               <Pencil size={13} /> Edit
@@ -315,7 +350,13 @@ export function PhaseDetailPage() {
               <label className="block text-xs font-medium text-surface-400 mb-1.5">Status</label>
               <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
                 className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-                {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {(editingMilestone
+                  ? nextMilestoneStatuses(editingMilestone.status as RoadmapMilestoneStatus)
+                  : STATUS_OPTIONS.map(o => o.value)
+                ).map(val => {
+                  const o = STATUS_OPTIONS.find(x => x.value === val) ?? { value: val, label: val };
+                  return <option key={o.value} value={o.value}>{o.label}</option>;
+                })}
               </select>
             </div>
           </div>

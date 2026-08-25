@@ -10,6 +10,7 @@ import {
 import { ACCENT_PRESETS } from '../utils/colors';
 import { getNotificationSettings, saveNotificationSettings, NotificationSettings, requestNotificationPermission } from '../hooks/useNotifications';
 import { Button } from '../components/ui/Button';
+import { Avatar } from '../components/ui/Avatar';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Field } from '../components/ui/Field';
@@ -145,13 +146,17 @@ export function Settings() {
             <Section id="profile" icon={User} iconBg="bg-blue-500/10" iconColor="text-blue-500 dark:text-blue-400" title="Profile" desc="Manage your personal information">
               <div className="space-y-4">
                 <div className="flex items-center gap-4 mb-2">
-                  <div className="w-14 h-14 rounded-2xl bg-brand-500/15 flex items-center justify-center text-xl font-display font-bold text-brand-400">
-                    {profile.name?.charAt(0)?.toUpperCase() || 'U'}
-                  </div>
+                  <Avatar name={profile.name} src={user?.avatar} size="xl" />
                   <div>
                     <p className="font-semibold text-surface-50">{profile.name}</p>
                     <p className="text-xs text-surface-400">{user?.email}</p>
                   </div>
+                </div>
+                <div className="mb-3">
+                  <Button variant="outline" size="sm" disabled className="h-9 rounded-xl text-xs" title="Avatar upload arrives with cloud storage integration">
+                    Change Avatar
+                  </Button>
+                  <p className="mt-1.5 text-[11px] text-surface-500">Image uploads become available once cloud storage is connected.</p>
                 </div>
                 <Field label="Display Name">
                   <Input className="h-11 rounded-xl" value={profile.name}

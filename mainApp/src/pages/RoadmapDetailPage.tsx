@@ -3,48 +3,32 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Map, Calendar, CheckCircle2,
-  ChevronRight, Zap, AlertCircle, Target,
+  ChevronRight, ChevronUp, ChevronDown, Zap, AlertCircle, Target,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award, Info,
+  Pencil, Trash2, Plus,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
+import { ConfirmDialog } from '../components/roadmap/ConfirmDialog';
+import { EditRoadmapModal } from '../components/roadmap/EditRoadmapModal';
+import { PhaseFormModal } from '../components/roadmap/PhaseFormModal';
+import type { RoadmapPhaseDoc } from '../types/roadmap';
 import {
   ROADMAP_TYPE_LABELS,
   ROADMAP_STATUS_LABELS,
   ROADMAP_STATUS_COLORS,
 } from '../types/roadmap';
+import { safeProgress, getDetailHealth, formatProgress } from '../utils/roadmapProgress';
+import { PersonalRoadmapTimeline } from '../components/roadmap/PersonalRoadmapTimeline';
 
 const ICON_MAP: Record<string, any> = {
   Map, GraduationCap, Rocket, Target, Trophy, BookOpen,
   Code, Briefcase, Lightbulb, Brain, Palette, Globe,
   Heart, Star, Zap, Award,
 };
-
-function safeProgress(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n < 0) return 0;
-  return Math.min(100, Math.round(n));
-}
-
-function getHealth(progress: number, targetDate?: string, startDate?: string, createdAt?: string) {
-  if (progress === 100) return { label: 'Completed', color: 'text-emerald-400', className: 'bg-emerald-500/10 border-emerald-500/20', description: 'All milestones are complete.' };
-  if (!targetDate || progress === 0) return { label: 'On Track', color: 'text-emerald-400', className: 'bg-emerald-500/10 border-emerald-500/20', description: 'Your current progress is sufficient to reach the target date.' };
-
-  const now = Date.now();
-  const target = new Date(targetDate).getTime();
-  const startMs = new Date(startDate || createdAt || new Date(0).toISOString()).getTime();
-  const totalMs = target - startMs;
-  if (totalMs <= 0) return { label: 'Behind', color: 'text-red-400', className: 'bg-red-500/10 border-red-500/20', description: 'The target date has passed.' };
-
-  const elapsed = now - startMs;
-  const expectedProgress = Math.min(100, (elapsed / totalMs) * 100);
-
-  if (progress >= expectedProgress - 10) return { label: 'On Track', color: 'text-emerald-400', className: 'bg-emerald-500/10 border-emerald-500/20', description: 'Your current progress is sufficient to reach the target date.' };
-  if (progress >= expectedProgress - 25) return { label: 'At Risk', color: 'text-yellow-400', className: 'bg-yellow-500/10 border-yellow-500/20', description: 'You\'re slightly behind schedule.' };
-  return { label: 'Behind', color: 'text-red-400', className: 'bg-red-500/10 border-red-500/20', description: 'You\'re behind schedule.' };
-}
 
 const STATUS_COLORS: Record<string, BadgeTone> = {
   upcoming: 'neutral',
@@ -56,9 +40,17 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
 export function RoadmapDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { activeRoadmap, detailLoading, error, getRoadmap, clearActiveRoadmap } = useRoadmapStore();
+  const { activeRoadmap, detailLoading, error, getRoadmap, clearActiveRoadmap, deleteRoadmap, deletePhase, reorderPhases } = useRoadmapStore();
 
   const [showHealthDetail, setShowHealthDetail] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [viewMode, setViewMode] = useState<'phases' | 'timeline'>('phases');
+  /** null → closed; 'create' → new-phase form; otherwise the phase being edited. */
+  const [phaseFormTarget, setPhaseFormTarget] = useState<'create' | RoadmapPhaseDoc | null>(null);
+  const [phaseDeleteTarget, setPhaseDeleteTarget] = useState<RoadmapPhaseDoc | null>(null);
+  const [phaseDeleting, setPhaseDeleting] = useState(false);
 
   useEffect(() => {
     if (id) getRoadmap(id);
@@ -69,7 +61,7 @@ export function RoadmapDetailPage() {
 
   const health = useMemo(() => {
     if (!roadmap) return null;
-    return getHealth(roadmap.progress, roadmap.targetDate, roadmap.startDate, roadmap.createdAt);
+    return getDetailHealth(roadmap);
   }, [roadmap?.progress, roadmap?.targetDate, roadmap?.startDate, roadmap?.createdAt]);
 
   const sortedPhases = useMemo(() => {
@@ -113,6 +105,39 @@ export function RoadmapDetailPage() {
   }
 
   if (!roadmap) return null;
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteRoadmap(roadmap._id);
+      navigate('/roadmaps');
+    } catch {
+      // Failure toast is surfaced by the store.
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeletePhase = async () => {
+    if (!phaseDeleteTarget || phaseDeleting) return;
+    setPhaseDeleting(true);
+    try {
+      await deletePhase(phaseDeleteTarget._id);
+      setPhaseDeleteTarget(null);
+    } catch {
+      // Failure toast is surfaced by the store.
+    } finally {
+      setPhaseDeleting(false);
+    }
+  };
+
+  const movePhase = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir;
+    if (target < 0 || target >= sortedPhases.length) return;
+    const ids = sortedPhases.map(p => p._id);
+    [ids[idx], ids[target]] = [ids[target], ids[idx]];
+    reorderPhases(roadmap._id, ids);
+  };
 
   const Icon = ICON_MAP[roadmap.icon] || Map;
   const statusTone: BadgeTone = (ROADMAP_STATUS_COLORS[roadmap.status] || 'neutral') as BadgeTone;
@@ -160,6 +185,24 @@ export function RoadmapDetailPage() {
             )}
           </div>
         </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            onClick={() => setShowEdit(true)}
+            className="p-2 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all"
+            title="Edit roadmap"
+            aria-label="Edit roadmap"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="p-2 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+            title="Delete roadmap"
+            aria-label="Delete roadmap"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       </motion.div>
 
       {/* Overall Progress */}
@@ -181,7 +224,7 @@ export function RoadmapDetailPage() {
                 </button>
               )}
             </div>
-            <span className="text-sm font-bold text-surface-50">{progress}%</span>
+            <span className="text-sm font-bold text-surface-50">{formatProgress(roadmap.progress, roadmap.milestoneTotal)}</span>
           </div>
           <div className="h-2 bg-surface-800 rounded-full overflow-hidden">
             <motion.div
@@ -211,17 +254,58 @@ export function RoadmapDetailPage() {
         </Card>
       </motion.div>
 
+      {/* Timeline / Phases toggle */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, delay: 0.08 }}
+        className="flex items-center justify-between"
+      >
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-900 border border-surface-800">
+          {(['phases', 'timeline'] as const).map(view => (
+            <button
+              key={view}
+              onClick={() => setViewMode(view)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                viewMode === view ? 'bg-brand-500/15 text-brand-400' : 'text-surface-400 hover:text-surface-200'
+              }`}
+            >
+              {view}
+            </button>
+          ))}
+        </div>
+      </motion.div>
+
+      {viewMode === 'timeline' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <PersonalRoadmapTimeline
+            milestones={roadmap.milestones}
+            startDate={roadmap.startDate}
+            targetDate={roadmap.targetDate}
+            status={roadmap.status}
+            progress={roadmap.progress}
+            onOpen={(m) => navigate(`/roadmaps/${id}/phases/${m.phaseId}/milestones/${m._id}`)}
+          />
+        </motion.div>
+      )}
+
       {/* Phases */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, delay: 0.1 }}
+        className={viewMode === 'timeline' ? 'hidden' : undefined}
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Phases</h2>
-          {sortedPhases.length > 0 && (
-            <span className="text-xs text-surface-500">{sortedPhases.length} phase{sortedPhases.length !== 1 ? 's' : ''}</span>
-          )}
+          <div className="flex items-center gap-3">
+            {sortedPhases.length > 0 && (
+              <span className="text-xs text-surface-500">{sortedPhases.length} phase{sortedPhases.length !== 1 ? 's' : ''}</span>
+            )}
+            <Button size="sm" variant="secondary" onClick={() => setPhaseFormTarget('create')} leftIcon={<Plus size={14} />}>
+              Add Phase
+            </Button>
+          </div>
         </div>
 
         {sortedPhases.length === 0 ? (
@@ -244,9 +328,13 @@ export function RoadmapDetailPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.03 }}
                 >
-                  <button
+                  <div
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`${phase.title}, ${phaseProgress}% complete`}
                     onClick={() => navigate(`/roadmaps/${roadmap._id}/phases/${phase._id}`)}
-                    className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/roadmaps/${roadmap._id}/phases/${phase._id}`); }}
+                    className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${
                       isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'
                     }`}
                   >
@@ -267,24 +355,100 @@ export function RoadmapDetailPage() {
                               style={{ width: `${phaseProgress}%` }}
                             />
                           </div>
-                          <span className="text-[11px] font-medium text-surface-300">{phaseProgress}%</span>
+                          <span className="text-[11px] font-medium text-surface-300">{formatProgress(phase.progress, phase.milestoneTotal)}</span>
                           <span className="text-[11px] text-surface-500">{phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-0.5 flex-shrink-0">
                         <Badge tone={STATUS_COLORS[phase.status] || 'neutral'} className="text-[10px]">
                           {phase.status}
                         </Badge>
+                        <div className="flex flex-col">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); movePhase(idx, -1); }}
+                            disabled={idx === 0}
+                            className="p-0.5 rounded text-surface-600 hover:text-surface-200 hover:bg-surface-800 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                            title="Move up"
+                            aria-label={`Move ${phase.title} up`}
+                          >
+                            <ChevronUp size={12} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); movePhase(idx, 1); }}
+                            disabled={idx === sortedPhases.length - 1}
+                            className="p-0.5 rounded text-surface-600 hover:text-surface-200 hover:bg-surface-800 transition-all disabled:opacity-30 disabled:pointer-events-none"
+                            title="Move down"
+                            aria-label={`Move ${phase.title} down`}
+                          >
+                            <ChevronDown size={12} />
+                          </button>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPhaseFormTarget(phase); }}
+                          className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all"
+                          title="Edit phase"
+                          aria-label={`Edit ${phase.title}`}
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPhaseDeleteTarget(phase); }}
+                          className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                          title="Delete phase"
+                          aria-label={`Delete ${phase.title}`}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                         <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
                       </div>
                     </div>
-                  </button>
+                  </div>
                 </motion.div>
               );
             })}
           </div>
         )}
       </motion.div>
+
+      {/* Edit / Delete roadmap */}
+      <AnimatePresence>
+        {showEdit && (
+          <EditRoadmapModal roadmap={roadmap} onClose={() => setShowEdit(false)} />
+        )}
+        {confirmDelete && (
+          <ConfirmDialog
+            open
+            title="Delete Roadmap?"
+            description={`This permanently removes "${roadmap.title}" along with its phases and milestones. Linked tasks stay on your board but will be unlinked.`}
+            confirmLabel="Delete"
+            busy={deleting}
+            onCancel={() => { if (!deleting) setConfirmDelete(false); }}
+            onConfirm={handleDelete}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Phase management */}
+      <AnimatePresence>
+        {phaseFormTarget && (
+          <PhaseFormModal
+            roadmapId={roadmap._id}
+            phase={phaseFormTarget === 'create' ? null : phaseFormTarget}
+            onClose={() => setPhaseFormTarget(null)}
+          />
+        )}
+        {phaseDeleteTarget && (
+          <ConfirmDialog
+            open
+            title="Delete Phase?"
+            description={`This removes "${phaseDeleteTarget.title}" and its milestones. Tasks stay on your board but will be unlinked from this phase.`}
+            confirmLabel="Delete"
+            busy={phaseDeleting}
+            onCancel={() => { if (!phaseDeleting) setPhaseDeleteTarget(null); }}
+            onConfirm={handleDeletePhase}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

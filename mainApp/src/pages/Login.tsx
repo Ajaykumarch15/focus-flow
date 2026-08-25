@@ -69,7 +69,7 @@ export function Login() {
             name="email"
             type="email"
             icon={<Mail size={15} />}
-            autoComplete="email"
+            autoComplete="username"
             placeholder="Enter your email"
             value={form.email}
             onChange={e => {
@@ -82,6 +82,7 @@ export function Login() {
           <AuthInput
             label="Password"
             name="password"
+            type="password"
             icon={<Lock size={15} />}
             autoComplete="current-password"
             placeholder="Enter your password"

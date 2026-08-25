@@ -1,6 +1,13 @@
 import { useMemo } from 'react';
 import { Layers, Minus, Trash2 } from 'lucide-react';
 import { selectMilestoneProgress } from '../../lib/roadmapSelectors';
+import {
+  compareByTargetDate,
+  expandSpan,
+  milestoneAxisX,
+  selectTimelineSpan,
+  selectTimelineTicks,
+} from '../../lib/roadmapTimeline';
 import { RoadmapStatusBadge } from './RoadmapStatusBadge';
 import { formatDateShort } from '../../utils/time';
 import type { RoadmapMilestone, RoadmapPhase } from '../../types/collaboration';
@@ -9,63 +16,9 @@ import type { RoadmapMilestone, RoadmapPhase } from '../../types/collaboration';
 // horizontal time axis by `targetDate`, each with a live progress bar. Dates
 // are honest: a Milestone without a `targetDate` cannot sit on the axis, so it
 // renders in an "Undated" lane with a literal `-` in place of the date and no
-// axis marker. Pure helpers are exported so the math stays unit-testable.
-
-const DAY_MS = 86_400_000;
-
-export interface TimelineTick {
-  x: number;
-  label: string;
-}
-
-export interface TimelineSpan {
-  min: number;
-  max: number;
-}
-
-function parseUtc(dateStr: string): number {
-  return new Date(`${dateStr}T00:00:00Z`).getTime();
-}
-
-// A degenerate span (single date, or dates within 30 days) is padded by a
-// fortnight on each side so the marker reads as a point, not a full-width bar.
-export function expandSpan(min: number, max: number): TimelineSpan {
-  if (Number.isFinite(min) && Number.isFinite(max) && max - min < DAY_MS * 30) {
-    return { min: min - DAY_MS * 15, max: max + DAY_MS * 15 };
-  }
-  return { min, max };
-}
-
-// The visible axis is bounded by the earliest and latest target dates. When no
-// Milestone is dated there is no axis — only the Undated lane renders.
-export function selectTimelineSpan(milestones: RoadmapMilestone[]): TimelineSpan | null {
-  const dates = milestones
-    .map((m) => m.targetDate)
-    .filter((d): d is string => Boolean(d))
-    .map(parseUtc);
-  if (dates.length === 0) return null;
-  return expandSpan(Math.min(...dates), Math.max(...dates));
-}
-
-export function selectTimelineTicks(span: TimelineSpan, count = 5): TimelineTick[] {
-  const ticks: TimelineTick[] = [];
-  for (let i = 0; i < count; i++) {
-    const t = span.min + ((span.max - span.min) * i) / (count - 1);
-    ticks.push({
-      x: (i / (count - 1)) * 100,
-      label: new Date(t).toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
-    });
-  }
-  return ticks;
-}
-
-// Horizontal position (0–100) of a Milestone's target date on the axis, or null
-// when the Milestone has no date (honest `-`, never a fabricated placement).
-export function milestoneAxisX(milestone: RoadmapMilestone, span: TimelineSpan): number | null {
-  if (!milestone.targetDate) return null;
-  if (span.max === span.min) return 50;
-  return ((parseUtc(milestone.targetDate) - span.min) / (span.max - span.min)) * 100;
-}
+// axis marker. The pure math lives in lib/roadmapTimeline (shared with the
+// personal Basic Roadmap timeline) and is re-exported here for compatibility.
+export { expandSpan, milestoneAxisX, selectTimelineSpan, selectTimelineTicks };
 
 const statusColor = (status: RoadmapMilestone['status']) =>
   status === 'completed' ? 'bg-success-500' : status === 'active' ? 'bg-brand-500' : 'bg-info-500';
@@ -83,14 +36,7 @@ export function RoadmapTimeline({ milestones, phases, onOpen, onDelete }: Roadma
 
   // Timeline rows sort by date (undated last), then by `order` for stability.
   const rows = useMemo(
-    () =>
-      [...milestones].sort((a, b) => {
-        const aDate = a.targetDate ?? '9999-12-31';
-        const bDate = b.targetDate ?? '9999-12-31';
-        const dateDelta = aDate.localeCompare(bDate);
-        if (dateDelta !== 0) return dateDelta;
-        return (a.order ?? 0) - (b.order ?? 0);
-      }),
+    () => [...milestones].sort(compareByTargetDate),
     [milestones],
   );
 

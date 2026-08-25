@@ -6,6 +6,8 @@ import type {
   RoadmapListItem,
   RoadmapDetail,
   RoadmapType,
+  RoadmapPhaseStatus,
+  RoadmapMilestoneStatus,
 } from '../types/roadmap';
 
 interface RoadmapState {
@@ -34,20 +36,24 @@ interface RoadmapState {
     title: string;
     description?: string;
     order?: number;
+    status?: RoadmapPhaseStatus;
     startDate?: string;
     targetDate?: string;
   }) => Promise<void>;
   updatePhase: (id: string, updates: Record<string, any>) => Promise<void>;
   deletePhase: (id: string) => Promise<void>;
+  reorderPhases: (roadmapId: string, orderedIds: string[]) => Promise<void>;
 
   createMilestone: (phaseId: string, data: {
     title: string;
     description?: string;
     order?: number;
+    status?: RoadmapMilestoneStatus;
     targetDate?: string;
   }) => Promise<void>;
   updateMilestone: (id: string, updates: Record<string, any>) => Promise<void>;
   deleteMilestone: (id: string) => Promise<void>;
+  reorderMilestones: (phaseId: string, orderedIds: string[]) => Promise<void>;
 
   clearActiveRoadmap: () => void;
   refreshIfLinked: (roadmapId?: string | null) => Promise<void>;
@@ -92,11 +98,11 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
 
   updateRoadmap: async (id, updates) => {
     try {
-      await api.personalRoadmaps.update(id, updates);
+      const updated = await api.personalRoadmaps.update(id, updates);
       set(s => ({
-        roadmaps: s.roadmaps.map(r => r._id === id ? { ...r, ...updates } : r),
+        roadmaps: s.roadmaps.map(r => r._id === id ? { ...r, ...updated } : r),
         activeRoadmap: s.activeRoadmap?._id === id
-          ? { ...s.activeRoadmap, ...updates } as RoadmapDetail
+          ? { ...s.activeRoadmap, ...updated } as RoadmapDetail
           : s.activeRoadmap,
       }));
       toast.success('Roadmap updated');
@@ -158,6 +164,18 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
     }
   },
 
+  reorderPhases: async (roadmapId, orderedIds) => {
+    try {
+      await api.personalRoadmaps.reorderPhases(roadmapId, orderedIds);
+      const roadmap = get().activeRoadmap;
+      if (roadmap && roadmap._id === roadmapId) await get().getRoadmap(roadmapId);
+      await get().loadRoadmaps();
+    } catch (err: any) {
+      toast.error('Failed to reorder phases', err.message);
+      throw err;
+    }
+  },
+
   createMilestone: async (phaseId, data) => {
     try {
       await api.personalRoadmaps.createMilestone(phaseId, data);
@@ -193,6 +211,18 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
       toast.success('Milestone deleted');
     } catch (err: any) {
       toast.error('Failed to delete milestone', err.message);
+      throw err;
+    }
+  },
+
+  reorderMilestones: async (phaseId, orderedIds) => {
+    try {
+      await api.personalRoadmaps.reorderMilestones(phaseId, orderedIds);
+      const roadmap = get().activeRoadmap;
+      if (roadmap) await get().getRoadmap(roadmap._id);
+      await get().loadRoadmaps();
+    } catch (err: any) {
+      toast.error('Failed to reorder milestones', err.message);
       throw err;
     }
   },
