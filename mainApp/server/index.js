@@ -96,6 +96,12 @@ const { startReaper } = require('./jobs/reaper');          // IES-P1-26
 
 const app = express();
 
+// IES-P0-09b: behind Render's proxy X-Forwarded-For is always present. Without
+// trusting the proxy, express-rate-limit's keyGenerator throws
+// ERR_ERL_UNEXPECTED_X_FORWARDED_FOR and every /api call 400s. Trust the first
+// hop so the client IP is derived correctly in production (harmless locally).
+app.set('trust proxy', 1);
+
 // IES-P0-11: CSP + X-Frame-Options + nosniff + HSTS + Referrer-Policy.
 app.use(createSecurityHeaders());
 app.use(cors({

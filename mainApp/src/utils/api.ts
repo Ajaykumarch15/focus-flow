@@ -137,9 +137,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       ...(options.headers || {}),
     },
   });
-  const data = await res.json().catch(() => ({}));
+  const data = await res.json().catch(() => ({} as any));
   if (!res.ok) {
-    const msg = (data as { message?: string }).message || `HTTP ${res.status}`;
+    // Server nests errors as { error: { code, message } } (see errorHandler.js);
+    // fall back to a top-level `message` for compatibility.
+    const msg =
+      (data?.error?.message as string | undefined) ||
+      (data?.message as string | undefined) ||
+      `HTTP ${res.status}`;
     // A 401 is the routine "no session / not authenticated" signal (e.g. the
     // boot-time /auth/me check on the public landing page). It is handled by the
     // caller (useAuthStore.restoreSession) and represents an anonymous visitor,
