@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, CheckCircle2, Circle, Play, Clock, Plus,
+  CheckCircle2, Circle, Play, Clock, Plus,
   Pencil, Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
@@ -14,7 +14,7 @@ import { Textarea } from '../components/ui/Textarea';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { toast } from '../store/useToastStore';
 import type { RoadmapTaskSummary, RoadmapMilestoneStatus } from '../types/roadmap';
-import { safeProgress, formatProgress } from '../utils/roadmapProgress';
+import { safeProgress } from '../utils/roadmapProgress';
 import { nextMilestoneStatuses } from '../utils/roadmapLifecycle';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -82,7 +82,6 @@ export function MilestoneDetailPage() {
   }, [id, activeRoadmap, getRoadmap]);
 
   const milestone = activeRoadmap?.milestones.find(m => m._id === milestoneId);
-  const phase = activeRoadmap?.phases.find(p => p._id === phaseId);
 
   const tasks = useMemo(() => {
     if (!activeRoadmap || !milestoneId) return [];
@@ -266,59 +265,40 @@ export function MilestoneDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
-      {/* Breadcrumbs */}
-      <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        className="flex items-center gap-1.5 text-sm">
-        <button onClick={() => navigate('/roadmaps')} className="text-surface-400 hover:text-surface-200 transition-colors">Roadmaps</button>
-        <span className="text-surface-600">/</span>
-        <button onClick={() => navigate(`/roadmaps/${id}`)} className="text-surface-400 hover:text-surface-200 transition-colors truncate max-w-[160px]">{activeRoadmap?.title}</button>
-        <span className="text-surface-600">/</span>
-        <button onClick={() => navigate(`/roadmaps/${id}/phases/${phaseId}`)} className="text-surface-400 hover:text-surface-200 transition-colors truncate max-w-[160px]">{phase?.title}</button>
-        <span className="text-surface-600">/</span>
-        <span className="text-surface-200 truncate">{milestone.title}</span>
-      </motion.div>
-
-      {/* Back */}
-      <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        onClick={() => navigate(`/roadmaps/${id}/phases/${phaseId}`)}
-        className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors">
-        <ArrowLeft size={16} /> Back to {phase?.title || 'Phase'}
-      </motion.button>
-
       {/* Milestone header + actions */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-start justify-between gap-3">
-        <div className="space-y-1.5 min-w-0">
+        <div className="min-w-0">
           <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50 truncate">{milestone.title}</h1>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 mt-1">
             <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
-            <span className="text-xs text-surface-400">{formatProgress(progress, tasks.length)} · {completedCount}/{tasks.length} tasks</span>
+            <span className="text-xs text-surface-400">{completedCount}/{tasks.length} tasks</span>
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={openEdit} className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all" title="Edit milestone">
-            <Pencil size={15} />
+          <button onClick={openEdit}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-all">
+            <Pencil size={14} /> Edit
           </button>
-          <button onClick={() => setDelMilestone(true)} className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete milestone">
-            <Trash2 size={15} />
+          <button onClick={() => setDelMilestone(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
+            <Trash2 size={14} /> Delete
           </button>
         </div>
       </motion.div>
 
       {/* Progress */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="rounded-2xl border border-surface-800 bg-surface-900/90 p-4">
-        <div className="flex items-center justify-between mb-2">
+        className="space-y-2">
+        <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-surface-400">Progress</span>
-          <span className="text-sm font-bold text-surface-50">
-            {formatProgress(progress, tasks.length)}
-          </span>
+          <span className="text-sm font-bold text-surface-50">{progress}%</span>
         </div>
-        <div className="h-2 bg-surface-800 rounded-full overflow-hidden mb-2">
+        <div className="h-2 bg-surface-800 rounded-full overflow-hidden">
           <div className="h-full rounded-full bg-brand-500/70 transition-all duration-500" style={{ width: `${progress}%` }} />
         </div>
         <div className="flex items-center justify-between text-[11px] text-surface-500">
-          <span>{completedCount} completed</span>
+          <span>{completedCount} of {tasks.length} tasks completed</span>
           <span>{tasks.length - completedCount} remaining</span>
         </div>
       </motion.div>
