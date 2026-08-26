@@ -94,7 +94,7 @@ function LinkRow({ item, onOpenWorkLog }: { item: KnowledgeLink; onOpenWorkLog?:
     <div className="rounded-xl border border-surface-800 bg-surface-900 p-4 flex items-start justify-between gap-3">
       <div className="min-w-0">
         <a href={item.url} target="_blank" rel="noreferrer"
-          className="text-sm font-semibold text-cyan-300 hover:text-cyan-200 underline decoration-cyan-500/40 underline-offset-2 break-all">
+          className="text-sm font-semibold text-brand-500 hover:text-brand-400 underline decoration-brand-500/40 underline-offset-2 break-all">
           {item.label}
         </a>
         <p className="text-[11px] text-surface-500 mt-1">

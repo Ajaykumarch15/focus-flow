@@ -11,16 +11,19 @@ import { Textarea } from '../ui/Textarea';
 
 interface CreateTaskModalProps {
   onClose: () => void;
+  onAddTask?: (data: any) => Promise<string>;
 }
 
-export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
-  const { addTask } = useStore();
+export function CreateTaskModal({ onClose, onAddTask }: CreateTaskModalProps) {
+  const storeAddTask = useStore((s) => s.addTask);
+  const addTask = onAddTask ?? storeAddTask;
   const [form, setForm] = useState({
     title: '',
     description: '',
     priority: 'medium' as Priority,
     category: 'Work',
     deadline: '',
+    scheduledDate: '',
     reminderMinutesBefore: 0,
     color: TASK_COLORS[0],
     tags: '',
@@ -36,6 +39,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
       category: form.category,
       status: 'todo',
       deadline: form.deadline || undefined,
+      scheduledDate: form.scheduledDate ? new Date(form.scheduledDate).getTime() : undefined,
       reminderMinutesBefore: form.deadline ? form.reminderMinutesBefore : undefined,
       color: form.color,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -123,6 +127,17 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               value={form.deadline}
               onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-surface-200 mb-1.5">Scheduled Date</label>
+            <Input
+              type="date"
+              className="h-12 rounded-[14px]"
+              value={form.scheduledDate}
+              onChange={e => setForm(p => ({ ...p, scheduledDate: e.target.value }))}
+            />
+            <p className="text-[10px] text-surface-500 mt-1">When do you plan to work on this? Shows on Today's page.</p>
           </div>
 
           {form.deadline && (

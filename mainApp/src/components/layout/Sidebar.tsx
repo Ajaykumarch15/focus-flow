@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Map, BarChart3, Calendar, Clock, Brain,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Map, BarChart3, Calendar, Clock, Brain, Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -14,6 +14,8 @@ import { Avatar } from '../ui/Avatar';
 
 const PERSONAL_ROADMAPS_NAV = [
   { to: '/personal', icon: Brain, label: 'Personal' },
+  { to: '/personal/today', icon: LayoutDashboard, label: 'Today' },
+  { to: '/personal/tasks', icon: CheckSquare, label: 'Tasks' },
   { to: '/roadmaps', icon: Map, label: 'Roadmaps' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
 ];
@@ -27,7 +29,7 @@ const WORKLOG_NAV = [
   { to: '/habits',    icon: Activity,        label: 'Habits'     },
   { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
   { to: '/reports',   icon: LineChart,       label: 'Reports'    },
- // { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
+  { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
   { to: '/knowledge', icon: Library,         label: 'Knowledge'  },
 ];
 
@@ -42,9 +44,9 @@ const SETTINGS_NAV = [
   { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-function NavItem({ to, icon: Icon, label, collapsed }: { to: string; icon: any; label: string; collapsed: boolean }) {
+function NavItem({ to, icon: Icon, label, collapsed, end }: { to: string; icon: any; label: string; collapsed: boolean; end?: boolean }) {
   return (
-    <NavLink key={to} to={to}
+    <NavLink key={to} to={to} end={end}
       className={({ isActive }) =>
         `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
         ${isActive ? 'text-brand-500 dark:text-brand-400 font-semibold' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
@@ -95,7 +97,6 @@ export function Sidebar() {
   const activeTask = tasks.find((t) => t.id === activeTaskId);
   const isReducedMotion = theme?.reducedMotion;
 
-
   return (
     <motion.aside
       initial={{ width: 240 }}
@@ -131,7 +132,7 @@ export function Sidebar() {
           <>
             <SectionLabel collapsed={collapsed}>Personal</SectionLabel>
             {PERSONAL_ROADMAPS_NAV.map(item => (
-              <NavItem key={item.to} {...item} collapsed={collapsed} />
+              <NavItem key={item.to} {...item} collapsed={collapsed} end={item.to === '/personal'} />
             ))}
             {/*<div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
             <SectionLabel collapsed={collapsed}>WorkLog</SectionLabel>

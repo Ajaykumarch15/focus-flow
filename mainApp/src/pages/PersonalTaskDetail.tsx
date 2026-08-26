@@ -4,45 +4,37 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Play, Pause, Square, Plus, Trash2,
   CheckCircle, Circle, Clock, Edit2, Check, X,
-  Timer, Zap, BookOpen, ChevronDown, Calendar,
+  Timer, Zap, ChevronDown,
 } from 'lucide-react';
+import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { useStore } from '../store/useStore';
-import { useScheduleStore } from '../store/useScheduleStore';
-import { ScheduleModal } from '../components/schedule/ScheduleModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Textarea } from '../components/ui/Textarea';
-
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
-import { RichContent } from '../components/ui/RichContent';
-import { TaskContinuationPanel } from '../components/continuation/TaskContinuationPanel';
 import { LinkedRoadmapCard } from '../components/roadmap/LinkedRoadmapCard';
-import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
-export function TaskDetail() {
+export function PersonalTaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
     getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
-    addSubtask, toggleSubtask, deleteSubtask, addJournal,
-    journals, updateTask, deleteTask, theme,
-  } = useStore();
-  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
-  const { openModal: openScheduleModal, isModalOpen, closeModal } = useScheduleStore();
+    addSubtask, toggleSubtask, deleteSubtask,
+    updateTask, deleteTask, tasks: personalTasks,
+  } = usePersonalTaskStore();
+  const theme = useStore(s => s.theme);
   const isReducedMotion = theme?.reducedMotion;
+  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer(personalTasks);
 
   const task = getTask(id!);
   const [newSubtask, setNewSubtask] = useState('');
-  const [journalText, setJournalText] = useState('');
-  const [mood, setMood] = useState<Mood>(3);
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
   const [showSessions, setShowSessions] = useState(true);
@@ -55,7 +47,7 @@ export function TaskDetail() {
           icon={<Circle size={28} className="text-surface-600" />}
           title="Task not found"
           description="This task may have been deleted."
-          action={<Button onClick={() => navigate('/tasks')} size="lg">Back to Tasks</Button>}
+          action={<Button onClick={() => navigate('/personal/tasks')} size="lg">Back to Tasks</Button>}
         />
       </div>
     );
@@ -65,7 +57,6 @@ export function TaskDetail() {
   const isRunning = isActive && activeTimerState === 'running';
   const isPaused = isActive && activeTimerState === 'paused';
   const priority = PRIORITY_CONFIG[task.priority];
-  const taskJournals = journals.filter(j => j.taskId === task.id);
   const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
   const isTaskOverdue = deadlineInfo?.status === 'overdue';
 
@@ -83,19 +74,12 @@ export function TaskDetail() {
     setNewSubtask('');
   };
 
-  const handleAddJournal = () => {
-    if (!journalText.trim()) return;
-    addJournal({ taskId: task.id, content: journalText, mood, focusRating: mood });
-    setJournalText('');
-    setMood(3);
-  };
-
   return (
     <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
 
       {/* ═══ Back + Header ═══ */}
       <motion.div variants={fadeUp} initial="hidden" animate="show">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/tasks')}
+        <Button variant="ghost" size="sm" onClick={() => navigate('/personal/tasks')}
           className="text-sm mb-4 px-3 py-1.5 rounded-lg w-fit"
           leftIcon={<ArrowLeft size={15} />}>
           Back to Tasks
@@ -104,7 +88,6 @@ export function TaskDetail() {
         <div className={`rounded-2xl border bg-surface-900 p-6 lg:p-8 relative overflow-hidden ${
           isTaskOverdue ? 'border-red-500/30' : 'border-surface-800/60'
         }`}>
-          {/* Color accent strip */}
           <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl"
             style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }} />
 
@@ -165,7 +148,6 @@ export function TaskDetail() {
               <p className="text-surface-400 mt-2 text-sm max-w-2xl leading-relaxed">{task.description}</p>
             )}
 
-            {/* Quick stats row */}
             <div className="flex items-center gap-4 mt-4 flex-wrap">
               <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
                 <Timer size={12} className="text-brand-400" /> {formatHours(task.totalTime)} focused
@@ -184,9 +166,6 @@ export function TaskDetail() {
           </div>
         </div>
       </motion.div>
-
-      {/* ═══ Continuation (S2-T1) ═══ */}
-      <TaskContinuationPanel taskId={task.id} />
 
       {/* ═══ Linked Roadmap ═══ */}
       {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (
@@ -221,7 +200,6 @@ export function TaskDetail() {
             </div>
 
             <div className="my-6 relative min-w-0 px-2">
-              {/* Pulse rings when running */}
               {isRunning && !isReducedMotion && (
                 <>
                   <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/20"
@@ -241,7 +219,6 @@ export function TaskDetail() {
               </div>
             </div>
 
-            {/* Status label */}
             <p className="text-xs font-medium mb-5">
               {isRunning ? (
                 <span className="text-amber-400 flex items-center justify-center gap-1.5">
@@ -259,7 +236,6 @@ export function TaskDetail() {
               )}
             </p>
 
-            {/* Controls */}
             <div className="flex gap-2.5 justify-center flex-wrap">
               {!isActive && (
                 <motion.button
@@ -302,15 +278,6 @@ export function TaskDetail() {
                   <Square size={14} fill="currentColor" aria-hidden="true" /> Stop
                 </motion.button>
               )}
-              <motion.button
-                type="button"
-                whileHover={isReducedMotion ? {} : { scale: 1.02 }}
-                whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                onClick={() => openScheduleModal(task.id)}
-                aria-label={`Schedule ${task.title}`}
-                className="btn-secondary rounded-xl flex items-center gap-2 px-5 py-2.5 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
-                <Calendar size={15} aria-hidden="true" /> Schedule
-              </motion.button>
             </div>
           </motion.div>
 
@@ -369,7 +336,6 @@ export function TaskDetail() {
                       </div>
                     )}
 
-                    {/* Total */}
                     <div className="mt-3 pt-3 border-t border-surface-800 flex justify-between items-center">
                       <span className="text-xs text-surface-400 font-medium">Total Focus</span>
                       <span className="text-sm font-mono font-bold text-brand-400">{formatHours(task.totalTime)}</span>
@@ -381,10 +347,9 @@ export function TaskDetail() {
           </motion.div>
         </motion.div>
 
-        {/* Right Column: Subtasks + Journal */}
+        {/* Right Column: Subtasks */}
         <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-5">
 
-          {/* ═══ Subtasks ═══ */}
           <motion.div variants={fadeUp}
             className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
             <div className="flex items-center justify-between mb-4">
@@ -401,7 +366,6 @@ export function TaskDetail() {
               </div>
             </div>
 
-            {/* Progress bar */}
             {task.subtasks.length > 0 && (
               <div className="h-2 bg-surface-800 rounded-full mb-4 overflow-hidden">
                 <motion.div className="h-full bg-emerald-400 rounded-full"
@@ -448,73 +412,8 @@ export function TaskDetail() {
               </Button>
             </form>
           </motion.div>
-
-          {/* ═══ Journal Entry ═══ */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-            <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <BookOpen size={14} className="text-blue-400" />
-              </div>
-              <span className="text-sm font-bold text-surface-100">Journal Entry</span>
-            </div>
-
-            <Textarea
-              className="resize-none h-28 text-sm mb-3 rounded-xl"
-              placeholder="Write your thoughts, progress, blockers…"
-              value={journalText}
-              onChange={e => setJournalText(e.target.value)}
-            />
-
-            <div className="flex items-center gap-4 mb-4">
-              <span className="text-xs text-surface-400 font-medium">Mood</span>
-              <div className="flex gap-1">
-                {([1, 2, 3, 4, 5] as const).map(m => (
-                  <button key={m} onClick={() => setMood(m)}
-                    className={`text-xl transition-all p-1 rounded-lg ${
-                      mood >= m ? 'scale-110' : 'opacity-30 hover:opacity-60'
-                    }`}>
-                    {['😔', '😐', '🙂', '😊', '🔥'][m - 1]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <Button onClick={handleAddJournal} disabled={!journalText.trim()}
-              className="w-full" leftIcon={<BookOpen size={14} />}>
-              Save Journal Entry
-            </Button>
-          </motion.div>
-
-          {/* ═══ Previous Entries ═══ */}
-          {taskJournals.length > 0 && (
-            <motion.div variants={fadeUp}>
-              <h3 className="font-display font-bold text-surface-50 text-[15px] mb-3 flex items-center gap-2">
-                <BookOpen size={15} className="text-blue-400" /> Previous Entries
-                <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">
-                  {taskJournals.length}
-                </span>
-              </h3>
-              <div className="space-y-2.5">
-                {taskJournals.map(j => (
-                  <motion.div key={j.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-[11px] text-surface-500 font-medium">
-                        {new Date(j.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span className="text-lg">{['😔', '😐', '🙂', '😊', '🔥'][j.mood - 1]}</span>
-                    </div>
-                    <RichContent content={j.content} className="text-sm text-surface-200 leading-relaxed" />
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
         </motion.div>
       </div>
-
-      <ScheduleModal isOpen={isModalOpen} onClose={closeModal} />
 
       {/* Task Delete Confirmation */}
       <ConfirmDialog
@@ -526,7 +425,7 @@ export function TaskDetail() {
         onConfirm={() => {
           setShowConfirmDelete(false);
           deleteTask(task.id);
-          navigate('/tasks');
+          navigate('/personal/tasks');
         }}
         onCancel={() => setShowConfirmDelete(false)}
       />
@@ -534,3 +433,4 @@ export function TaskDetail() {
   );
 }
 
+export default PersonalTaskDetail;

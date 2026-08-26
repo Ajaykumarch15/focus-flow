@@ -26,6 +26,7 @@ import type {
   RoadmapMilestoneDoc,
   RoadmapType,
 } from '../types/roadmap';
+import type { FocusFlowBackup, BackupImportResult } from '../types/backup';
 
 const BASE = import.meta.env.VITE_API_URL;
 
@@ -645,14 +646,14 @@ export const api = {
     disconnect: () => request<any>('/auth/google/disconnect', { method: 'POST' }),
   },
 
-  // ── Personal Roadmaps ──────────────────────────────────────────────────────
+  // ── Personal Roadmaps (isolated) ───────────────────────────────────────────
   personalRoadmaps: {
-    list: () => request<RoadmapListItem[]>('/roadmaps'),
+    list: () => request<RoadmapListItem[]>('/personal-roadmaps'),
     analytics: (days?: number) => {
       const q = days && days > 0 ? `?days=${days}` : '';
-      return request<any>(`/roadmaps/analytics${q}`);
+      return request<any>(`/personal-roadmaps/analytics${q}`);
     },
-    get: (id: string) => request<RoadmapDetail>(`/roadmaps/${id}`),
+    get: (id: string) => request<RoadmapDetail>(`/personal-roadmaps/${id}`),
     create: (body: {
       title: string;
       description?: string;
@@ -661,14 +662,14 @@ export const api = {
       targetDate?: string;
       icon?: string;
       color?: string;
-    }) => request<RoadmapListItem>('/roadmaps', { method: 'POST', body: JSON.stringify(body) }),
+    }) => request<RoadmapListItem>('/personal-roadmaps', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: Record<string, any>) =>
-      request<RoadmapListItem>(`/roadmaps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) => request<{ message: string }>(`/roadmaps/${id}`, { method: 'DELETE' }),
+      request<RoadmapListItem>(`/personal-roadmaps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => request<{ message: string }>(`/personal-roadmaps/${id}`, { method: 'DELETE' }),
 
     // Phases
     listPhases: (roadmapId: string) =>
-      request<RoadmapPhaseDoc[]>(`/roadmaps/${roadmapId}/phases`),
+      request<RoadmapPhaseDoc[]>(`/personal-roadmaps/${roadmapId}/phases`),
     createPhase: (roadmapId: string, body: {
       title: string;
       description?: string;
@@ -676,35 +677,35 @@ export const api = {
       status?: RoadmapPhaseStatus;
       startDate?: string;
       targetDate?: string;
-    }) => request<RoadmapPhaseDoc>(`/roadmaps/${roadmapId}/phases`, { method: 'POST', body: JSON.stringify(body) }),
+    }) => request<RoadmapPhaseDoc>(`/personal-roadmaps/${roadmapId}/phases`, { method: 'POST', body: JSON.stringify(body) }),
     updatePhase: (id: string, body: Record<string, any>) =>
-      request<RoadmapPhaseDoc>(`/roadmaps/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    removePhase: (id: string) => request<{ message: string }>(`/roadmaps/phases/${id}`, { method: 'DELETE' }),
+      request<RoadmapPhaseDoc>(`/personal-roadmaps/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    removePhase: (id: string) => request<{ message: string }>(`/personal-roadmaps/phases/${id}`, { method: 'DELETE' }),
     reorderPhases: (roadmapId: string, phaseIds: string[]) =>
-      request<{ message: string }>(`/roadmaps/${roadmapId}/phases/reorder`, { method: 'POST', body: JSON.stringify({ phaseIds }) }),
+      request<{ message: string }>(`/personal-roadmaps/${roadmapId}/phases/reorder`, { method: 'POST', body: JSON.stringify({ phaseIds }) }),
 
     // Milestones
     listMilestones: (phaseId: string) =>
-      request<RoadmapMilestoneDoc[]>(`/roadmaps/phases/${phaseId}/milestones`),
+      request<RoadmapMilestoneDoc[]>(`/personal-roadmaps/phases/${phaseId}/milestones`),
     createMilestone: (phaseId: string, body: {
       title: string;
       description?: string;
       order?: number;
       status?: RoadmapMilestoneStatus;
       targetDate?: string;
-    }) => request<RoadmapMilestoneDoc>(`/roadmaps/phases/${phaseId}/milestones`, { method: 'POST', body: JSON.stringify(body) }),
+    }) => request<RoadmapMilestoneDoc>(`/personal-roadmaps/phases/${phaseId}/milestones`, { method: 'POST', body: JSON.stringify(body) }),
     updateMilestone: (id: string, body: Record<string, any>) =>
-      request<RoadmapMilestoneDoc>(`/roadmaps/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    removeMilestone: (id: string) => request<{ message: string }>(`/roadmaps/milestones/${id}`, { method: 'DELETE' }),
+      request<RoadmapMilestoneDoc>(`/personal-roadmaps/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    removeMilestone: (id: string) => request<{ message: string }>(`/personal-roadmaps/milestones/${id}`, { method: 'DELETE' }),
     reorderMilestones: (phaseId: string, milestoneIds: string[]) =>
-      request<{ message: string }>(`/roadmaps/phases/${phaseId}/milestones/reorder`, { method: 'POST', body: JSON.stringify({ milestoneIds }) }),
+      request<{ message: string }>(`/personal-roadmaps/phases/${phaseId}/milestones/reorder`, { method: 'POST', body: JSON.stringify({ milestoneIds }) }),
 
     // Task linking
-    availableTasks: () => request<any[]>('/roadmaps/available-tasks'),
+    availableTasks: () => request<any[]>('/personal-roadmaps/available-tasks'),
     linkTask: (body: { taskId: string; roadmapId: string; phaseId: string; milestoneId: string }) =>
-      request<any>('/roadmaps/link-task', { method: 'POST', body: JSON.stringify(body) }),
+      request<any>('/personal-roadmaps/link-task', { method: 'POST', body: JSON.stringify(body) }),
     unlinkTask: (taskId: string) =>
-      request<{ message: string }>(`/roadmaps/unlink-task/${taskId}`, { method: 'DELETE' }),
+      request<{ message: string }>(`/personal-roadmaps/unlink-task/${taskId}`, { method: 'DELETE' }),
   },
 
   schedules: {
@@ -729,6 +730,81 @@ export const api = {
     delete: (id: string) =>
       request<{ success: boolean; message: string }>(`/schedules/${id}`, {
         method: 'DELETE',
+      }),
+  },
+
+  personalTasks: {
+    list: () => request<any[]>('/personal-tasks'),
+    create: (body: any) => request<any>('/personal-tasks', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: any) => request<any>(`/personal-tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    delete: (id: string) => request<any>(`/personal-tasks/${id}`, { method: 'DELETE' }),
+    patchGit: (id: string, gitContext: GitContext) =>
+      request<any>(`/personal-tasks/${id}/git`, { method: 'PATCH', body: JSON.stringify(gitContext) }),
+    addSubtask: (taskId: string, title: string) =>
+      request<any>(`/personal-tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
+    toggleSubtask: (taskId: string, subId: string, completed: boolean) =>
+      request<any>(`/personal-tasks/${taskId}/subtasks/${subId}`, { method: 'PATCH', body: JSON.stringify({ completed }) }),
+    deleteSubtask: (taskId: string, subId: string) =>
+      request<any>(`/personal-tasks/${taskId}/subtasks/${subId}`, { method: 'DELETE' }),
+    reorder: (ids: string[]) =>
+      request<any[]>('/personal-tasks/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
+  },
+
+  personalSessions: {
+    list: (params?: { personalTaskId?: string; active?: boolean }) => {
+      const qs = params
+        ? new URLSearchParams(
+            Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+              if (value !== undefined) acc[key] = String(value);
+              return acc;
+            }, {}),
+          ).toString()
+        : '';
+      return request<any[]>(`/personal-sessions${qs ? '?' + qs : ''}`);
+    },
+    start: (personalTaskId: string, startTime?: number, opId?: string) =>
+      request<any>('/personal-sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          personalTaskId,
+          ...(startTime !== undefined ? { startTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    pause: (id: string, pauseTime?: number, opId?: string) =>
+      request<any>(`/personal-sessions/${id}/pause`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(pauseTime !== undefined ? { pauseTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    resume: (id: string, resumeTime?: number, opId?: string) =>
+      request<any>(`/personal-sessions/${id}/resume`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(resumeTime !== undefined ? { resumeTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    stop: (id: string, endTime?: number, opId?: string) =>
+      request<any>(`/personal-sessions/${id}/stop`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...(endTime !== undefined ? { endTime } : {}),
+          ...(opId ? { opId } : {}),
+        }),
+      }),
+    heartbeat: (id: string) =>
+      request<any>(`/personal-sessions/${id}/heartbeat`, { method: 'PATCH' }),
+  },
+
+  backup: {
+    exportData: () => request<FocusFlowBackup>('/backup/export', { method: 'POST' }),
+    importData: (payload: FocusFlowBackup) =>
+      request<BackupImportResult>('/backup/import', {
+        method: 'POST',
+        body: JSON.stringify(payload),
       }),
   },
 };

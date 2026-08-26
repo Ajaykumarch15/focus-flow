@@ -1,8 +1,8 @@
 const express = require('express');
-const Roadmap = require('../models/Roadmap');
-const RoadmapPhase = require('../models/RoadmapPhase');
-const RoadmapMilestone = require('../models/RoadmapMilestone');
-const Task = require('../models/Task');
+const PersonalRoadmap = require('../models/PersonalRoadmap');
+const PersonalRoadmapPhase = require('../models/PersonalRoadmapPhase');
+const PersonalRoadmapMilestone = require('../models/PersonalRoadmapMilestone');
+const PersonalTask = require('../models/PersonalTask');
 const protect = require('../middleware/auth');
 const { z, objectId, dateInput, requiredString, validate } = require('../utils/validation');
 const { buildPatch } = require('../utils/patchSanitizer');
@@ -56,8 +56,6 @@ const roadmapParamsSchema = z.object({ id: objectId });
 const phaseCreateSchema = z.object({
   title: requiredString(200, 'title', 'Title is required'),
   description: z.string().max(1000, 'Description too long').default(''),
-  // B4: intentionally NOT defaulted — an absent order triggers deterministic
-  // append (max+1) in the handler; a schema default would mask omission as 0.
   order: z.number().finite('Invalid order').optional(),
   startDate: dateInput.optional(),
   targetDate: dateInput.optional(),
@@ -76,8 +74,6 @@ const phasePatchSchema = z.object({
 const milestoneCreateSchema = z.object({
   title: requiredString(200, 'title', 'Title is required'),
   description: z.string().max(1000, 'Description too long').default(''),
-  // B5: intentionally NOT defaulted — an absent order triggers deterministic
-  // append (max+1 within the phase) in the handler.
   order: z.number().finite('Invalid order').optional(),
   targetDate: dateInput.optional(),
   status: z.enum(MILESTONE_STATUS).default('todo'),
@@ -91,13 +87,10 @@ const milestonePatchSchema = z.object({
   status: z.enum(MILESTONE_STATUS).optional(),
 }).passthrough();
 
-// Reordering ships the full desired sequence; anything less than a complete
-// permutation of the roadmap's phases is rejected (B4: deterministic order).
 const phaseReorderSchema = z.object({
   phaseIds: z.array(objectId).min(1),
 }).passthrough();
 
-// Same contract for milestones within a phase (B5).
 const milestoneReorderSchema = z.object({
   milestoneIds: z.array(objectId).min(1),
 }).passthrough();
@@ -115,12 +108,12 @@ const linkTaskSchema = z.object({
   milestoneId: objectId,
 }).passthrough();
 
-// GET /api/roadmaps/available-tasks — unlinked tasks for the user
+// GET /api/personal-roadmaps/available-tasks
 router.get('/available-tasks', async (req, res, next) => {
   try {
-    const tasks = await Task.find({
+    const tasks = await PersonalTask.find({
       userId: req.user._id,
-      milestoneRef: null,
+      personalMilestoneRef: null,
       status: { $ne: 'completed' },
     }).select('title priority status category totalTime deadline').sort({ createdAt: -1 }).limit(100);
     res.json(tasks);
@@ -129,16 +122,16 @@ router.get('/available-tasks', async (req, res, next) => {
   }
 });
 
-// POST /api/roadmaps/link-task — link an existing task to a milestone
+// POST /api/personal-roadmaps/link-task
 router.post('/link-task', validate(linkTaskSchema), async (req, res, next) => {
   try {
     const { taskId, roadmapId, phaseId, milestoneId } = req.body;
 
     const [task, roadmap, phase, milestone] = await Promise.all([
-      Task.findOne({ _id: taskId, userId: req.user._id }),
-      Roadmap.findOne({ _id: roadmapId, userId: req.user._id }),
-      RoadmapPhase.findOne({ _id: phaseId, userId: req.user._id, roadmapId }),
-      RoadmapMilestone.findOne({ _id: milestoneId, userId: req.user._id, phaseId, roadmapId }),
+      PersonalTask.findOne({ _id: taskId, userId: req.user._id }),
+      PersonalRoadmap.findOne({ _id: roadmapId, userId: req.user._id }),
+      PersonalRoadmapPhase.findOne({ _id: phaseId, userId: req.user._id, roadmapId }),
+      PersonalRoadmapMilestone.findOne({ _id: milestoneId, userId: req.user._id, phaseId, roadmapId }),
     ]);
 
     if (!task) return res.status(404).json({ message: 'Task not found' });
@@ -146,9 +139,9 @@ router.post('/link-task', validate(linkTaskSchema), async (req, res, next) => {
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
 
-    const updated = await Task.findByIdAndUpdate(
+    const updated = await PersonalTask.findByIdAndUpdate(
       task._id,
-      { $set: { roadmapRef: roadmap._id, phaseRef: phase._id, milestoneRef: milestone._id } },
+      { $set: { personalRoadmapRef: roadmap._id, personalPhaseRef: phase._id, personalMilestoneRef: milestone._id } },
       { new: true, runValidators: true },
     );
 
@@ -158,14 +151,14 @@ router.post('/link-task', validate(linkTaskSchema), async (req, res, next) => {
   }
 });
 
-// DELETE /api/roadmaps/unlink-task/:taskId — unlink a task from its roadmap
+// DELETE /api/personal-roadmaps/unlink-task/:taskId
 router.delete('/unlink-task/:taskId', async (req, res, next) => {
   try {
-    const task = await Task.findOne({ _id: req.params.taskId, userId: req.user._id });
+    const task = await PersonalTask.findOne({ _id: req.params.taskId, userId: req.user._id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    await Task.findByIdAndUpdate(task._id, {
-      $set: { roadmapRef: null, phaseRef: null, milestoneRef: null },
+    await PersonalTask.findByIdAndUpdate(task._id, {
+      $set: { personalRoadmapRef: null, personalPhaseRef: null, personalMilestoneRef: null },
     });
 
     res.json({ message: 'Task unlinked' });
@@ -174,21 +167,16 @@ router.delete('/unlink-task/:taskId', async (req, res, next) => {
   }
 });
 
-// ── PERSONAL ANALYTICS ──────────────────────────────────────────────────────
+// ── ANALYTICS ────────────────────────────────────────────────────────────────
 
-// GET /api/roadmaps/analytics?days=30
-// B11: stabilized analytics. Every query/aggregation is scoped to the
-// authenticated user. Heavy counting runs as MongoDB aggregations - full
-// task/session history is never loaded into memory or shipped to the client.
-// Focused time reuses Task.totalTime accumulated by the existing focus timer;
-// no second time-tracking mechanism exists.
+// GET /api/personal-roadmaps/analytics?days=30
 router.get('/analytics', async (req, res, next) => {
   try {
     const days = parseInt(req.query.days, 10) || 0;
     const sinceDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
     const userId = req.user._id;
 
-    const roadmaps = await Roadmap.find({ userId }).sort({ createdAt: -1 });
+    const roadmaps = await PersonalRoadmap.find({ userId }).sort({ createdAt: -1 });
     const roadmapIds = roadmaps.map(r => r._id);
 
     if (roadmapIds.length === 0) {
@@ -217,48 +205,46 @@ router.get('/analytics', async (req, res, next) => {
       todayMilestones,
       windowedMilestones,
     ] = await Promise.all([
-      // Phase docs are small bounded metadata needed for titles/status/order.
-      RoadmapPhase.find({ userId, roadmapId: idIn }),
-      RoadmapMilestone.aggregate([
+      PersonalRoadmapPhase.find({ userId, roadmapId: idIn }),
+      PersonalRoadmapMilestone.aggregate([
         { $match: { userId, roadmapId: idIn } },
         { $group: { _id: '$roadmapId', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } },
       ]),
-      RoadmapMilestone.aggregate([
+      PersonalRoadmapMilestone.aggregate([
         { $match: { userId, roadmapId: idIn } },
         { $group: { _id: '$phaseId', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } },
       ]),
-      Task.aggregate([
-        { $match: { userId, roadmapRef: idIn } },
+      PersonalTask.aggregate([
+        { $match: { userId, personalRoadmapRef: idIn } },
         { $group: {
-          _id: '$roadmapRef',
+          _id: '$personalRoadmapRef',
           total: { $sum: 1 },
           completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
           focusedTimeMs: { $sum: { $ifNull: ['$totalTime', 0] } },
         } },
       ]),
-      Task.aggregate([
+      PersonalTask.aggregate([
         { $match: {
           userId,
-          roadmapRef: idIn,
+          personalRoadmapRef: idIn,
           status: 'completed',
           updatedAt: { $ne: null, ...(sinceDate ? { $gte: sinceDate } : {}) },
         } },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } }, count: { $sum: 1 } } },
       ]),
-      Task.find({ userId, roadmapRef: idIn, status: 'completed' })
-        .sort({ updatedAt: -1 }).limit(15).select('title updatedAt roadmapRef'),
-      RoadmapMilestone.find({ userId, roadmapId: idIn, status: 'completed' })
+      PersonalTask.find({ userId, personalRoadmapRef: idIn, status: 'completed' })
+        .sort({ updatedAt: -1 }).limit(15).select('title updatedAt personalRoadmapRef'),
+      PersonalRoadmapMilestone.find({ userId, roadmapId: idIn, status: 'completed' })
         .sort({ updatedAt: -1 }).limit(15).select('title updatedAt roadmapId'),
-      Task.aggregate([
-        { $match: { userId, roadmapRef: idIn, status: 'completed', updatedAt: { $gte: startOfToday } } },
-        { $group: { _id: null, count: { $sum: 1 }, roadmapIds: { $addToSet: '$roadmapRef' } } },
+      PersonalTask.aggregate([
+        { $match: { userId, personalRoadmapRef: idIn, status: 'completed', updatedAt: { $gte: startOfToday } } },
+        { $group: { _id: null, count: { $sum: 1 }, roadmapIds: { $addToSet: '$personalRoadmapRef' } } },
       ]),
-      RoadmapMilestone.aggregate([
+      PersonalRoadmapMilestone.aggregate([
         { $match: { userId, roadmapId: idIn, status: 'completed', updatedAt: { $gte: startOfToday } } },
         { $group: { _id: null, count: { $sum: 1 } } },
       ]),
-      // Windowed milestone completions for ?days=N (server-side, exact).
-      RoadmapMilestone.aggregate([
+      PersonalRoadmapMilestone.aggregate([
         { $match: {
           userId,
           roadmapId: idIn,
@@ -269,7 +255,6 @@ router.get('/analytics', async (req, res, next) => {
       ]),
     ]);
 
-    // Index aggregation buckets by key.
     const msRoadmapMap = Object.fromEntries(msByRoadmap.map(b => [String(b._id), b]));
     const msPhaseMap = Object.fromEntries(msByPhase.map(b => [String(b._id), b]));
     const taskRoadmapMap = Object.fromEntries(tasksByRoadmap.map(b => [String(b._id), b]));
@@ -332,7 +317,7 @@ router.get('/analytics', async (req, res, next) => {
       });
 
     const recentActivity = [
-      ...recentTasks.map(t => ({ type: 'task', title: t.title, date: t.updatedAt, roadmapId: t.roadmapRef })),
+      ...recentTasks.map(t => ({ type: 'task', title: t.title, date: t.updatedAt, roadmapId: t.personalRoadmapRef })),
       ...recentMilestones.map(m => ({ type: 'milestone', title: m.title, date: m.updatedAt, roadmapId: m.roadmapId })),
     ]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -381,25 +366,25 @@ router.get('/analytics', async (req, res, next) => {
 
 // ── ROADMAP CRUD ──────────────────────────────────────────────────────────────
 
-// GET /api/roadmaps
+// GET /api/personal-roadmaps
 router.get('/', async (req, res, next) => {
   try {
-    const roadmaps = await Roadmap.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    const roadmaps = await PersonalRoadmap.find({ userId: req.user._id }).sort({ createdAt: -1 });
 
     const roadmapIds = roadmaps.map(r => r._id);
 
     const [phaseCounts, milestoneCounts, taskData] = await Promise.all([
-      RoadmapPhase.aggregate([
+      PersonalRoadmapPhase.aggregate([
         { $match: { roadmapId: { $in: roadmapIds } } },
         { $group: { _id: '$roadmapId', count: { $sum: 1 } } },
       ]),
-      RoadmapMilestone.aggregate([
+      PersonalRoadmapMilestone.aggregate([
         { $match: { roadmapId: { $in: roadmapIds } } },
         { $group: { _id: '$roadmapId', total: { $sum: 1 }, completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } } } },
       ]),
-      Task.aggregate([
-        { $match: { userId: req.user._id, roadmapRef: { $in: roadmapIds } } },
-        { $group: { _id: '$roadmapRef', totalTasks: { $sum: 1 }, completedTasks: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$totalTime' } } },
+      PersonalTask.aggregate([
+        { $match: { userId: req.user._id, personalRoadmapRef: { $in: roadmapIds } } },
+        { $group: { _id: '$personalRoadmapRef', totalTasks: { $sum: 1 }, completedTasks: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } }, totalTime: { $sum: '$totalTime' } } },
       ]),
     ]);
 
@@ -428,26 +413,26 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// POST /api/roadmaps
+// POST /api/personal-roadmaps
 router.post('/', validate(roadmapCreateSchema), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.create({ ...req.body, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.create({ ...req.body, userId: req.user._id });
     res.status(201).json({ ...roadmap.toObject(), phaseCount: 0, milestoneTotal: 0, milestoneCompleted: 0, totalTasks: 0, completedTasks: 0, totalTime: 0, progress: 0 });
   } catch (err) {
     next(err);
   }
 });
 
-// GET /api/roadmaps/:id
+// GET /api/personal-roadmaps/:id
 router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.id, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.id, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
     const [phases, milestones, tasks] = await Promise.all([
-      RoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 }),
-      RoadmapMilestone.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 }),
-      Task.find({ roadmapRef: roadmap._id, userId: req.user._id }),
+      PersonalRoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 }),
+      PersonalRoadmapMilestone.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 }),
+      PersonalTask.find({ personalRoadmapRef: roadmap._id, userId: req.user._id }),
     ]);
 
     const milestoneTotal = milestones.length;
@@ -469,7 +454,7 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
     });
 
     const milestonesWithProgress = milestones.map(milestone => {
-      const milestoneTasks = tasks.filter(t => String(t.milestoneRef) === String(milestone._id));
+      const milestoneTasks = tasks.filter(t => String(t.personalMilestoneRef) === String(milestone._id));
       const mtTotal = milestoneTasks.length;
       const mtCompleted = milestoneTasks.filter(t => t.status === 'completed').length;
       return {
@@ -490,8 +475,8 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
         status: t.status,
         priority: t.priority,
         totalTime: t.totalTime,
-        milestoneRef: t.milestoneRef,
-        phaseRef: t.phaseRef,
+        personalMilestoneRef: t.personalMilestoneRef,
+        personalPhaseRef: t.personalPhaseRef,
         deadline: t.deadline,
       })),
       ...serializeProgress(roadmapProgress(milestoneCompleted, milestoneTotal)),
@@ -506,10 +491,10 @@ router.get('/:id', validate(null, { params: roadmapParamsSchema }), async (req, 
   }
 });
 
-// PATCH /api/roadmaps/:id
+// PATCH /api/personal-roadmaps/:id
 router.patch('/:id', validate(roadmapPatchSchema), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.id, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.id, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
     const patch = buildPatch(req.body, ALLOWED_ROADMAP_PATCH);
@@ -518,11 +503,9 @@ router.patch('/:id', validate(roadmapPatchSchema), async (req, res, next) => {
         message: `Cannot move roadmap from '${roadmap.status}' to '${patch.status}'`,
       });
     }
-    const updated = await Roadmap.findByIdAndUpdate(roadmap._id, patch, { new: true, runValidators: true });
-    // B8: completing a roadmap completes remaining phases + milestones so
-    // stored status never contradicts derived progress. Tasks are untouched.
+    const updated = await PersonalRoadmap.findByIdAndUpdate(roadmap._id, patch, { new: true, runValidators: true });
     if (patch.status === 'completed' && roadmap.status !== 'completed') {
-      await completeChildrenForRoadmap(RoadmapPhase, RoadmapMilestone, roadmap._id, req.user._id);
+      await completeChildrenForRoadmap(PersonalRoadmapPhase, PersonalRoadmapMilestone, roadmap._id, req.user._id);
     }
     res.json(updated);
   } catch (err) {
@@ -530,17 +513,17 @@ router.patch('/:id', validate(roadmapPatchSchema), async (req, res, next) => {
   }
 });
 
-// DELETE /api/roadmaps/:id
+// DELETE /api/personal-roadmaps/:id
 router.delete('/:id', validate(null, { params: roadmapParamsSchema }), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.id, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.id, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
     await Promise.all([
-      RoadmapPhase.deleteMany({ roadmapId: roadmap._id, userId: req.user._id }),
-      RoadmapMilestone.deleteMany({ roadmapId: roadmap._id, userId: req.user._id }),
-      Task.updateMany({ roadmapRef: roadmap._id, userId: req.user._id }, { $set: { roadmapRef: null, phaseRef: null, milestoneRef: null } }),
-      Roadmap.findByIdAndDelete(roadmap._id),
+      PersonalRoadmapPhase.deleteMany({ roadmapId: roadmap._id, userId: req.user._id }),
+      PersonalRoadmapMilestone.deleteMany({ roadmapId: roadmap._id, userId: req.user._id }),
+      PersonalTask.updateMany({ personalRoadmapRef: roadmap._id, userId: req.user._id }, { $set: { personalRoadmapRef: null, personalPhaseRef: null, personalMilestoneRef: null } }),
+      PersonalRoadmap.findByIdAndDelete(roadmap._id),
     ]);
 
     res.json({ message: 'Roadmap deleted' });
@@ -551,15 +534,15 @@ router.delete('/:id', validate(null, { params: roadmapParamsSchema }), async (re
 
 // ── PHASE CRUD ────────────────────────────────────────────────────────────────
 
-// GET /api/roadmaps/:roadmapId/phases
+// GET /api/personal-roadmaps/:roadmapId/phases
 router.get('/:roadmapId/phases', async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
-    const phases = await RoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 });
+    const phases = await PersonalRoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).sort({ order: 1 });
 
-    const milestones = await RoadmapMilestone.find({ roadmapId: roadmap._id, userId: req.user._id });
+    const milestones = await PersonalRoadmapMilestone.find({ roadmapId: roadmap._id, userId: req.user._id });
     const enriched = phases.map(phase => {
       const pm = milestones.filter(m => String(m.phaseId) === String(phase._id));
       const total = pm.length;
@@ -578,25 +561,22 @@ router.get('/:roadmapId/phases', async (req, res, next) => {
   }
 });
 
-// POST /api/roadmaps/:roadmapId/phases
+// POST /api/personal-roadmaps/:roadmapId/phases
 router.post('/:roadmapId/phases', validate(phaseCreateSchema), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
-    // B4: deterministic ordering — when the client does not pin an order,
-    // append after the current last phase instead of defaulting to 0
-    // (which would stack every phase on top of each other).
     let { order } = req.body;
     if (order === undefined) {
-      const last = await RoadmapPhase.findOne({ roadmapId: roadmap._id, userId: req.user._id })
+      const last = await PersonalRoadmapPhase.findOne({ roadmapId: roadmap._id, userId: req.user._id })
         .sort({ order: -1 })
         .select('order')
         .lean();
       order = last && Number.isFinite(Number(last.order)) ? Number(last.order) + 1 : 0;
     }
 
-    const phase = await RoadmapPhase.create({
+    const phase = await PersonalRoadmapPhase.create({
       ...req.body,
       order,
       userId: req.user._id,
@@ -609,18 +589,16 @@ router.post('/:roadmapId/phases', validate(phaseCreateSchema), async (req, res, 
   }
 });
 
-// POST /api/roadmaps/:roadmapId/phases/reorder
+// POST /api/personal-roadmaps/:roadmapId/phases/reorder
 router.post('/:roadmapId/phases/reorder', validate(phaseReorderSchema), async (req, res, next) => {
   try {
-    const roadmap = await Roadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
+    const roadmap = await PersonalRoadmap.findOne({ _id: req.params.roadmapId, userId: req.user._id });
     if (!roadmap) return res.status(404).json({ message: 'Roadmap not found' });
 
-    const phases = await RoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).select('_id');
+    const phases = await PersonalRoadmapPhase.find({ roadmapId: roadmap._id, userId: req.user._id }).select('_id');
     const existingIds = new Set(phases.map(p => String(p._id)));
     const requested = req.body.phaseIds;
 
-    // Must be a complete permutation — no duplicates, no missing phases,
-    // no phases belonging to another roadmap or user.
     if (
       requested.length !== phases.length ||
       new Set(requested.map(String)).size !== requested.length ||
@@ -629,8 +607,7 @@ router.post('/:roadmapId/phases/reorder', validate(phaseReorderSchema), async (r
       return res.status(400).json({ message: 'phaseIds must contain every phase of this roadmap exactly once' });
     }
 
-    // Normalize to dense 0..n-1 positions; other fields are untouched.
-    await RoadmapPhase.bulkWrite(
+    await PersonalRoadmapPhase.bulkWrite(
       requested.map((id, index) => ({
         updateOne: { filter: { _id: id, roadmapId: roadmap._id }, update: { $set: { order: index } } },
       })),
@@ -642,10 +619,10 @@ router.post('/:roadmapId/phases/reorder', validate(phaseReorderSchema), async (r
   }
 });
 
-// PATCH /api/phases/:id
+// PATCH /api/personal-roadmaps/phases/:id
 router.patch('/phases/:id', validate(phasePatchSchema), async (req, res, next) => {
   try {
-    const phase = await RoadmapPhase.findOne({ _id: req.params.id, userId: req.user._id });
+    const phase = await PersonalRoadmapPhase.findOne({ _id: req.params.id, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
     const patch = buildPatch(req.body, ALLOWED_PHASE_PATCH);
@@ -654,10 +631,9 @@ router.patch('/phases/:id', validate(phasePatchSchema), async (req, res, next) =
         message: `Cannot move phase from '${phase.status}' to '${patch.status}'`,
       });
     }
-    const updated = await RoadmapPhase.findByIdAndUpdate(phase._id, patch, { new: true, runValidators: true });
-    // B8: completing a phase completes its remaining milestones (only those).
+    const updated = await PersonalRoadmapPhase.findByIdAndUpdate(phase._id, patch, { new: true, runValidators: true });
     if (patch.status === 'completed' && phase.status !== 'completed') {
-      await completeMilestonesForPhase(RoadmapMilestone, phase._id, req.user._id);
+      await completeMilestonesForPhase(PersonalRoadmapMilestone, phase._id, req.user._id);
     }
     res.json(updated);
   } catch (err) {
@@ -665,16 +641,16 @@ router.patch('/phases/:id', validate(phasePatchSchema), async (req, res, next) =
   }
 });
 
-// DELETE /api/phases/:id
+// DELETE /api/personal-roadmaps/phases/:id
 router.delete('/phases/:id', async (req, res, next) => {
   try {
-    const phase = await RoadmapPhase.findOne({ _id: req.params.id, userId: req.user._id });
+    const phase = await PersonalRoadmapPhase.findOne({ _id: req.params.id, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
     await Promise.all([
-      Task.updateMany({ phaseRef: phase._id, userId: req.user._id }, { $set: { phaseRef: null, milestoneRef: null } }),
-      RoadmapMilestone.deleteMany({ phaseId: phase._id, userId: req.user._id }),
-      RoadmapPhase.findByIdAndDelete(phase._id),
+      PersonalTask.updateMany({ personalPhaseRef: phase._id, userId: req.user._id }, { $set: { personalPhaseRef: null, personalMilestoneRef: null } }),
+      PersonalRoadmapMilestone.deleteMany({ phaseId: phase._id, userId: req.user._id }),
+      PersonalRoadmapPhase.findByIdAndDelete(phase._id),
     ]);
 
     res.json({ message: 'Phase deleted' });
@@ -685,19 +661,19 @@ router.delete('/phases/:id', async (req, res, next) => {
 
 // ── MILESTONE CRUD ────────────────────────────────────────────────────────────
 
-// GET /api/phases/:phaseId/milestones
+// GET /api/personal-roadmaps/phases/:phaseId/milestones
 router.get('/phases/:phaseId/milestones', async (req, res, next) => {
   try {
-    const phase = await RoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
+    const phase = await PersonalRoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
-    const milestones = await RoadmapMilestone.find({ phaseId: phase._id, userId: req.user._id }).sort({ order: 1 });
+    const milestones = await PersonalRoadmapMilestone.find({ phaseId: phase._id, userId: req.user._id }).sort({ order: 1 });
 
     const milestoneIds = milestones.map(m => m._id);
-    const tasks = await Task.find({ milestoneRef: { $in: milestoneIds }, userId: req.user._id });
+    const tasks = await PersonalTask.find({ personalMilestoneRef: { $in: milestoneIds }, userId: req.user._id });
 
     const enriched = milestones.map(m => {
-      const mt = tasks.filter(t => String(t.milestoneRef) === String(m._id));
+      const mt = tasks.filter(t => String(t.personalMilestoneRef) === String(m._id));
       const mtCompleted = mt.filter(t => t.status === 'completed').length;
       return {
         ...m.toObject(),
@@ -713,24 +689,22 @@ router.get('/phases/:phaseId/milestones', async (req, res, next) => {
   }
 });
 
-// POST /api/phases/:phaseId/milestones
+// POST /api/personal-roadmaps/phases/:phaseId/milestones
 router.post('/phases/:phaseId/milestones', validate(milestoneCreateSchema), async (req, res, next) => {
   try {
-    const phase = await RoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
+    const phase = await PersonalRoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
-    // B5: deterministic ordering — append after the current last milestone
-    // within this phase when the client does not pin an order.
     let { order } = req.body;
     if (order === undefined) {
-      const last = await RoadmapMilestone.findOne({ phaseId: phase._id, userId: req.user._id })
+      const last = await PersonalRoadmapMilestone.findOne({ phaseId: phase._id, userId: req.user._id })
         .sort({ order: -1 })
         .select('order')
         .lean();
       order = last && Number.isFinite(Number(last.order)) ? Number(last.order) + 1 : 0;
     }
 
-    const milestone = await RoadmapMilestone.create({
+    const milestone = await PersonalRoadmapMilestone.create({
       ...req.body,
       order,
       userId: req.user._id,
@@ -744,18 +718,16 @@ router.post('/phases/:phaseId/milestones', validate(milestoneCreateSchema), asyn
   }
 });
 
-// POST /api/phases/:phaseId/milestones/reorder
+// POST /api/personal-roadmaps/phases/:phaseId/milestones/reorder
 router.post('/phases/:phaseId/milestones/reorder', validate(milestoneReorderSchema), async (req, res, next) => {
   try {
-    const phase = await RoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
+    const phase = await PersonalRoadmapPhase.findOne({ _id: req.params.phaseId, userId: req.user._id });
     if (!phase) return res.status(404).json({ message: 'Phase not found' });
 
-    const milestones = await RoadmapMilestone.find({ phaseId: phase._id, userId: req.user._id }).select('_id');
+    const milestones = await PersonalRoadmapMilestone.find({ phaseId: phase._id, userId: req.user._id }).select('_id');
     const existingIds = new Set(milestones.map(m => String(m._id)));
     const requested = req.body.milestoneIds;
 
-    // Must be a complete permutation of this phase's milestones — no
-    // duplicates, no missing entries, no milestones from another phase/user.
     if (
       requested.length !== milestones.length ||
       new Set(requested.map(String)).size !== requested.length ||
@@ -764,8 +736,7 @@ router.post('/phases/:phaseId/milestones/reorder', validate(milestoneReorderSche
       return res.status(400).json({ message: 'milestoneIds must contain every milestone of this phase exactly once' });
     }
 
-    // Normalize to dense 0..n-1 positions; other fields are untouched.
-    await RoadmapMilestone.bulkWrite(
+    await PersonalRoadmapMilestone.bulkWrite(
       requested.map((id, index) => ({
         updateOne: { filter: { _id: id, phaseId: phase._id }, update: { $set: { order: index } } },
       })),
@@ -777,10 +748,10 @@ router.post('/phases/:phaseId/milestones/reorder', validate(milestoneReorderSche
   }
 });
 
-// PATCH /api/milestones/:id
+// PATCH /api/personal-roadmaps/milestones/:id
 router.patch('/milestones/:id', validate(milestonePatchSchema), async (req, res, next) => {
   try {
-    const milestone = await RoadmapMilestone.findOne({ _id: req.params.id, userId: req.user._id });
+    const milestone = await PersonalRoadmapMilestone.findOne({ _id: req.params.id, userId: req.user._id });
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
 
     const patch = buildPatch(req.body, ALLOWED_MILESTONE_PATCH);
@@ -789,22 +760,22 @@ router.patch('/milestones/:id', validate(milestonePatchSchema), async (req, res,
         message: `Cannot move milestone from '${milestone.status}' to '${patch.status}'`,
       });
     }
-    const updated = await RoadmapMilestone.findByIdAndUpdate(milestone._id, patch, { new: true, runValidators: true });
+    const updated = await PersonalRoadmapMilestone.findByIdAndUpdate(milestone._id, patch, { new: true, runValidators: true });
     res.json(updated);
   } catch (err) {
     next(err);
   }
 });
 
-// DELETE /api/milestones/:id
+// DELETE /api/personal-roadmaps/milestones/:id
 router.delete('/milestones/:id', async (req, res, next) => {
   try {
-    const milestone = await RoadmapMilestone.findOne({ _id: req.params.id, userId: req.user._id });
+    const milestone = await PersonalRoadmapMilestone.findOne({ _id: req.params.id, userId: req.user._id });
     if (!milestone) return res.status(404).json({ message: 'Milestone not found' });
 
     await Promise.all([
-      Task.updateMany({ milestoneRef: milestone._id, userId: req.user._id }, { $set: { milestoneRef: null } }),
-      RoadmapMilestone.findByIdAndDelete(milestone._id),
+      PersonalTask.updateMany({ personalMilestoneRef: milestone._id, userId: req.user._id }, { $set: { personalMilestoneRef: null } }),
+      PersonalRoadmapMilestone.findByIdAndDelete(milestone._id),
     ]);
 
     res.json({ message: 'Milestone deleted' });

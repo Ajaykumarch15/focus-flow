@@ -368,7 +368,8 @@ router.get('/', validate(null, { query: taskQuerySchema }), async (req, res, nex
 
     // IES-R1: personal tasks = { userId, workspaceRef: null } (matches legacy
     // docs without the field too — Mongo null-equality matches missing).
-    const tasks = await Task.find({ userId: req.user._id, workspaceRef: null }).sort({ createdAt: -1 });
+    const taskFilter = { userId: req.user._id, workspaceRef: null };
+    const tasks = await Task.find(taskFilter).sort({ createdAt: -1 });
     logger.debug({ count: tasks.length }, 'tasks fetched');
     res.json(tasks);
   } catch (err) {

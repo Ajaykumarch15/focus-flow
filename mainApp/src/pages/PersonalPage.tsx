@@ -78,7 +78,7 @@ export function PersonalPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
         <div className="h-10 w-48 bg-surface-800 rounded-xl animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -90,7 +90,7 @@ export function PersonalPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
