@@ -61,6 +61,20 @@ export function WorkspaceHub() {
       {/* Background Decorative Gradients */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-[20%] left-[10%] w-48 h-48 rounded-full
+        bg-brand-400/[0.31] dark:bg-brand-400/[0.06] blur-3xl pointer-events-none" />
+      <div className="absolute top-[60%] left-[55%] w-40 h-40 rounded-[2rem] rotate-12
+        bg-info-400/[0.67] dark:bg-info-300/[0.05] blur-2xl pointer-events-none" />
+      <div className="absolute top-[75%] left-[5%] w-36 h-36 rounded-full
+        bg-success-400/[0.46] dark:bg-success-300/[0.10] blur-2xl pointer-events-none" />
+      <div className="absolute top-[10%] right-[15%] w-44 h-44 rounded-full
+        bg-brand-300/[0.07] dark:bg-brand-400/[0.05] blur-3xl pointer-events-none" />
+      <div className="absolute -top-12 -right-10 w-40 h-40 rounded-full
+        bg-brand-400/[0.70] dark:bg-brand-400/[0.06] blur-3xl pointer-events-none" />
+      <div className="absolute top-[45%] left-[30%] w-32 h-32 rounded-xl rotate-45
+        bg-info-300/[0.36] dark:bg-info-400/[0.04] blur-2xl pointer-events-none" />
+      <div className="absolute bottom-[10%] right-[10%] w-52 h-28 rounded-full
+        bg-brand-500/[0.66] dark:bg-brand-400/[0.04] blur-3xl pointer-events-none" />
       
       {/* Header Bar */}
       <header className="flex items-center justify-between max-w-6xl mx-auto w-full z-10 relative">

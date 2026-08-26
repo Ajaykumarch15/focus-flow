@@ -50,6 +50,9 @@ const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage').then(mo
 const RoadmapPhaseDetail = lazy(() => import('./pages/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
 const RoadmapMilestoneDetail = lazy(() => import('./pages/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
 const PersonalAnalyticsPage = lazy(() => import('./pages/PersonalAnalyticsPage').then(module => ({ default: module.PersonalAnalyticsPage })));
+const PersonalTasks      = lazy(() => import('./pages/PersonalTasks').then(module => ({ default: module.PersonalTasks })));
+const PersonalTodayPage  = lazy(() => import('./pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
+const PersonalTaskDetail = lazy(() => import('./pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
 const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 
@@ -201,6 +204,7 @@ export default function App() {
             {/* WorkLog Workspace Dashboard */}
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>
+                <Route path="/dashboard"   element={<TodayPage />} />
                 <Route path="/worklog/dashboard" element={<WorkLogDashboard />} />
                 <Route path="/collab/dashboard" element={<CollabDashboard />} />
               </Route>
@@ -209,8 +213,8 @@ export default function App() {
             {/* Personal Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/dashboard"   element={<TodayPage />} />
                 <Route path="/personal"   element={<PersonalPage />} />
+                <Route path="/personal/today" element={<PersonalTodayPage />} />
                 <Route path="/worklog"     element={<WorkLogPage />} />
                 <Route path="/worklog/:id" element={<WorkLogPage />} />
                 <Route path="/knowledge"  element={<KnowledgePage />} />
@@ -220,6 +224,8 @@ export default function App() {
                 <Route path="/analytics"   element={<PersonalAnalyticsPage />} />
                 <Route path="/tasks"       element={<Tasks />} />
                 <Route path="/tasks/:id"   element={<TaskDetail />} />
+                <Route path="/personal/tasks"    element={<PersonalTasks />} />
+                <Route path="/personal/tasks/:id" element={<PersonalTaskDetail />} />
                 <Route path="/schedule"    element={<SchedulePage />} />
                 <Route path="/roadmaps"    element={<RoadmapsPage />} />
                 <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />

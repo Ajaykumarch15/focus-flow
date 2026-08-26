@@ -171,7 +171,7 @@ function mapTask(doc: any): Task {
     roadmapRef: doc.roadmapRef ? String(doc.roadmapRef) : undefined,
     phaseRef: doc.phaseRef ? String(doc.phaseRef) : undefined,
     milestoneRef: doc.milestoneRef ? String(doc.milestoneRef) : undefined,
-    workspaceContext: doc.workspaceContext || 'personal',
+    workspaceContext: doc.workspaceContext || 'work',
   };
 }
 

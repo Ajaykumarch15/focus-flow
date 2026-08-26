@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 import { clearTimer, clearTodayMs } from '../utils/timerPersist';
 import { timerEngine } from '../utils/timerEngine';
+import { useWorkspaceStore } from './useWorkspaceStore';
 
 interface AuthUser {
   _id:      string;
@@ -70,6 +71,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('ff_worklog_cache');
     localStorage.removeItem('ff_habit_cache');
     localStorage.removeItem('ff_habit_timer');
+    localStorage.removeItem('ff-workspace');
     clearTodayMs();
     clearTimer();
     timerEngine.hydrate(null);
@@ -79,7 +81,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   restoreSession: async () => {
     try {
       const { user } = await api.auth.me();
-      set({ user, loading: false });
+      const persisted = useWorkspaceStore.getState().activeWorkspace;
+      set({ user, loading: false, workspace: persisted });
     } catch {
       clearTimer();
       timerEngine.hydrate(null);

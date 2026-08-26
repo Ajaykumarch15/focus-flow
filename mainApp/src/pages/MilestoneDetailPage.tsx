@@ -16,6 +16,7 @@ import { toast } from '../store/useToastStore';
 import type { RoadmapTaskSummary, RoadmapMilestoneStatus } from '../types/roadmap';
 import { safeProgress } from '../utils/roadmapProgress';
 import { nextMilestoneStatuses } from '../utils/roadmapLifecycle';
+import { getScheduledState, formatScheduledDate, scheduledStateColor } from '../utils/personalTaskSchedule';
 
 const PRIORITY_COLORS: Record<string, string> = {
   critical: 'text-red-400',
@@ -355,6 +356,11 @@ export function MilestoneDetailPage() {
                           {task.deadline && (
                             <span className="text-[11px] text-surface-500 flex items-center gap-1">
                               <Clock size={10} />{new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
+                          )}
+                          {'scheduledDate' in task && (task as any).scheduledDate && (
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${scheduledStateColor(getScheduledState(task as any))}`}>
+                              {formatScheduledDate((task as any).scheduledDate)}
                             </span>
                           )}
                         </div>

@@ -16,6 +16,7 @@ import { Select } from '../components/ui/Select';
 import { Field } from '../components/ui/Field';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { BackupRestoreSection } from '../components/settings/BackupRestoreSection';
 
 const LOCAL_CACHE_KEYS = [
   'focusflow-storage', 'ff_profile_cache', 'ff_theme_cache',
@@ -355,17 +356,23 @@ export function Settings() {
             </Section>
 
             {/* ─── Data & Storage ─── */}
-            <Section id="data" icon={Database} iconBg="bg-rose-500/10" iconColor="text-rose-500 dark:text-rose-400" title="Data & Storage" desc="Manage your local data">
-              <div className="space-y-3">
-                <p className="text-xs text-surface-400">FocusFlow syncs data with the server and caches locally for speed. Clear the cache if the app looks stale.</p>
-                <Button variant="secondary" onClick={() => {
-                  if (confirm('Clear local cache? Server data will remain safe.')) {
-                    LOCAL_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
-                    flashSaved();
-                  }
-                }}>
-                  Clear Local Cache
-                </Button>
+            <Section id="data" icon={Database} iconBg="bg-rose-500/10" iconColor="text-rose-500 dark:text-rose-400" title="Data & Storage" desc="Manage your data and backups">
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <p className="text-xs text-surface-400">FocusFlow syncs data with the server and caches locally for speed. Clear the cache if the app looks stale.</p>
+                  <Button variant="secondary" onClick={() => {
+                    if (confirm('Clear local cache? Server data will remain safe.')) {
+                      LOCAL_CACHE_KEYS.forEach(k => localStorage.removeItem(k));
+                      flashSaved();
+                    }
+                  }}>
+                    Clear Local Cache
+                  </Button>
+                </div>
+
+                <div className="border-t border-surface-800 pt-5">
+                  <BackupRestoreSection />
+                </div>
               </div>
             </Section>
 

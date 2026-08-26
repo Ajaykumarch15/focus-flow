@@ -5,6 +5,7 @@ import { Task } from '../../types';
 import { useStore } from '../../store/useStore';
 import { useActiveTimer } from '../../hooks/useActiveTimer';
 import { formatHours, getDeadlineStatus } from '../../utils/time';
+import { getScheduledState, formatScheduledDate } from '../../utils/personalTaskSchedule';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -12,14 +13,27 @@ import { ConfirmDialog } from '../ui/ConfirmDialog';
 
 interface TaskCardProps {
   task: Task;
-  compact?: boolean;
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
   dragHandleProps?: Record<string, any>;
+  detailPath?: string;
+  onStartTimer?: (taskId: string, baseMs?: number) => Promise<void>;
+  onPauseTimer?: (taskId: string) => void;
+  onResumeTimer?: (taskId: string) => void;
+  onStopTimer?: (taskId: string) => Promise<void>;
+  onCompleteTask?: (taskId: string) => Promise<void>;
+  onDeleteTask?: (taskId: string) => Promise<void>;
+  onClickCard?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, compact: _compact, selected = false, onToggleSelect, dragHandleProps }: TaskCardProps) {
-  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, deleteTask } = useStore();
+export function TaskCard({ task, selected = false, onToggleSelect, dragHandleProps, detailPath, onStartTimer, onPauseTimer, onResumeTimer, onStopTimer, onCompleteTask, onDeleteTask, onClickCard }: TaskCardProps) {
+  const store = useStore();
+  const _startTimer   = onStartTimer   ?? store.startTimer;
+  const _pauseTimer   = onPauseTimer   ?? store.pauseTimer;
+  const _resumeTimer  = onResumeTimer  ?? store.resumeTimer;
+  const _stopTimer    = onStopTimer    ?? store.stopTimer;
+  const _completeTask = onCompleteTask ?? store.completeTask;
+  const _deleteTask   = onDeleteTask   ?? store.deleteTask;
   const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
   const navigate = useNavigate();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -46,27 +60,28 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
 
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [data-no-nav]')) return;
-    navigate(`/tasks/${task.id}`);
+    if (onClickCard) onClickCard(task.id);
+    else navigate(detailPath ?? `/tasks/${task.id}`);
   };
 
   const handleTimerAction = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isRunning) await pauseTimer(task.id);
-    else if (isPaused) await resumeTimer(task.id);
+    if (isRunning) await _pauseTimer(task.id);
+    else if (isPaused) await _resumeTimer(task.id);
     else {
       const baseMs = task.totalTime || 0;
-      await startTimer(task.id, baseMs);
+      await _startTimer(task.id, baseMs);
     }
   };
 
   const handleStopTimer = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    await stopTimer(task.id);
+    await _stopTimer(task.id);
   };
 
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (task.status !== 'completed') await completeTask(task.id);
+    if (task.status !== 'completed') await _completeTask(task.id);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -75,7 +90,7 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
   };
 
   const confirmDelete = async () => {
-    await deleteTask(task.id);
+    await _deleteTask(task.id);
     setShowConfirmDelete(false);
   };
 
@@ -95,7 +110,8 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
         onKeyDown={(e: React.KeyboardEvent) => {
           if ((e.key === 'Enter' || e.key === ' ') && !(e.target as HTMLElement).closest('button, input, [data-no-nav]')) {
             e.preventDefault();
-            navigate(`/tasks/${task.id}`);
+            if (onClickCard) onClickCard(task.id);
+            else navigate(detailPath ?? `/tasks/${task.id}`);
           }
         }}
         className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden
@@ -191,6 +207,12 @@ export function TaskCard({ task, compact: _compact, selected = false, onToggleSe
                 <Badge tone={deadlineInfo.status === 'overdue' ? 'danger' : deadlineInfo.status === 'due-today' ? 'warning' : 'neutral'}>
                   <Calendar size={10} />
                   {deadlineInfo.label}
+                </Badge>
+              )}
+              {task.scheduledDate && (
+                <Badge tone={getScheduledState(task) === 'missed' ? 'danger' : 'info'}>
+                  <Calendar size={10} />
+                  {formatScheduledDate(task.scheduledDate)}
                 </Badge>
               )}
               <span className="text-[10px] text-surface-500 flex items-center gap-1">
