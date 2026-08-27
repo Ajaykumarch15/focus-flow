@@ -46,9 +46,9 @@ const SETTINGS_NAV = [
 
 function NavItem({ to, icon: Icon, label, collapsed, end }: { to: string; icon: any; label: string; collapsed: boolean; end?: boolean }) {
   return (
-    <NavLink key={to} to={to} end={end}
+    <NavLink key={to} to={to} end={end} aria-label={label} title={collapsed ? label : undefined}
       className={({ isActive }) =>
-        `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200
+        `group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500
         ${isActive ? 'text-brand-500 dark:text-brand-400 font-semibold' : 'text-surface-300 hover:text-surface-50 hover:bg-surface-850'}`
       }
     >
@@ -77,10 +77,10 @@ function SectionLabel({ collapsed, children }: { collapsed: boolean; children: R
   return (
     <AnimatePresence>
       {!collapsed && (
-        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-surface-500">
-          {children}
-        </motion.p>
+      <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+        {children}
+      </motion.h2>
       )}
     </AnimatePresence>
   );
@@ -127,7 +127,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto no-scrollbar">
+      <nav aria-label="Primary" className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto no-scrollbar">
         {workspace === 'personal' ? (
           <>
             <SectionLabel collapsed={collapsed}>Personal</SectionLabel>
@@ -159,8 +159,9 @@ export function Sidebar() {
         {user?.role === 'admin' && (
           <>
             <div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            <button onClick={() => { setWorkspace('admin'); navigate('/admin/audit'); }}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative text-surface-400 hover:text-purple-400 hover:bg-purple-500/5 w-full`}>
+              <button onClick={() => { setWorkspace('admin'); navigate('/admin/audit'); }}
+                aria-label="Admin Console" title="Admin Console"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative text-surface-400 hover:text-purple-400 hover:bg-purple-500/5 w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500`}>
               <ShieldCheck size={18} className="flex-shrink-0" />
               <AnimatePresence>
                 {!collapsed && (
@@ -183,7 +184,7 @@ export function Sidebar() {
         <div className="px-2 py-2 border-t border-surface-800 bg-surface-950/80">
           <button
             type="button"
-            onClick={() => navigate(`/focus`)}
+            onClick={() => navigate(workspace === 'personal' ? '/personal/today' : '/focus')}
             title={activeTask ? `Active Task: ${activeTask.title}` : 'Active Timer'}
             aria-label={`Active timer for ${activeTask?.title || 'task'}: ${activeDisplay}, status ${activeTimerState}`}
             className={`w-full flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${

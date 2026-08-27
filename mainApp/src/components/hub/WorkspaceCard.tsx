@@ -42,7 +42,7 @@ export interface WorkspaceCardProps {
   accent: HubAccent;
   badges: string[];
   title: string;
-  image: { light: string; dark: string };
+  image: { light: string; dark: string; lightSrcSet?: string; darkSrcSet?: string };
   chips: HubChip[];
   actionLabel: string;
   onAction: () => void;
@@ -82,6 +82,8 @@ export function WorkspaceCard({
       {/* Full-bleed background image */}
       <img
         src={isDark ? image.dark : image.light}
+        srcSet={isDark ? image.darkSrcSet : image.lightSrcSet}
+        sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
         alt=""
         aria-hidden="true"
         loading="lazy"

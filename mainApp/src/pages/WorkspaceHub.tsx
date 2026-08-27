@@ -12,6 +12,14 @@ import { Badge } from '../components/ui/Badge';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { WorkspaceCard } from '../components/hub/WorkspaceCard';
 
+// Build a responsive srcSet from the resized WebP variants generated for each
+// card image (see gen_card_images.cjs). Browsers pick the best width for the
+// rendered size, avoiding upscaling on the large 2-column Team card.
+const cardSrcSet = (file: string) => {
+  const base = file.slice(0, file.lastIndexOf('.'));
+  return `${base}-640w.webp 640w, ${base}-1280w.webp 1280w`;
+};
+
 const containerVariants = {
   hidden: { opacity: 0 },
   show: {
@@ -121,7 +129,12 @@ export function WorkspaceHub() {
             badges={['Private', 'Personal']}
             title="Personal Workspace"
             // description="Your private productivity intelligence — overview, roadmaps, analytics, and ML-powered insights."
-            image={{ light: '/personal_workspace_hub_light.jpg', dark: '/personal_workspace_hub_light.jpg' }}
+            image={{
+              light: '/personal_workspace_hub_light.jpg',
+              dark: '/personal_workspace_hub_light.jpg',
+              lightSrcSet: cardSrcSet('/personal_workspace_hub_light.jpg'),
+              darkSrcSet: cardSrcSet('/personal_workspace_hub_light.jpg'),
+            }}
             chips={[
               { icon: <Flame size={14} className="text-emerald-400" />, label: 'Intelligence' },
               { icon: <CheckCircle2 size={14} className="text-cyan-400" />, label: 'Roadmaps & Analytics' },
@@ -136,7 +149,12 @@ export function WorkspaceHub() {
             badges={['Work', 'Logging']}
             title="WorkLog"
             // description="Work logs, tasks, schedule, focus timer, journal, habits, reports, and daily insights."
-            image={{ light: '/girl_with_laptop.png', dark: '/girl_with_laptop.png' }}
+            image={{
+              light: '/girl_with_laptop.png',
+              dark: '/girl_with_laptop.png',
+              lightSrcSet: cardSrcSet('/girl_with_laptop.png'),
+              darkSrcSet: cardSrcSet('/girl_with_laptop.png'),
+            }}
             chips={[
               { icon: <BookMarked size={14} className="text-cyan-400" />, label: 'Work Logs' },
               { icon: <CheckCircle2 size={14} className="text-sky-400" />, label: 'Tasks & Focus' },
@@ -152,7 +170,12 @@ export function WorkspaceHub() {
             badges={['Team', 'Engineering']}
             title="Team Collaboration"
             // description="Shared engineering workspaces — projects, sprints, members, QA dashboards, and real-time collaboration."
-            image={{ light: '/team_photo.png', dark: '/team_photo.png' }}
+            image={{
+              light: '/team_photo.png',
+              dark: '/team_photo.png',
+              lightSrcSet: cardSrcSet('/team_photo.png'),
+              darkSrcSet: cardSrcSet('/team_photo.png'),
+            }}
             chips={[
               { icon: <GitBranch size={14} className="text-blue-400" />, label: `${workspaces.length} Workspace${workspaces.length !== 1 ? 's' : ''}` },
               { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },
@@ -165,7 +188,7 @@ export function WorkspaceHub() {
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-xs text-surface-500 z-10 relative pt-4 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full">
+        <footer className="text-center text-xs text-surface-400 z-10 relative pt-4 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full">
         FocusFlow Developer Workspace Platform · Personal & Team Collaboration Engine
       </footer>
 

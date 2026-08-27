@@ -156,7 +156,7 @@ export function GlobalHeader() {
                 className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-surface-800 bg-surface-900 shadow-2xl overflow-hidden z-50">
                 <div className="px-3 py-2.5 border-b border-surface-800">
                   <p className="text-sm font-medium text-surface-100 truncate">{user?.name}</p>
-                  <p className="text-[11px] text-surface-500 truncate">{user?.email}</p>
+                  <p className="text-[11px] text-surface-400 truncate">{user?.email}</p>
                 </div>
                 <div className="p-1">
                   <button onClick={() => { setMenuOpen(false); navigate('/settings'); }}
