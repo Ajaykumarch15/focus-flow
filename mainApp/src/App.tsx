@@ -136,7 +136,13 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      loadAll();
+      loadAll().then(() => {
+        // Rehydrate a personal workspace session after the work store's loadAll so a
+        // running personal timer survives a refresh and isn't reaped by the server.
+        import('./store/usePersonalTaskStore').then((m) =>
+          m.usePersonalTaskStore.getState().rehydratePersonalTimer(),
+        );
+      });
     } else if (!loading) {
       clearTimer();
     }

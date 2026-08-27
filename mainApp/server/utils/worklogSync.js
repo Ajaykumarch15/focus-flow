@@ -17,6 +17,7 @@
 
 const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
+const Task = require('../models/Task');
 const core = require('./worklogSyncCore');
 
 /**
@@ -79,9 +80,35 @@ async function syncWorkLogsBulk(logs, userId, { timeZone = 'UTC', now = Date.now
  * Session-stop single writer: recompute and persist every worklog linked to the
  * task (taskRef). Unlinked logs are deliberately left untouched — the client
  * only wires timer time to a log via taskRef.
+ *
+ * Bug fix: if the task has NO linked WorkLog, auto-create one so the stopped
+ * session's time is captured instead of being silently dropped (IES-P1-02:
+ * session-stop is the single writer for linked worklogs). Personal sessions are a
+ * separate model and are intentionally never written here.
  */
 async function syncTaskWorkLogs(userId, taskId, { timeZone = 'UTC', now = Date.now() } = {}) {
-  const logs = await WorkLog.find({ userId, taskRef: taskId });
+  let logs = await WorkLog.find({ userId, taskRef: taskId });
+
+  if (logs.length === 0) {
+    try {
+      const task = await Task.findById(taskId);
+      if (task) {
+        const created = await WorkLog.create({
+          userId,
+          title: task.title ? `Work on ${task.title}` : 'Work session',
+          taskRef: taskId,
+          isActive: true,
+          status: 'in-progress',
+          totalActiveMs: 0,
+          workEntries: [],
+        });
+        logs = [created];
+      }
+    } catch (err) {
+      // Best-effort: a log-create failure must not fail the session stop.
+    }
+  }
+
   for (const log of logs) {
     await syncWorkLog(log, userId, { timeZone, now, persist: true });
   }

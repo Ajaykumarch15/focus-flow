@@ -15,6 +15,10 @@ import { clearTimer, loadTimer, saveTimer, PersistedTimer, addCompletedSession }
 
 export type TimerFSMState = 'idle' | 'running' | 'paused';
 export type TimerAction = 'start' | 'pause' | 'resume' | 'stop';
+// Which backend a running session belongs to. The single engine is shared by the
+// work store (`api.sessions`) and the personal store (`api.personalSessions`);
+// routing start/stop/pause/resume to the right endpoint depends on this.
+export type TimerSessionKind = 'work' | 'personal';
 
 export interface TimerStateSnapshot {
   taskId: string | null;
@@ -24,6 +28,7 @@ export interface TimerStateSnapshot {
   totalPauseDuration: number;
   pauseStart?: number;
   baseElapsedMs: number;
+  sessionKind: TimerSessionKind | null;
   lastUpdated: number;
 }
 
@@ -37,6 +42,7 @@ class TimerEngine {
   private totalPauseDuration: number = 0;
   private pauseStart?: number;
   private baseElapsedMs: number = 0;
+  private sessionKind: TimerSessionKind | null = null;
 
   private isOperating: boolean = false;
   private tickInterval: number | null = null;
@@ -61,6 +67,7 @@ class TimerEngine {
       totalPauseDuration: this.totalPauseDuration,
       pauseStart: this.pauseStart,
       baseElapsedMs: this.baseElapsedMs,
+      sessionKind: this.sessionKind,
       lastUpdated: Date.now(),
     };
   }
@@ -75,6 +82,10 @@ class TimerEngine {
 
   public getActiveSessionId(): string | null {
     return this.sessionId;
+  }
+
+  public getSessionKind(): TimerSessionKind | null {
+    return this.sessionKind;
   }
 
   public isBusy(): boolean {
@@ -161,7 +172,7 @@ class TimerEngine {
   /**
    * Start Timer (Transition: Idle | Running(other) -> Running)
    */
-  public async start(taskId: string, existingSessionId?: string, startTime?: number, baseElapsedMs?: number): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+  public async start(taskId: string, existingSessionId?: string, startTime?: number, baseElapsedMs?: number, kind?: TimerSessionKind): Promise<{ success: boolean; sessionId?: string; error?: string }> {
     const check = this.canTransitionTo('start', taskId);
     if (!check.allowed && this.timerState === 'running' && this.taskId === taskId) {
       // Re-entrant start call for the exact same running task -> no-op success
@@ -184,10 +195,11 @@ class TimerEngine {
       this.totalPauseDuration = 0;
       this.pauseStart = undefined;
       this.baseElapsedMs = Math.max(0, baseElapsedMs || 0);
+      this.sessionKind = kind ?? null;
 
       this.persist();
       this.startTicker();
-      this.broadcast('START', { taskId, sessionId: this.sessionId, startTime: now, baseElapsedMs: this.baseElapsedMs });
+      this.broadcast('START', { taskId, sessionId: this.sessionId, startTime: now, baseElapsedMs: this.baseElapsedMs, kind: this.sessionKind });
       this.notifyListeners();
 
       return { success: true, sessionId: this.sessionId ?? undefined };
@@ -308,6 +320,7 @@ class TimerEngine {
       this.totalPauseDuration = 0;
       this.pauseStart = undefined;
       this.baseElapsedMs = 0;
+      this.sessionKind = null;
 
       this.stopTicker();
       clearTimer();
@@ -333,6 +346,7 @@ class TimerEngine {
         this.totalPauseDuration = 0;
         this.pauseStart = undefined;
         this.baseElapsedMs = 0;
+        this.sessionKind = null;
         this.stopTicker();
         this.notifyListeners();
       }
@@ -346,6 +360,7 @@ class TimerEngine {
     this.totalPauseDuration = persisted.totalPauseDuration || 0;
     this.pauseStart = persisted.pauseStart;
     this.baseElapsedMs = persisted.baseElapsedMs || 0;
+    this.sessionKind = persisted.sessionKind ?? null;
 
     if (this.timerState === 'running') {
       this.startTicker();
@@ -456,6 +471,7 @@ class TimerEngine {
           this.totalPauseDuration = 0;
           this.pauseStart = undefined;
           this.baseElapsedMs = payload.baseElapsedMs || 0;
+          this.sessionKind = payload.kind ?? null;
           this.startTicker();
           this.notifyListeners();
         }
@@ -490,6 +506,7 @@ class TimerEngine {
           this.totalPauseDuration = 0;
           this.pauseStart = undefined;
           this.baseElapsedMs = 0;
+          this.sessionKind = null;
           this.stopTicker();
           this.notifyListeners();
         }
@@ -513,6 +530,7 @@ class TimerEngine {
       totalPauseDuration: this.totalPauseDuration,
       pauseStart: this.pauseStart,
       baseElapsedMs: this.baseElapsedMs,
+      sessionKind: this.sessionKind ?? undefined,
     });
   }
 

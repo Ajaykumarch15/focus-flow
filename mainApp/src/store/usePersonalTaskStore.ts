@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 import { timerEngine } from '../utils/timerEngine';
 import { offlineQueue, createOpId } from '../utils/offlineQueue';
+import { startTimerHeartbeat, stopTimerHeartbeat } from '../utils/timerHeartbeat';
 import type { Task, Priority, Subtask } from '../types';
 import { toast } from './useToastStore';
 
@@ -47,27 +48,9 @@ function mapTask(doc: any): Task {
 }
 
 // ── Heartbeat ─────────────────────────────────────────────────────────────────
-const HEARTBEAT_INTERVAL_MS = 30_000;
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-
-function startHeartbeat(sessionId: string, onStale?: () => void): void {
-  stopHeartbeat();
-  heartbeatTimer = setInterval(() => {
-    api.personalSessions.heartbeat(sessionId).catch((err: any) => {
-      if (err?.message?.includes('404') || err?.message?.includes('not found')) {
-        stopHeartbeat();
-        onStale?.();
-      }
-    });
-  }, HEARTBEAT_INTERVAL_MS);
-}
-
-function stopHeartbeat(): void {
-  if (heartbeatTimer !== null) {
-    clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
-  }
-}
+// Heartbeat start/stop lives in utils/timerHeartbeat (kind-aware): the shared
+// `startTimerHeartbeat` pings api.personalSessions for personal sessions and
+// api.sessions for work sessions, using a single interval.
 
 // ── Store Shape ───────────────────────────────────────────────────────────────
 interface PersonalTaskState {
@@ -100,6 +83,11 @@ interface PersonalTaskState {
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
 
   getTask: (id: string) => Task | undefined;
+
+  // Rehydrate a running/paused personal session from the backend on app boot so a
+  // personal timer survives a refresh (the engine restores from localStorage, but
+  // it needs its heartbeat restarted or the server reaper closes it as a zombie).
+  rehydratePersonalTimer: () => Promise<void>;
 }
 
 export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
@@ -246,11 +234,12 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
 
     const currentTaskId = timerEngine.getSnapshot().taskId;
     if (currentTaskId && currentTaskId !== taskId) {
-      await get().stopTimer(currentTaskId);
+      const { stopActiveTimerForSwitch } = await import('../utils/activeTimerRouter');
+      await stopActiveTimerForSwitch();
     }
 
     const resumeFromMs = baseMs ?? (get().tasks.find((t) => t.id === taskId)?.totalTime ?? 0);
-    const res = await timerEngine.start(taskId, undefined, now, resumeFromMs);
+    const res = await timerEngine.start(taskId, undefined, now, resumeFromMs, 'personal');
     if (!res.success) {
       if (res.error) toast.error('Timer Error', res.error);
       return;
@@ -263,12 +252,12 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     try {
       const sessionDoc = await api.personalSessions.start(taskId, now, opId);
       timerEngine.setSessionId(sessionDoc._id);
-      startHeartbeat(sessionDoc._id, () => {
+      startTimerHeartbeat(() => {
         timerEngine.hydrate(null);
       });
     } catch {
       console.warn('Network issue on session start. Enqueuing offline op.');
-      offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId);
+        offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId, 'personal');
     }
   },
 
@@ -289,7 +278,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
 
     if (sessionId) {
       api.personalSessions.pause(sessionId, now, opId).catch(() => {
-        offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now }, opId);
+          offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now }, opId, 'personal');
       });
     }
   },
@@ -311,7 +300,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
 
     if (sessionId) {
       api.personalSessions.resume(sessionId, now, opId).catch(() => {
-        offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now }, opId);
+          offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now }, opId, 'personal');
       });
     }
   },
@@ -334,11 +323,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     if (sessionId) {
       try {
         await api.personalSessions.stop(sessionId, now, opId);
-        stopHeartbeat();
+        stopTimerHeartbeat();
         await get().fetchTasks();
       } catch {
         console.warn('Network issue on session stop. Enqueuing offline op.');
-        offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId);
+          offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId, 'personal');
       }
     }
   },
@@ -373,4 +362,36 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   getTask: (id) => get().tasks.find((t) => t.id === id),
+
+  rehydratePersonalTimer: async () => {
+    // If the engine already holds a session (restored from localStorage, or a work
+    // session rehydrated by useStore.loadAll), don't clobber it. Just make sure a
+    // restored personal session has its heartbeat running.
+    if (timerEngine.getState() !== 'idle') {
+      if (timerEngine.getSessionKind() === 'personal' && timerEngine.getActiveSessionId()) {
+        startTimerHeartbeat(() => timerEngine.hydrate(null));
+      }
+      return;
+    }
+    try {
+      const sessions = await api.personalSessions.list({ active: true });
+      const active = (sessions || []).find((s: any) => s.isActive);
+      if (!active) return;
+      const openPause = [...(active.pauseLog || [])].reverse()
+        .find((p: any) => p?.pauseStart && !p?.resumeTime);
+      timerEngine.hydrate({
+        taskId: String(active.personalTaskId ?? active.taskId),
+        sessionId: String(active._id),
+        timerState: openPause ? 'paused' : 'running',
+        sessionStartTime: active.startTime,
+        totalPauseDuration: active.totalPauseDuration || 0,
+        pauseStart: openPause?.pauseStart,
+        baseElapsedMs: 0,
+        sessionKind: 'personal',
+      });
+      startTimerHeartbeat(() => timerEngine.hydrate(null));
+    } catch {
+      // Offline: engine keeps whatever localStorage restored on construction.
+    }
+  },
 }));
