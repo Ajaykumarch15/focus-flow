@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { api } from '../utils/api';
 import { clearTimer, clearTodayMs } from '../utils/timerPersist';
 import { timerEngine } from '../utils/timerEngine';
-import { useWorkspaceStore } from './useWorkspaceStore';
+import { deriveWorkspaceFromPath } from '../utils/workspaceRouting';
 
 interface AuthUser {
   _id:      string;
@@ -81,8 +81,11 @@ export const useAuthStore = create<AuthState>((set) => ({
   restoreSession: async () => {
     try {
       const { user } = await api.auth.me();
-      const persisted = useWorkspaceStore.getState().activeWorkspace;
-      set({ user, loading: false, workspace: persisted });
+      // Workspace context is owned by the current route (see <WorkspaceSync/>), not
+      // the persisted useWorkspaceStore value — derive it so a refresh on a card-based
+      // or admin route never snaps back to the stale 'personal' default.
+      const initialWorkspace = deriveWorkspaceFromPath(window.location.pathname);
+      set({ user, loading: false, workspace: initialWorkspace });
     } catch {
       clearTimer();
       timerEngine.hydrate(null);

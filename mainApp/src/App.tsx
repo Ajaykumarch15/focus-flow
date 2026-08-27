@@ -1,8 +1,10 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { useAuthStore }    from './store/useAuthStore';
 import { useStore }        from './store/useStore';
+import { useWorkspaceStore } from './store/useWorkspaceStore';
+import { deriveWorkspaceFromPath } from './utils/workspaceRouting';
 import { clearTimer }      from './utils/timerPersist';
 import { ErrorBoundary }  from './components/ui/ErrorBoundary';
 
@@ -121,6 +123,25 @@ function PersonalWorkspaceRouter() {
   return <AppLayout />;
 }
 
+/**
+ * Syncs the active workspace context to the current URL. The sidebar branches on
+ * `useAuthStore.workspace`; deriving it from the route keeps the nav consistent
+ * with the page the user is on and — because BrowserRouter preserves the URL —
+ * makes the choice survive a refresh (it's also persisted to `ff-workspace`).
+ */
+function WorkspaceSync() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const ws = deriveWorkspaceFromPath(pathname);
+    // useWorkspaceStore's WorkspaceType omits 'admin' (admin uses its own layout);
+    // persist it as 'collab' there, but keep the full value on useAuthStore which
+    // drives the sidebar/admin routing.
+    useWorkspaceStore.getState().setWorkspace(ws === 'admin' ? 'collab' : ws);
+    useAuthStore.getState().setWorkspace(ws);
+  }, [pathname]);
+  return null;
+}
+
 export default function App() {
   const { user, loading, restoreSession } = useAuthStore();
   const { loadAll }                              = useStore();
@@ -136,13 +157,15 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      loadAll().then(() => {
-        // Rehydrate a personal workspace session after the work store's loadAll so a
-        // running personal timer survives a refresh and isn't reaped by the server.
+      // Rehydrate a personal workspace session on refresh so a running personal
+      // timer survives and isn't reaped by the server. It must run even if
+      // loadAll() fails (profile/tasks error), so rehydrate on settle, not only
+      // on resolve.
+      const rehydrate = () =>
         import('./store/usePersonalTaskStore').then((m) =>
           m.usePersonalTaskStore.getState().rehydratePersonalTimer(),
         );
-      });
+      loadAll().then(rehydrate, rehydrate);
     } else if (!loading) {
       clearTimer();
     }
@@ -151,6 +174,7 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <BrowserRouter>
+        <WorkspaceSync />
         <Suspense fallback={<RouteFallback />}>
           <ErrorBoundary fallback={<ChunkLoadFallback />}>
             <Routes>

@@ -321,7 +321,7 @@ export const useStore = create<StoreState>((set, get) => {
           // refresh or re-login never resets today's progress to zero.
           rebuildDayCache(allSessions);
 
-          if (match) {
+          if (match && localTimer?.sessionKind !== 'personal') {
             const pauseStart = getOpenPauseStart(match);
             const isPaused = baseTasks.find(t => t.id === docId(match.taskId))?.status === 'paused' || Boolean(pauseStart);
             const matchedTask = baseTasks.find(t => t.id === docId(match.taskId));
@@ -334,9 +334,16 @@ export const useStore = create<StoreState>((set, get) => {
               totalPauseDuration: match.totalPauseDuration || 0,
               pauseStart,
               baseElapsedMs: matchedTask?.totalTime ?? 0,
+              sessionKind: 'work',
             });
           } else if (localTimer) {
-            // Validate local snapshot if backend didn't return an active session
+            // A locally-persisted PERSONAL timer lives in a separate store from
+            // work sessions, so it takes precedence over a backend work session.
+            // Surface the conflict so the orphaned work session isn't silently lost
+            // (the server reaper will close it once its heartbeat stops).
+            if (match) {
+              toast.warning('Personal timer restored', 'A work session was still open on the server and will be closed.');
+            }
             timerEngine.hydrate(localTimer);
           } else {
             timerEngine.hydrate(null);
