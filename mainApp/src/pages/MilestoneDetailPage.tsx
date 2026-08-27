@@ -6,7 +6,7 @@ import {
   Pencil, Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
-import { useStore } from '../store/useStore';
+import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { api } from '../utils/api';
 import { Dialog } from '../components/ui/Dialog';
 import { Input } from '../components/ui/Input';
@@ -42,7 +42,7 @@ export function MilestoneDetailPage() {
   const { id, phaseId, milestoneId } = useParams<{ id: string; phaseId: string; milestoneId: string }>();
   const navigate = useNavigate();
   const { activeRoadmap, detailLoading, getRoadmap, linkTask, unlinkTask } = useRoadmapStore();
-  const { completeTask, deleteTask } = useStore();
+  const { completeTask, deleteTask } = usePersonalTaskStore();
 
   // Milestone edit state
   const [editOpen, setEditOpen] = useState(false);
@@ -154,7 +154,7 @@ export function MilestoneDetailPage() {
     if (!taskForm.title.trim() || !milestoneId || !id || !phaseId) return;
     setCreatingTask(true);
     try {
-      await api.tasks.create({
+      await api.personalTasks.create({
         title: taskForm.title.trim(),
         description: taskForm.description.trim(),
         priority: taskForm.priority,
@@ -162,9 +162,9 @@ export function MilestoneDetailPage() {
         category: 'Work',
         tags: [],
         subtasks: [],
-        roadmapRef: id,
-        phaseRef: phaseId,
-        milestoneRef: milestoneId,
+        personalRoadmapRef: id,
+        personalPhaseRef: phaseId,
+        personalMilestoneRef: milestoneId,
       });
       toast.success('Task created');
       setAddTaskOpen(false);
@@ -254,7 +254,7 @@ export function MilestoneDetailPage() {
   // ── Loading / Error ──
   if (detailLoading || !milestone) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-3">
         <div className="h-4 w-64 bg-surface-800 rounded animate-pulse" />
         <div className="h-6 w-48 bg-surface-800 rounded animate-pulse" />
         <div className="space-y-2">
@@ -321,7 +321,7 @@ export function MilestoneDetailPage() {
         </div>
 
         {tasks.length === 0 ? (
-          <div className="text-center py-8">
+          <div className="text-center py-5">
             <CheckCircle2 className="mx-auto mb-2 text-surface-600" size={24} />
             <p className="text-sm text-surface-400 font-medium">No tasks yet</p>
             <p className="text-xs text-surface-500 mt-1 mb-3">Break this milestone into actionable tasks.</p>
@@ -410,7 +410,6 @@ export function MilestoneDetailPage() {
           </div>
         )}
       </motion.div>
-
       {/* Edit Milestone Modal */}
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit Milestone" size="sm"
         footer={<>
@@ -450,7 +449,6 @@ export function MilestoneDetailPage() {
           </div>
         </div>
       </Dialog>
-
       {/* Delete Milestone Confirm */}
       <Dialog open={delMilestone} onClose={() => setDelMilestone(false)} title="Delete Milestone" size="sm"
         footer={<>
@@ -463,7 +461,6 @@ export function MilestoneDetailPage() {
         <p className="text-sm text-surface-300">This will permanently remove <span className="font-semibold text-surface-100">"{milestone.title}"</span> and unlink associated tasks.</p>
         <p className="text-xs text-surface-500 mt-2">This action cannot be undone.</p>
       </Dialog>
-
       {/* Add Task Modal */}
       <Dialog open={addTaskOpen} onClose={() => setAddTaskOpen(false)} title="Add Task" size="sm"
         footer={<>
@@ -491,7 +488,7 @@ export function MilestoneDetailPage() {
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="urgent">Urgent</option>
             </select>
           </div>
         </div>
@@ -526,7 +523,6 @@ export function MilestoneDetailPage() {
           </div>
         )}
       </Dialog>
-
       {/* Move Task Modal */}
       <Dialog open={!!moveTarget} onClose={() => setMoveTarget(null)} title={`Move "${moveTarget?.title ?? ''}"`} size="sm"
         footer={
@@ -581,7 +577,6 @@ export function MilestoneDetailPage() {
         </p>
         <p className="text-xs text-surface-500 mt-2">This action cannot be undone. Milestone progress will update.</p>
       </Dialog>
-
     </div>
   );
 }

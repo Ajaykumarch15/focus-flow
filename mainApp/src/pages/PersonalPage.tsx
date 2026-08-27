@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { IntelligenceDashboard } from '../components/schedule/IntelligenceDashboard';
 import { Card, CardBody, CardHeader, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
@@ -17,13 +18,15 @@ import { useScheduleStore, getTodayDateString } from '../store/useScheduleStore'
 
 export function PersonalPage() {
   const navigate = useNavigate();
-  const { tasks, profile, loadAll } = useStore();
+  const { profile, loadAll } = useStore();
+  const { tasks, fetchTasks } = usePersonalTaskStore();
   const { schedules, fetchSchedules } = useScheduleStore();
   const { activeTaskId: activeId } = useActiveTimer();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void loadAll();
+    void fetchTasks();
     void fetchSchedules({ date: getTodayDateString() });
     const t = setTimeout(() => setLoading(false), 800);
     return () => clearTimeout(t);
