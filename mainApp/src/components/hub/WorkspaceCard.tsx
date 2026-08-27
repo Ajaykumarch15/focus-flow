@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import { useStore } from '../../store/useStore';
@@ -42,7 +42,6 @@ export interface WorkspaceCardProps {
   accent: HubAccent;
   badges: string[];
   title: string;
-  description?: string;
   image: { light: string; dark: string };
   chips: HubChip[];
   actionLabel: string;
@@ -55,7 +54,6 @@ export function WorkspaceCard({
   accent,
   badges,
   title,
-  //description,
   image,
   chips,
   actionLabel,
@@ -65,8 +63,12 @@ export function WorkspaceCard({
 }: WorkspaceCardProps) {
   const theme = useStore(s => s.theme);
   const isDark = theme.mode === 'dark';
-  const reduceMotion =
-    theme.reducedMotion || window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Reactive once on mount; theme.reducedMotion already covers the app-level flag.
+  const prefersReducedMotion = useMemo(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  );
+  const reduceMotion = theme.reducedMotion || prefersReducedMotion;
   const a = ACCENTS[accent];
 
   return (
@@ -129,9 +131,6 @@ export function WorkspaceCard({
           <h3 className="font-display text-2xl font-extrabold leading-tight tracking-tight text-white [text-shadow:0_1px_12px_rgba(0,0,0,0.35)]">
             {title}
           </h3>
-         {/*           {description && (
-            <p className="mt-2 max-w-[38ch] text-[13px] leading-relaxed text-white/75">{description}</p>
-          )}*/}
 
           {/* Supporting information */}
           <div className="mt-4 flex flex-wrap items-center gap-2">

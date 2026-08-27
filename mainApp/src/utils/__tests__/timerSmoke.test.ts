@@ -131,4 +131,21 @@ describe('timer smoke · work/personal split', () => {
     stopTimerHeartbeat();
     vi.useRealTimers();
   });
+
+  it('keeps the active-timer UI state in sync across work → personal → work', async () => {
+    // useActiveTimer() surfaces the engine snapshot; switching workspaces must
+    // flip it so the global timer pill follows the running session.
+    await useStore.getState().startTimer('work-1');
+    expect(timerEngine.getActiveTaskId()).toBe('work-1');
+    expect(timerEngine.getState()).toBe('running');
+
+    await usePersonalTaskStore.getState().startTimer('personal-1');
+    // Personal engine now owns the active session the pill reads.
+    expect(timerEngine.getSessionKind()).toBe('personal');
+    expect(timerEngine.getActiveTaskId()).toBe('personal-1');
+
+    await useStore.getState().startTimer('work-2');
+    expect(timerEngine.getActiveTaskId()).toBe('work-2');
+    expect(timerEngine.getSessionKind()).toBe('work');
+  });
 });

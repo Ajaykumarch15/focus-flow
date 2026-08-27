@@ -27,7 +27,7 @@ const itemVariants = {
 
 export function WorkspaceHub() {
   const navigate = useNavigate();
-  const { user, setWorkspace } = useAuthStore();
+  const { user } = useAuthStore();
   const { workspaces, loadWorkspaces } = useCollaborationStore();
   const { theme } = useStore();
 
@@ -43,13 +43,13 @@ export function WorkspaceHub() {
     return 'Good Evening';
   };
 
+  // Workspace context is owned by the route (see <WorkspaceSync/> in App.tsx), so
+  // navigating is enough — no need to set it manually here.
   const handleSelectPersonal = () => {
-    setWorkspace('personal');
     navigate('/personal');
   };
 
   const handleSelectWorkLog = () => {
-    setWorkspace('work');
     navigate('/dashboard');
   };
 

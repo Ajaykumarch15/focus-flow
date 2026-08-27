@@ -134,11 +134,6 @@ export function Sidebar() {
             {PERSONAL_ROADMAPS_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} end={item.to === '/personal'} />
             ))}
-            {/*<div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            <SectionLabel collapsed={collapsed}>WorkLog</SectionLabel>
-            {WORKLOG_NAV.map(item => (
-              <NavItem key={item.to} {...item} collapsed={collapsed} />
-            ))}*/}
           </>
         ) : workspace === 'collab' ? (
           <>
@@ -158,11 +153,6 @@ export function Sidebar() {
             {WORKLOG_NAV.map(item => (
               <NavItem key={item.to} {...item} collapsed={collapsed} />
             ))}
-            {/*<div className={`my-3 border-t border-surface-800 ${collapsed ? 'mx-2' : 'mx-4'}`} />
-            <SectionLabel collapsed={collapsed}>Collaboration</SectionLabel>
-            {COLLAB_NAV.map(item => (
-              <NavItem key={item.to} {...item} collapsed={collapsed} />
-            ))}*/}
           </>
         )}
 

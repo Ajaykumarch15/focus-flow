@@ -42,16 +42,20 @@ afterEach(() => {
 });
 
 describe('restoreSession (boot-time /auth/me)', () => {
-  it('sets the user and leaves workspace selection untouched on success', async () => {
+  it('derives the workspace from the current route (not stale prior state) on success', async () => {
     apiMock.me.mockResolvedValue({ user: USER });
-    useAuthStore.setState({ workspace: 'personal' });
+    // Simulate a refresh landing on a card-based WorkLog route.
+    window.history.pushState({}, '', '/worklog');
+    useAuthStore.setState({ workspace: 'personal' }); // stale personal must NOT survive
 
     await useAuthStore.getState().restoreSession();
 
     expect(apiMock.me).toHaveBeenCalledOnce();
     expect(useAuthStore.getState().user).toEqual(USER);
     expect(useAuthStore.getState().loading).toBe(false);
-    expect(useAuthStore.getState().workspace).toBe('personal');
+    // Workspace follows the URL, so a /worklog refresh restores 'work', not the
+    // stale 'personal' default — this is the C2 fix.
+    expect(useAuthStore.getState().workspace).toBe('work');
   });
 
   it('resets to anonymous (user null, workspace null) when /auth/me fails', async () => {
