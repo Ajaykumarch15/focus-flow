@@ -27,6 +27,9 @@ export interface OfflineOperation {
   timestamp: number;
   payload?: Record<string, any>;
   attempts: number;
+  // Which backend the op targets. Personal-session ops MUST replay against
+  // api.personalSessions (not api.sessions) or they'll hit the wrong endpoint.
+  kind?: 'work' | 'personal';
 }
 
 const QUEUE_KEY = 'ff_offline_timer_queue';
@@ -82,6 +85,7 @@ export class OfflineQueue {
     sessionId?: string,
     payload?: Record<string, any>,
     opId?: string,
+    kind?: 'work' | 'personal',
   ): OfflineOperation {
     const op: OfflineOperation = {
       opId: opId || createOpId(),
@@ -91,6 +95,7 @@ export class OfflineQueue {
       timestamp: Date.now(),
       payload,
       attempts: 0,
+      kind,
     };
 
     this.queue.push(op);
@@ -121,29 +126,31 @@ export class OfflineQueue {
           // Replays must not resend client timestamps: the server validates and
           // uses its own clock, so a fabricated offline time is never applied.
           // The FIRST attempt may carry the enqueue wall-clock as the action time.
+          // Route to the correct backend by op.kind (personal → api.personalSessions).
+          const sess = op.kind === 'personal' ? api.personalSessions : api.sessions;
           switch (op.type) {
             case 'START_SESSION':
-              await api.sessions.start(op.taskId, replayed ? undefined : (op.payload?.startTime ?? op.timestamp), op.opId);
+              await sess.start(op.taskId, replayed ? undefined : (op.payload?.startTime ?? op.timestamp), op.opId);
               success = true;
               break;
 
             case 'PAUSE_SESSION':
               if (op.sessionId) {
-                await api.sessions.pause(op.sessionId, replayed ? undefined : (op.payload?.pauseTime ?? op.timestamp), op.opId);
+                await sess.pause(op.sessionId, replayed ? undefined : (op.payload?.pauseTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;
 
             case 'RESUME_SESSION':
               if (op.sessionId) {
-                await api.sessions.resume(op.sessionId, replayed ? undefined : (op.payload?.resumeTime ?? op.timestamp), op.opId);
+                await sess.resume(op.sessionId, replayed ? undefined : (op.payload?.resumeTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;
 
             case 'STOP_SESSION':
               if (op.sessionId) {
-                await api.sessions.stop(op.sessionId, replayed ? undefined : (op.payload?.endTime ?? op.timestamp), op.opId);
+                await sess.stop(op.sessionId, replayed ? undefined : (op.payload?.endTime ?? op.timestamp), op.opId);
                 success = true;
               }
               break;

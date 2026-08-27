@@ -22,6 +22,7 @@ export interface PersistedTimer {
   totalPauseDuration: number;   // ms paused so far
   pauseStart?: number;   // if currently paused, when it started
   baseElapsedMs?: number;   // pre-existing accumulated time (resumed task total)
+  sessionKind?: 'work' | 'personal';   // which backend owns this session
 }
 
 export function saveTimer(data: PersistedTimer): void {

@@ -169,4 +169,34 @@ describe('TimerEngine & Session FSM', () => {
     // new session starts fresh
     expect(timerEngine.getElapsedMs(1007000)).toBe(2000);
   });
+
+  it('TMR-KIND. start records a session kind and it persists across hydrate', async () => {
+    await timerEngine.start('personal-task', 'psess-1', 2000000, 0, 'personal');
+    expect(timerEngine.getSessionKind()).toBe('personal');
+    expect(timerEngine.getSnapshot().sessionKind).toBe('personal');
+
+    const persistedRaw = localStorage.getItem('ff_active_timer');
+    expect(persistedRaw).not.toBeNull();
+    const persisted = JSON.parse(persistedRaw!);
+    expect(persisted.sessionKind).toBe('personal');
+
+    // Simulate the engine losing in-memory state and rehydrating from storage.
+    timerEngine.hydrate(null);
+    expect(timerEngine.getState()).toBe('idle');
+    expect(timerEngine.getSessionKind()).toBeNull();
+
+    timerEngine.hydrate(persisted);
+    expect(timerEngine.getSessionKind()).toBe('personal');
+    expect(timerEngine.getActiveTaskId()).toBe('personal-task');
+
+    // stop clears the kind
+    await timerEngine.stop('personal-task', 2005000);
+    expect(timerEngine.getSessionKind()).toBeNull();
+  });
+
+  it('TMR-KIND. work kind is the default when none is supplied', async () => {
+    await timerEngine.start('work-task', 'wsess-1', 3000000);
+    expect(timerEngine.getSessionKind()).toBeNull();
+    await timerEngine.stop('work-task', 3001000);
+  });
 });
