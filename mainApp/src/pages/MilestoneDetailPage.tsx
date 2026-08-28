@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   CheckCircle2, Circle, Plus, Calendar,
-  Pencil, Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
+  Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
@@ -42,15 +42,6 @@ export function MilestoneDetailPage() {
   const navigate = useNavigate();
   const { activeRoadmap, detailLoading, getRoadmap, linkTask, unlinkTask } = useRoadmapStore();
   const { tasks: personalTasks, completeTask, deleteTask } = usePersonalTaskStore();
-
-  // Milestone edit state
-  const [editOpen, setEditOpen] = useState(false);
-  const [editForm, setEditForm] = useState({ title: '', description: '', status: 'todo', targetDate: '' });
-  const [saving, setSaving] = useState(false);
-
-  // Delete milestone state
-  const [delMilestone, setDelMilestone] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   // Add task state
   const [addTaskOpen, setAddTaskOpen] = useState(false);
@@ -117,49 +108,6 @@ export function MilestoneDetailPage() {
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [taskMenu]);
-
-  // ── Milestone Edit ──
-  const openEdit = () => {
-    if (!milestone) return;
-    setEditForm({
-      title: milestone.title,
-      description: milestone.description || '',
-
-      status: milestone.status,
-      targetDate: milestone.targetDate ? new Date(milestone.targetDate).toISOString().split('T')[0] : '',
-    });
-    setEditOpen(true);
-  };
-
-  const saveMilestone = async () => {
-    if (!editForm.title.trim() || !milestoneId) return;
-    setSaving(true);
-    try {
-      await api.personalRoadmaps.updateMilestone(milestoneId, {
-        title: editForm.title.trim(),
-        description: editForm.description.trim(),
-        status: editForm.status,
-        targetDate: editForm.targetDate || undefined,
-      });
-      toast.success('Milestone updated');
-      setEditOpen(false);
-      if (id) getRoadmap(id);
-    } catch (e: any) { toast.error('Failed', e?.message); }
-    finally { setSaving(false); }
-  };
-
-  // ── Milestone Delete ──
-  const deleteMilestone = async () => {
-    if (!milestoneId) return;
-    setDeleting(true);
-    try {
-      await api.personalRoadmaps.removeMilestone(milestoneId);
-      toast.success('Milestone deleted');
-      setDelMilestone(false);
-      navigate(`/personal/roadmaps/${id}/phases/${phaseId}`);
-    } catch (e: any) { toast.error('Failed', e?.message); }
-    finally { setDeleting(false); }
-  };
 
   // ── Add Task ──
   const createTask = async () => {
@@ -301,16 +249,6 @@ export function MilestoneDetailPage() {
             <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
             <span className="text-xs text-surface-400">{completedCount}/{tasks.length} tasks</span>
           </div>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button onClick={openEdit}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-all">
-            <Pencil size={14} /> Edit
-          </button>
-          <button onClick={() => setDelMilestone(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all">
-            <Trash2 size={14} /> Delete
-          </button>
         </div>
       </motion.div>
 
