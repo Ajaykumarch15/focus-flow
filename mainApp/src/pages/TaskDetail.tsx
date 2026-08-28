@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useScheduleStore } from '../store/useScheduleStore';
+import { useWorkLogStore } from '../store/useWorkLogStore';
 import { ScheduleModal } from '../components/schedule/ScheduleModal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useActiveTimer } from '../hooks/useActiveTimer';
@@ -22,6 +23,9 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { RichContent } from '../components/ui/RichContent';
 import { TaskContinuationPanel } from '../components/continuation/TaskContinuationPanel';
 import { LinkedRoadmapCard } from '../components/roadmap/LinkedRoadmapCard';
+import { PauseCapturePanel } from '../components/focus/PauseCapturePanel';
+import { CompletionPromptPanel } from '../components/focus/CompletionPromptPanel';
+import { EngineeringMemoryPanel } from '../components/memory/EngineeringMemoryPanel';
 import type { Mood } from '../types';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
@@ -37,9 +41,14 @@ export function TaskDetail() {
   } = useStore();
   const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
   const { openModal: openScheduleModal, isModalOpen, closeModal } = useScheduleStore();
+  const { activeLogs, closedLogs } = useWorkLogStore();
   const isReducedMotion = theme?.reducedMotion;
 
   const task = getTask(id!);
+
+  // Find linked work log for pause/completion capture
+  const allLogs = useMemo(() => [...activeLogs, ...closedLogs], [activeLogs, closedLogs]);
+  const linkedLog = useMemo(() => task ? allLogs.find(l => l.taskRef?._id === task.id) ?? null : null, [allLogs, task]);
   const [newSubtask, setNewSubtask] = useState('');
   const [journalText, setJournalText] = useState('');
   const [mood, setMood] = useState<Mood>(3);
@@ -314,6 +323,20 @@ export function TaskDetail() {
             </div>
           </motion.div>
 
+          {/* Pause Capture (auto-shows on pause) */}
+          <PauseCapturePanel
+            paused={isPaused}
+            workLogId={linkedLog?._id ?? null}
+            workLogTitle={linkedLog?.title ?? null}
+          />
+
+          {/* Completion Prompt (shows when task is completed) */}
+          <CompletionPromptPanel
+            completed={task.status === 'completed'}
+            taskId={task.id}
+            workLogTitle={linkedLog?.title ?? null}
+          />
+
           {/* Session History */}
           <motion.div variants={fadeUp}
             className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden">
@@ -511,6 +534,11 @@ export function TaskDetail() {
               </div>
             </motion.div>
           )}
+
+          {/* ═══ Engineering Memory ═══ */}
+          <motion.div variants={fadeUp}>
+            <EngineeringMemoryPanel taskId={task.id} />
+          </motion.div>
         </motion.div>
       </div>
 

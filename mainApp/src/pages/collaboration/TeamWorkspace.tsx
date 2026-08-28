@@ -189,7 +189,7 @@ export function TeamWorkspace() {
   const accent = theme?.accentColor || '#0ea5e9';
   const dateLabel = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const openFocus = () => navigate('/worklog/focus');
+  const openFocus = () => activeTaskId ? navigate(`/worklog/tasks/${activeTaskId}`) : null;
   const startToday = () => navigate('/worklog/dashboard');
   const openTask = () => { if (activeWs) navigate(`/w/${activeWs.id}/sprints`); };
   const pauseActive = () => { if (activeTaskId) pauseTimer(activeTaskId); };

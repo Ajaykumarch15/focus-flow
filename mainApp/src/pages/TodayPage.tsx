@@ -126,7 +126,7 @@ export function TodayPage() {
 
   const startTask = (task: Task) => {
     void startTimer(task.id);
-    navigate('/worklog/focus');
+    navigate(`/worklog/tasks/${task.id}`);
   };
 
   if (dataError) {
@@ -218,7 +218,7 @@ export function TodayPage() {
               {activeTask ? (
                 <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/worklog/focus')}>
+                  onClick={() => navigate(`/worklog/tasks/${activeTaskId}`)}>
                   Resume Active Session
                 </Button>
               ) : (
@@ -394,8 +394,7 @@ export function TodayPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/worklog/focus')}>Open Focus</Button>
-                  <Button variant="secondary" size="sm" onClick={() => navigate(`/worklog/tasks/${activeTask.id}`)}>Open Task</Button>
+                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate(`/worklog/tasks/${activeTask.id}`)}>Open Task</Button>
                 </div>
               </CardBody>
             </Card>

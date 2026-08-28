@@ -107,7 +107,7 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
 
   const handleStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate('/worklog/focus', { state: { taskId } });
+    navigate(`/worklog/tasks/${taskId}`);
   };
 
   const handleComplete = async (e: React.MouseEvent) => {

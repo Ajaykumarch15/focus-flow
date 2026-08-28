@@ -18,6 +18,9 @@ import { Input } from '../components/ui/Input';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { LinkedRoadmapCard } from '../components/roadmap/LinkedRoadmapCard';
+import { PauseCapturePanel } from '../components/focus/PauseCapturePanel';
+import { CompletionPromptPanel } from '../components/focus/CompletionPromptPanel';
+import { EngineeringMemoryPanel } from '../components/memory/EngineeringMemoryPanel';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -291,6 +294,20 @@ export function PersonalTaskDetail() {
             </div>
           </motion.div>
 
+          {/* Pause Capture (auto-shows on pause) */}
+          <PauseCapturePanel
+            paused={isPaused}
+            workLogId={null}
+            workLogTitle={null}
+          />
+
+          {/* Completion Prompt (shows when task is completed) */}
+          <CompletionPromptPanel
+            completed={task.status === 'completed'}
+            taskId={task.id}
+            workLogTitle={null}
+          />
+
           {/* Session History */}
           <motion.div variants={fadeUp}
             className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden">
@@ -421,6 +438,11 @@ export function PersonalTaskDetail() {
                 <Plus size={15} />
               </Button>
             </form>
+          </motion.div>
+
+          {/* ═══ Engineering Memory ═══ */}
+          <motion.div variants={fadeUp}>
+            <EngineeringMemoryPanel taskId={task.id} />
           </motion.div>
         </motion.div>
       </div>

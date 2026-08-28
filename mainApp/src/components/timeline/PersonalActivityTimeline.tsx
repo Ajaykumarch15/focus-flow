@@ -93,7 +93,7 @@ export function PersonalActivityTimeline() {
   const resumeTask = (event: TimelineEvent) => {
     if (!event.taskId) return;
     void startTimer(event.taskId);
-    navigate('/worklog/focus');
+    navigate(`/personal/tasks/${event.taskId}`);
   };
 
   const openTask = (event: TimelineEvent) => {

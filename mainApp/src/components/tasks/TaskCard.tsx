@@ -61,7 +61,7 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [data-no-nav]')) return;
     if (onClickCard) onClickCard(task.id);
-    else navigate(detailPath ?? `/tasks/${task.id}`);
+    else navigate(detailPath ?? `/worklog/tasks/${task.id}`);
   };
 
   const handleTimerAction = async (e: React.MouseEvent) => {
