@@ -271,7 +271,7 @@ export function Dashboard() {
                   size="lg"
                   leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/focus')}
+                  onClick={() => navigate('/worklog/focus')}
                 >
                   Resume Active Timer Session
                 </Button>
@@ -285,7 +285,7 @@ export function Dashboard() {
                   Start New Task
                 </Button>
               )}
-              <Button variant="secondary" size="lg" rightIcon={<ChevronRight size={14} />} onClick={() => navigate('/tasks')}>
+              <Button variant="secondary" size="lg" rightIcon={<ChevronRight size={14} />} onClick={() => navigate('/worklog/tasks')}>
                 View My Backlog ({activeTasks.length})
               </Button>
             </div>
@@ -348,7 +348,7 @@ export function Dashboard() {
               </p>
               <p className="text-xs text-danger-400/80 mt-0.5">Prioritize these tasks to keep sprint delivery on schedule.</p>
             </div>
-            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/tasks')}>
+            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/worklog/tasks')}>
               Resolve Now →
             </Button>
           </motion.div>
@@ -472,7 +472,7 @@ export function Dashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Journal</CardTitle>
-                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/journal')}>
+                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog/journal')}>
                   View All
                 </Button>
               </CardHeader>
@@ -481,7 +481,7 @@ export function Dashboard() {
                   <div className="text-center py-4">
                     <BookOpen size={24} className="mx-auto text-surface-600 mb-2" />
                     <p className="text-xs text-surface-400 mb-3">No journal entries yet</p>
-                    <Button variant="ghost" size="xs" className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10" onClick={() => navigate('/journal')}>
+                    <Button variant="ghost" size="xs" className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10" onClick={() => navigate('/worklog/journal')}>
                       Write your first entry
                     </Button>
                   </div>
@@ -491,7 +491,7 @@ export function Dashboard() {
                       const task = tasks.find(t => t.id === j.taskId);
                       const moodEmoji = MOOD_LABELS[j.mood]?.split(' ')[0] || '📝';
                       return (
-                        <button key={j.id} onClick={() => navigate('/journal')}
+                        <button key={j.id} onClick={() => navigate('/worklog/journal')}
                           className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
                           <div className="flex items-start gap-2.5">
                             <span className="text-base flex-shrink-0 mt-0.5">{moodEmoji}</span>
@@ -518,7 +518,7 @@ export function Dashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Recent Work Logs</CardTitle>
-                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog')}>
+                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog/logs')}>
                   View All
                 </Button>
               </CardHeader>
@@ -531,7 +531,7 @@ export function Dashboard() {
                 ) : (
                   <div className="space-y-2">
                     {activeLogs.slice(0, 3).map(log => (
-                      <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                      <button key={log._id} onClick={() => navigate(`/worklog/logs/${log._id}`)}
                         className="w-full text-left p-3 rounded-xl bg-surface-850 hover:bg-surface-800 border border-surface-800 hover:border-surface-700 transition-all group">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -564,9 +564,9 @@ export function Dashboard() {
               <CardBody>
                 <div className="grid grid-cols-2 gap-2.5">
                   <QuickAction icon={Plus} label="New Task" onClick={() => setShowCreate(true)} color={accent} />
-                  <QuickAction icon={Timer} label="Focus" onClick={() => navigate('/focus')} color="#f97316" />
-                  <QuickAction icon={PenLine} label="Journal" onClick={() => navigate('/journal')} color="#8b5cf6" />
-                  <QuickAction icon={Briefcase} label="Work Log" onClick={() => navigate('/worklog')} color="#22c55e" />
+                  <QuickAction icon={Timer} label="Focus" onClick={() => navigate('/worklog/focus')} color="#f97316" />
+                  <QuickAction icon={PenLine} label="Journal" onClick={() => navigate('/worklog/journal')} color="#8b5cf6" />
+                  <QuickAction icon={Briefcase} label="Work Log" onClick={() => navigate('/worklog/logs')} color="#22c55e" />
                 </div>
               </CardBody>
             </Card>

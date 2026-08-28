@@ -413,7 +413,7 @@ function DayDetailPanel({ date, onBack, onDateChange, viewUserId }: { date: stri
             </div>
           ) : data.workLogs.map(log => (
             <div key={log._id} className="rounded-2xl border border-surface-800 bg-surface-900 p-5 cursor-pointer hover:border-surface-700 transition-all"
-              onClick={() => navigate(`/worklog/${log._id}`)}>
+              onClick={() => navigate(`/worklog/logs/${log._id}`)}>
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="font-semibold text-surface-50 text-[15px] hover:text-brand-400 transition-colors">{log.title}</span>
                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${STATUS_COLOR[log.status] || 'text-surface-400 bg-surface-800 border-surface-700'}`}>

@@ -4,13 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Play, Pause, Square, Plus, Trash2,
   CheckCircle, Circle, Clock, Edit2, Check, X,
-  Timer, Zap, ChevronDown,
+  Timer, Zap, ChevronDown, Calendar,
 } from 'lucide-react';
 import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { useStore } from '../store/useStore';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '../utils/time';
+import { getScheduledState, formatScheduledDate } from '../utils/personalTaskSchedule';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '../utils/colors';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -104,6 +105,15 @@ export function PersonalTaskDetail() {
                   {deadlineInfo.label}
                 </Badge>
               )}
+              {task.scheduledDate && task.status !== 'completed' && (() => {
+                const state = getScheduledState(task);
+                const stateColors: Record<string, string> = { today: 'brand', missed: 'danger', upcoming: 'info', unscheduled: 'neutral', completed: 'success' };
+                return (
+                  <Badge tone={stateColors[state] as any || 'neutral'} icon={<Calendar size={10} className="mr-1" />} className="text-[11px] border border-surface-700">
+                    {formatScheduledDate(task.scheduledDate)}
+                  </Badge>
+                );
+              })()}
               {task.status === 'completed' && (
                 <Badge tone="success" icon={<CheckCircle size={10} className="mr-1" />} className="text-[11px] border border-emerald-400/20">
                   Done

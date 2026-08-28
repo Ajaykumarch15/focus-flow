@@ -252,7 +252,7 @@ export function PersonalAnalyticsPage() {
             {roadmaps.map((r, idx) => (
               <motion.div key={r._id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.12 + idx * 0.04 }}>
-                <button onClick={() => navigate(`/roadmaps/${r._id}`)}
+                <button onClick={() => navigate(`/personal/roadmaps/${r._id}`)}
                   className="w-full text-left rounded-2xl border border-surface-800 bg-surface-900/80 p-4 hover:border-surface-700 hover:bg-surface-800/50 transition-all group">
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold"
@@ -344,7 +344,7 @@ export function PersonalAnalyticsPage() {
               {phases.slice(0, 12).map((p, idx) => (
                 <motion.div key={p._id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.27 + idx * 0.03 }}>
-                  <button onClick={() => navigate(`/roadmaps/${p.roadmapId}/phases/${p._id}`)}
+                  <button onClick={() => navigate(`/personal/roadmaps/${p.roadmapId}/phases/${p._id}`)}
                     className="w-full text-left group">
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
@@ -443,7 +443,7 @@ export function PersonalAnalyticsPage() {
           <Map className="mx-auto mb-3 text-surface-600" size={32} />
           <p className="text-sm text-surface-300 font-medium mb-1">No personal roadmaps yet</p>
           <p className="text-xs text-surface-500 mb-4">Create your first roadmap to start tracking your personal growth.</p>
-          <button onClick={() => navigate('/roadmaps')}
+          <button onClick={() => navigate('/personal/roadmaps')}
             className="px-4 py-2 rounded-xl bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors">
             Go to Roadmaps
           </button>

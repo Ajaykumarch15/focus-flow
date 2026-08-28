@@ -50,13 +50,13 @@ export function CollabDashboard() {
           <div className="flex gap-3 justify-center">
             <Button
               variant="secondary"
-              onClick={() => navigate('/hub')}
+              onClick={() => navigate('/home')}
               leftIcon={<FolderOpen size={14} />}
             >
-              Engineering Hub
+              Engineering Homepage
             </Button>
             <Button
-              onClick={() => navigate('/team')}
+              onClick={() => navigate('/collab/team')}
               rightIcon={<ArrowRight size={14} />}
             >
               Team Projects

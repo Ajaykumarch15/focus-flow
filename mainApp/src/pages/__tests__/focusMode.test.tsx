@@ -41,7 +41,7 @@ function render(node: ReactNode) {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(<MemoryRouter initialEntries={['/focus']}>{node}</MemoryRouter>);
+    root.render(<MemoryRouter initialEntries={['/worklog/focus']}>{node}</MemoryRouter>);
   });
   return { container, root };
 }

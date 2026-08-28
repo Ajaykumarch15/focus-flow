@@ -78,7 +78,7 @@ export function AdminSidebar() {
 
       {/* Back to workspace */}
       <div className="px-2.5 pb-2">
-        <button onClick={() => { setWorkspace('personal'); navigate('/dashboard'); }}
+        <button onClick={() => { setWorkspace('personal'); navigate('/personal/today'); }}
           className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-surface-400 hover:text-brand-400 hover:bg-brand-500/5 transition-all">
           <ArrowLeft size={18} />
           <AnimatePresence>

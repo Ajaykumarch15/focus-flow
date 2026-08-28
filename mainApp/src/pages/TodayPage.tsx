@@ -1,15 +1,14 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, BellRing, ArrowRight, Calendar,
+  Target, ListTodo, BellRing, ArrowRight,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { useWorkLogStore } from '../store/useWorkLogStore';
 import { useCollaborationStore } from '../store/useCollaborationStore';
-import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { selectToday } from '../lib/todaySelectors';
 import type {
   TodayView, ContinueItem, DoNowItem, AttentionItem, AttentionKind, AttentionDeadline,
@@ -19,7 +18,6 @@ import type { Task } from '../types';
 import { useActiveTimer } from '../hooks/useActiveTimer';
 import { CreateTaskModal } from '../components/tasks/CreateTaskModal';
 import { TodayPlanWidget } from '../components/schedule/TodayPlanWidget';
-import { getTodayTasks, getMissedTasks, formatScheduledDate, scheduledStateColor } from '../utils/personalTaskSchedule';
 import { Card, CardHeader, CardTitle, CardBody } from '../components/ui/Card';
 
 import { Button } from '../components/ui/Button';
@@ -72,13 +70,6 @@ export function TodayPage() {
   const { display } = useActiveTimer();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
-
-  const { tasks: personalTasks, fetchTasks: fetchPersonalTasks } = usePersonalTaskStore();
-
-  useEffect(() => { fetchPersonalTasks(); }, [fetchPersonalTasks]);
-
-  const todayPersonalTasks = useMemo(() => getTodayTasks(personalTasks), [personalTasks]);
-  const missedPersonalTasks = useMemo(() => getMissedTasks(personalTasks), [personalTasks]);
 
   const accent = theme?.accentColor || '#0ea5e9';
   const todayMs = getTodayTime();
@@ -135,7 +126,7 @@ export function TodayPage() {
 
   const startTask = (task: Task) => {
     void startTimer(task.id);
-    navigate('/focus');
+    navigate('/worklog/focus');
   };
 
   if (dataError) {
@@ -227,7 +218,7 @@ export function TodayPage() {
               {activeTask ? (
                 <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/focus')}>
+                  onClick={() => navigate('/worklog/focus')}>
                   Resume Active Session
                 </Button>
               ) : (
@@ -237,7 +228,7 @@ export function TodayPage() {
                   Start New Task
                 </Button>
               )}
-              <Button variant="secondary" size="lg" rightIcon={<ArrowRight size={14} />} onClick={() => navigate('/tasks')}>
+              <Button variant="secondary" size="lg" rightIcon={<ArrowRight size={14} />} onClick={() => navigate('/worklog/tasks')}>
                 View My Backlog ({view.stats.activeCount})
               </Button>
             </div>
@@ -307,7 +298,7 @@ export function TodayPage() {
               </p>
               <p className="text-xs text-danger-400/80 mt-0.5">Prioritize these to stay on track.</p>
             </div>
-            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/tasks')}>
+            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/worklog/tasks')}>
               Resolve Now →
             </Button>
           </motion.div>
@@ -338,7 +329,7 @@ export function TodayPage() {
               {view.continue.length > 0 && <Badge tone="neutral">{view.continue.length}</Badge>}
             </h2>
             {view.continue.length > 0 && (
-              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/tasks')}>
+              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog/tasks')}>
                 View All
               </Button>
             )}
@@ -363,7 +354,7 @@ export function TodayPage() {
             <div className="space-y-2.5">
               {view.continue.map((item, i) => (
                 <ContinueRow key={item.taskId} item={item} isPrimary={i === 0 && activeTaskId === item.taskId}
-                  onOpen={() => navigate(`/tasks/${item.taskId}`)} />
+                  onOpen={() => navigate(`/worklog/tasks/${item.taskId}`)} />
               ))}
             </div>
           )}
@@ -403,8 +394,8 @@ export function TodayPage() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/focus')}>Open Focus</Button>
-                  <Button variant="secondary" size="sm" onClick={() => navigate(`/tasks/${activeTask.id}`)}>Open Task</Button>
+                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/worklog/focus')}>Open Focus</Button>
+                  <Button variant="secondary" size="sm" onClick={() => navigate(`/worklog/tasks/${activeTask.id}`)}>Open Task</Button>
                 </div>
               </CardBody>
             </Card>
@@ -428,7 +419,7 @@ export function TodayPage() {
           ) : (
             <div className="space-y-2.5">
               {view.doNow.map((item) => (
-                <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/tasks/${item.task.id}`)} />
+                <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/worklog/tasks/${item.task.id}`)} />
               ))}
             </div>
           )}
@@ -462,55 +453,14 @@ export function TodayPage() {
             ) : (
               <div className="space-y-2.5">
                 {view.attention.map((item) => (
-                  <AttentionRow key={item.id} item={item} onOpen={() => navigate(`/tasks/${item.taskId}`)} />
+                  <AttentionRow key={item.id} item={item} onOpen={() => navigate(`/worklog/tasks/${item.taskId}`)} />
                 ))}
               </div>
             )}
           </motion.section>
         </div>
 
-        {/* ═══════════════ SCHEDULED TODAY (Personal Tasks) ═══════════════ */}
-        {todayPersonalTasks.length > 0 && (
-          <motion.section variants={fadeUp} initial="hidden" animate="show" className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-                <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-cyan-400">
-                  <Calendar size={14} />
-                </span>
-                Scheduled Today
-                <Badge tone="info">{todayPersonalTasks.length}</Badge>
-              </h2>
-              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/personal/tasks')}>
-                View All
-              </Button>
-            </div>
-            <div className="space-y-2">
-              {todayPersonalTasks.map(task => (
-                <ScheduledTaskRow key={task.id} task={task} onStart={() => navigate('/personal/tasks')} />
-              ))}
-            </div>
-          </motion.section>
-        )}
 
-        {/* ═══════════════ MISSED (Personal Tasks) ═══════════════ */}
-        {missedPersonalTasks.length > 0 && (
-          <motion.section variants={fadeUp} initial="hidden" animate="show" className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-                <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-red-400">
-                  <AlertTriangle size={14} />
-                </span>
-                Missed
-                <Badge tone="danger">{missedPersonalTasks.length}</Badge>
-              </h2>
-            </div>
-            <div className="space-y-2">
-              {missedPersonalTasks.map(task => (
-                <ScheduledTaskRow key={task.id} task={task} missed onStart={() => navigate('/personal/tasks')} />
-              ))}
-            </div>
-          </motion.section>
-        )}
 
       </div>
 
@@ -641,32 +591,4 @@ function AttentionRow({ item, onOpen }: { item: AttentionItem; onOpen: () => voi
   );
 }
 
-function ScheduledTaskRow({ task, missed, onStart }: { task: Task; missed?: boolean; onStart: () => void }) {
-  return (
-    <motion.div variants={fadeUp}
-      className={`p-4 rounded-2xl border transition-colors ${
-        missed
-          ? 'border-red-500/30 bg-red-500/5 hover:border-red-500/50'
-          : 'border-surface-800 bg-surface-900 hover:border-surface-700'
-      }`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-surface-50 truncate">{task.title}</p>
-          <div className="flex items-center gap-2 mt-1">
-            {task.scheduledDate && (
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${scheduledStateColor(missed ? 'missed' : 'today')}`}>
-                {formatScheduledDate(task.scheduledDate)}
-              </span>
-            )}
-            {task.category && (
-              <span className="text-[10px] text-surface-500">{task.category}</span>
-            )}
-          </div>
-        </div>
-        <Button size="sm" variant="ghost" onClick={onStart} className="text-surface-400 hover:text-surface-200 flex-shrink-0">
-          Open →
-        </Button>
-      </div>
-    </motion.div>
-  );
-}
+

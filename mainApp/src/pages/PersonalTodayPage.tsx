@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect, ReactNode } from 'react';
+import { useMemo, useState, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -128,9 +128,9 @@ export function PersonalTodayPage() {
     new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
   []);
 
-  const startTask = (task: Task) => {
+const startTask = (task: Task) => {
     personalStartTimer(task.id, task.totalTime || 0);
-    navigate('/focus');
+    navigate('/personal/focus');
   };
 
   if (dataLoading && personalTasks.length === 0) {
@@ -195,10 +195,10 @@ export function PersonalTodayPage() {
               {activeTask ? `You're focusing on "${activeTask.title}"` : 'What should you do now?'}
             </p>
             <div className="flex flex-wrap items-center gap-3 mt-7">
-              {activeTask ? (
+{activeTask ? (
                 <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/focus')}>Resume Active Session</Button>
+                  onClick={() => navigate('/personal/focus')}>Resume Active Session</Button>
               ) : (
                 <Button size="lg" leftIcon={<Plus size={16} />}
                   className="shadow-lg" style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
@@ -304,8 +304,8 @@ export function PersonalTodayPage() {
                     <p className="text-[10px] text-surface-500 uppercase tracking-wider mt-0.5">Session clock</p>
                   </div>
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/focus')}>Open Focus</Button>
+<div className="flex gap-2 mt-4">
+                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/personal/focus')}>Open Focus</Button>
                   <Button variant="secondary" size="sm" onClick={() => navigate(`/personal/tasks/${activeTask.id}`)}>Open Task</Button>
                 </div>
               </div>
@@ -438,13 +438,13 @@ export function PersonalTodayPage() {
                 Roadmap Progress
                 <Badge tone="neutral">{activeRoadmaps.length}</Badge>
               </h2>
-              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/roadmaps')}>
+              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/personal/roadmaps')}>
                 View All
               </Button>
             </div>
             <div className="space-y-2.5">
               {activeRoadmaps.map(rm => (
-                <RoadmapRow key={rm._id} roadmap={rm} onOpen={() => navigate(`/roadmaps/${rm._id}`)} />
+                <RoadmapRow key={rm._id} roadmap={rm} onOpen={() => navigate(`/personal/roadmaps/${rm._id}`)} />
               ))}
             </div>
           </motion.section>
@@ -460,7 +460,7 @@ export function PersonalTodayPage() {
                 </span>
                 Recent Activity
               </h2>
-              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/activity')}>
+              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/personal/activity')}>
                 View All
               </Button>
             </div>

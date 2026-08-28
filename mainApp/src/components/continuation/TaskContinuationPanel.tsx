@@ -166,7 +166,7 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
             <StatusBadge status={view.sessionState} />
             <span className="font-mono text-sm font-bold text-brand-400">{display}</span>
             <span className="text-[11px] text-surface-500 hidden sm:inline">Live session</span>
-            <Button variant="ghost" size="xs" className="ml-auto flex-shrink-0" onClick={() => navigate('/focus')}>
+            <Button variant="ghost" size="xs" className="ml-auto flex-shrink-0" onClick={() => navigate('/worklog/focus')}>
               Resume in Focus
             </Button>
           </div>
@@ -247,7 +247,7 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
                     variant="ghost"
                     size="xs"
                     rightIcon={<PenLine size={12} aria-hidden="true" />}
-                    onClick={() => navigate(`/worklog/${view.workLog!.id}`)}
+                    onClick={() => navigate(`/worklog/logs/${view.workLog!.id}`)}
                   >
                     Open work log
                   </Button>

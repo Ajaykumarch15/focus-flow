@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import axe from 'axe-core';
-import { WorkspaceHub } from '../WorkspaceHub';
+import { HomePage } from '../WorkspaceHub';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
 import type { Workspace } from '../../types/collaboration';
@@ -39,7 +39,7 @@ const workspace = (id: string, overrides: Partial<Workspace> = {}): Workspace =>
   ...overrides,
 });
 
-describe('WorkspaceHub (IES-P2-07)', () => {
+describe('HomePage (IES-P2-07)', () => {
   const originalCollab = useCollaborationStore.getState();
   const originalAuth = useAuthStore.getState();
   const loadWorkspaces = vi.fn();
@@ -59,14 +59,14 @@ describe('WorkspaceHub (IES-P2-07)', () => {
   });
 
   it('loads real workspaces on mount', () => {
-    const { container, root } = render(<WorkspaceHub />);
+    const { container, root } = render(<HomePage />);
     expect(loadWorkspaces).toHaveBeenCalled();
     act(() => root.unmount());
     container.remove();
   });
 
   it('renders the personal + team cards with real workspace and member counts', () => {
-    const { container, root } = render(<WorkspaceHub />);
+    const { container, root } = render(<HomePage />);
     const text = container.textContent ?? '';
     expect(text).toContain('Personal Workspace');
     expect(text).toContain('Team Collaboration');
@@ -78,7 +78,7 @@ describe('WorkspaceHub (IES-P2-07)', () => {
   });
 
   it('has no critical/serious axe violations on a populated hub', async () => {
-    const { container, root } = render(<WorkspaceHub />);
+    const { container, root } = render(<HomePage />);
     const violations = await scan(container);
     expect(violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length} node(s)`)).toEqual([]);
     act(() => root.unmount());

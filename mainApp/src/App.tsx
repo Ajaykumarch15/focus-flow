@@ -20,7 +20,7 @@ const Login           = lazy(() => import('./pages/Login').then(module => ({ def
 const Register        = lazy(() => import('./pages/Register').then(module => ({ default: module.Register })));
 // TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
 const RteTestPage     = lazy(() => import('./pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
-const WorkspaceHub    = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.WorkspaceHub })));
+const HomePage         = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.HomePage })));
 const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
 const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
 const ProjectLayout   = lazy(() => import('./components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
@@ -55,6 +55,8 @@ const PersonalAnalyticsPage = lazy(() => import('./pages/PersonalAnalyticsPage')
 const PersonalTasks      = lazy(() => import('./pages/PersonalTasks').then(module => ({ default: module.PersonalTasks })));
 const PersonalTodayPage  = lazy(() => import('./pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
 const PersonalTaskDetail = lazy(() => import('./pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
+const PersonalFocusMode  = lazy(() => import('./pages/PersonalFocusMode').then(module => ({ default: module.PersonalFocusMode })));
+const PersonalSchedule   = lazy(() => import('./pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
 const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 
@@ -133,6 +135,9 @@ function WorkspaceSync() {
   const { pathname } = useLocation();
   useEffect(() => {
     const ws = deriveWorkspaceFromPath(pathname);
+    // null means the route is workspace-agnostic (e.g. /home) — skip the update
+    // to keep the sidebar in its previous state.
+    if (ws === null) return;
     // useWorkspaceStore's WorkspaceType omits 'admin' (admin uses its own layout);
     // persist it as 'collab' there, but keep the full value on useAuthStore which
     // drives the sidebar/admin routing.
@@ -186,12 +191,6 @@ export default function App() {
             {/* TEMP (Phase 3): isolated rich-text-editor test page (public, no auth) */}
             <Route path="/rte-test"                    element={<RteTestPage />} />
 
-            {/* Post-Login Workspace Hub */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/hub" element={<WorkspaceHub />} />
-              <Route path="/team" element={<TeamProjects />} />
-            </Route>
-
             {/* Dedicated Engineering Workspace Architecture */}
             <Route element={<ProtectedRoute />}>
               <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
@@ -231,42 +230,65 @@ export default function App() {
               <Route path="/workspace" element={<WorkspaceSelector />} />
             </Route>
 
-            {/* WorkLog Workspace Dashboard */}
+            {/* WorkLog Workspace */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<AppLayout />}>
-                <Route path="/dashboard"   element={<TodayPage />} />
-                <Route path="/worklog/dashboard" element={<WorkLogDashboard />} />
-                <Route path="/collab/dashboard" element={<CollabDashboard />} />
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/worklog/dashboard" element={<TodayPage />} />
+                <Route path="/worklog/tasks" element={<Tasks />} />
+                <Route path="/worklog/tasks/:id" element={<TaskDetail />} />
+                <Route path="/worklog/schedule" element={<SchedulePage />} />
+                <Route path="/worklog/logs" element={<WorkLogPage />} />
+                <Route path="/worklog/logs/:id" element={<WorkLogPage />} />
+                <Route path="/worklog/knowledge" element={<KnowledgePage />} />
+                <Route path="/worklog/search" element={<SearchResultsPage />} />
+                <Route path="/worklog/reports" element={<ReportsPage />} />
+                <Route path="/worklog/insights" element={<InsightsPage />} />
+                <Route path="/worklog/habits" element={<Habits />} />
+                <Route path="/worklog/focus" element={<FocusMode />} />
+                <Route path="/worklog/worklog-dashboard" element={<WorkLogDashboard />} />
               </Route>
             </Route>
 
             {/* Personal Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/personal"   element={<PersonalPage />} />
+                <Route path="/personal" element={<PersonalPage />} />
                 <Route path="/personal/today" element={<PersonalTodayPage />} />
-                <Route path="/worklog"     element={<WorkLogPage />} />
-                <Route path="/worklog/:id" element={<WorkLogPage />} />
-                <Route path="/knowledge"  element={<KnowledgePage />} />
-                <Route path="/search"      element={<SearchResultsPage />} />
-                <Route path="/reports"     element={<ReportsPage />} />
-                <Route path="/insights"    element={<InsightsPage />} />
-                <Route path="/analytics"   element={<PersonalAnalyticsPage />} />
-                <Route path="/tasks"       element={<Tasks />} />
-                <Route path="/tasks/:id"   element={<TaskDetail />} />
-                <Route path="/personal/tasks"    element={<PersonalTasks />} />
+                <Route path="/personal/tasks" element={<PersonalTasks />} />
                 <Route path="/personal/tasks/:id" element={<PersonalTaskDetail />} />
-                <Route path="/schedule"    element={<SchedulePage />} />
-                <Route path="/roadmaps"    element={<RoadmapsPage />} />
-                <Route path="/roadmaps/:id" element={<RoadmapDetailPage />} />
-                <Route path="/roadmaps/:id/phases/:phaseId" element={<RoadmapPhaseDetail />} />
-                <Route path="/roadmaps/:id/phases/:phaseId/milestones/:milestoneId" element={<RoadmapMilestoneDetail />} />
-                <Route path="/journal"     element={<Journal />} />
-                <Route path="/habits"      element={<Habits />} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
-                <Route path="/focus"       element={<FocusMode />} />
-                <Route path="/activity"    element={<PersonalActivityPage />} />
-                <Route path="/settings"    element={<Settings />} />
+                <Route path="/personal/focus" element={<PersonalFocusMode />} />
+                <Route path="/personal/schedule" element={<PersonalSchedule />} />
+                <Route path="/personal/activity" element={<PersonalActivityPage />} />
+                <Route path="/personal/analytics" element={<PersonalAnalyticsPage />} />
+                <Route path="/personal/roadmaps" element={<RoadmapsPage />} />
+                <Route path="/personal/roadmaps/:id" element={<RoadmapDetailPage />} />
+                <Route path="/personal/roadmaps/:id/phases/:phaseId" element={<RoadmapPhaseDetail />} />
+                <Route path="/personal/roadmaps/:id/phases/:phaseId/milestones/:milestoneId" element={<RoadmapMilestoneDetail />} />
+                <Route path="/personal/journal" element={<Journal />} />
+                <Route path="/personal/search" element={<SearchResultsPage />} />
+              </Route>
+            </Route>
+
+            {/* Collab Workspace */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/collab/dashboard" element={<CollabDashboard />} />
+                <Route path="/collab/team" element={<TeamProjects />} />
+                <Route path="/collab/leaderboard" element={<Leaderboard />} />
+                <Route path="/collab/activity" element={<ActivityFeedPage />} />
+                <Route path="/collab/search" element={<SearchResultsPage />} />
+              </Route>
+            </Route>
+
+            {/* Homepage (workspace switcher) */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/home" element={<HomePage />} />
+            </Route>
+
+            {/* Settings (shared) */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/settings" element={<Settings />} />
               </Route>
             </Route>
 

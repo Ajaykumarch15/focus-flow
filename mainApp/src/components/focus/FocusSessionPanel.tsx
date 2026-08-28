@@ -154,7 +154,7 @@ export function FocusSessionPanel() {
               <p className="text-sm text-surface-400 mt-1 max-w-sm mx-auto">
                 No unfinished tasks right now. Create one in your backlog to start a focus session.
               </p>
-              <Button className="mt-5" onClick={() => navigate('/tasks')}>Go to Backlog</Button>
+              <Button className="mt-5" onClick={() => navigate('/worklog/tasks')}>Go to Backlog</Button>
             </>
           )}
         </section>
@@ -414,7 +414,7 @@ export function FocusSessionPanel() {
               Add Session Note
             </Button>
           )}
-          <Button variant="ghost" size="xs" className="mt-2 text-surface-400" onClick={() => navigate('/journal')}>
+          <Button variant="ghost" size="xs" className="mt-2 text-surface-400" onClick={() => navigate('/worklog/journal')}>
             View Journal →
           </Button>
         </section>
@@ -427,14 +427,14 @@ export function FocusSessionPanel() {
           {linkedLog ? (
             <>
               <p className="text-sm font-medium text-surface-200 truncate">{linkedLog.title}</p>
-              <Button size="sm" rightIcon={<ArrowRight size={13} />} className="mt-3" onClick={() => navigate(`/worklog/${linkedLog.id}`)}>
+              <Button size="sm" rightIcon={<ArrowRight size={13} />} className="mt-3" onClick={() => navigate(`/worklog/logs/${linkedLog.id}`)}>
                 Open Work Log
               </Button>
             </>
           ) : (
             <>
               <p className="text-sm text-surface-500">No work log linked to this task yet.</p>
-              <Button variant="secondary" size="sm" className="mt-3" onClick={() => navigate('/worklog')}>
+              <Button variant="secondary" size="sm" className="mt-3" onClick={() => navigate('/worklog/logs')}>
                 Open Work Logs
               </Button>
             </>

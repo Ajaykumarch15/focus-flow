@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle, Calendar } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { api } from '../utils/api';
 import { Dialog } from '../components/ui/Dialog';
@@ -183,9 +183,20 @@ export function PhaseDetailPage() {
       {/* Phase header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
         <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50">{phase.title}</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Badge tone={phase.status === 'completed' ? 'success' : phase.status === 'active' ? 'brand' : 'neutral'} className="text-[10px]">{phase.status}</Badge>
           <span className="text-xs text-surface-400">{formatProgress(phase.progress, phase.milestoneTotal)} · {phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
+          {(phase.startDate || phase.targetDate) && (
+            <span className="text-xs text-surface-400 flex items-center gap-1">
+              <Calendar size={11} />
+              {phase.startDate && phase.targetDate
+                ? `${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(phase.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                : phase.startDate
+                  ? `Start: ${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                  : `Target: ${new Date(phase.targetDate!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+              }
+            </span>
+          )}
         </div>
       </motion.div>
 
@@ -242,7 +253,7 @@ export function PhaseDetailPage() {
                   }`}>
                     <div className="flex items-center gap-3">
                       {/* Clickable main area */}
-                      <button onClick={() => navigate(`/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)}
+                      <button onClick={() => navigate(`/personal/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)}
                         className="flex-1 min-w-0 flex items-center gap-3 text-left">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${
                           isCompleted ? 'bg-emerald-500/20 text-emerald-400' :
@@ -253,6 +264,14 @@ export function PhaseDetailPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold text-surface-50 truncate">{milestone.title}</p>
+                          {milestone.targetDate && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Calendar size={9} className="text-surface-500" />
+                              <span className="text-[10px] text-surface-500">
+                                {new Date(milestone.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 mt-1">
                             <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
                               <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${mProgress}%` }} />

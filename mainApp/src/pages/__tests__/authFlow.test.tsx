@@ -82,16 +82,16 @@ describe('P0-31 auth flows land on the role-aware default', () => {
     expect(container.querySelector('input[name="password"]')?.getAttribute('type')).toBe('password');
   });
 
-  it('lands on /hub after a successful login', async () => {
+  it('lands on /home after a successful login', async () => {
     const { container } = renderAt('/login', <Login />);
     setInput(container, 'email', 'ajay@example.com');
     setInput(container, 'password', 'secret123');
     await submitForm(container);
     expect(loginSpy).toHaveBeenCalledWith('ajay@example.com', 'secret123');
-    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/hub');
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/home');
   });
 
-  it('lands admins on the /workspace selector instead of /hub', async () => {
+  it('lands admins on the /workspace selector instead of /home', async () => {
     useAuthStore.setState({
       user: { _id: 'admin-1', name: 'Admin User', email: 'admin@example.com', role: 'admin', settings: {} },
     });
@@ -102,13 +102,13 @@ describe('P0-31 auth flows land on the role-aware default', () => {
     expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/workspace');
   });
 
-  it('lands on /hub after a successful registration', async () => {
+  it('lands on /home after a successful registration', async () => {
     const { container } = renderAt('/register', <Register />);
     setInput(container, 'name', 'Ajay Kumar');
     setInput(container, 'email', 'ajay@example.com');
     setInput(container, 'password', 'correct-horse-battery');
     await submitForm(container);
     expect(registerSpy).toHaveBeenCalledWith('Ajay Kumar', 'ajay@example.com', 'correct-horse-battery');
-    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/hub');
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/home');
   });
 });

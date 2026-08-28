@@ -110,9 +110,9 @@ export function TeamProjects() {
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-6xl mx-auto px-6 sm:px-10 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/hub')}
+            <button onClick={() => navigate('/home')}
               className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800">
-              <ArrowLeft size={14} /> Hub
+              <ArrowLeft size={14} /> Home
             </button>
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl overflow-hidden shadow-md shadow-cyan-500/10">

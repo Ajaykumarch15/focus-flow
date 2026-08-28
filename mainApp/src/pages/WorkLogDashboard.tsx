@@ -34,7 +34,7 @@ export function WorkLogDashboard() {
           <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">WorkLog Dashboard</h1>
           <p className="text-sm text-surface-400 mt-0.5">Professional work, projects & career tracking.</p>
         </div>
-        <Button onClick={() => navigate('/worklog')} leftIcon={<BookMarked size={16} />}>View Work Logs</Button>
+        <Button onClick={() => navigate('/worklog/logs')} leftIcon={<BookMarked size={16} />}>View Work Logs</Button>
       </motion.div>
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -61,14 +61,14 @@ export function WorkLogDashboard() {
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-display font-bold text-surface-50">Active Work Tasks</h2>
-              <Button size="sm" variant="secondary" onClick={() => navigate('/tasks')} rightIcon={<ArrowRight size={13} />}>View All</Button>
+              <Button size="sm" variant="secondary" onClick={() => navigate('/worklog/tasks')} rightIcon={<ArrowRight size={13} />}>View All</Button>
             </div>
             {activeTasks.length === 0 ? (
               <p className="text-xs text-surface-500 text-center py-6">No active work tasks.</p>
             ) : (
               <div className="space-y-2">
                 {activeTasks.slice(0, 5).map(task => (
-                  <div key={task.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-800/50 transition-colors cursor-pointer" onClick={() => navigate(`/tasks/${task.id}`)}>
+                  <div key={task.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-800/50 transition-colors cursor-pointer" onClick={() => navigate(`/worklog/tasks/${task.id}`)}>
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: task.color || '#0ea5e9' }} />
                     <span className="text-sm text-surface-200 truncate flex-1">{task.title}</span>
                     <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'neutral'}>{task.priority}</Badge>
@@ -84,7 +84,7 @@ export function WorkLogDashboard() {
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-display font-bold text-surface-50">Recent Work Logs</h2>
-              <Button size="sm" variant="secondary" onClick={() => navigate('/worklog')} rightIcon={<ArrowRight size={13} />}>View All</Button>
+              <Button size="sm" variant="secondary" onClick={() => navigate('/worklog/logs')} rightIcon={<ArrowRight size={13} />}>View All</Button>
             </div>
             {activeLogs.length === 0 ? (
               <p className="text-xs text-surface-500 text-center py-6">No work logs yet.</p>

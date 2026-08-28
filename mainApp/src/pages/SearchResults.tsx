@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Search, FolderOpen, CheckSquare, BookOpen, Hash, LayoutGrid, Loader2, ArrowRight, X } from 'lucide-react';
 import { api } from '../utils/api';
@@ -31,6 +31,7 @@ type SearchFacet = Exclude<keyof SearchResults, 'query' | 'workspaceId'>;
 export function SearchResultsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const qParam = searchParams.get('q') ?? '';
   const workspaceIdParam = searchParams.get('workspaceId') ?? undefined;
   const [input, setInput] = useState(qParam);
@@ -65,7 +66,7 @@ export function SearchResultsPage() {
     if (!q) return;
     const params = new URLSearchParams({ q });
     if (workspaceIdParam) params.set('workspaceId', workspaceIdParam);
-    navigate(`/search?${params.toString()}`);
+    navigate(`${location.pathname}?${params.toString()}`);
   };
 
   const q = qParam.trim();

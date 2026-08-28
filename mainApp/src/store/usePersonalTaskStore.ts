@@ -11,7 +11,8 @@ import { api } from '../utils/api';
 import { timerEngine } from '../utils/timerEngine';
 import { offlineQueue, createOpId } from '../utils/offlineQueue';
 import { startTimerHeartbeat, stopTimerHeartbeat } from '../utils/timerHeartbeat';
-import type { Task, Priority, Subtask } from '../types';
+import type { Task, Priority, Subtask, JournalEntry } from '../types';
+import { useStore } from './useStore';
 import { toast } from './useToastStore';
 
 // ── Mappers ───────────────────────────────────────────────────────────────────
@@ -55,11 +56,13 @@ function mapTask(doc: any): Task {
 // ── Store Shape ───────────────────────────────────────────────────────────────
 interface PersonalTaskState {
   tasks: Task[];
+  journals: JournalEntry[];
   selectedTaskIds: Set<string>;
   loading: boolean;
   error: string | null;
 
   fetchTasks: () => Promise<void>;
+  fetchJournals: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline' | 'scheduledDate' | 'order'> & { deadline?: string | number; scheduledDate?: string | number }) => Promise<string>;
   updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
@@ -82,7 +85,10 @@ interface PersonalTaskState {
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
 
+  addJournal: (data: { taskId: string; content: string; mood: number; focusRating: number }) => Promise<void>;
+
   getTask: (id: string) => Task | undefined;
+  getJournalsForTask: (taskId: string) => JournalEntry[];
 
   // Rehydrate a running/paused personal session from the backend on app boot so a
   // personal timer survives a refresh (the engine restores from localStorage, but
@@ -92,6 +98,7 @@ interface PersonalTaskState {
 
 export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
   tasks: [],
+  journals: [],
   selectedTaskIds: new Set<string>(),
   loading: false,
   error: null,
@@ -105,6 +112,24 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     } catch (err: any) {
       console.error('❌ usePersonalTaskStore.fetchTasks failed:', err);
       set({ error: err.message, loading: false });
+    }
+  },
+
+  fetchJournals: async () => {
+    try {
+      const docs = await api.journals.list();
+      const mapped = docs.map((j: any) => ({
+        id: j._id,
+        taskId: j.taskId,
+        content: j.content ?? '',
+        mood: j.mood ?? 3,
+        focusRating: j.focusRating ?? 3,
+        createdAt: j.createdAt ? new Date(j.createdAt).getTime() : Date.now(),
+        updatedAt: j.updatedAt ? new Date(j.updatedAt).getTime() : Date.now(),
+      }));
+      set({ journals: mapped });
+    } catch (err) {
+      console.error('❌ usePersonalTaskStore.fetchJournals failed:', err);
     }
   },
 
@@ -232,8 +257,15 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     const now = Date.now();
     const opId = createOpId();
 
-    const currentTaskId = timerEngine.getSnapshot().taskId;
-    if (currentTaskId && currentTaskId !== taskId) {
+    const currentSnapshot = timerEngine.getSnapshot();
+    const currentTaskId = currentSnapshot.taskId;
+    const currentKind = currentSnapshot.sessionKind;
+    if (currentTaskId && currentTaskId !== taskId && currentKind && currentKind !== 'personal') {
+      // Switching from a work session to personal — show handoff toast
+      const workTaskTitle = useStore.getState().tasks.find((t) => t.id === currentTaskId)?.title;
+      if (workTaskTitle) {
+        toast.warning('Switched timer', `Stopped work session "${workTaskTitle}" to start this personal task.`);
+      }
       const { stopActiveTimerForSwitch } = await import('../utils/activeTimerRouter');
       await stopActiveTimerForSwitch();
     }
@@ -360,8 +392,28 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     set((s) => ({ tasks: s.tasks.map((t) => (t.id === taskId ? mapTask(doc) : t)) }));
   },
 
+  addJournal: async (data: { taskId: string; content: string; mood: number; focusRating: number }) => {
+    try {
+      const doc = await api.journals.create(data);
+      const journal = {
+        id: doc._id,
+        taskId: doc.taskId,
+        content: doc.content,
+        mood: doc.mood,
+        focusRating: doc.focusRating,
+        createdAt: new Date(doc.createdAt).getTime(),
+        updatedAt: new Date(doc.updatedAt).getTime(),
+      };
+      set((s) => ({ journals: [journal, ...s.journals] }));
+    } catch (err) {
+      console.error('Failed to add journal:', err);
+      throw err;
+    }
+  },
+
   // ── Helpers ───────────────────────────────────────────────────────────────
   getTask: (id) => get().tasks.find((t) => t.id === id),
+  getJournalsForTask: (taskId) => get().journals.filter((j) => j.taskId === taskId),
 
   rehydratePersonalTimer: async () => {
     // If the engine already holds a session (restored from localStorage, or a work

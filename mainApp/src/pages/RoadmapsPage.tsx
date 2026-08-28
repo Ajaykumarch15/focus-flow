@@ -125,7 +125,7 @@ export function RoadmapsPage() {
                 >
                   <Card
                     className="p-5 cursor-pointer group hover:border-surface-700 transition-all duration-200 hover:shadow-lg hover:shadow-black/10"
-                    onClick={() => navigate(`/roadmaps/${roadmap._id}`)}
+                    onClick={() => navigate(`/personal/roadmaps/${roadmap._id}`)}
                     role="link"
                     aria-label={`${roadmap.title} roadmap, ${progress}% complete`}
                   >
@@ -202,7 +202,7 @@ export function RoadmapsPage() {
                           className="w-full"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/roadmaps/${roadmap._id}`);
+                            navigate(`/personal/roadmaps/${roadmap._id}`);
                           }}
                           rightIcon={<ArrowRight size={14} />}
                         >

@@ -110,3 +110,35 @@ export function scheduledStateLabel(state: ScheduledState): string {
     case 'unscheduled': return '';
   }
 }
+
+/** Get tasks scheduled for a specific date (not completed). */
+export function getTasksForDate(tasks: Task[], date: Date): Task[] {
+  const target = startOfDay(date);
+  return tasks.filter(t => {
+    if (t.status === 'completed' || !t.scheduledDate) return false;
+    return startOfDay(new Date(t.scheduledDate)).getTime() === target.getTime();
+  });
+}
+
+/** Get array of 7 Date objects for a week (Mon–Sun) given a week offset. */
+export function getWeekDates(offset: number = 0): Date[] {
+  const now = new Date();
+  const day = now.getDay(); // 0=Sun 1=Mon …
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((day + 6) % 7) + offset * 7);
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+}
+
+/** Format a date as "Mon 28" for week-view headers. */
+export function formatDayHeader(date: Date): string {
+  return date.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+}
+
+/** Check if two calendar dates are the same day. */
+export function isSameDay(a: Date, b: Date): boolean {
+  return startOfDay(a).getTime() === startOfDay(b).getTime();
+}

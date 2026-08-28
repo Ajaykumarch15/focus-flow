@@ -39,6 +39,13 @@ export function GlobalCommandPalette({ isOpen, onClose }: { isOpen: boolean; onC
   const workspaceMatch = location.pathname.match(/^\/w\/([0-9a-fA-F]{24})/);
   const workspaceId = workspaceMatch ? workspaceMatch[1] : undefined;
 
+  // Derive workspace-prefixed search base from current path.
+  const searchBase = location.pathname.startsWith('/worklog') ? '/worklog/search'
+    : location.pathname.startsWith('/personal') ? '/personal/search'
+    : location.pathname.startsWith('/collab') ? '/collab/search'
+    : location.pathname.startsWith('/w/') ? '/collab/search'
+    : '/worklog/search';
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -158,7 +165,7 @@ export function GlobalCommandPalette({ isOpen, onClose }: { isOpen: boolean; onC
             {totalResults > 0 && (
               <button
                 onClick={() => {
-                  navigate(`/search?q=${encodeURIComponent(q)}${workspaceId ? `&workspaceId=${workspaceId}` : ''}`);
+                  navigate(`${searchBase}?q=${encodeURIComponent(q)}${workspaceId ? `&workspaceId=${workspaceId}` : ''}`);
                   onClose();
                 }}
                 className="text-brand-400 font-semibold hover:text-brand-300 flex items-center gap-1 transition-colors">

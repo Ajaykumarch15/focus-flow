@@ -47,7 +47,7 @@ function render(node: ReactNode) {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(<MemoryRouter initialEntries={['/tasks']}>{node}</MemoryRouter>);
+    root.render(<MemoryRouter initialEntries={['/worklog/tasks']}>{node}</MemoryRouter>);
   });
   return { container, root };
 }
@@ -55,8 +55,8 @@ function render(node: ReactNode) {
 function renderTasksPage() {
   return render(
     <Routes>
-      <Route path="/tasks" element={<Tasks />} />
-      <Route path="/tasks/:id" element={<div data-testid="location">task-detail</div>} />
+      <Route path="/worklog/tasks" element={<Tasks />} />
+      <Route path="/worklog/tasks/:id" element={<div data-testid="location">task-detail</div>} />
       <Route path="*" element={<div data-testid="location">other</div>} />
     </Routes>,
   );

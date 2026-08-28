@@ -103,9 +103,9 @@ describe('WorkspaceLayout engineering workspace shell', () => {
     const { container, root } = render(<div>HOME OUTLET</div>);
     expect(container.querySelector('header')).toBeTruthy();
     expect(container.textContent).toContain('FocusFlow');
-    const hubLink = container.querySelector('a[href="/hub"]');
+    const hubLink = container.querySelector('a[href="/home"]');
     expect(hubLink).toBeTruthy();
-    expect(container.textContent).toContain('Workspace Hub');
+    expect(container.textContent).toContain('Home');
     expect(container.querySelector('button[aria-label="Search workspace"]')).toBeTruthy();
     expect(container.querySelector('button[aria-label="Notifications"]')).toBeTruthy();
     expect(container.querySelector('button[aria-label="Workspace settings"]')).toBeTruthy();

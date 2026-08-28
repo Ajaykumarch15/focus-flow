@@ -111,7 +111,7 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
           if ((e.key === 'Enter' || e.key === ' ') && !(e.target as HTMLElement).closest('button, input, [data-no-nav]')) {
             e.preventDefault();
             if (onClickCard) onClickCard(task.id);
-            else navigate(detailPath ?? `/tasks/${task.id}`);
+    else navigate(detailPath ?? `/worklog/tasks/${task.id}`);
           }
         }}
         className={`card p-6 rounded-[22px] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden

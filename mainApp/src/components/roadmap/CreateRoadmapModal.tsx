@@ -64,7 +64,7 @@ export function CreateRoadmapModal({ onClose }: CreateRoadmapModalProps) {
         color: form.color,
       });
       onClose();
-      navigate(`/roadmaps/${roadmap._id}`);
+      navigate(`/personal/roadmaps/${roadmap._id}`);
     } catch (err: any) {
       toast.error('Failed to create roadmap', err?.message);
     } finally {

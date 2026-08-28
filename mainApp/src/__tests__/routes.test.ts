@@ -17,8 +17,6 @@ describe('route table', () => {
       '/',
       '/login',
       '/register',
-      '/hub',
-      '/team',
       '/w/:workspaceId',
       'overview',
       'projects',
@@ -33,17 +31,36 @@ describe('route table', () => {
       'knowledge',
       'calendar',
       'settings',
-      '/dashboard',
-      '/worklog',
-      '/worklog/:id',
-      '/reports',
-      '/tasks',
-      '/tasks/:id',
-      '/journal',
-      '/habits',
-      '/leaderboard',
-      '/focus',
-      '/activity',
+      '/worklog/dashboard',
+      '/worklog/tasks',
+      '/worklog/tasks/:id',
+      '/worklog/schedule',
+      '/worklog/logs',
+      '/worklog/logs/:id',
+      '/worklog/knowledge',
+      '/worklog/search',
+      '/worklog/reports',
+      '/worklog/insights',
+      '/worklog/habits',
+      '/worklog/focus',
+      '/personal',
+      '/personal/today',
+      '/personal/tasks',
+      '/personal/tasks/:id',
+      '/personal/focus',
+      '/personal/activity',
+      '/personal/analytics',
+      '/personal/roadmaps',
+      '/personal/roadmaps/:id',
+      '/personal/journal',
+      '/personal/search',
+      '/collab/dashboard',
+      '/home',
+      '/collab/team',
+      '/collab/leaderboard',
+      '/collab/activity',
+      '/collab/search',
+      '/settings',
       '/admin/audit',
       '/admin/people',
       '/admin/teams',
@@ -99,10 +116,10 @@ describe('S4-T3 regression: deep-link pages, never daily mega-tabs', () => {
 });
 
 describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () => {
-  it('/team is declared once, backed by TeamProjects', () => {
-    const teamRoutes = appSource.match(/<Route\s+path="\/team"/g) ?? [];
+  it('/collab/team is declared once, backed by TeamProjects', () => {
+    const teamRoutes = appSource.match(/<Route\s+path="\/collab\/team"/g) ?? [];
     expect(teamRoutes).toHaveLength(1);
-    expect(appSource).toMatch(/<Route\s+path="\/team"\s+element={<TeamProjects \/>}/);
+    expect(appSource).toMatch(/<Route\s+path="\/collab\/team"\s+element={<TeamProjects \/>}/);
   });
 
   it('removes the dead personal /team → TeamWorkspace route', () => {
@@ -123,11 +140,10 @@ describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () =
     expect(protectedRoute).not.toMatch(/to="\/dashboard"/);
   });
 
-  it('personal sidebar no longer links /team; exposes the hub switcher', () => {
+  it('personal sidebar no longer links /team; logo navigates to /home', () => {
     const sidebar = readFileSync(resolve(process.cwd(), 'src/components/layout/Sidebar.tsx'), 'utf8');
     expect(sidebar).not.toMatch(/to: '\/team'/);
-    expect(sidebar).toMatch(/to: '\/hub'/);
-    expect(sidebar).toContain("label: 'Workspace Hub'");
+    expect(sidebar).toContain("navigate('/home')");
   });
 });
 
@@ -204,21 +220,21 @@ describe('P1-T2 regression: project timeline deep-link', () => {
 });
 
 describe('PI-1.1 regression: personal insights deep-link', () => {
-  it('declares the /insights route once, backed by InsightsPage', () => {
-    const insightRoutes = appSource.match(/<Route\s+path="\/insights"/g) ?? [];
+  it('declares the /worklog/insights route once, backed by InsightsPage', () => {
+    const insightRoutes = appSource.match(/<Route\s+path="\/worklog\/insights"/g) ?? [];
     expect(insightRoutes).toHaveLength(1);
-    expect(appSource).toMatch(/<Route\s+path="\/insights"\s+element={<InsightsPage \/>}/);
-    expect(routePaths).toContain('/insights');
+    expect(appSource).toMatch(/<Route\s+path="\/worklog\/insights"\s+element={<InsightsPage \/>}/);
+    expect(routePaths).toContain('/worklog/insights');
   });
 
   it('lazy-loads InsightsPage alongside the personal pages', () => {
     expect(appSource).toMatch(/const InsightsPage\s*=\s*lazy\(\(\) => import\('\.\/pages\/InsightsPage'\)/);
   });
 
-  it('personal sidebar links to /insights next to Reports', () => {
+  it('worklog sidebar links to /worklog/insights next to Reports', () => {
     const sidebar = readFileSync(resolve(process.cwd(), 'src/components/layout/Sidebar.tsx'), 'utf8');
-    expect(sidebar).toContain("to: '/reports'");
-    expect(sidebar).toContain("to: '/insights'");
+    expect(sidebar).toContain("to: '/worklog/reports'");
+    expect(sidebar).toContain("to: '/worklog/insights'");
     expect(sidebar).toContain("label: 'Insights'");
   });
 
