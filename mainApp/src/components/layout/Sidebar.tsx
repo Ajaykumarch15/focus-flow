@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare,
   Settings, Zap, ChevronLeft, ChevronRight,
-  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, Building2, History, Library, Map, BarChart3, Calendar, Clock, Brain, Lightbulb,
+  LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, History, Library, Map, BarChart3, Calendar, Clock, Brain, Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -16,28 +16,28 @@ const PERSONAL_ROADMAPS_NAV = [
   { to: '/personal', icon: Brain, label: 'Personal' },
   { to: '/personal/today', icon: LayoutDashboard, label: 'Today' },
   { to: '/personal/tasks', icon: CheckSquare, label: 'Tasks' },
-  { to: '/roadmaps', icon: Map, label: 'Roadmaps' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/personal/schedule', icon: Calendar, label: 'Schedule' },
+  { to: '/personal/roadmaps', icon: Map, label: 'Roadmaps' },
+  { to: '/personal/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 
 const WORKLOG_NAV = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Today'  },
-  { to: '/tasks',     icon: CheckSquare,     label: 'Tasks'      },
-  { to: '/schedule',  icon: Calendar,        label: 'Schedule'   },
-  { to: '/worklog',   icon: BookMarked,      label: 'Work Logs'  },
-  //{ to: '/journal',   icon: BookOpen,        label: 'Journal'    },
-  { to: '/habits',    icon: Activity,        label: 'Habits'     },
-  { to: '/focus',     icon: Zap,             label: 'Focus Mode' },
-  { to: '/reports',   icon: LineChart,       label: 'Reports'    },
-  { to: '/insights',  icon: Lightbulb,       label: 'Insights'   },
-  { to: '/knowledge', icon: Library,         label: 'Knowledge'  },
+  { to: '/worklog/dashboard', icon: LayoutDashboard, label: 'Today'  },
+  { to: '/worklog/tasks',     icon: CheckSquare,     label: 'Tasks'      },
+  { to: '/worklog/schedule',  icon: Calendar,        label: 'Schedule'   },
+  { to: '/worklog/logs',      icon: BookMarked,      label: 'Work Logs'  },
+  //{ to: '/worklog/journal',   icon: BookOpen,        label: 'Journal'    },
+  { to: '/worklog/habits',    icon: Activity,        label: 'Habits'     },
+  { to: '/worklog/focus',     icon: Zap,             label: 'Focus Mode' },
+  { to: '/worklog/reports',   icon: LineChart,       label: 'Reports'    },
+  { to: '/worklog/insights',  icon: Lightbulb,       label: 'Insights'   },
+  { to: '/worklog/knowledge', icon: Library,         label: 'Knowledge'  },
 ];
 
 
 const COLLAB_NAV = [
-  { to: '/hub',         icon: Building2,  label: 'Workspace Hub' },
-  { to: '/leaderboard', icon: Trophy,     label: 'Leaderboard'   },
-  { to: '/activity',    icon: History,    label: 'Activity'      },
+  { to: '/collab/leaderboard', icon: Trophy,     label: 'Leaderboard'   },
+  { to: '/collab/activity',    icon: History,    label: 'Activity'      },
 ];
 
 const SETTINGS_NAV = [
@@ -61,6 +61,7 @@ function NavItem({ to, icon: Icon, label, collapsed, end }: { to: string; icon: 
             </>
           )}
           <Icon size={18} className={`flex-shrink-0 transition-colors ${isActive ? '' : 'group-hover:text-surface-50'}`} />
+
           <AnimatePresence>
             {!collapsed && (
               <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
@@ -91,11 +92,11 @@ export function Sidebar() {
   const { user, logout, setWorkspace } = useAuthStore();
   const navigate = useNavigate();
   const workspace = useAuthStore((s) => s.workspace);
-  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
-  const { tasks, theme } = useStore();
+  const { activeTaskId, activeTimerState, display: activeDisplay, activeTask, sessionKind } = useActiveTimer();
+  const { theme } = useStore();
 
-  const activeTask = tasks.find((t) => t.id === activeTaskId);
   const isReducedMotion = theme?.reducedMotion;
+  const focusRoute = sessionKind === 'personal' || workspace === 'personal' ? '/personal/focus' : workspace === 'collab' ? '/home' : '/worklog/focus';
 
   return (
     <motion.aside
@@ -107,7 +108,7 @@ export function Sidebar() {
       {/* Logo / Header */}
       <div className="p-3 flex items-center justify-between border-b border-surface-800">
         <button
-          onClick={() => navigate('/hub')}
+          onClick={() => navigate('/home')}
           className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
         >
           <div className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0">
@@ -184,7 +185,7 @@ export function Sidebar() {
         <div className="px-2 py-2 border-t border-surface-800 bg-surface-950/80">
           <button
             type="button"
-            onClick={() => navigate(workspace === 'personal' ? '/personal/today' : '/focus')}
+            onClick={() => navigate(focusRoute)}
             title={activeTask ? `Active Task: ${activeTask.title}` : 'Active Timer'}
             aria-label={`Active timer for ${activeTask?.title || 'task'}: ${activeDisplay}, status ${activeTimerState}`}
             className={`w-full flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${

@@ -109,7 +109,7 @@ export function RoadmapDetailPage() {
     setDeleting(true);
     try {
       await deleteRoadmap(roadmap._id);
-      navigate('/roadmaps');
+      navigate('/personal/roadmaps');
     } catch {
       // Failure toast is surfaced by the store.
     } finally {
@@ -165,6 +165,12 @@ export function RoadmapDetailPage() {
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge tone={statusTone}>{ROADMAP_STATUS_LABELS[roadmap.status]}</Badge>
             <span className="text-xs text-surface-400">{ROADMAP_TYPE_LABELS[roadmap.type]}</span>
+            {roadmap.startDate && (
+              <span className="text-xs text-surface-400 flex items-center gap-1">
+                <Calendar size={11} />
+                Start: {new Date(roadmap.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
             {roadmap.targetDate && (
               <span className="text-xs text-surface-400 flex items-center gap-1">
                 <Calendar size={11} />
@@ -272,7 +278,7 @@ export function RoadmapDetailPage() {
             targetDate={roadmap.targetDate}
             status={roadmap.status}
             progress={roadmap.progress}
-            onOpen={(m) => navigate(`/roadmaps/${id}/phases/${m.phaseId}/milestones/${m._id}`)}
+            onOpen={(m) => navigate(`/personal/roadmaps/${id}/phases/${m.phaseId}/milestones/${m._id}`)}
           />
         </motion.div>
       )}
@@ -320,8 +326,8 @@ export function RoadmapDetailPage() {
                     role="link"
                     tabIndex={0}
                     aria-label={`${phase.title}, ${phaseProgress}% complete`}
-                    onClick={() => navigate(`/roadmaps/${roadmap._id}/phases/${phase._id}`)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/roadmaps/${roadmap._id}/phases/${phase._id}`); }}
+                    onClick={() => navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase._id}`)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase._id}`); }}
                     className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${
                       isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'
                     }`}
@@ -336,6 +342,19 @@ export function RoadmapDetailPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-surface-50 truncate">{phase.title}</p>
+                        {(phase.startDate || phase.targetDate) && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <Calendar size={10} className="text-surface-500" />
+                            <span className="text-[10px] text-surface-500">
+                              {phase.startDate && phase.targetDate
+                                ? `${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(phase.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                : phase.startDate
+                                  ? `Start: ${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                  : `Target: ${new Date(phase.targetDate!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                              }
+                            </span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
                             <div

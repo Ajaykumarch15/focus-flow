@@ -728,7 +728,7 @@ function WorkLogCard({ log, defaultExpanded = false }: { log: WorkLog; defaultEx
             size="sm"
             className="text-brand-400 border-brand-500/20 bg-brand-500/10 hover:bg-brand-500/20 hover:text-brand-400"
             variant="outline"
-            onClick={() => navigate(`/worklog/${log._id}`)}
+            onClick={() => navigate(`/worklog/logs/${log._id}`)}
             title="View full details"
             leftIcon={<Eye size={12} />}
           >
@@ -1041,7 +1041,7 @@ function ClosedLogCard({ log }: { log: WorkLog }) {
         </div>
       </div>
       <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-        <button onClick={() => navigate(`/worklog/${log._id}`)}
+        <button onClick={() => navigate(`/worklog/logs/${log._id}`)}
           className="p-1.5 text-surface-500 hover:text-brand-400 rounded-lg transition-colors" title="View details" aria-label="View details">
           <Eye size={13} />
         </button>
@@ -1281,7 +1281,7 @@ function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
           </div>
           <div className="space-y-1.5">
             {blockedLogs.slice(0, 3).map(log => (
-              <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+              <button key={log._id} onClick={() => navigate(`/worklog/logs/${log._id}`)}
                 className="w-full text-left flex items-center gap-2 p-2 rounded-lg hover:bg-red-500/10 transition-colors">
                 <div className="w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" />
                 <span className="text-xs text-red-300/80 truncate">{log.title}</span>
@@ -1305,7 +1305,7 @@ function ProductivitySidebar({ activeLogs, closedLogs, allLogs }: {
             {activeLogs.slice(0, 5).map(log => {
               const s = STATUS_MAP[log.status];
               return (
-                <button key={log._id} onClick={() => navigate(`/worklog/${log._id}`)}
+                <button key={log._id} onClick={() => navigate(`/worklog/logs/${log._id}`)}
                   className="w-full flex items-center gap-2 py-2 px-2 rounded-lg hover:bg-surface-800 transition-colors text-left group">
                   <span className="text-sm flex-shrink-0">{s?.emoji}</span>
                   <span className="text-xs text-surface-300 truncate flex-1 group-hover:text-surface-100 transition-colors">{log.title}</span>
@@ -1373,8 +1373,8 @@ export function WorkLogPage() {
         <WorkLogMasterDetail
           logs={allLogs}
           selectedId={id}
-          onSelect={logId => navigate(`/worklog/${logId}`)}
-          onBack={() => navigate('/worklog')}
+          onSelect={logId => navigate(`/worklog/logs/${logId}`)}
+          onBack={() => navigate('/worklog/logs')}
         />
       </div>
     );

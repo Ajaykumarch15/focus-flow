@@ -35,26 +35,16 @@ export function PersonalTasks() {
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [filterCategory, setFilterCategory] = useState('all');
-  const [showCompleted, setShowCompleted] = useState(false);
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [filterSchedule, setFilterSchedule] = useState<ScheduledState | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'default' | 'deadline' | 'priority'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'deadline'>('default');
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const handleStatusFilter = (status: TaskStatus | 'all') => {
-    setFilterStatus(status);
-    if (status === 'completed') setShowCompleted(true);
-    else if (status !== 'all') setShowCompleted(false);
-  };
-
-  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-
   const filtered = useMemo(() => tasks.filter(task => {
-    if (!showCompleted && task.status === 'completed') return false;
     if (filterStatus !== 'all' && task.status !== filterStatus) return false;
     if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
     if (filterCategory !== 'all' && task.category !== filterCategory) return false;
@@ -65,12 +55,11 @@ export function PersonalTasks() {
     }
     if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
     return true;
-  }), [tasks, filterStatus, filterPriority, filterCategory, filterSchedule, search, showCompleted, showOverdueOnly]);
+  }), [tasks, filterStatus, filterPriority, filterCategory, filterSchedule, search, showOverdueOnly]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
     if (sortBy === 'deadline') arr.sort((a, b) => (a.deadline || Infinity) - (b.deadline || Infinity));
-    else if (sortBy === 'priority') arr.sort((a, b) => (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99));
     else arr.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return arr;
   }, [filtered, sortBy]);
@@ -90,9 +79,8 @@ export function PersonalTasks() {
       counts.all++;
       counts[t.status]++;
     }
-    if (!showCompleted && filterStatus !== 'completed') counts.all -= counts.completed;
     return counts;
-  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly, showCompleted, filterStatus]);
+  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly]);
 
   const overdueCount = useMemo(
     () => tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length,
@@ -108,7 +96,6 @@ export function PersonalTasks() {
     setFilterPriority('all');
     setFilterCategory('all');
     setFilterSchedule('all');
-    setShowCompleted(false);
     setShowOverdueOnly(false);
   }, []);
 
@@ -293,7 +280,6 @@ export function PersonalTasks() {
             >
               <option value="default">Default Order</option>
               <option value="deadline">Deadline</option>
-              <option value="priority">Priority</option>
             </select>
           </div>
 
@@ -333,7 +319,7 @@ export function PersonalTasks() {
                 key={value}
                 type="button"
                 aria-pressed={active}
-                onClick={() => handleStatusFilter(value)}
+                onClick={() => setFilterStatus(value)}
                 className={cn(
                   'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border text-xs font-bold transition-all',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
@@ -362,7 +348,6 @@ export function PersonalTasks() {
             ['today', 'Today'],
             ['missed', 'Missed'],
             ['upcoming', 'Upcoming'],
-            ['completed', 'Completed'],
             ['unscheduled', 'No Date'],
           ] as const).map(([value, label]) => {
             const active = filterSchedule === value;

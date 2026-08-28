@@ -74,6 +74,7 @@ export interface RoadmapTaskSummary {
   milestoneRef?: string;
   phaseRef?: string;
   deadline?: string;
+  scheduledDate?: string;
 }
 
 export const ROADMAP_TYPE_LABELS: Record<RoadmapType, string> = {

@@ -26,6 +26,7 @@ import type {
 import { useWorkLogStore } from './useWorkLogStore';
 import { useRoadmapStore } from './useRoadmapStore';
 import { useWorkspaceStore } from './useWorkspaceStore';
+import { usePersonalTaskStore } from './usePersonalTaskStore';
 import { toast } from './useToastStore';
 import { generateBrandShades } from '../utils/colorUtils';
 
@@ -542,19 +543,29 @@ export const useStore = create<StoreState>((set, get) => {
       const now = Date.now();
       const opId = createOpId();
 
-    // A different running/paused task is closed first (backend + offline queue)
-    // so only one session stays open across the whole workspace. Route through the
-    // router so the prior session is stopped on its OWN store/endpoint — starting a
-    // personal task while a work timer runs must not call api.sessions.stop on a
-    // personal session id (which would orphan it).
-    const currentTaskId = timerEngine.getSnapshot().taskId;
-    if (currentTaskId && currentTaskId !== taskId) {
-      const { stopActiveTimerForSwitch } = await import('../utils/activeTimerRouter');
-      await stopActiveTimerForSwitch();
-    }
+      // A different running/paused task is closed first (backend + offline queue)
+      // so only one session stays open across the whole workspace. Route through the
+      // router so the prior session is stopped on its OWN store/endpoint — starting a
+      // personal task while a work timer runs must not call api.sessions.stop on a
+      // personal session id (which would orphan it).
+      const currentSnapshot = timerEngine.getSnapshot();
+      const currentTaskId = currentSnapshot.taskId;
+      const currentKind = currentSnapshot.sessionKind;
+      if (currentTaskId && currentTaskId !== taskId && currentKind && currentKind !== 'work') {
+        // Switching from a personal session to work — show handoff toast
+        const personalTaskTitle = usePersonalTaskStore.getState().tasks.find((t) => t.id === currentTaskId)?.title;
+        if (personalTaskTitle) {
+          toast.warning('Switched timer', `Stopped personal session "${personalTaskTitle}" to start this work task.`);
+        }
+        const { stopActiveTimerForSwitch } = await import('../utils/activeTimerRouter');
+        await stopActiveTimerForSwitch();
+      } else if (currentTaskId && currentTaskId !== taskId) {
+        const { stopActiveTimerForSwitch } = await import('../utils/activeTimerRouter');
+        await stopActiveTimerForSwitch();
+      }
 
-    // Resuming a task continues from its accumulated time (display continuity).
-    const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
+      // Resuming a task continues from its accumulated time (display continuity).
+      const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
 
     const res = await timerEngine.start(taskId, undefined, now, resumeFromMs, 'work');
       if (!res.success) {

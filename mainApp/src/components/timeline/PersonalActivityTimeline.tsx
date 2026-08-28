@@ -93,11 +93,11 @@ export function PersonalActivityTimeline() {
   const resumeTask = (event: TimelineEvent) => {
     if (!event.taskId) return;
     void startTimer(event.taskId);
-    navigate('/focus');
+    navigate('/worklog/focus');
   };
 
   const openTask = (event: TimelineEvent) => {
-    if (event.taskId) navigate(`/tasks/${event.taskId}`);
+    if (event.taskId) navigate(`/worklog/tasks/${event.taskId}`);
   };
 
   const clearFilters = () => {
@@ -130,14 +130,14 @@ export function PersonalActivityTimeline() {
     }
     if (event.worklogId) {
       return (
-        <Button size="xs" variant="secondary" rightIcon={<ArrowRight size={12} />} onClick={() => navigate(`/worklog/${event.worklogId}`)}>
+        <Button size="xs" variant="secondary" rightIcon={<ArrowRight size={12} />} onClick={() => navigate(`/worklog/logs/${event.worklogId}`)}>
           Open Work Log
         </Button>
       );
     }
     if (event.kind === 'journal') {
       return (
-        <Button size="xs" variant="ghost" rightIcon={<ArrowRight size={12} />} onClick={() => navigate('/journal')}>
+        <Button size="xs" variant="ghost" rightIcon={<ArrowRight size={12} />} onClick={() => navigate('/worklog/journal')}>
           Open Journal
         </Button>
       );

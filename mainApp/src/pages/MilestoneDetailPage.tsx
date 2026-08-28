@@ -2,21 +2,26 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Play, Clock, Plus,
+  CheckCircle2, Circle, Plus, Calendar,
   Pencil, Trash2, MoreVertical, Link2, Unlink, ExternalLink, ArrowRightLeft,
 } from 'lucide-react';
 import { useRoadmapStore } from '../store/useRoadmapStore';
 import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import { api } from '../utils/api';
 import { Dialog } from '../components/ui/Dialog';
-import { Input } from '../components/ui/Input';
-import { Textarea } from '../components/ui/Textarea';
 import { Badge, type BadgeTone } from '../components/ui/Badge';
 import { toast } from '../store/useToastStore';
-import type { RoadmapTaskSummary, RoadmapMilestoneStatus } from '../types/roadmap';
+import type { RoadmapTaskSummary } from '../types/roadmap';
 import { safeProgress } from '../utils/roadmapProgress';
-import { nextMilestoneStatuses } from '../utils/roadmapLifecycle';
-import { getScheduledState, formatScheduledDate, scheduledStateColor } from '../utils/personalTaskSchedule';
+import { getScheduledState, scheduledStateLabel } from '../utils/personalTaskSchedule';
+
+const SCHEDULE_BADGE_TONE: Record<string, BadgeTone> = {
+  today: 'brand',
+  missed: 'danger',
+  upcoming: 'info',
+  completed: 'success',
+  unscheduled: 'neutral',
+};
 
 const PRIORITY_COLORS: Record<string, string> = {
   critical: 'text-red-400',
@@ -32,17 +37,11 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
   blocked: 'danger',
 };
 
-const MILESTONE_STATUS_OPTIONS = [
-  { value: 'todo', label: 'To Do' },
-  { value: 'in-progress', label: 'In Progress' },
-  { value: 'completed', label: 'Completed' },
-];
-
 export function MilestoneDetailPage() {
   const { id, phaseId, milestoneId } = useParams<{ id: string; phaseId: string; milestoneId: string }>();
   const navigate = useNavigate();
   const { activeRoadmap, detailLoading, getRoadmap, linkTask, unlinkTask } = useRoadmapStore();
-  const { completeTask, deleteTask } = usePersonalTaskStore();
+  const { tasks: personalTasks, completeTask, deleteTask } = usePersonalTaskStore();
 
   // Milestone edit state
   const [editOpen, setEditOpen] = useState(false);
@@ -55,7 +54,7 @@ export function MilestoneDetailPage() {
 
   // Add task state
   const [addTaskOpen, setAddTaskOpen] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium' });
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium', deadline: '', scheduledDate: '' });
   const [creatingTask, setCreatingTask] = useState(false);
 
   // Link existing task state
@@ -78,6 +77,12 @@ export function MilestoneDetailPage() {
   const [taskDeleteTarget, setTaskDeleteTarget] = useState<RoadmapTaskSummary | null>(null);
   const [deletingTask, setDeletingTask] = useState(false);
 
+  // Schedule task state
+  const [scheduleTarget, setScheduleTarget] = useState<RoadmapTaskSummary | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0];
+  });
+
   useEffect(() => {
     if (id && (!activeRoadmap || activeRoadmap._id !== id)) getRoadmap(id);
   }, [id, activeRoadmap, getRoadmap]);
@@ -97,6 +102,12 @@ export function MilestoneDetailPage() {
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const progress = safeProgress(milestone?.progress);
 
+  const personalTaskMap = useMemo(() => {
+    const map = new Map<string, typeof personalTasks[0]>();
+    for (const t of personalTasks) map.set(t.id, t);
+    return map;
+  }, [personalTasks]);
+
   // Close task menu on outside click
   useEffect(() => {
     if (!taskMenu) return;
@@ -113,6 +124,7 @@ export function MilestoneDetailPage() {
     setEditForm({
       title: milestone.title,
       description: milestone.description || '',
+
       status: milestone.status,
       targetDate: milestone.targetDate ? new Date(milestone.targetDate).toISOString().split('T')[0] : '',
     });
@@ -144,7 +156,7 @@ export function MilestoneDetailPage() {
       await api.personalRoadmaps.removeMilestone(milestoneId);
       toast.success('Milestone deleted');
       setDelMilestone(false);
-      navigate(`/roadmaps/${id}/phases/${phaseId}`);
+      navigate(`/personal/roadmaps/${id}/phases/${phaseId}`);
     } catch (e: any) { toast.error('Failed', e?.message); }
     finally { setDeleting(false); }
   };
@@ -162,13 +174,15 @@ export function MilestoneDetailPage() {
         category: 'Work',
         tags: [],
         subtasks: [],
+        deadline: taskForm.deadline ? new Date(taskForm.deadline).getTime() : undefined,
+        scheduledDate: taskForm.scheduledDate ? new Date(taskForm.scheduledDate).getTime() : undefined,
         personalRoadmapRef: id,
         personalPhaseRef: phaseId,
         personalMilestoneRef: milestoneId,
       });
       toast.success('Task created');
       setAddTaskOpen(false);
-      setTaskForm({ title: '', description: '', priority: 'medium' });
+      setTaskForm({ title: '', description: '', priority: 'medium', deadline: '', scheduledDate: '' });
       getRoadmap(id);
     } catch (e: any) { toast.error('Failed', e?.message); }
     finally { setCreatingTask(false); }
@@ -198,7 +212,19 @@ export function MilestoneDetailPage() {
   };
 
   const handleStartTask = (task: RoadmapTaskSummary) => {
-    navigate('/focus', { state: { taskId: task.id, taskTitle: task.title } });
+    navigate(`/personal/tasks/${task.id}`);
+  };
+
+  const handleScheduleTask = async () => {
+    if (!scheduleTarget) return;
+    try {
+      await api.personalTasks.update(scheduleTarget.id, { scheduledDate: scheduleDate });
+      toast.success(`Scheduled for ${scheduleDate}`);
+      setScheduleTarget(null);
+      if (id) getRoadmap(id);
+    } catch (e: any) {
+      toast.error('Failed to schedule', e?.message);
+    }
   };
 
   // ── Link / Unlink / Move ──
@@ -319,167 +345,95 @@ export function MilestoneDetailPage() {
             </button>
           </div>
         </div>
-
-        {tasks.length === 0 ? (
-          <div className="text-center py-5">
-            <CheckCircle2 className="mx-auto mb-2 text-surface-600" size={24} />
-            <p className="text-sm text-surface-400 font-medium">No tasks yet</p>
-            <p className="text-xs text-surface-500 mt-1 mb-3">Break this milestone into actionable tasks.</p>
-            <button onClick={() => setAddTaskOpen(true)}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors">
-              <Plus size={14} /> Add Task
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {tasks.map((task, idx) => {
-              const isCompleted = task.status === 'completed';
-              return (
-                <motion.div key={task.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
-                  <div className={`rounded-2xl border bg-surface-900/90 p-4 transition-all duration-200 group ${
-                    isCompleted ? 'border-emerald-500/20 opacity-70' : 'border-surface-800 hover:border-surface-700'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {/* Toggle complete */}
-                      <button onClick={() => handleCompleteTask(task)} className="flex-shrink-0">
-                        {isCompleted
-                          ? <CheckCircle2 size={18} className="text-emerald-400" />
-                          : <Circle size={18} className={`text-surface-500 hover:text-brand-400 transition-colors ${PRIORITY_COLORS[task.priority] || ''}`}
-                            />}
-                      </button>
-
-                      {/* Task body (clickable) */}
-                      <div className="min-w-0 flex-1">
-                        <p className={`text-sm font-medium truncate ${isCompleted ? 'line-through text-surface-500' : 'text-surface-50'}`}>{task.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge tone={STATUS_COLORS[task.status] || 'neutral'} className="text-[10px]">{task.status}</Badge>
-                          {task.deadline && (
-                            <span className="text-[11px] text-surface-500 flex items-center gap-1">
-                              <Clock size={10} />{new Date(task.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </span>
-                          )}
-                          {'scheduledDate' in task && (task as any).scheduledDate && (
-                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${scheduledStateColor(getScheduledState(task as any))}`}>
-                              {formatScheduledDate((task as any).scheduledDate)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {!isCompleted && (
-                          <button onClick={() => handleStartTask(task)}
-                            className="p-1.5 rounded-lg bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors" title="Start focus">
-                            <Play size={14} />
-                          </button>
-                        )}
-                        {/* Task menu */}
-                        <div className="relative" ref={taskMenu === task.id ? taskMenuRef : undefined}>
-                          <button onClick={(e) => { e.stopPropagation(); setTaskMenu(taskMenu === task.id ? null : task.id); }}
-                            className="p-1.5 rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                            <MoreVertical size={13} />
-                          </button>
-                          {taskMenu === task.id && (
-                            <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1">
-                              <button onClick={() => { setTaskMenu(null); navigate('/tasks'); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
-                                <ExternalLink size={13} /> Open in Tasks
-                              </button>
-                              <button onClick={() => { setTaskMenu(null); setMoveTarget(task); setMovePhaseId(''); setMoveMilestoneId(''); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
-                                <ArrowRightLeft size={13} /> Move to Milestone
-                              </button>
-                              <button onClick={() => handleUnlinkTask(task)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
-                                <Unlink size={13} /> Unlink
-                              </button>
-                              <button onClick={() => { setTaskMenu(null); setTaskDeleteTarget(task); }}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
-                                <Trash2 size={13} /> Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
       </motion.div>
-      {/* Edit Milestone Modal */}
-      <Dialog open={editOpen} onClose={() => setEditOpen(false)} title="Edit Milestone" size="sm"
-        footer={<>
-          <button onClick={() => setEditOpen(false)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
-          <button onClick={saveMilestone} disabled={!editForm.title.trim() || saving}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </>}>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-surface-400 mb-1.5">Title <span className="text-red-400">*</span></label>
-            <Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} autoFocus />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-surface-400 mb-1.5">Description</label>
-            <Textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-surface-400 mb-1.5">Target Date</label>
-              <Input type="date" value={editForm.targetDate} onChange={e => setEditForm(f => ({ ...f, targetDate: e.target.value }))} />
+
+      {/* Task list */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="space-y-2">
+        {tasks.length === 0 ? (
+          <p className="text-sm text-surface-500 text-center py-6">No tasks yet. Add or link a task to get started.</p>
+        ) : tasks.map(task => {
+          const fullTask = personalTaskMap.get(task.id);
+          const scheduleDate = fullTask?.scheduledDate ?? (task.scheduledDate ? new Date(task.scheduledDate).getTime() : undefined);
+          const state = fullTask ? getScheduledState(fullTask) : (scheduleDate ? getScheduledState({ status: task.status, scheduledDate: scheduleDate }) : 'unscheduled');
+          const done = task.status === 'completed';
+          return (
+            <div key={task.id}
+              className={`group flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                done
+                  ? 'border-surface-800 bg-surface-900/40 opacity-60'
+                  : 'border-surface-800 bg-surface-900 hover:border-surface-700'
+              }`}>
+              <button onClick={() => handleCompleteTask(task)} className="flex-shrink-0" aria-label={done ? 'Completed' : 'Mark complete'}>
+                {done ? <CheckCircle2 size={18} className="text-emerald-400" /> : <Circle size={18} className="text-surface-600 hover:text-surface-400" />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium truncate ${done ? 'text-surface-500 line-through' : 'text-surface-100'}`}>{task.title}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {task.priority && <span className={`text-[10px] ${PRIORITY_COLORS[task.priority] || 'text-surface-500'}`}>{task.priority}</span>}
+                  {task.status === 'in-progress' && <span className="text-[10px] text-brand-400">In progress</span>}
+                  {state !== 'unscheduled' && scheduleDate && (
+                    <Badge tone={SCHEDULE_BADGE_TONE[state] || 'neutral'} className="text-[10px]">{scheduledStateLabel(state)}</Badge>
+                  )}
+                </div>
+              </div>
+              {!done && (
+                <button onClick={() => { setScheduleTarget(task); setScheduleDate(scheduleDate ? new Date(scheduleDate).toISOString().split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0]); }}
+                  className="flex-shrink-0 px-2 py-1 rounded-lg text-[11px] font-medium text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors"
+                  aria-label={`Schedule ${task.title}`}>
+                  <Calendar size={14} />
+                </button>
+              )}
+              <div className="relative flex-shrink-0" ref={taskMenu === task.id ? taskMenuRef : undefined}>
+                <button onClick={() => setTaskMenu(taskMenu === task.id ? null : task.id)}
+                  className="p-1 rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-colors opacity-0 group-hover:opacity-100"
+                  aria-label="Task menu">
+                  <MoreVertical size={14} />
+                </button>
+                {taskMenu === task.id && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-30 py-1">
+                    <button onClick={() => handleStartTask(task)} className="w-full text-left px-3 py-2 text-xs text-surface-300 hover:bg-surface-700 flex items-center gap-2">
+                      <ExternalLink size={12} /> Open task
+                    </button>
+                    <button onClick={() => { setMoveTarget(task); setTaskMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-surface-300 hover:bg-surface-700 flex items-center gap-2">
+                      <ArrowRightLeft size={12} /> Move
+                    </button>
+                    <button onClick={() => handleUnlinkTask(task)} className="w-full text-left px-3 py-2 text-xs text-surface-300 hover:bg-surface-700 flex items-center gap-2">
+                      <Unlink size={12} /> Unlink
+                    </button>
+                    <div className="h-px bg-surface-700 my-1" />
+                    <button onClick={() => { setTaskDeleteTarget(task); setTaskMenu(null); }} className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2">
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-surface-400 mb-1.5">Status</label>
-              <select value={editForm.status} onChange={e => setEditForm(f => ({ ...f, status: e.target.value }))}
-                className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-                {(milestone
-                  ? nextMilestoneStatuses(milestone.status as RoadmapMilestoneStatus)
-                  : MILESTONE_STATUS_OPTIONS.map(o => o.value)
-                ).map(val => {
-                  const o = MILESTONE_STATUS_OPTIONS.find(x => x.value === val) ?? { value: val, label: val };
-                  return <option key={o.value} value={o.value}>{o.label}</option>;
-                })}
-              </select>
-            </div>
-          </div>
-        </div>
-      </Dialog>
-      {/* Delete Milestone Confirm */}
-      <Dialog open={delMilestone} onClose={() => setDelMilestone(false)} title="Delete Milestone" size="sm"
-        footer={<>
-          <button onClick={() => setDelMilestone(false)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
-          <button onClick={deleteMilestone} disabled={deleting}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50">
-            {deleting ? 'Deleting...' : 'Delete Milestone'}
-          </button>
-        </>}>
-        <p className="text-sm text-surface-300">This will permanently remove <span className="font-semibold text-surface-100">"{milestone.title}"</span> and unlink associated tasks.</p>
-        <p className="text-xs text-surface-500 mt-2">This action cannot be undone.</p>
-      </Dialog>
-      {/* Add Task Modal */}
+          );
+        })}
+      </motion.div>
+
+      {/* Add Task Dialog */}
       <Dialog open={addTaskOpen} onClose={() => setAddTaskOpen(false)} title="Add Task" size="sm"
         footer={<>
           <button onClick={() => setAddTaskOpen(false)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
-          <button onClick={createTask} disabled={!taskForm.title.trim() || creatingTask}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50">
+          <button onClick={createTask} disabled={creatingTask || !taskForm.title.trim()}
+            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
             {creatingTask ? 'Creating...' : 'Create Task'}
           </button>
         </>}>
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-surface-400 mb-1.5">Title <span className="text-red-400">*</span></label>
-            <Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. What is System Design?" autoFocus />
+            <label className="block text-xs font-medium text-surface-400 mb-1.5">Title</label>
+            <input type="text" value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))}
+              placeholder="Task title"
+              className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
           </div>
           <div>
             <label className="block text-xs font-medium text-surface-400 mb-1.5">Description</label>
-            <Textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="Optional description" rows={2} />
+            <textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Optional description"
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 resize-none" />
           </div>
           <div>
             <label className="block text-xs font-medium text-surface-400 mb-1.5">Priority</label>
@@ -488,16 +442,39 @@ export function MilestoneDetailPage() {
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
-              <option value="urgent">Urgent</option>
+              <option value="critical">Critical</option>
             </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-surface-400 mb-1.5">Deadline</label>
+              <input type="date" value={taskForm.deadline} onChange={e => setTaskForm(f => ({ ...f, deadline: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-surface-400 mb-1.5">Scheduled Date</label>
+              <input type="date" value={taskForm.scheduledDate} onChange={e => setTaskForm(f => ({ ...f, scheduledDate: e.target.value }))}
+                className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+            </div>
           </div>
         </div>
       </Dialog>
-      {/* Link Existing Task Modal */}
-      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} title="Link Existing Task" size="sm"
-        footer={
-          <button onClick={() => setLinkOpen(false)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Close</button>
-        }>
+
+      {/* Schedule Task Dialog */}
+      <Dialog open={!!scheduleTarget} onClose={() => setScheduleTarget(null)} title={`Schedule "${scheduleTarget?.title ?? ''}"`} size="sm"
+        footer={<>
+          <button onClick={() => setScheduleTarget(null)} className="px-3 py-1.5 rounded-lg text-sm text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors">Cancel</button>
+          <button onClick={handleScheduleTask} className="px-4 py-1.5 rounded-lg text-sm font-medium bg-brand-500 text-white hover:bg-brand-600 transition-colors">Schedule</button>
+        </>}>
+        <div className="space-y-3">
+          <label className="block text-xs font-medium text-surface-400">Date</label>
+          <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl bg-surface-800 border border-surface-700 text-surface-100 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+        </div>
+      </Dialog>
+
+      {/* Link Task Modal */}
+      <Dialog open={linkOpen} onClose={() => setLinkOpen(false)} title="Link Existing Task">
         {loadingAvailable ? (
           <div className="space-y-2 py-2">
             {[1, 2, 3].map(i => <div key={i} className="h-12 bg-surface-800 rounded-xl animate-pulse" />)}

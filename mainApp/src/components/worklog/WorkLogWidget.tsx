@@ -24,7 +24,7 @@ export function WorkLogWidget() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
       className="card p-5 rounded-[22px] cursor-pointer hover:border-surface-700 hover:-translate-y-0.5 transition-all group shadow-sm"
-      onClick={() => navigate('/worklog')}
+      onClick={() => navigate('/worklog/logs')}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">

@@ -76,7 +76,7 @@ export function LinkedRoadmapCard({ taskId, roadmapId, phaseId, milestoneId }: L
       <div className="space-y-1.5">
         <button
           type="button"
-          onClick={() => navigate(`/roadmaps/${roadmap._id}`)}
+          onClick={() => navigate(`/personal/roadmaps/${roadmap._id}`)}
           className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-surface-850/50 border border-transparent hover:border-surface-800 transition-all group/row"
         >
           <Badge tone={STATUS_TONE[roadmap.status] ?? 'neutral'}>{roadmap.status}</Badge>
@@ -88,7 +88,7 @@ export function LinkedRoadmapCard({ taskId, roadmapId, phaseId, milestoneId }: L
         {phase && (
           <button
             type="button"
-            onClick={() => navigate(`/roadmaps/${roadmap._id}/phases/${phase._id}`)}
+            onClick={() => navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase._id}`)}
             className="w-full flex items-center gap-2 p-2 pl-8 rounded-lg hover:bg-surface-850/50 border border-transparent hover:border-surface-800 transition-all group/row"
           >
             <Badge tone={STATUS_TONE[phase.status] ?? 'neutral'}>{phase.status}</Badge>
@@ -101,7 +101,7 @@ export function LinkedRoadmapCard({ taskId, roadmapId, phaseId, milestoneId }: L
         {milestone && (
           <button
             type="button"
-            onClick={() => navigate(`/roadmaps/${roadmap._id}/phases/${phase?._id}/milestones/${milestone._id}`)}
+            onClick={() => navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase?._id}/milestones/${milestone._id}`)}
             className="w-full flex items-center gap-2 p-2 pl-14 rounded-lg hover:bg-surface-850/50 border border-transparent hover:border-surface-800 transition-all group/row"
           >
             <Badge tone={STATUS_TONE[milestone.status] ?? 'neutral'}>{milestone.status}</Badge>

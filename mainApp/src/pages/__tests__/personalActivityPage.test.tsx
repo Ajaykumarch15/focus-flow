@@ -68,7 +68,7 @@ function render(node: ReactNode) {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(<MemoryRouter initialEntries={['/activity']}>{node}</MemoryRouter>);
+    root.render(<MemoryRouter initialEntries={['/personal/activity']}>{node}</MemoryRouter>);
   });
   return { container, root };
 }

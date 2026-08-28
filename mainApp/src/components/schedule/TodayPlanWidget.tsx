@@ -74,11 +74,11 @@ export function TodayPlanWidget() {
                   key={item._id}
                   role="listitem"
                   tabIndex={0}
-                  onClick={() => navigate('/schedule')}
+                  onClick={() => navigate('/worklog/schedule')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      navigate('/schedule');
+                      navigate('/worklog/schedule');
                     }
                   }}
                   aria-label={`${title} scheduled at ${item.startTime}, planned duration ${formatMinutes(plannedMins)}`}
@@ -119,7 +119,7 @@ export function TodayPlanWidget() {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/schedule')}
+          onClick={() => navigate('/worklog/schedule')}
           aria-label="View full schedule page"
           className="text-xs font-semibold text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 rounded px-1"
         >

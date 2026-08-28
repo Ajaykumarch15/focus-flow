@@ -52,7 +52,7 @@ export function KnowledgePage() {
         loading={loading || retrying}
         error={error}
         onRetry={handleRetry}
-        onOpenWorkLog={(logId) => navigate(`/worklog/${logId}`)}
+        onOpenWorkLog={(logId) => navigate(`/worklog/logs/${logId}`)}
       />
     </div>
   );

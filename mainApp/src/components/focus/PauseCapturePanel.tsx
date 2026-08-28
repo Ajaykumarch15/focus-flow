@@ -59,7 +59,7 @@ export function PauseCapturePanel({ paused, workLogId, workLogTitle }: PauseCapt
             <p className="text-sm text-surface-400 mt-1">
               Link a work log to this task to capture blockers or decisions at the moment they happen.
             </p>
-            <Button variant="secondary" size="sm" className="mt-3" onClick={() => navigate('/worklog')}>
+            <Button variant="secondary" size="sm" className="mt-3" onClick={() => navigate('/worklog/logs')}>
               Open Work Logs
             </Button>
           </div>

@@ -310,7 +310,7 @@ describe('TaskContinuationPanel (S2-T1)', () => {
 
     const open = buttonByText(container, 'Open work log');
     act(() => open!.click());
-    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/worklog/log-1');
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/worklog/logs/log-1');
     act(() => root.unmount());
   });
 

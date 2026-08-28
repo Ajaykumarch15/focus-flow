@@ -38,7 +38,7 @@ export function WorkspaceTopNav() {
     <header className="h-14 flex-shrink-0 border-b border-surface-800 bg-surface-900/80 backdrop-blur-md flex items-center gap-3 sm:gap-5 px-3 sm:px-6 z-20">
       {/* LEFT — logo + product + breadcrumb */}
       <div className="flex items-center gap-1.5 min-w-0 flex-shrink">
-        <Link to="/hub" aria-label="FocusFlow home" className="flex items-center shrink-0">
+        <Link to="/home" aria-label="FocusFlow home" className="flex items-center shrink-0">
           <FocusFlowLogo size="sm" showText={false} />
         </Link>
         <span className="hidden lg:inline text-sm font-display font-bold text-surface-50 whitespace-nowrap">
@@ -46,10 +46,10 @@ export function WorkspaceTopNav() {
         </span>
         <ChevronRight size={14} className="text-surface-600 hidden lg:block" aria-hidden="true" />
         <Link
-          to="/hub"
+          to="/home"
           className="hidden lg:inline text-xs font-semibold text-surface-400 hover:text-surface-100 transition-colors whitespace-nowrap"
         >
-          Workspace Hub
+          Home
         </Link>
         <ChevronRight size={14} className="text-surface-600" aria-hidden="true" />
         <button

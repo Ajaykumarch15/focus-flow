@@ -101,10 +101,10 @@ export function PersonalPage() {
           <p className="text-sm text-surface-400 mt-0.5">Your productivity intelligence & personal overview</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/insights')} className="gap-1.5 text-xs">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/worklog/insights')} className="gap-1.5 text-xs">
             <Lightbulb size={14} /> Insights
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/analytics')} className="gap-1.5 text-xs">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/personal/analytics')} className="gap-1.5 text-xs">
             <TrendingUp size={14} /> Analytics
           </Button>
         </div>
@@ -117,7 +117,7 @@ export function PersonalPage() {
           <span className="text-sm text-brand-300">
             Focusing on <strong className="text-brand-200">{activeTask.title}</strong>
           </span>
-          <Button size="sm" variant="ghost" onClick={() => navigate('/focus')} className="ml-auto text-xs text-brand-400">
+          <Button size="sm" variant="ghost" onClick={() => navigate('/personal/focus')} className="ml-auto text-xs text-brand-400">
             Open Focus <ArrowRight size={12} />
           </Button>
         </div>

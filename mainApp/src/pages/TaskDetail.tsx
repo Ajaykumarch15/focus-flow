@@ -55,7 +55,7 @@ export function TaskDetail() {
           icon={<Circle size={28} className="text-surface-600" />}
           title="Task not found"
           description="This task may have been deleted."
-          action={<Button onClick={() => navigate('/tasks')} size="lg">Back to Tasks</Button>}
+          action={<Button onClick={() => navigate('/worklog/tasks')} size="lg">Back to Tasks</Button>}
         />
       </div>
     );
@@ -95,7 +95,7 @@ export function TaskDetail() {
 
       {/* ═══ Back + Header ═══ */}
       <motion.div variants={fadeUp} initial="hidden" animate="show">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/tasks')}
+        <Button variant="ghost" size="sm" onClick={() => navigate('/worklog/tasks')}
           className="text-sm mb-4 px-3 py-1.5 rounded-lg w-fit"
           leftIcon={<ArrowLeft size={15} />}>
           Back to Tasks
@@ -526,7 +526,7 @@ export function TaskDetail() {
         onConfirm={() => {
           setShowConfirmDelete(false);
           deleteTask(task.id);
-          navigate('/tasks');
+          navigate('/worklog/tasks');
         }}
         onCancel={() => setShowConfirmDelete(false)}
       />

@@ -58,7 +58,7 @@ export function ContextBreadcrumbs() {
 
   return (
     <nav aria-label="Context breadcrumb" className="flex items-center gap-1 text-xs min-w-0">
-      <Link to="/hub" aria-label="Home" className="text-surface-400 hover:text-surface-200 transition-colors flex-shrink-0">
+      <Link to="/home" aria-label="Home" className="text-surface-400 hover:text-surface-200 transition-colors flex-shrink-0">
         <Home size={13} />
       </Link>
       {crumbs.map((crumb, idx) => (

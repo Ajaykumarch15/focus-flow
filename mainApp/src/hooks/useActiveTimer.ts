@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { timerEngine, TimerFSMState } from '../utils/timerEngine';
 import { formatDuration } from '../utils/time';
 import { useStore } from '../store/useStore';
+import { usePersonalTaskStore } from '../store/usePersonalTaskStore';
 import type { Task } from '../types';
 
 export function useActiveTimer(externalTasks?: Task[]) {
@@ -27,7 +28,8 @@ export function useActiveTimer(externalTasks?: Task[]) {
   }, []);
 
   const storeTasks = useStore(s => s.tasks);
-  const tasks = externalTasks ?? storeTasks;
+  const personalTasks = usePersonalTaskStore(s => s.tasks);
+  const tasks = externalTasks ?? (snapshot.sessionKind === 'personal' ? personalTasks : storeTasks);
   const activeTask = tasks.find(t => t.id === snapshot.taskId);
   // `elapsedMs` stays the pure live session elapsed (Focus Mode, daily totals);
   // the display adds the pre-existing base so resuming a task keeps its clock.
@@ -46,5 +48,6 @@ export function useActiveTimer(externalTasks?: Task[]) {
     baseElapsedMs: snapshot.baseElapsedMs,
     sessionStartTime: snapshot.sessionStartTime,
     totalPauseDuration: snapshot.totalPauseDuration,
+    sessionKind: snapshot.sessionKind,
   };
 }

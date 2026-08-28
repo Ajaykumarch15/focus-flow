@@ -33,7 +33,7 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
 
-export function WorkspaceHub() {
+export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const { workspaces, loadWorkspaces } = useCollaborationStore();
@@ -58,7 +58,7 @@ export function WorkspaceHub() {
   };
 
   const handleSelectWorkLog = () => {
-    navigate('/dashboard');
+    navigate('/worklog/dashboard');
   };
 
   const totalMembers = workspaces.reduce((sum, ws) => sum + (ws.membersCount || 0), 0);
@@ -110,7 +110,7 @@ export function WorkspaceHub() {
         {/* Welcome Section */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="text-center space-y-2 mb-6">
           <Badge tone="brand" className="px-3 py-1 uppercase tracking-widest border border-brand-500/20">
-            Workspace Hub
+            Homepage
           </Badge>
           <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-surface-50">
             {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-400">{user?.name || 'Ajay'}</span>
@@ -181,7 +181,7 @@ export function WorkspaceHub() {
               { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },
             ]}
             actionLabel="View Projects & Workspaces"
-            onAction={() => navigate('/team')}
+            onAction={() => navigate('/collab/team')}
           />
 
         </motion.div>

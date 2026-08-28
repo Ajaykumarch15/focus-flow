@@ -20,7 +20,7 @@ export const WORKSPACES: Record<WorkspaceType, WorkspaceConfig> = {
     subtitle: 'Your goals, learning & personal work',
     icon: User,
     color: '#0ea5e9',
-    route: '/dashboard',
+    route: '/personal',
     description: 'Your goals, learning & personal work',
   },
   work: {
@@ -29,7 +29,7 @@ export const WORKSPACES: Record<WorkspaceType, WorkspaceConfig> = {
     subtitle: 'Professional work, projects & career',
     icon: Briefcase,
     color: '#8b5cf6',
-    route: '/worklog',
+    route: '/worklog/dashboard',
     description: 'Professional work, projects & career',
   },
   collab: {
@@ -38,7 +38,7 @@ export const WORKSPACES: Record<WorkspaceType, WorkspaceConfig> = {
     subtitle: 'Team projects, shared tasks & collaboration',
     icon: Users,
     color: '#10b981',
-    route: '/collab',
+    route: '/collab/dashboard',
     description: 'Team projects, shared tasks & collaboration',
   },
 };

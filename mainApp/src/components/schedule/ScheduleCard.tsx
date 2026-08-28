@@ -107,7 +107,7 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
 
   const handleStart = (e: React.MouseEvent) => {
     e.stopPropagation();
-    navigate('/focus', { state: { taskId } });
+    navigate('/worklog/focus', { state: { taskId } });
   };
 
   const handleComplete = async (e: React.MouseEvent) => {
@@ -313,7 +313,7 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
         </Button>
 
         {taskId && (
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/tasks/${taskId}`); }}
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate(`/worklog/tasks/${taskId}`); }}
             className="p-1.5 text-surface-500 hover:text-surface-300" title="View task">
             <ExternalLink size={14} />
           </Button>

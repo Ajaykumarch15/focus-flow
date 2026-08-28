@@ -189,8 +189,8 @@ export function TeamWorkspace() {
   const accent = theme?.accentColor || '#0ea5e9';
   const dateLabel = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
-  const openFocus = () => navigate('/focus');
-  const startToday = () => navigate('/dashboard');
+  const openFocus = () => navigate('/worklog/focus');
+  const startToday = () => navigate('/worklog/dashboard');
   const openTask = () => { if (activeWs) navigate(`/w/${activeWs.id}/sprints`); };
   const pauseActive = () => { if (activeTaskId) pauseTimer(activeTaskId); };
   const resumeActive = () => { if (activeTaskId) resumeTimer(activeTaskId); };

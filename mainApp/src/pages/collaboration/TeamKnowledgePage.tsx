@@ -58,7 +58,7 @@ export function TeamKnowledgePage() {
         loading={loading || retrying}
         error={error}
         onRetry={handleRetry}
-        onOpenWorkLog={(logId) => navigate(`/worklog/${logId}`)}
+        onOpenWorkLog={(logId) => navigate(`/worklog/logs/${logId}`)}
         title={activeWs ? `${activeWs.name} Knowledge` : 'Knowledge'}
         description="What does this workspace already know?"
       />

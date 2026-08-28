@@ -11,23 +11,28 @@
  * refresh for free.
  */
 
-export type AppWorkspace = 'personal' | 'collab' | 'work' | 'admin';
+export type AppWorkspace = 'personal' | 'collab' | 'work' | 'admin' | null;
 
 export function deriveWorkspaceFromPath(pathname: string): AppWorkspace {
-  if (pathname.startsWith('/personal')) return 'personal';
+  // Homepage (workspace switcher) — clear workspace context
+  if (pathname === '/home') return null;
+
+  // Personal workspace: /personal/..., /personal/roadmaps/..., /personal/analytics, /personal/journal
+  if (
+    pathname.startsWith('/personal')
+  ) {
+    return 'personal';
+  }
   if (pathname.startsWith('/admin')) return 'admin';
+  // Collab workspace: /w/:workspaceId/..., /collab/..., /team, /workspace
   if (
     pathname.startsWith('/w/') ||
-    pathname.startsWith('/team') ||
     pathname.startsWith('/collab') ||
     pathname.startsWith('/workspace') ||
-    pathname === '/hub' ||
-    pathname === '/leaderboard' ||
-    pathname === '/activity'
+    pathname === '/team'
   ) {
     return 'collab';
   }
-  // Dashboard, tasks, worklog, focus, reports, insights, schedule, habits,
-  // knowledge, settings, analytics, roadmaps, etc. → card-based WorkLog nav.
+  // WorkLog workspace: /worklog/..., /dashboard, /tasks, /schedule, /focus, etc.
   return 'work';
 }

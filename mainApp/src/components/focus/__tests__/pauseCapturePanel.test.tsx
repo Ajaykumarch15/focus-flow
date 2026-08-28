@@ -82,7 +82,7 @@ describe('PauseCapturePanel (S2-T2)', () => {
   it('navigates to the work logs page from the no-work-log hint', () => {
     const { container, root } = render(<PauseCapturePanel paused workLogId={null} workLogTitle={null} />);
     act(() => buttonByText(container, 'Open Work Logs')!.click());
-    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/worklog');
+    expect(container.querySelector('[data-testid="location"]')?.textContent).toBe('/worklog/logs');
     act(() => root.unmount());
   });
 

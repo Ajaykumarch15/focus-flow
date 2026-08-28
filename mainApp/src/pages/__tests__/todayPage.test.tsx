@@ -54,7 +54,7 @@ function render(node: ReactNode) {
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(<MemoryRouter initialEntries={['/dashboard']}>{node}</MemoryRouter>);
+    root.render(<MemoryRouter initialEntries={['/worklog/dashboard']}>{node}</MemoryRouter>);
   });
   return { container, root };
 }

@@ -262,7 +262,7 @@ export function EngineeringMemoryPanel({ taskId = null, className }: Engineering
                 variant="secondary"
                 size="xs"
                 rightIcon={<PenLine size={12} aria-hidden="true" />}
-                onClick={() => navigate(`/worklog/${view.linkedWorkLog?.id ?? view.lastWorkLog!.id}`)}
+                onClick={() => navigate(`/worklog/logs/${view.linkedWorkLog?.id ?? view.lastWorkLog!.id}`)}
               >
                 Open work log
               </Button>
