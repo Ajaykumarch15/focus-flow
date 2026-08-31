@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { useCollaborationStore } from '../../store/useCollaborationStore';
+import { timerEngine } from '../../utils/timerEngine';
 import { selectNowStrip } from '../../lib/nowSelectors';
 
 // ── NowIndicator ──────────────────────────────────────────────────────────────
@@ -12,12 +14,15 @@ import { selectNowStrip } from '../../lib/nowSelectors';
 // sidebar's active-timer section and the (now removed) NowStrip bar.
 //
 // State/data logic is reused from the existing `selectNowStrip` selector.
+// The indicator is workspace-scoped: a personal running task does not appear
+// in the worklog/collab header and vice-versa.
 
 export function NowIndicator() {
   const {
     tasks, activeTaskId, activeSessionId, activeTimerState,
   } = useStore();
   const { workspaces, projects, sprints, features, tasks: collabTasks } = useCollaborationStore();
+  const workspace = useAuthStore((s) => s.workspace);
   const navigate = useNavigate();
 
   const now = useMemo(
@@ -28,11 +33,19 @@ export function NowIndicator() {
     [tasks, collabTasks, workspaces, projects, sprints, features, activeTaskId, activeSessionId, activeTimerState],
   );
 
-  const hasActive = now.state !== 'none' && Boolean(now.title);
+  // Only surface the active task when the running session belongs to the
+  // current workspace.  The timer engine tracks `sessionKind` ('work' |
+  // 'personal' | null) which we compare against the active workspace.
+  const sessionKind = timerEngine.getSnapshot().sessionKind;
+  const timerMatchesWorkspace =
+    (workspace === 'personal' && sessionKind === 'personal') ||
+    (workspace !== 'personal' && sessionKind !== 'personal');
+
+  const hasActive = timerMatchesWorkspace && now.state !== 'none' && Boolean(now.title);
 
   const goToTask = () => {
     if (!hasActive) return;
-    navigate(now.state === 'collab' && now.workspaceId ? `/w/${now.workspaceId}/sprints` : `/tasks/${now.taskId}`);
+    navigate(now.state === 'collab' && now.workspaceId ? `/w/${now.workspaceId}/sprints` : `/worklog/tasks/${now.taskId}`);
   };
 
   if (hasActive) {

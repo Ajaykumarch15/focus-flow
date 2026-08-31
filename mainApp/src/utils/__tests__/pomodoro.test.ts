@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { pomodoroTimeLeft, pomodoroProgress, isPomodoroComplete } from '../pomodoro';
 
-describe('IES-P1-01 · pomodoro math (FocusMode over timerEngine)', () => {
+describe('IES-P1-01 · pomodoro math (TaskDetail timer)', () => {
   const WORK_MS = 25 * 60 * 1000;
 
   it('timeLeft counts down from duration and never goes negative', () => {

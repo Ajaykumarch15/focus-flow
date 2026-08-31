@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, CheckSquare,
-  Settings, Zap, ChevronLeft, ChevronRight,
+  Settings, ChevronLeft, ChevronRight,
   LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck, History, Library, Map, BarChart3, Calendar, Clock, Brain, Lightbulb,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -28,7 +28,6 @@ const WORKLOG_NAV = [
   { to: '/worklog/logs',      icon: BookMarked,      label: 'Work Logs'  },
   //{ to: '/worklog/journal',   icon: BookOpen,        label: 'Journal'    },
   { to: '/worklog/habits',    icon: Activity,        label: 'Habits'     },
-  { to: '/worklog/focus',     icon: Zap,             label: 'Focus Mode' },
   { to: '/worklog/reports',   icon: LineChart,       label: 'Reports'    },
   { to: '/worklog/insights',  icon: Lightbulb,       label: 'Insights'   },
   { to: '/worklog/knowledge', icon: Library,         label: 'Knowledge'  },
@@ -96,7 +95,16 @@ export function Sidebar() {
   const { theme } = useStore();
 
   const isReducedMotion = theme?.reducedMotion;
-  const focusRoute = sessionKind === 'personal' || workspace === 'personal' ? '/personal/focus' : workspace === 'collab' ? '/home' : '/worklog/focus';
+  const activeTaskDetailRoute = activeTaskId
+    ? (sessionKind === 'personal' ? `/personal/tasks/${activeTaskId}` : `/worklog/tasks/${activeTaskId}`)
+    : null;
+
+  // Only show the running-task indicator when the active session belongs to the
+  // current workspace.  A personal timer should not appear in the worklog sidebar
+  // (and vice-versa) because the two workspaces have independent task pools.
+  const timerMatchesWorkspace =
+    (workspace === 'personal' && sessionKind === 'personal') ||
+    (workspace !== 'personal' && sessionKind !== 'personal');
 
   return (
     <motion.aside
@@ -181,11 +189,11 @@ export function Sidebar() {
       </nav>
 
       {/* Sidebar Active Timer Indicator */}
-      {activeTaskId && (
+      {activeTaskId && timerMatchesWorkspace && (
         <div className="px-2 py-2 border-t border-surface-800 bg-surface-950/80">
           <button
             type="button"
-            onClick={() => navigate(focusRoute)}
+            onClick={() => activeTaskDetailRoute && navigate(activeTaskDetailRoute)}
             title={activeTask ? `Active Task: ${activeTask.title}` : 'Active Timer'}
             aria-label={`Active timer for ${activeTask?.title || 'task'}: ${activeDisplay}, status ${activeTimerState}`}
             className={`w-full flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${

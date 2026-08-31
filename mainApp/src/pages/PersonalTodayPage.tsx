@@ -130,7 +130,7 @@ export function PersonalTodayPage() {
 
 const startTask = (task: Task) => {
     personalStartTimer(task.id, task.totalTime || 0);
-    navigate('/personal/focus');
+    navigate(`/personal/tasks/${task.id}`);
   };
 
   if (dataLoading && personalTasks.length === 0) {
@@ -198,7 +198,7 @@ const startTask = (task: Task) => {
 {activeTask ? (
                 <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/personal/focus')}>Resume Active Session</Button>
+                  onClick={() => navigate(`/personal/tasks/${activeTaskId}`)}>Resume Active Session</Button>
               ) : (
                 <Button size="lg" leftIcon={<Plus size={16} />}
                   className="shadow-lg" style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
@@ -305,8 +305,7 @@ const startTask = (task: Task) => {
                   </div>
                 </div>
 <div className="flex gap-2 mt-4">
-                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate('/personal/focus')}>Open Focus</Button>
-                  <Button variant="secondary" size="sm" onClick={() => navigate(`/personal/tasks/${activeTask.id}`)}>Open Task</Button>
+                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate(`/personal/tasks/${activeTask.id}`)}>Open Task</Button>
                 </div>
               </div>
             </Card>

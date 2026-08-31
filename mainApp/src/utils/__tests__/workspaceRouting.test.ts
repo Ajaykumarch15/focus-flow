@@ -41,7 +41,6 @@ describe('deriveWorkspaceFromPath', () => {
     expect(deriveWorkspaceFromPath('/worklog/dashboard')).toBe('work');
     expect(deriveWorkspaceFromPath('/worklog/tasks')).toBe('work');
     expect(deriveWorkspaceFromPath('/worklog/logs')).toBe('work');
-    expect(deriveWorkspaceFromPath('/worklog/focus')).toBe('work');
     expect(deriveWorkspaceFromPath('/worklog/reports')).toBe('work');
     expect(deriveWorkspaceFromPath('/settings')).toBe('work');
     expect(deriveWorkspaceFromPath('/')).toBe('work');

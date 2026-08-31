@@ -330,7 +330,7 @@ describe('TaskContinuationPanel (S2-T1)', () => {
     expect(text).toContain('running');
     expect(text).toContain('01:00:00');
     expect(text).toContain('Live session');
-    expect(text).toContain('Resume in Focus');
+    expect(text).toContain('View Task');
     act(() => root.unmount());
   });
 
@@ -347,7 +347,7 @@ describe('TaskContinuationPanel (S2-T1)', () => {
     const { container, root } = render(<TaskContinuationPanel taskId="t-1" />);
     const text = container.textContent ?? '';
     expect(text).toContain('paused');
-    const focus = buttonByText(container, 'Resume in Focus');
+    const focus = buttonByText(container, 'View Task');
     expect(focus).not.toBeNull();
     act(() => root.unmount());
   });

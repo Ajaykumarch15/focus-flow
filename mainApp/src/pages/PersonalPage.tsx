@@ -117,8 +117,8 @@ export function PersonalPage() {
           <span className="text-sm text-brand-300">
             Focusing on <strong className="text-brand-200">{activeTask.title}</strong>
           </span>
-          <Button size="sm" variant="ghost" onClick={() => navigate('/personal/focus')} className="ml-auto text-xs text-brand-400">
-            Open Focus <ArrowRight size={12} />
+          <Button size="sm" variant="ghost" onClick={() => navigate(`/personal/tasks/${activeId}`)} className="ml-auto text-xs text-brand-400">
+            Open Task <ArrowRight size={12} />
           </Button>
         </div>
       )}

@@ -35,7 +35,6 @@ const SchedulePage    = lazy(() => import('./pages/SchedulePage').then(module =>
 const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
 
 const PersonalPage     = lazy(() => import('./pages/PersonalPage').then(module => ({ default: module.PersonalPage })));
-const FocusMode       = lazy(() => import('./pages/FocusMode').then(module => ({ default: module.FocusMode })));
 const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
 const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
 const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
@@ -55,7 +54,6 @@ const PersonalAnalyticsPage = lazy(() => import('./pages/PersonalAnalyticsPage')
 const PersonalTasks      = lazy(() => import('./pages/PersonalTasks').then(module => ({ default: module.PersonalTasks })));
 const PersonalTodayPage  = lazy(() => import('./pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
 const PersonalTaskDetail = lazy(() => import('./pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
-const PersonalFocusMode  = lazy(() => import('./pages/PersonalFocusMode').then(module => ({ default: module.PersonalFocusMode })));
 const PersonalSchedule   = lazy(() => import('./pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
 const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
@@ -244,7 +242,6 @@ export default function App() {
                 <Route path="/worklog/reports" element={<ReportsPage />} />
                 <Route path="/worklog/insights" element={<InsightsPage />} />
                 <Route path="/worklog/habits" element={<Habits />} />
-                <Route path="/worklog/focus" element={<FocusMode />} />
                 <Route path="/worklog/worklog-dashboard" element={<WorkLogDashboard />} />
               </Route>
             </Route>
@@ -256,7 +253,6 @@ export default function App() {
                 <Route path="/personal/today" element={<PersonalTodayPage />} />
                 <Route path="/personal/tasks" element={<PersonalTasks />} />
                 <Route path="/personal/tasks/:id" element={<PersonalTaskDetail />} />
-                <Route path="/personal/focus" element={<PersonalFocusMode />} />
                 <Route path="/personal/schedule" element={<PersonalSchedule />} />
                 <Route path="/personal/activity" element={<PersonalActivityPage />} />
                 <Route path="/personal/analytics" element={<PersonalAnalyticsPage />} />

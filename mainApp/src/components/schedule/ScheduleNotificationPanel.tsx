@@ -70,7 +70,7 @@ export function ScheduleNotificationPanel() {
     // Find the task and navigate to focus mode with it
     const task = tasks.find(t => t.id === notif.taskId);
     if (task) {
-      navigate('/worklog/focus', { state: { taskId: task.id } });
+      navigate(`/worklog/tasks/${task.id}`);
     } else {
       navigate('/worklog/schedule');
     }

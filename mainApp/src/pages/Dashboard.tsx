@@ -271,7 +271,7 @@ export function Dashboard() {
                   size="lg"
                   leftIcon={<Play size={15} fill="currentColor" />}
                   className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate('/worklog/focus')}
+                  onClick={() => navigate(`/worklog/tasks/${activeTaskId}`)}
                 >
                   Resume Active Timer Session
                 </Button>
@@ -564,7 +564,7 @@ export function Dashboard() {
               <CardBody>
                 <div className="grid grid-cols-2 gap-2.5">
                   <QuickAction icon={Plus} label="New Task" onClick={() => setShowCreate(true)} color={accent} />
-                  <QuickAction icon={Timer} label="Focus" onClick={() => navigate('/worklog/focus')} color="#f97316" />
+                  <QuickAction icon={Timer} label="Tasks" onClick={() => navigate('/worklog/tasks')} color="#f97316" />
                   <QuickAction icon={PenLine} label="Journal" onClick={() => navigate('/worklog/journal')} color="#8b5cf6" />
                   <QuickAction icon={Briefcase} label="Work Log" onClick={() => navigate('/worklog/logs')} color="#22c55e" />
                 </div>
