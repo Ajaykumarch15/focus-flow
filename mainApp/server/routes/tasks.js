@@ -474,6 +474,10 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
       logger.debug('workspace task created');
       res.status(201).json(task);
+      // Cascade if task created with completed status and linked to a milestone
+      if (task.status === 'completed' && task.milestoneRef) {
+        await cascadeTaskStatusChange(task).catch(() => {});
+      }
       Activity.create({
         userId: req.user._id,
         action: 'task.created',
@@ -503,6 +507,10 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
     logger.debug('task created');
     res.status(201).json(task);
+    // Cascade if task created with completed status and linked to a milestone
+    if (task.status === 'completed' && task.milestoneRef) {
+      await cascadeTaskStatusChange(task).catch(() => {});
+    }
     Activity.create({ userId: req.user._id, action: 'task.created', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
   } catch (err) {
     next(err);
@@ -628,7 +636,7 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
     );
     if (!task) return res.status(404).json({ message: 'Task not found' });
     // Cascade milestone/phase auto-status for roadmap-linked tasks (before response)
-    if (task.milestoneRef && patch.status) {
+    if (task.milestoneRef && patch.status && patch.status !== existing.status) {
       await cascadeTaskStatusChange(task).catch(() => {});
     }
     res.json(task);
@@ -666,6 +674,11 @@ router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, 
 
     const task = await Task.findOneAndDelete({ _id: req.params.id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // Cascade status update after task deletion
+    if (task.milestoneRef) {
+      await cascadeTaskStatusChange(task).catch(() => {});
+    }
 
     // IES-P1-09: the cascade removes the task's sessions/journal, and any
     // worklog linked via taskRef must not keep dangling `sessionIds` or a stale

@@ -1,93 +1,97 @@
 import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
-import { useAuthStore }    from './store/useAuthStore';
-import { useStore }        from './store/useStore';
-import { useWorkspaceStore } from './store/useWorkspaceStore';
-import { deriveWorkspaceFromPath } from './utils/workspaceRouting';
-import { clearTimer }      from './utils/timerPersist';
-import { ErrorBoundary }  from './components/ui/ErrorBoundary';
+import { useAuthStore }    from '@shared/services/useAuthStore';
+import { useStore }        from '@worklog/services/useStore';
+import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
+import { deriveWorkspaceFromPath } from '@collab/services/workspaceRouting';
+import { clearTimer }      from '@worklog/services/timerPersist';
+import { ErrorBoundary }  from '@shared/components/ui/ErrorBoundary';
 
-import { AppLayout }       from './components/layout/AppLayout';
-import { AdminLayout }     from './components/layout/AdminLayout';
-import { ProtectedRoute, AdminRoute } from './components/auth/ProtectedRoute';
-import { Card }            from './components/ui/Card';
-import { Button }          from './components/ui/Button';
-import SwarmCursor         from './components/ui/SwarmCursor';
+import { AppLayout }       from '@shared/components/layout/AppLayout';
+import { AdminLayout }     from '@shared/components/layout/AdminLayout';
+import { ProtectedRoute, AdminRoute } from '@shared/components/auth/ProtectedRoute';
+import { Card }            from '@shared/components/ui/Card';
+import { Button }          from '@shared/components/ui/Button';
+import SwarmCursor         from '@shared/components/ui/SwarmCursor';
 
-const Landing         = lazy(() => import('./pages/Landing').then(module => ({ default: module.Landing })));
-const Login           = lazy(() => import('./pages/Login').then(module => ({ default: module.Login })));
-const Register        = lazy(() => import('./pages/Register').then(module => ({ default: module.Register })));
+const Landing         = lazy(() => import('@shared/pages/Landing').then(module => ({ default: module.Landing })));
+const Login           = lazy(() => import('@shared/pages/Login').then(module => ({ default: module.Login })));
+const Register        = lazy(() => import('@shared/pages/Register').then(module => ({ default: module.Register })));
 // TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
-const RteTestPage     = lazy(() => import('./pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
-const HomePage         = lazy(() => import('./pages/WorkspaceHub').then(module => ({ default: module.HomePage })));
-const TeamProjects    = lazy(() => import('./pages/TeamProjects').then(module => ({ default: module.TeamProjects })));
-const WorkspaceLayout = lazy(() => import('./components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
-const ProjectLayout   = lazy(() => import('./components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
-const WorkspaceHomePage = lazy(() => import('./pages/collaboration/WorkspaceHomePage').then(module => ({ default: module.WorkspaceHomePage })));
+const RteTestPage     = lazy(() => import('@shared/pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
+const HomePage         = lazy(() => import('@shared/pages/WorkspaceHub').then(module => ({ default: module.HomePage })));
+const ProjectsPage    = lazy(() => import('@collab/pages/ProjectsPage').then(module => ({ default: module.ProjectsPage })));
+const ProjectDetailPage = lazy(() => import('@collab/pages/ProjectDetailPage').then(module => ({ default: module.ProjectDetailPage })));
+const ProjectKanbanPage = lazy(() => import('@collab/pages/ProjectKanbanPage').then(module => ({ default: module.ProjectKanbanPage })));
+const WorkspaceLayout = lazy(() => import('@shared/components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
+const ProjectLayout   = lazy(() => import('@shared/components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
+const WorkspaceHomePage = lazy(() => import('@collab/pages/collaboration/WorkspaceHomePage').then(module => ({ default: module.WorkspaceHomePage })));
 
 // Personal Workspace Pages
-const TodayPage       = lazy(() => import('./pages/TodayPage').then(module => ({ default: module.TodayPage })));
-const NotFoundPage    = lazy(() => import('./pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
-const Tasks           = lazy(() => import('./pages/Tasks').then(module => ({ default: module.Tasks })));
-const TaskDetail      = lazy(() => import('./pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
-const SchedulePage    = lazy(() => import('./pages/SchedulePage').then(module => ({ default: module.SchedulePage })));
-const Journal         = lazy(() => import('./pages/Journal').then(module => ({ default: module.Journal })));
+const TodayPage       = lazy(() => import('@worklog/pages/TodayPage').then(module => ({ default: module.TodayPage })));
+const NotFoundPage    = lazy(() => import('@shared/pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
+const Tasks           = lazy(() => import('@worklog/pages/Tasks').then(module => ({ default: module.Tasks })));
+const TaskDetail      = lazy(() => import('@worklog/pages/TaskDetail').then(module => ({ default: module.TaskDetail })));
+const SchedulePage    = lazy(() => import('@worklog/pages/SchedulePage').then(module => ({ default: module.SchedulePage })));
+const Journal         = lazy(() => import('@personal/pages/Journal').then(module => ({ default: module.Journal })));
 
-const PersonalPage     = lazy(() => import('./pages/PersonalPage').then(module => ({ default: module.PersonalPage })));
-const PersonalActivityPage = lazy(() => import('./pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
-const Settings        = lazy(() => import('./pages/Settings').then(module => ({ default: module.Settings })));
-const Habits          = lazy(() => import('./pages/Habits').then(module => ({ default: module.Habits })));
-const WorkLogPage     = lazy(() => import('./pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
-const KnowledgePage   = lazy(() => import('./pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
-const ReportsPage     = lazy(() => import('./pages/Reports').then(module => ({ default: module.ReportsPage })));
-const InsightsPage    = lazy(() => import('./pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
-const Leaderboard     = lazy(() => import('./pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
-const ShareReportPage = lazy(() => import('./pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
-const WorkspaceSelector = lazy(() => import('./pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
-const SearchResultsPage = lazy(() => import('./pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
-const RoadmapsPage    = lazy(() => import('./pages/RoadmapsPage').then(module => ({ default: module.RoadmapsPage })));
-const RoadmapDetailPage = lazy(() => import('./pages/RoadmapDetailPage').then(module => ({ default: module.RoadmapDetailPage })));
-const RoadmapPhaseDetail = lazy(() => import('./pages/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
-const RoadmapMilestoneDetail = lazy(() => import('./pages/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
-const PersonalAnalyticsPage = lazy(() => import('./pages/PersonalAnalyticsPage').then(module => ({ default: module.PersonalAnalyticsPage })));
-const PersonalTasks      = lazy(() => import('./pages/PersonalTasks').then(module => ({ default: module.PersonalTasks })));
-const PersonalTodayPage  = lazy(() => import('./pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
-const PersonalTaskDetail = lazy(() => import('./pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
-const PersonalSchedule   = lazy(() => import('./pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
-const WorkLogDashboard = lazy(() => import('./pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
-const CollabDashboard  = lazy(() => import('./pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
+const PersonalPage     = lazy(() => import('@personal/pages/PersonalPage').then(module => ({ default: module.PersonalPage })));
+const PersonalActivityPage = lazy(() => import('@personal/pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
+const Settings        = lazy(() => import('@shared/pages/Settings').then(module => ({ default: module.Settings })));
+const Habits          = lazy(() => import('@worklog/pages/Habits').then(module => ({ default: module.Habits })));
+const WorkLogPage     = lazy(() => import('@worklog/pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
+const KnowledgePage   = lazy(() => import('@worklog/pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
+const ReportsPage     = lazy(() => import('@worklog/pages/Reports').then(module => ({ default: module.ReportsPage })));
+const InsightsPage    = lazy(() => import('@worklog/pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
+const CalendarPage    = lazy(() => import('@worklog/pages/CalendarPage').then(module => ({ default: module.CalendarPage })));
+const Leaderboard     = lazy(() => import('@collab/pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
+const ShareReportPage = lazy(() => import('@shared/pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
+const WorkspaceSelector = lazy(() => import('@shared/pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
+const SearchResultsPage = lazy(() => import('@shared/pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
+const RoadmapsPage    = lazy(() => import('@personal/pages/RoadmapsPage').then(module => ({ default: module.RoadmapsPage })));
+const RoadmapDetailPage = lazy(() => import('@personal/pages/RoadmapDetailPage').then(module => ({ default: module.RoadmapDetailPage })));
+const RoadmapPhaseDetail = lazy(() => import('@personal/pages/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
+const RoadmapMilestoneDetail = lazy(() => import('@personal/pages/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
+const PersonalAnalyticsPage = lazy(() => import('@personal/pages/PersonalAnalyticsPage').then(module => ({ default: module.PersonalAnalyticsPage })));
+const PersonalTasks      = lazy(() => import('@personal/pages/PersonalTasks').then(module => ({ default: module.PersonalTasks })));
+const PersonalTodayPage  = lazy(() => import('@personal/pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
+const PersonalTaskDetail = lazy(() => import('@personal/pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
+const PersonalSchedule   = lazy(() => import('@personal/pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
+const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
+const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
+const PeoplePage       = lazy(() => import('@collab/pages/PeoplePage').then(module => ({ default: module.PeoplePage })));
 
 // Developer Collaboration Workspace Pages
-const TeamWorkspace     = lazy(() => import('./pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
-const FeaturesPage      = lazy(() => import('./pages/collaboration/FeaturesPage').then(module => ({ default: module.FeaturesPage })));
-const QADashboardPage    = lazy(() => import('./pages/collaboration/QADashboardPage').then(module => ({ default: module.QADashboardPage })));
-const ActivityFeedPage  = lazy(() => import('./pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
-const ReportsAnalyticsPage = lazy(() => import('./pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
-const MemberProfilePage = lazy(() => import('./pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
-const WorkspaceSettingsPage = lazy(() => import('./pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
-const TeamKnowledgePage = lazy(() => import('./pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
-const SprintBoardPage = lazy(() => import('./pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
-const SprintPlanningPage = lazy(() => import('./pages/collaboration/SprintPlanningPage').then(module => ({ default: module.SprintPlanningPage })));
-const BacklogPage = lazy(() => import('./pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
-const BlockersPage = lazy(() => import('./pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
-const WorkspaceProjectsPage = lazy(() => import('./pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
-const ProjectOverviewPage = lazy(() => import('./pages/collaboration/ProjectOverviewPage').then(module => ({ default: module.ProjectOverviewPage })));
-const ProjectTimelinePage = lazy(() => import('./pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
-const WorkspaceTeamsPage = lazy(() => import('./pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
-const WorkspaceMembersPage = lazy(() => import('./pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
+const TeamWorkspace     = lazy(() => import('@collab/pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
+const FeaturesPage      = lazy(() => import('@collab/pages/collaboration/FeaturesPage').then(module => ({ default: module.FeaturesPage })));
+const QADashboardPage    = lazy(() => import('@collab/pages/collaboration/QADashboardPage').then(module => ({ default: module.QADashboardPage })));
+const ActivityFeedPage  = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
+const ReportsAnalyticsPage = lazy(() => import('@collab/pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
+const MemberProfilePage = lazy(() => import('@collab/pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
+const WorkspaceSettingsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
+const TeamKnowledgePage = lazy(() => import('@collab/pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
+const SprintBoardPage = lazy(() => import('@collab/pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
+const SprintPlanningPage = lazy(() => import('@collab/pages/collaboration/SprintPlanningPage').then(module => ({ default: module.SprintPlanningPage })));
+const BacklogPage = lazy(() => import('@collab/pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
+const BlockersPage = lazy(() => import('@collab/pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
+const WorkspaceProjectsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
+const ProjectOverviewPage = lazy(() => import('@collab/pages/collaboration/ProjectOverviewPage').then(module => ({ default: module.ProjectOverviewPage })));
+const ProjectTimelinePage = lazy(() => import('@collab/pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
+const WorkspaceTeamsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
+const WorkspaceMembersPage = lazy(() => import('@collab/pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
 
 // EEP2-P3.4.2/P3.4.3: Roadmap spine pages (hosted by ProjectLayout).
-const RoadmapPage = lazy(() => import('./pages/collaboration/RoadmapPage').then(module => ({ default: module.RoadmapPage })));
-const MilestoneDetailPage = lazy(() => import('./pages/collaboration/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
-const PhaseDetailPage = lazy(() => import('./pages/collaboration/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
-const ModuleDetailPage = lazy(() => import('./pages/collaboration/ModuleDetailPage').then(module => ({ default: module.ModuleDetailPage })));
+const RoadmapPage = lazy(() => import('@collab/pages/collaboration/RoadmapPage').then(module => ({ default: module.RoadmapPage })));
+const MilestoneDetailPage = lazy(() => import('@collab/pages/collaboration/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
+const PhaseDetailPage = lazy(() => import('@collab/pages/collaboration/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
+const ModuleDetailPage = lazy(() => import('@collab/pages/collaboration/ModuleDetailPage').then(module => ({ default: module.ModuleDetailPage })));
 
 // Admin workspace pages
-const AdminAudit      = lazy(() => import('./pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
-const AdminPeople     = lazy(() => import('./pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
-const AdminTeams      = lazy(() => import('./pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
-const AdminSettings   = lazy(() => import('./pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
+const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
+const AdminPeople     = lazy(() => import('@shared/pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
+const AdminTeams      = lazy(() => import('@shared/pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
+const AdminSettings   = lazy(() => import('@shared/pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
   const accent = useStore(s => s.theme.accentColor) || '#0ea5e9';
@@ -165,7 +169,7 @@ export default function App() {
       // loadAll() fails (profile/tasks error), so rehydrate on settle, not only
       // on resolve.
       const rehydrate = () =>
-        import('./store/usePersonalTaskStore').then((m) =>
+        import('@personal/services/usePersonalTaskStore').then((m) =>
           m.usePersonalTaskStore.getState().rehydratePersonalTimer(),
         );
       loadAll().then(rehydrate, rehydrate);
@@ -235,6 +239,7 @@ export default function App() {
                 <Route path="/worklog/tasks" element={<Tasks />} />
                 <Route path="/worklog/tasks/:id" element={<TaskDetail />} />
                 <Route path="/worklog/schedule" element={<SchedulePage />} />
+                <Route path="/worklog/calendar" element={<CalendarPage />} />
                 <Route path="/worklog/logs" element={<WorkLogPage />} />
                 <Route path="/worklog/logs/:id" element={<WorkLogPage />} />
                 <Route path="/worklog/knowledge" element={<KnowledgePage />} />
@@ -269,7 +274,10 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/collab/dashboard" element={<CollabDashboard />} />
-                <Route path="/collab/team" element={<TeamProjects />} />
+                <Route path="/collab/team" element={<ProjectsPage />} />
+                <Route path="/collab/team/:projectId" element={<ProjectDetailPage />} />
+                <Route path="/collab/team/:projectId/kanban" element={<ProjectKanbanPage />} />
+                <Route path="/collab/people" element={<PeoplePage />} />
                 <Route path="/collab/leaderboard" element={<Leaderboard />} />
                 <Route path="/collab/activity" element={<ActivityFeedPage />} />
                 <Route path="/collab/search" element={<SearchResultsPage />} />

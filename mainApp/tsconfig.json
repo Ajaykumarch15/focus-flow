@@ -14,7 +14,15 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "baseUrl": ".",
+    "paths": {
+      "@personal/*": ["src/modules/personal-workspace/*"],
+      "@worklog/*": ["src/modules/worklog/*"],
+      "@collab/*": ["src/modules/collab/*"],
+      "@shared/*": ["src/shared/*"],
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

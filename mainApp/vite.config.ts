@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import { loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // IES-P0-22: fail the production build loudly when VITE_API_URL is missing —
 // the client must never ship with a silent localhost fallback.
@@ -51,6 +52,15 @@ function apiOriginCsp() {
 
 export default defineConfig({
   plugins: [react(), requireApiUrl(), apiOriginCsp()],
+  resolve: {
+    alias: {
+      '@personal': path.resolve(__dirname, 'src/modules/personal-workspace'),
+      '@worklog': path.resolve(__dirname, 'src/modules/worklog'),
+      '@collab': path.resolve(__dirname, 'src/modules/collab'),
+      '@shared': path.resolve(__dirname, 'src/shared'),
+      '@': path.resolve(__dirname, 'src'),
+    },
+  },
   test: {
     environment: 'happy-dom',
     exclude: ['**/node_modules/**', '**/dist/**', 'server/**'],

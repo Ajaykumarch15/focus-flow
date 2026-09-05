@@ -165,6 +165,10 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
     logger.debug('personal task created');
     res.status(201).json(task);
+    // Cascade if task created with completed status and linked to a milestone
+    if (task.status === 'completed' && task.personalMilestoneRef) {
+      await cascadePersonalTaskStatusChange(task).catch(() => {});
+    }
   } catch (err) {
     next(err);
   }
@@ -261,6 +265,11 @@ router.delete('/:id', validate(null, { params: taskParamsSchema }), async (req, 
 
     const task = await PersonalTask.findOneAndDelete({ _id: req.params.id });
     if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    // Cascade status update after task deletion
+    if (task.personalMilestoneRef) {
+      await cascadePersonalTaskStatusChange(task).catch(() => {});
+    }
 
     await PersonalSession.deleteMany({ personalTaskId: req.params.id, userId: req.user._id });
 

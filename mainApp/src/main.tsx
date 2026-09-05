@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
-import { ErrorBoundary } from './components/ui/ErrorBoundary.tsx'
+import { ErrorBoundary } from '@shared/components/ui/ErrorBoundary'
 import './index.css'
 
 // IES-P0-24: top-level error boundary — no blank page on uncaught render errors.
