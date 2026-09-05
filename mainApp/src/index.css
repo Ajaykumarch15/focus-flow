@@ -442,6 +442,46 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  /* ── Sidebar Icon Rail ─────────────────────────────────────────────────── */
+  .sidebar-rail-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    outline: none;
+  }
+  .sidebar-rail-icon:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-brand-500);
+  }
+
+  /* ── Sidebar Active Indicator ──────────────────────────────────────────── */
+  .sidebar-active-indicator {
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    bottom: 0.5rem;
+    width: 3px;
+    border-radius: 0 9999px 9999px 0;
+    transition: all 0.2s ease;
+  }
+
+  /* ── Sidebar Timer Pulse ───────────────────────────────────────────────── */
+  .sidebar-timer-pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    animation: sidebar-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes sidebar-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0; transform: scale(2); }
+  }
 }
 
 @layer utilities {

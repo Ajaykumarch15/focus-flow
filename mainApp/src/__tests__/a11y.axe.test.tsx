@@ -3,9 +3,9 @@ import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import axe from 'axe-core';
-import { Login } from '../pages/Login';
-import { Register } from '../pages/Register';
-import { GlobalHeader } from '../components/ui/GlobalHeader';
+import { Login } from '@shared/pages/Login';
+import { Register } from '@shared/pages/Register';
+import { GlobalHeader } from '@shared/components/ui/GlobalHeader';
 
 function render(node: ReactNode) {
   const container = document.createElement('div');
