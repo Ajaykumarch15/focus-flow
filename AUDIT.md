@@ -78,7 +78,7 @@ Severity definitions:
 | DB-1 / BE-12 | Soft-deleted users retain full API access (login + `protect` ignore `deletedAt`) | `models/User.js:36`; auth.js:49; middleware/auth.js:19; admin.js:107-124 | Deletion is cosmetic; blocked users keep working. |
 | FE-1 | Collaboration module is a fully client-side demo with hardcoded 2026 seed data, zero persistence | `src/store/useCollaborationStore.ts` (seed 20-381, in-memory mutations 461-504) | Workspace/team/sprint feature is a mirage; user data silently vanishes. |
 | FE-2 / FE-24 | Fabricated metrics hardcoded in collaboration analytics UI ("62/85 points", "1.4 days", "94%", "4h 12m", Sprint 24) | TeamWorkspace.tsx:220-221/537/541/545; ReportsAnalyticsPage.tsx:47-125; MemberProfilePage.tsx:120-126; QADashboardPage.tsx:99/112-113 | Users make decisions on false productivity data; erodes trust. |
-| FE-3 | Three independent timer implementations never sync (engine vs TaskDetail LiveTimer vs FocusMode Pomodoro) | engine: useStore.ts timerEngine + useActiveTimer.ts:41; clones: TaskDetail.tsx:17-38, FocusMode.tsx:38; dead useTimer.ts:13-23 | Divergent recorded times; focus sessions lost; duplicates intervals. |
+| FE-3 | Timer implementations need consolidation (engine vs TaskDetail LiveTimer) | engine: useStore.ts timerEngine + useActiveTimer.ts:41; clones: TaskDetail.tsx:17-38; dead useTimer.ts:13-23 | Divergent recorded times; focus sessions lost; duplicates intervals. |
 | FE-4 / DB-10 | UTC/local date mixing breaks "today" (habits, notifications) and task deadlines | useHabitStore.ts:73-77; useNotifications.ts:81; CreateTaskModal.tsx:34; useStore.ts:358 | Off-by-one-day habits/deadlines for non-UTC users. |
 | FE-5 | Optimistic mutations without error handling or rollback | useStore.ts deleteTask:375-384, toggleSubtask:496-506; useHabitStore.ts deleteHabit:263-279, stopTimer:355-370; useWorkLogStore.ts updateField:547-557, updateEntry:589-608; AdminPeople.tsx handleDelete:223-229 | Silent data loss; unhandled rejections; UI desyncs from server. |
 
@@ -135,7 +135,7 @@ Severity definitions:
 - **CM-5:** `buildDayReport` `completedCount` counts `log.completedItems.length` across **all** fetched worklogs (reports.js:157) even when those items belong to other days (worklogs are fetched by `$or` on createdAt/updatedAt/workEntries.date, line 106-113) → inflated completed counts in day reports.
 - **CM-6:** Report `totalMs` derives only from sessions (reports.js:119-147) while worklog `workEntries.activeMs` are synced separately (workLogs.js syncWorkEntries) → day report and worklog view can disagree (compounds BE-19).
 - **CM-8:** Timer state relies on client clock only; `timerEngine` FSM is sound but drift resync assumes `Date.now()` trust — combined with BE-8 the server cannot validate any duration.
-- **CM-9:** FocusMode Pomodoro countdown is entirely disconnected from work-log/session recording — focus sessions in FocusMode never appear in reports (FE-3 root cause).
+- **CM-9:** FocusMode countdown was disconnected from work-log/session recording (resolved — FocusMode removed).
 
 ### 2.4 Low (31)
 
@@ -204,8 +204,8 @@ Format per item: **Problem → Why it matters → Files → Solution → Effort 
 ### R8. Consolidate timer implementations onto the single engine
 - **Problem:** Three timers (FE-3); dead `useTimer.ts`/`tick` (FE-20); render-time formatting (FE-31).
 - **Why:** Lost sessions, duplicated intervals, misleading UI.
-- **Files:** `src/pages/TaskDetail.tsx` (LiveTimer), `src/pages/FocusMode.tsx` (Pomodoro), `src/hooks/useTimer.ts` (delete), `src/store/useStore.ts` (timerEngine), `src/store/timerPersist.ts`.
-- **Solution:** Delete `useTimer.ts` + `tick`; make FocusMode a mode over `timerEngine`; TaskDetail renders engine state via `useActiveTimer`; memoize formatted display.
+- **Files:** `src/pages/TaskDetail.tsx` (LiveTimer), `src/hooks/useTimer.ts` (delete), `src/store/useStore.ts` (timerEngine), `src/store/timerPersist.ts`.
+- **Solution:** Delete `useTimer.ts` + `tick`; TaskDetail renders engine state via `useActiveTimer`; memoize formatted display.
 - **Effort:** M. **Risk:** Med (FocusMode semantics).
 
 ### R9. Make offline queue reliable and tamper-resistant

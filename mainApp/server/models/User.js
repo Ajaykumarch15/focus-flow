@@ -19,8 +19,6 @@ const userSchema = new mongoose.Schema(
     settings: {
       mode:          { type: String,  enum: ['dark', 'light'], default: 'dark' },
       dailyGoal:     { type: Number,  default: 8, min: 0, max: 24 },
-      pomodoroWork:  { type: Number,  default: 25, min: 1, max: 120 },
-      pomodoroBreak: { type: Number,  default: 5, min: 1, max: 60 },
       timezone:      { type: String,  default: 'UTC', maxlength: 50 },
       accentColor:   { type: String,  default: '#0ea5e9', maxlength: 7 },
       fontSize:      { type: String,  enum: ['sm', 'md', 'lg'], default: 'md' },

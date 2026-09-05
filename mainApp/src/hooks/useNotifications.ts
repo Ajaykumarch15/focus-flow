@@ -9,7 +9,6 @@ const NOTIFICATION_PREFS_KEY = 'ff_notification_prefs';
 export interface NotificationSettings {
   enabled: boolean;
   deadlineReminders: boolean;
-  pomodoroAlerts: boolean;
   habitReminders: boolean;
   dailyGoalReminder: boolean;
 }
@@ -17,7 +16,6 @@ export interface NotificationSettings {
 const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
   deadlineReminders: true,
-  pomodoroAlerts: true,
   habitReminders: true,
   dailyGoalReminder: true,
 };

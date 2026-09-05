@@ -10,7 +10,7 @@ Premium productivity and work tracking app that combines task management, time t
 - Habit tracking with checklists and daily progress
 - Work journal with mood and focus ratings
 - Analytics and reports for daily and weekly focus trends
-- Settings for profile, daily goal, Pomodoro durations, and theme preferences
+- Settings for profile, daily goal, and theme preferences
 
 ## Tech Stack
 

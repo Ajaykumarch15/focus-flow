@@ -68,8 +68,6 @@ export interface UserProfile {
   name: string;
   avatar?: string;
   dailyGoal: number;
-  pomodoroWork: number;
-  pomodoroBreak: number;
   timezone: string;
   streak: {
     current: number;
