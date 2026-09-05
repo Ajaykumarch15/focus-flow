@@ -59,7 +59,7 @@ Software engineers and engineering teams currently spread their work across 4–
 | Activity | Typical Tool | Failure Mode |
 |---|---|---|
 | Task management | Todo apps, issue trackers | No link to actual work done |
-| Focus / time | Pomodoro apps, manual timers | Data never connects to tasks |
+| Focus / time | Manual timers | Data never connects to tasks |
 | Documentation | Notion, Confluence, wiki | Becomes stale, lives apart from code |
 | Project planning | Jira, Trello, Linear | Heavyweight, process-overhead heavy |
 | Reporting | Standups, spreadsheets | Manual, forgettable, no data trail |
@@ -179,7 +179,7 @@ Every product decision is filtered through these principles:
 
 ### 5.1 Developer — "Aria"
 
-- **Profile:** 28, frontend engineer at a startup, contributes to OSS at night. Uses a scratch notebook, a todo app, and a Pomodoro timer, none of which talk to each other.
+- **Profile:** 28, frontend engineer at a startup, contributes to OSS at night. Uses a scratch notebook, a todo app, and a timer, none of which talk to each other.
 - **Responsibilities:** Implement features, fix bugs, write code, review PRs, document what was built, report progress.
 - **Pain Points:** Forgets to log time; status meetings force vague updates ("still working on it"); switching between timer, notes, and task boards breaks flow; hates timesheet apps.
 - **Goals:** Ship quality code with less interruption; have automatic proof of work; keep a personal focus streak; journal what was learned.
@@ -296,7 +296,7 @@ For every module: **Purpose · Target Users · Primary Features · Future Scope 
 
 - **Purpose:** The trusted record of deep work — every session that powers automation.
 - **Target Users:** Developers.
-- **Primary Features:** Session lifecycle (start, pause, resume, complete, discard), linked task/feature, timer context (pomodoro vs. manual), focus score, notes-on-complete, session history, editing/correction of sessions.
+- **Primary Features:** Session lifecycle (start, pause, resume, complete, discard), linked task/feature, manual timer, focus score, notes-on-complete, session history, editing/correction of sessions.
 - **Future Scope:** Session tags, environment capture (branch/commit via future Git integration), focus-quality analysis.
 - **Dependencies:** Focus Timer, Tasks, Work Logs (sessions seed logs).
 
@@ -304,7 +304,7 @@ For every module: **Purpose · Target Users · Primary Features · Future Scope 
 
 - **Purpose:** The engine of deep work. Start a timer, protect the block, capture the session.
 - **Target Users:** Developers.
-- **Primary Features:** Configurable focus/break durations (Pomodoro presets), manual mode, global keyboard shortcuts (start/pause/resume/stop), live ticking on any page, end-of-session prompt ("log it, journal it, or keep going"), pause on navigation (optional), desktop notifications, sound cues, distraction counter.
+- **Primary Features:** Manual focus timer, global keyboard shortcuts (start/pause/resume/stop), live ticking on any page, end-of-session prompt ("log it, journal it, or keep going"), pause on navigation (optional), desktop notifications, sound cues, distraction counter.
 - **Future Scope:** Web/desktop global hotkeys, focus streak challenges, ambient soundscapes.
 - **Dependencies:** Focus Sessions (timer writes sessions).
 
@@ -416,7 +416,7 @@ For every module: **Purpose · Target Users · Primary Features · Future Scope 
 
 - **Purpose:** Personalize and administer the product at every level.
 - **Target Users:** Developers (personal settings), Admins/Owner (workspace settings).
-- **Primary Features:** Profile & appearance (theme, accent), timer preferences (pomodoro durations, defaults), daily goal, notification prefs, data & export, personal storage; workspace-level: name/branding, default role, permissions matrix, integrations (future), billing (future), audit log.
+- **Primary Features:** Profile & appearance (theme, accent), daily goal, notification prefs, data & export, personal storage; workspace-level: name/branding, default role, permissions matrix, integrations (future), billing (future), audit log.
 - **Future Scope:** Per-workspace theming, feature flags, compliance/export tooling.
 - **Dependencies:** Authentication, Roles & Permissions, Workspace.
 

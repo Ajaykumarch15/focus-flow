@@ -926,7 +926,7 @@ Card field glossary: **Purpose** (what it does) · **HTTP/Resource** (method + p
 | Read models | My Work, session summary |
 | Realtime | Same-member devices |
 | Audit | None |
-| Future | Pomodoro-style session presets |
+| Future | Session presets |
 
 ---
 

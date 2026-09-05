@@ -102,7 +102,7 @@ describe('IES-P1-22 · admin PATCH user settings whitelist', () => {
     mockPatch();
     mockActivity();
 
-    for (const settings of [{ dailyGoal: 99 }, { dailyGoal: -1 }, { pomodoroWork: 0 }, { pomodoroBreak: 500 }]) {
+    for (const settings of [{ dailyGoal: 99 }, { dailyGoal: -1 }]) {
       const res = await patch({ settings });
       expect(res.status).toBe(400);
     }
@@ -114,7 +114,7 @@ describe('IES-P1-22 · admin PATCH user settings whitelist', () => {
     mockActivity();
 
     // null/'' must NOT silently coerce to 0 via Number()
-    for (const settings of [{ dailyGoal: 'abc' }, { glassmorphism: 'yes' }, { pomodoroWork: 'soon' }, { dailyGoal: null }, { pomodoroBreak: '' }]) {
+    for (const settings of [{ dailyGoal: 'abc' }, { glassmorphism: 'yes' }, { dailyGoal: null }]) {
       const res = await patch({ settings });
       expect(res.status).toBe(400);
     }
@@ -137,7 +137,7 @@ describe('IES-P1-22 · admin PATCH user settings whitelist', () => {
     mockActivity();
 
     const res = await patch({
-      settings: { dailyGoal: 10, timezone: 'America/New_York', pomodoroWork: 50, fontSize: 'lg' },
+      settings: { dailyGoal: 10, timezone: 'America/New_York', fontSize: 'lg' },
     });
     expect(res.status).toBe(200);
 
@@ -146,12 +146,11 @@ describe('IES-P1-22 · admin PATCH user settings whitelist', () => {
     expect(ops.$set).toEqual({
       'settings.dailyGoal': 10,
       'settings.timezone': 'America/New_York',
-      'settings.pomodoroWork': 50,
       'settings.fontSize': 'lg',
     });
     // Untouched settings (mode, accentColor, …) must NOT be in the update —
     // full-object replacement would wipe them.
-    expect(Object.keys(ops.$set).some((k) => k.startsWith('settings.') && !['settings.dailyGoal', 'settings.timezone', 'settings.pomodoroWork', 'settings.fontSize'].includes(k))).toBe(false);
+    expect(Object.keys(ops.$set).some((k) => k.startsWith('settings.') && !['settings.dailyGoal', 'settings.timezone', 'settings.fontSize'].includes(k))).toBe(false);
   });
 
   it('coerces numeric strings but still bounds them', async () => {
@@ -191,7 +190,7 @@ describe('IES-P1-22 · User settings sub-schema bounds', () => {
 
   it('accepts a healthy full settings object', async () => {
     const err = await validate(makeUser({
-      settings: { mode: 'light', dailyGoal: 10, pomodoroWork: 50, pomodoroBreak: 10, timezone: 'Asia/Kolkata', accentColor: '#f97316', fontSize: 'lg', glassmorphism: false, animatedBg: false, reducedMotion: true },
+      settings: { mode: 'light', dailyGoal: 10, timezone: 'Asia/Kolkata', accentColor: '#f97316', fontSize: 'lg', glassmorphism: false, animatedBg: false, reducedMotion: true },
     }));
     expect(err).toBeNull();
   });
@@ -202,13 +201,5 @@ describe('IES-P1-22 · User settings sub-schema bounds', () => {
 
     const fontSizeErr = await validate(makeUser({ settings: { fontSize: 'xl' } }));
     expect(fontSizeErr.errors['settings.fontSize']).toBeDefined();
-  });
-
-  it('bounds pomodoro durations', async () => {
-    const workErr = await validate(makeUser({ settings: { pomodoroWork: 0 } }));
-    expect(workErr.errors['settings.pomodoroWork']).toBeDefined();
-
-    const breakErr = await validate(makeUser({ settings: { pomodoroBreak: 61 } }));
-    expect(breakErr.errors['settings.pomodoroBreak']).toBeDefined();
   });
 });

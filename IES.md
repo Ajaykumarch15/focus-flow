@@ -490,7 +490,7 @@ Branch: `fix/` or `feat/` + `<p0-01>-<kebab-title>`; Commit scope: `fix(security
 #### IES-P1-01 · Consolidate timer implementations onto the single engine
 - **Refs:** FE-3, FE-20, FE-31, EAR R8
 - **Priority:** Critical · **Complexity:** L · **Hours:** 16 · **Deps:** IES-P0-07
-- **Description:** Three timers diverge: engine (`useStore.ts` timerEngine + `useActiveTimer.ts:41`), TaskDetail LiveTimer (17-38), FocusMode Pomodoro (38). Delete `useTimer.ts` + `tick`; make FocusMode a mode over `timerEngine`; TaskDetail renders engine display; memoize formatted display.
+- **Description:** Three timers diverge: engine (`useStore.ts` timerEngine + `useActiveTimer.ts:41`), TaskDetail LiveTimer (17-38). Delete `useTimer.ts` + `tick`; TaskDetail renders engine display; memoize formatted display.
 - **Affected files:** `src/store/useStore.ts`, `src/hooks/useTimer.ts` (delete), `src/hooks/useActiveTimer.ts`, `src/pages/TaskDetail.tsx`, `src/pages/FocusMode.tsx`, `src/components/tasks/TaskCard.tsx`, `src/components/layout/Sidebar.tsx`.
 - **Architecture refs:** SAD (timer), DDD (domain), MPEP Ch.9 (SEB timer defects T-01..T-08), EAR Part 2 FE-3.
 - **Risk:** High (core UX; regression risk on all timer surfaces).
@@ -700,7 +700,7 @@ Branch: `fix/` or `feat/` + `<p0-01>-<kebab-title>`; Commit scope: `fix(security
 #### IES-P1-22 · Admin PATCH user: validate `settings` object
 - **Refs:** BE-28, EAR R5
 - **Priority:** Medium · **Complexity:** S · **Hours:** 4 · **Deps:** IES-P0-16
-- **Description:** `admin.js:80` accepts arbitrary nested `settings`. Whitelist sub-fields and types; validate `dailyGoal`, `timezone`, `pomodoro*`, `fontSize`, etc.; use schema validators.
+- **Description:** `admin.js:80` accepts arbitrary nested `settings`. Whitelist sub-fields and types; validate `dailyGoal`, `timezone`, `fontSize`, etc.; use schema validators.
 - **Affected files:** `server/routes/admin.js`, `server/models/User.js` (settings sub-schema).
 - **Architecture refs:** EAR Part 2 BE-28.
 - **Risk:** Low.

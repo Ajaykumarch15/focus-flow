@@ -39,8 +39,8 @@ const DEFAULT_THEME: ThemeSettings = {
   glassmorphism: true, animatedBackground: true, reducedMotion: false,
 };
 const DEFAULT_PROFILE: UserProfile = {
-  name: 'Focus Master', dailyGoal: 8, pomodoroWork: 25,
-  pomodoroBreak: 5, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  name: 'Focus Master', dailyGoal: 8,
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   streak: { current: 0, best: 0, lastDate: '' },
   totalPoints: 0,
   leaderboardOptIn: true,
@@ -175,8 +175,6 @@ function mapSettings(userDoc: any) {
     profile: {
       name: userDoc?.name ?? DEFAULT_PROFILE.name,
       dailyGoal: s.dailyGoal ?? DEFAULT_PROFILE.dailyGoal,
-      pomodoroWork: s.pomodoroWork ?? DEFAULT_PROFILE.pomodoroWork,
-      pomodoroBreak: s.pomodoroBreak ?? DEFAULT_PROFILE.pomodoroBreak,
       timezone: s.timezone ?? DEFAULT_PROFILE.timezone,
       streak: userDoc.streak ?? DEFAULT_PROFILE.streak,
       totalPoints: userDoc.totalPoints ?? 0,
@@ -727,8 +725,6 @@ export const useStore = create<StoreState>((set, get) => {
         leaderboardOptIn: updates.leaderboardOptIn ?? current.leaderboardOptIn,
         settings: {
           dailyGoal: updates.dailyGoal ?? current.dailyGoal,
-          pomodoroWork: updates.pomodoroWork ?? current.pomodoroWork,
-          pomodoroBreak: updates.pomodoroBreak ?? current.pomodoroBreak,
           timezone: updates.timezone ?? current.timezone,
         },
       }).catch((err) => {

@@ -20,7 +20,7 @@ const router = express.Router();
 //
 // IES-P1-22: the `settings` object is whitelisted field-by-field so hostile or
 // misshapen values can't be persisted. Bounds mirror the User model settings
-// sub-schema and the Settings UI (dailyGoal 0–24h, pomodoro 1–120/1–60 min,
+// sub-schema and the Settings UI (dailyGoal 0–24h,
 // 6-digit hex accent, fixed enums). `.strict()` rejects unknown keys entirely.
 const settingsNumber = (label, { min, max, int = false } = {}) => {
   let schema = z.coerce.number({ message: `${label} must be a number` });
@@ -35,8 +35,6 @@ const settingsNumber = (label, { min, max, int = false } = {}) => {
 const adminSettingsSchema = z.object({
   mode: z.enum(['dark', 'light']),
   dailyGoal: settingsNumber('dailyGoal', { min: 0, max: 24 }),
-  pomodoroWork: settingsNumber('pomodoroWork', { min: 1, max: 120, int: true }),
-  pomodoroBreak: settingsNumber('pomodoroBreak', { min: 1, max: 60, int: true }),
   timezone: z.string().trim().min(1, 'Timezone cannot be empty').max(50, 'Timezone too long'),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid accent color'),
   fontSize: z.enum(['sm', 'md', 'lg']),

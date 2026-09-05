@@ -4,7 +4,7 @@ import { useStore } from '../store/useStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { api } from '../utils/api';
 import {
-  Moon, Sun, Palette, User, Clock, Bell, Users, Cloud, Check, BellRing,
+  Moon, Sun, Palette, User, Bell, Users, Cloud, Check, BellRing,
   Shield, Database, Zap, Eye, AlertTriangle,
 } from 'lucide-react';
 import { ACCENT_PRESETS } from '../utils/colors';
@@ -33,7 +33,6 @@ const TIMEZONE_OPTIONS = [
 const NAV_SECTIONS = [
   { id: 'profile', label: 'Profile', icon: User, color: 'text-blue-500 dark:text-blue-400', bg: 'bg-blue-500/10' },
   { id: 'appearance', label: 'Appearance', icon: Palette, color: 'text-purple-500 dark:text-purple-400', bg: 'bg-purple-500/10' },
-  { id: 'focus', label: 'Focus & Timer', icon: Clock, color: 'text-amber-500 dark:text-amber-400', bg: 'bg-amber-500/10' },
   { id: 'notifications', label: 'Notifications', icon: BellRing, color: 'text-pink-500 dark:text-pink-400', bg: 'bg-pink-500/10' },
   { id: 'integrations', label: 'Integrations', icon: Cloud, color: 'text-sky-500 dark:text-sky-400', bg: 'bg-sky-500/10' },
   { id: 'community', label: 'Community', icon: Users, color: 'text-indigo-500 dark:text-indigo-400', bg: 'bg-indigo-500/10' },
@@ -288,20 +287,6 @@ export function Settings() {
               </div>
             </Section>
 
-            {/* ─── Focus & Timer ─── */}
-            <Section id="focus" icon={Clock} iconBg="bg-amber-500/10" iconColor="text-amber-500 dark:text-amber-400" title="Focus & Timer" desc="Configure your Pomodoro sessions">
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Focus Duration (min)">
-                  <Input type="number" className="h-11 rounded-xl" min="1" max="120" value={profile.pomodoroWork}
-                    onChange={e => { updateProfile({ pomodoroWork: Number(e.target.value) }); flashSaved(); }} />
-                </Field>
-                <Field label="Break Duration (min)">
-                  <Input type="number" className="h-11 rounded-xl" min="1" max="60" value={profile.pomodoroBreak}
-                    onChange={e => { updateProfile({ pomodoroBreak: Number(e.target.value) }); flashSaved(); }} />
-                </Field>
-              </div>
-            </Section>
-
             {/* ─── Notifications ─── */}
             <Section id="notifications" icon={BellRing} iconBg="bg-pink-500/10" iconColor="text-pink-500 dark:text-pink-400" title="Notifications" desc="Control when and how you get notified">
               <NotificationSettingsSection onSaved={flashSaved} />
@@ -455,7 +440,7 @@ function NotificationSettingsSection({ onSaved }: { onSaved: () => void }) {
   const handleEnableAll = async () => {
     const granted = await requestNotificationPermission();
     if (granted) {
-      const next = { enabled: true, deadlineReminders: true, pomodoroAlerts: true, habitReminders: true, dailyGoalReminder: true };
+      const next = { enabled: true, deadlineReminders: true, habitReminders: true, dailyGoalReminder: true };
       saveNotificationSettings(next);
       setSettings(next);
       onSaved();
@@ -475,7 +460,6 @@ function NotificationSettingsSection({ onSaved }: { onSaved: () => void }) {
 
   const notifItems = [
     { key: 'deadlineReminders' as const, label: 'Deadline Reminders', desc: 'Tasks due or overdue', icon: '⏰' },
-    { key: 'pomodoroAlerts' as const, label: 'Pomodoro Alerts', desc: 'Focus/break session end', icon: '🍅' },
     { key: 'habitReminders' as const, label: 'Habit Reminders', desc: 'Scheduled habit nudges', icon: '✅' },
     { key: 'dailyGoalReminder' as const, label: 'Daily Goal', desc: 'Evening goal check-in', icon: '🎯' },
   ];

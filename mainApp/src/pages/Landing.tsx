@@ -14,10 +14,10 @@ const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 const features = [
-  { icon: Timer, title: 'Smart Timer', desc: 'Track focus sessions with Pomodoro and manual timers, session history, streaks, and focus scoring.', color: '#0ea5e9', bg: 'bg-sky-500/10' },
+  { icon: Timer, title: 'Smart Timer', desc: 'Track focus sessions with a manual timer, session history, streaks, and focus scoring.', color: '#0ea5e9', bg: 'bg-sky-500/10' },
   { icon: BarChart3, title: 'Analytics', desc: 'Beautiful charts showing your productivity trends, time distribution, and performance insights.', color: '#8b5cf6', bg: 'bg-purple-500/10' },
   { icon: BookOpen, title: 'Work Journal', desc: 'Keep daily logs and reflections tied to each task session with Markdown editing.', color: '#22c55e', bg: 'bg-emerald-500/10' },
-  { icon: Zap, title: 'Focus Mode', desc: 'Distraction-free Pomodoro timer with motivational quotes.', color: '#f97316', bg: 'bg-orange-500/10' },
+  { icon: Zap, title: 'Focus Mode', desc: 'Distraction-free focus timer with motivational quotes.', color: '#f97316', bg: 'bg-orange-500/10' },
   { icon: CheckSquare, title: 'Subtasks', desc: 'Break down complex tasks into manageable checklist items with progress tracking.', color: '#ec4899', bg: 'bg-pink-500/10' },
   { icon: Target, title: 'Daily Goals', desc: 'Set and track your daily productivity goals with visual progress rings.', color: '#eab308', bg: 'bg-yellow-500/10' },
 ];
@@ -35,7 +35,7 @@ const valueProps = [
 ];
 
 const stats = [
-  { value: '2', label: 'Timer modes — Pomodoro & manual' },
+  { value: '1', label: 'Manual timer — start and stop on your terms' },
   { value: '1', label: 'Source of truth — sessions feed work logs' },
   { value: '0', label: 'Manual transcription needed' },
   { value: '100%', label: 'Private — your data stays yours' },
@@ -100,7 +100,7 @@ export function Landing() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
             <div className="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 mb-8">
               <Sparkles size={14} className="text-brand-400" />
-              <span className="text-sm text-brand-300 font-semibold">Pomodoro Productivity Tracker</span>
+              <span className="text-sm text-brand-300 font-semibold">Productivity Tracker</span>
             </div>
           </motion.div>
 
