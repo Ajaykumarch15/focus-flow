@@ -39,6 +39,40 @@ export const STATUS_LABELS: Record<ProjectStatus, string> = {
   on_hold: 'On Hold',
 };
 
+const STATUS_MAP: Record<string, ProjectStatus> = {
+  planning: 'active',
+  active: 'in_progress',
+  completed: 'completed',
+  on_hold: 'on_hold',
+};
+
+const TINT_OPTIONS: CardTint[] = ['purple', 'green', 'pink', 'blue', 'orange', 'gray'];
+
+export function mapProjectToCardData(project: any, tasks: any[]): ProjectData {
+  const projectTasks = tasks.filter((t) => t.projectId === project.id);
+  const completedTasks = projectTasks.filter((t) => t.status === 'done').length;
+  const totalTasks = projectTasks.length;
+  const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  return {
+    id: project.id,
+    name: project.name,
+    client: project.key || 'Workspace',
+    description: project.description || '',
+    type: ['Internal'],
+    status: STATUS_MAP[project.status] || 'active',
+    startDate: project.createdAt || new Date().toISOString(),
+    endDate: new Date().toISOString(),
+    tags: [],
+    completedTasks,
+    totalTasks,
+    progress,
+    bookmarked: false,
+    tint: TINT_OPTIONS[Math.floor(Math.random() * TINT_OPTIONS.length)],
+    iconEmoji: project.key?.charAt(0) || project.name.charAt(0),
+  };
+}
+
 export const SAMPLE_PROJECTS: ProjectData[] = [
   {
     id: 'proj-1',

@@ -42,7 +42,11 @@ function mockUser(u) {
 
 function mockWorkspaceManager(role) {
   return vi.spyOn(Workspace, 'findById').mockImplementation(() => ({
-    select: () => Promise.resolve({ members: [{ userId: OWNER_ID, role }] }),
+    select: () => Promise.resolve({ members: [
+      { userId: OWNER_ID, role },
+      { userId: M1, role: 'Member' },
+      { userId: M2, role: 'Member' },
+    ] }),
   }));
 }
 
@@ -244,6 +248,7 @@ describe('IES-P2-02 · populate returns real users', () => {
     mockUser(user(OWNER_ID));
     const member = { _id: M1, name: 'M1', email: 'm1@x.com', avatar: '', role: 'user' };
     vi.spyOn(Team, 'findById').mockImplementation(() => ({
+      _id: TEAM_ID, name: 'Frontend', members: [member], workspaceRef: WS_ID,
       populate: () => Promise.resolve({ _id: TEAM_ID, name: 'Frontend', members: [member], workspaceRef: WS_ID }),
     }));
     vi.spyOn(Workspace, 'findById').mockImplementation(() => ({

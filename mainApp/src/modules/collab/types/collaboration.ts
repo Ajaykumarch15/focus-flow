@@ -1,5 +1,7 @@
 export type WorkspaceType = 'Personal' | 'Startup' | 'College Project' | 'Open Source' | 'Internship' | 'Enterprise';
-export type MemberRole = 'Owner' | 'Admin' | 'Manager' | 'Developer' | 'Viewer';
+// Phase 9: canonical workspace roles are Owner, Admin, Member.
+// Legacy values (Manager, Developer, Viewer) are no longer valid.
+export type MemberRole = 'Owner' | 'Admin' | 'Member';
 export type MemberStatus = 'available' | 'in_focus' | 'away' | 'in_meeting' | 'offline';
 export type SprintStatus = 'backlog' | 'ready' | 'in_progress' | 'review' | 'done';
 export type BlockerSeverity = 'critical' | 'high' | 'medium' | 'low';

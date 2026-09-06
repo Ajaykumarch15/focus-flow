@@ -24,9 +24,8 @@ export function deriveWorkspaceFromPath(pathname: string): AppWorkspace {
     return 'personal';
   }
   if (pathname.startsWith('/admin')) return 'admin';
-  // Collab workspace: /w/:workspaceId/..., /collab/..., /team, /workspace
+  // Collab workspace: /collab/..., /team, /workspace
   if (
-    pathname.startsWith('/w/') ||
     pathname.startsWith('/collab') ||
     pathname.startsWith('/workspace') ||
     pathname === '/team'

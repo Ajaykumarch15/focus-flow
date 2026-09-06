@@ -1,0 +1,13 @@
+Key,Name,Email,Password,Platform Role,Workspace Role,Project Role,Team Role,Workspace
+ff-owner-01,Auth Test Owner 01,ff-owner-01@focusflow.test,AuthTest2026!,user,Owner,,,Workspace A
+ff-owner-02,Auth Test Owner 02,ff-owner-02@focusflow.test,AuthTest2026!,user,Owner,,,Workspace B
+ff-admin-01,Auth Test Admin 01,ff-admin-01@focusflow.test,AuthTest2026!,user,Admin,,,Workspace A
+ff-admin-02,Auth Test Admin 02,ff-admin-02@focusflow.test,AuthTest2026!,user,Admin,,,Workspace B
+ff-member-01,Auth Test Member 01,ff-member-01@focusflow.test,AuthTest2026!,user,Member,Member (Alpha),Member (Alpha),Workspace A
+ff-member-02,Auth Test Member 02,ff-member-02@focusflow.test,AuthTest2026!,user,Member,Member (Alpha),Member (Alpha),Workspace A
+ff-member-03,Auth Test Member 03,ff-member-03@focusflow.test,AuthTest2026!,user,Member,Member (Beta),Member (Beta),Workspace A
+ff-member-04,Auth Test Member 04,ff-member-04@focusflow.test,AuthTest2026!,user,Member,,,Workspace B
+ff-pm-01,Auth Test PM 01,ff-pm-01@focusflow.test,AuthTest2026!,user,Member,Manager (Alpha),,Workspace A
+ff-pm-02,Auth Test PM 02,ff-pm-02@focusflow.test,AuthTest2026!,user,Member,Manager (Beta),,Workspace A
+ff-tl-01,Auth Test TL 01,ff-tl-01@focusflow.test,AuthTest2026!,user,Member,Member (Alpha),Leader (Alpha),Workspace A
+ff-tl-02,Auth Test TL 02,ff-tl-02@focusflow.test,AuthTest2026!,user,Member,Member (Beta),Leader (Beta),Workspace A

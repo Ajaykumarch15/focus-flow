@@ -14,7 +14,7 @@ import { SAMPLE_PROJECTS } from '@collab/components/projects/types';
 import { Button } from '@shared/components/ui/Button';
 
 export function ProjectKanbanPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
   const { activeView, openAddModal, showAddModal, closeAddModal } = useKanbanStore();
 
@@ -40,7 +40,7 @@ export function ProjectKanbanPage() {
         >
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate(`/collab/team/${projectId}`)}
+              onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}`)}
               className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
             >
               <ArrowLeft size={14} /> Back

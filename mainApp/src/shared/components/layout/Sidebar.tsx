@@ -1,4 +1,4 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
@@ -54,16 +54,16 @@ const WORKLOG_NAV: NavPanelDef[] = [
   { to: '/worklog/knowledge', icon: Library, label: 'Knowledge' },
 ];
 
-const COLLAB_NAV: NavPanelDef[] = [
+const getCollabNav = (workspaceId: string): NavPanelDef[] => [
   {
-    to: '/collab/team', icon: FolderOpen, label: 'Projects',
+    to: `/collab/${workspaceId}/team`, icon: FolderOpen, label: 'Projects',
     children: [
-      { to: '/collab/team', label: 'All Projects' },
+      { to: `/collab/${workspaceId}/team`, label: 'All Projects' },
     ],
   },
-  { to: '/collab/people', icon: User, label: 'People' },
-  { to: '/collab/leaderboard', icon: Trophy, label: 'Leaderboard' },
-  { to: '/collab/activity', icon: History, label: 'Activity' },
+  { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
+  { to: `/collab/${workspaceId}/leaderboard`, icon: Trophy, label: 'Leaderboard' },
+  { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },
 ];
 
 const BOTTOM_NAV: NavPanelDef[] = [
@@ -91,6 +91,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
   const navigate = useNavigate();
   const workspace = useAuthStore((s) => s.workspace);
   const { activeTaskId, sessionKind } = useActiveTimer();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [hoveredTop, setHoveredTop] = useState(0);
@@ -101,10 +102,12 @@ export function Sidebar({ expanded = false }: SidebarProps) {
     (workspace === 'personal' && sessionKind === 'personal') ||
     (workspace !== 'personal' && sessionKind !== 'personal');
 
+  const collabNav = workspaceId ? getCollabNav(workspaceId) : [];
+
   const navItems = workspace === 'personal'
     ? PERSONAL_NAV
     : workspace === 'collab'
-      ? [...WORKLOG_NAV, ...COLLAB_NAV]
+      ? [...WORKLOG_NAV, ...collabNav]
       : WORKLOG_NAV;
 
   const adminNav: NavPanelDef = {

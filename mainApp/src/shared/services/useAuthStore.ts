@@ -4,6 +4,8 @@ import { clearTimer, clearTodayMs } from '@worklog/services/timerPersist';
 import { timerEngine } from '@worklog/services/timerEngine';
 import { deriveWorkspaceFromPath } from '@collab/services/workspaceRouting';
 
+let restorePromise: Promise<void> | null = null;
+
 interface AuthUser {
   _id:      string;
   name:     string;
@@ -79,18 +81,21 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   restoreSession: async () => {
-    try {
-      const { user } = await api.auth.me();
-      // Workspace context is owned by the current route (see <WorkspaceSync/>), not
-      // the persisted useWorkspaceStore value — derive it so a refresh on a card-based
-      // or admin route never snaps back to the stale 'personal' default.
-      const initialWorkspace = deriveWorkspaceFromPath(window.location.pathname);
-      set({ user, loading: false, workspace: initialWorkspace });
-    } catch {
-      clearTimer();
-      timerEngine.hydrate(null);
-      set({ user: null, loading: false, workspace: null });
-    }
+    if (restorePromise) return restorePromise;
+    restorePromise = (async () => {
+      try {
+        const { user } = await api.auth.me();
+        const initialWorkspace = deriveWorkspaceFromPath(window.location.pathname);
+        set({ user, loading: false, workspace: initialWorkspace });
+      } catch {
+        clearTimer();
+        timerEngine.hydrate(null);
+        set({ user: null, loading: false, workspace: null });
+      } finally {
+        restorePromise = null;
+      }
+    })();
+    return restorePromise;
   },
 
   clearError: () => set({ error: null }),

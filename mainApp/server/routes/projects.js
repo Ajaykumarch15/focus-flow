@@ -5,8 +5,10 @@ const User = require('../models/User');
 const Team = require('../models/Team');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
-const { findMember, memberUserId } = require('../middleware/workspace');
-const { canEdit, canManage } = require('../utils/permissions');
+const { memberUserId } = require('../middleware/workspace');
+const { can } = require('../authorization/authorization');
+const { PROJECT, WORKSPACE } = require('../authorization/permissions');
+const { requireProjectPermission } = require('../authorization/middleware');
 const { getAuthorizedClient, createProjectFolders, setDriveError, clearDriveError } = require('../utils/googleDrive');
 const { logger } = require('../utils/logger');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
@@ -37,43 +39,6 @@ const projectPatchSchema = z
     settings: z.record(z.any()).optional(),
   })
   .passthrough();
-
-// ── IES-P2-01 / IES-P2-03 workspace access helpers ─────────────────────────────
-// Reads require membership; creating requires any role except Viewer. Role checks
-// reuse the shared member lookup from middleware/workspace.js (SAD §10.3).
-async function canAccessWorkspace(workspaceId, user) {
-  if (user.role === 'admin') return true;
-  const ws = await Workspace.findById(workspaceId).select('members');
-  return !!ws && !!findMember(ws, user._id);
-}
-
-async function canCreateInWorkspace(workspaceId, user) {
-  if (user.role === 'admin') return true;
-  const ws = await Workspace.findById(workspaceId).select('members');
-  const m = ws && findMember(ws, user._id);
-  return !!m && m.role !== 'Viewer';
-}
-
-// EEP2-P2.2.1/P2.2.2: resolves the caller's access to a single project.
-// Personal projects (workspaceRef null) are creator-only; workspace projects
-// require membership (any role, incl. Viewer — DDS §4.4 "Reads = workspace
-// members"). Platform admin keeps the admin bypass used across this router.
-async function resolveProjectGate(req, project) {
-  if (!project.workspaceRef) {
-    const isOwner = String(project.userId) === String(req.user._id);
-    if (!isOwner && req.user.role !== 'admin') {
-      return { ok: false, status: 403, message: 'You do not have access to this project' };
-    }
-    return { ok: true, personal: true, member: null, ws: null };
-  }
-  const ws = await Workspace.findById(project.workspaceRef).select('members');
-  if (!ws) return { ok: false, status: 404, message: 'Workspace not found' };
-  const member = ws ? findMember(ws, req.user._id) : null;
-  if (!member && req.user.role !== 'admin') {
-    return { ok: false, status: 403, message: 'You are not a member of this workspace' };
-  }
-  return { ok: true, personal: false, member, ws };
-}
 
 // EEP2-P2.2.2: `members[]` must reference active users who belong to the
 // workspace (or, for personal projects, any active user).
@@ -109,13 +74,17 @@ async function validateTeamRefs(teamIds, workspaceRef) {
 // ── GET /api/projects ──────────────────────────────────────────────────────────
 router.get('/', validate(null, { query: projectQuerySchema }), async (req, res, next) => {
   try {
-    // IES-P2-01: ?workspaceId= returns that workspace's projects (member-scoped);
+    // IES-P2-01: ?workspaceId= returns that workspace's projects (project-scoped);
     // otherwise the caller's personal projects.
     if (req.query.workspaceId) {
-      if (!(await canAccessWorkspace(req.query.workspaceId, req.user))) {
+      const ws = await Workspace.findById(req.query.workspaceId).select('members createdBy');
+      if (!ws || !can(req.user, WORKSPACE.VIEW, { workspace: ws })) {
         return res.status(403).json({ message: 'You are not a member of this workspace' });
       }
-      const projects = await Project.find({ workspaceRef: req.query.workspaceId }).sort({ name: 1 });
+      // Workspace membership already verified above — return all workspace projects.
+      const projects = await Project.find({
+        workspaceRef: req.query.workspaceId,
+      }).sort({ name: 1 });
       return res.json(projects);
     }
     const projects = await Project.find({ userId: req.user._id, workspaceRef: null }).sort({ name: 1 });
@@ -137,8 +106,9 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
 
     // IES-P2-01: workspace project — unique per workspace (workspaceRef + nameKey).
     if (workspaceId) {
-      if (!(await canCreateInWorkspace(workspaceId, req.user))) {
-        return res.status(403).json({ message: 'Only workspace members (non-viewers) can create projects' });
+      const ws = await Workspace.findById(workspaceId).select('members createdBy');
+      if (!ws || !can(req.user, WORKSPACE.VIEW, { workspace: ws })) {
+        return res.status(403).json({ message: 'Only workspace members can create projects' });
       }
       const existing = await Project.findOne({ workspaceRef: workspaceId, nameKey: trimmedName.toLowerCase() });
       if (existing) {
@@ -213,17 +183,9 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
 // ── EEP2-P2.2.1 · GET /api/projects/:id ───────────────────────────────────────
 // Single-project read (closes the DDS §4.4 Project Info gap). Member-gated:
 // personal = creator only, workspace = any member.
-router.get('/:id', validate(null, { params: projectParamsSchema }), async (req, res, next) => {
+router.get('/:id', validate(null, { params: projectParamsSchema }), requireProjectPermission(PROJECT.VIEW), async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-    const gate = await resolveProjectGate(req, project);
-    if (!gate.ok) {
-      return res.status(gate.status).json({ message: gate.message });
-    }
-    res.json(project);
+    res.json(req.project);
   } catch (err) {
     next(err);
   }
@@ -231,39 +193,27 @@ router.get('/:id', validate(null, { params: projectParamsSchema }), async (req, 
 
 // ── EEP2-P2.2.2 · PATCH /api/projects/:id ─────────────────────────────────────
 // Persists the DDS §4.4 Project Information. Role split enforced in the handler:
-//   • description/key/status          → editors (any non-Viewer member)
-//   • members[]/teamIds[]/settings    → Owner | Admin
+//   • description/key/status          → Project Manager or workspace Admin/Owner
+//   • members[]/teamIds[]/settings    → workspace Owner | Admin
 // member/team refs are validated against the workspace before saving; every
 // mutation writes an Activity('project.updated') row.
-router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema }), async (req, res, next) => {
+router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema }), requireProjectPermission(PROJECT.EDIT), async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.id);
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
-
-    const gate = await resolveProjectGate(req, project);
-    if (!gate.ok) {
-      return res.status(gate.status).json({ message: gate.message });
-    }
-
-    // Personal projects grant the creator full Owner privileges; platform admin
-    // is treated as the Admin workspace role (full read/edit/manage).
-    const role = gate.personal ? 'Owner' : gate.member ? gate.member.role : 'Admin';
+    const project = req.project;
     const { description, key, status, members, teamIds, settings } = req.body;
 
-    const wantsMeta = description !== undefined || key !== undefined || status !== undefined;
     const wantsMembership =
       members !== undefined || teamIds !== undefined || settings !== undefined;
 
-    if (wantsMeta && !canEdit(role)) {
-      return res.status(403).json({ message: 'You do not have permission to edit this project' });
-    }
-    if (wantsMembership && !canManage(role)) {
-      return res.status(403).json({ message: 'Only workspace owners and admins can manage project members, teams and settings' });
+    if (wantsMembership) {
+      const context = { workspace: req.workspace || null, project };
+      if (!can(req.user, PROJECT.MANAGE_MEMBERS, context)) {
+        return res.status(403).json({ message: 'Only workspace owners and admins can manage project members, teams and settings' });
+      }
     }
 
     if (members !== undefined) {
+      const gate = { ws: req.workspace, personal: !project.workspaceRef };
       const checked = await validateMemberRefs(members, gate);
       if (!checked.ok) return res.status(400).json({ message: checked.message });
       project.members = checked.ids;
@@ -299,12 +249,9 @@ router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema 
 
 // ── POST /api/projects/:id/sync-drive ──────────────────────────────────────────
 // Manual trigger to create folders if Google Drive was connected AFTER project creation
-router.post('/:id/sync-drive', validate(null, { params: projectParamsSchema }), async (req, res, next) => {
+router.post('/:id/sync-drive', validate(null, { params: projectParamsSchema }), requireProjectPermission(PROJECT.EDIT), async (req, res, next) => {
   try {
-    const project = await Project.findOne({ _id: req.params.id, userId: req.user._id });
-    if (!project) {
-      return res.status(404).json({ message: 'Project not found' });
-    }
+    const project = req.project;
 
     if (!req.user.googleConnected) {
       return res.status(400).json({ message: 'Google Drive is not connected' });

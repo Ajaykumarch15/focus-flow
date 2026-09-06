@@ -24,10 +24,6 @@ const HomePage         = lazy(() => import('@shared/pages/WorkspaceHub').then(mo
 const ProjectsPage    = lazy(() => import('@collab/pages/ProjectsPage').then(module => ({ default: module.ProjectsPage })));
 const ProjectDetailPage = lazy(() => import('@collab/pages/ProjectDetailPage').then(module => ({ default: module.ProjectDetailPage })));
 const ProjectKanbanPage = lazy(() => import('@collab/pages/ProjectKanbanPage').then(module => ({ default: module.ProjectKanbanPage })));
-const WorkspaceLayout = lazy(() => import('@shared/components/layout/WorkspaceLayout').then(module => ({ default: module.WorkspaceLayout })));
-const ProjectLayout   = lazy(() => import('@shared/components/layout/ProjectLayout').then(module => ({ default: module.ProjectLayout })));
-const WorkspaceHomePage = lazy(() => import('@collab/pages/collaboration/WorkspaceHomePage').then(module => ({ default: module.WorkspaceHomePage })));
-
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('@worklog/pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const NotFoundPage    = lazy(() => import('@shared/pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
@@ -60,32 +56,9 @@ const PersonalTaskDetail = lazy(() => import('@personal/pages/PersonalTaskDetail
 const PersonalSchedule   = lazy(() => import('@personal/pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
 const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
+const WorkspaceListingPage = lazy(() => import('@collab/pages/WorkspaceListingPage').then(module => ({ default: module.WorkspaceListingPage })));
 const PeoplePage       = lazy(() => import('@collab/pages/PeoplePage').then(module => ({ default: module.PeoplePage })));
-
-// Developer Collaboration Workspace Pages
-const TeamWorkspace     = lazy(() => import('@collab/pages/collaboration/TeamWorkspace').then(module => ({ default: module.TeamWorkspace })));
-const FeaturesPage      = lazy(() => import('@collab/pages/collaboration/FeaturesPage').then(module => ({ default: module.FeaturesPage })));
-const QADashboardPage    = lazy(() => import('@collab/pages/collaboration/QADashboardPage').then(module => ({ default: module.QADashboardPage })));
-const ActivityFeedPage  = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
-const ReportsAnalyticsPage = lazy(() => import('@collab/pages/collaboration/ReportsAnalyticsPage').then(module => ({ default: module.ReportsAnalyticsPage })));
-const MemberProfilePage = lazy(() => import('@collab/pages/collaboration/MemberProfilePage').then(module => ({ default: module.MemberProfilePage })));
-const WorkspaceSettingsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
-const TeamKnowledgePage = lazy(() => import('@collab/pages/collaboration/TeamKnowledgePage').then(module => ({ default: module.TeamKnowledgePage })));
-const SprintBoardPage = lazy(() => import('@collab/pages/collaboration/SprintBoardPage').then(module => ({ default: module.SprintBoardPage })));
-const SprintPlanningPage = lazy(() => import('@collab/pages/collaboration/SprintPlanningPage').then(module => ({ default: module.SprintPlanningPage })));
-const BacklogPage = lazy(() => import('@collab/pages/collaboration/BacklogPage').then(module => ({ default: module.BacklogPage })));
-const BlockersPage = lazy(() => import('@collab/pages/collaboration/BlockersPage').then(module => ({ default: module.BlockersPage })));
-const WorkspaceProjectsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceProjectsPage').then(module => ({ default: module.WorkspaceProjectsPage })));
-const ProjectOverviewPage = lazy(() => import('@collab/pages/collaboration/ProjectOverviewPage').then(module => ({ default: module.ProjectOverviewPage })));
-const ProjectTimelinePage = lazy(() => import('@collab/pages/collaboration/ProjectTimelinePage').then(module => ({ default: module.ProjectTimelinePage })));
-const WorkspaceTeamsPage = lazy(() => import('@collab/pages/collaboration/WorkspaceTeamsPage').then(module => ({ default: module.WorkspaceTeamsPage })));
-const WorkspaceMembersPage = lazy(() => import('@collab/pages/collaboration/WorkspaceMembersPage').then(module => ({ default: module.WorkspaceMembersPage })));
-
-// EEP2-P3.4.2/P3.4.3: Roadmap spine pages (hosted by ProjectLayout).
-const RoadmapPage = lazy(() => import('@collab/pages/collaboration/RoadmapPage').then(module => ({ default: module.RoadmapPage })));
-const MilestoneDetailPage = lazy(() => import('@collab/pages/collaboration/MilestoneDetailPage').then(module => ({ default: module.MilestoneDetailPage })));
-const PhaseDetailPage = lazy(() => import('@collab/pages/collaboration/PhaseDetailPage').then(module => ({ default: module.PhaseDetailPage })));
-const ModuleDetailPage = lazy(() => import('@collab/pages/collaboration/ModuleDetailPage').then(module => ({ default: module.ModuleDetailPage })));
+const ActivityFeedPage = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -193,40 +166,6 @@ export default function App() {
             {/* TEMP (Phase 3): isolated rich-text-editor test page (public, no auth) */}
             <Route path="/rte-test"                    element={<RteTestPage />} />
 
-            {/* Dedicated Engineering Workspace Architecture */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/w/:workspaceId" element={<WorkspaceLayout />}>
-                <Route path="overview" element={<TeamWorkspace />} />
-                <Route path="projects" element={<WorkspaceProjectsPage />} />
-                {/* EEP2-P3.3.2: project route tree (DDS §8.3) hosted by ProjectLayout.
-                    Additive — deep links to project pages keep working. */}
-                <Route path="projects/:projectId" element={<ProjectLayout />}>
-                  <Route index element={<ProjectOverviewPage />} />
-                  <Route path="timeline" element={<ProjectTimelinePage />} />
-                  <Route path="roadmap" element={<RoadmapPage />} />
-                  <Route path="roadmap/:milestoneId" element={<MilestoneDetailPage />} />
-                  <Route path="phases/:phaseId" element={<PhaseDetailPage />} />
-                  <Route path="modules/:moduleId" element={<ModuleDetailPage />} />
-                </Route>
-                <Route path="sprints" element={<SprintBoardPage />} />
-                <Route path="sprints/plan" element={<SprintPlanningPage />} />
-                <Route path="backlog" element={<BacklogPage />} />
-                <Route path="blockers" element={<BlockersPage />} />
-                <Route path="teams" element={<WorkspaceTeamsPage />} />
-                <Route path="members" element={<WorkspaceMembersPage />} />
-                <Route path="members/:memberId" element={<MemberProfilePage />} />
-                <Route path="features" element={<FeaturesPage />} />
-                <Route path="qa" element={<QADashboardPage />} />
-                <Route path="activity" element={<ActivityFeedPage />} />
-                <Route path="reports" element={<ReportsAnalyticsPage />} />
-                <Route path="analytics" element={<Navigate to="reports" replace />} />
-                <Route path="knowledge" element={<TeamKnowledgePage />} />
-                <Route path="calendar" element={<TeamWorkspace />} />
-                <Route path="settings" element={<WorkspaceSettingsPage />} />
-                <Route path="" element={<WorkspaceHomePage />} />
-              </Route>
-            </Route>
-
             {/* Workspace Selector */}
             <Route element={<ProtectedRoute />}>
               <Route path="/workspace" element={<WorkspaceSelector />} />
@@ -273,14 +212,15 @@ export default function App() {
             {/* Collab Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/collab/dashboard" element={<CollabDashboard />} />
-                <Route path="/collab/team" element={<ProjectsPage />} />
-                <Route path="/collab/team/:projectId" element={<ProjectDetailPage />} />
-                <Route path="/collab/team/:projectId/kanban" element={<ProjectKanbanPage />} />
-                <Route path="/collab/people" element={<PeoplePage />} />
-                <Route path="/collab/leaderboard" element={<Leaderboard />} />
-                <Route path="/collab/activity" element={<ActivityFeedPage />} />
-                <Route path="/collab/search" element={<SearchResultsPage />} />
+                <Route path="/collab/workspaces" element={<WorkspaceListingPage />} />
+                <Route path="/collab/:workspaceId/dashboard" element={<CollabDashboard />} />
+                <Route path="/collab/:workspaceId/team" element={<ProjectsPage />} />
+                <Route path="/collab/:workspaceId/team/:projectId" element={<ProjectDetailPage />} />
+                <Route path="/collab/:workspaceId/team/:projectId/kanban" element={<ProjectKanbanPage />} />
+                <Route path="/collab/:workspaceId/people" element={<PeoplePage />} />
+                <Route path="/collab/:workspaceId/leaderboard" element={<Leaderboard />} />
+                <Route path="/collab/:workspaceId/activity" element={<ActivityFeedPage />} />
+                <Route path="/collab/:workspaceId/search" element={<SearchResultsPage />} />
               </Route>
             </Route>
 

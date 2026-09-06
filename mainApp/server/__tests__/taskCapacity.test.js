@@ -42,7 +42,12 @@ function mockWorkspace() {
 }
 
 function mockScope(sprintOver = {}) {
-  vi.spyOn(Project, 'findById').mockResolvedValue({ _id: PROJECT_ID, workspaceRef: WS_ID });
+  const projectDoc = { _id: PROJECT_ID, workspaceRef: WS_ID };
+  const projectQuery = {
+    select: () => Promise.resolve(projectDoc),
+    then: (resolve, reject) => Promise.resolve(projectDoc).then(resolve, reject),
+  };
+  vi.spyOn(Project, 'findById').mockReturnValue(projectQuery);
   vi.spyOn(Sprint, 'findById').mockResolvedValue({ _id: SPRINT_ID, projectRef: PROJECT_ID, ...sprintOver });
 }
 

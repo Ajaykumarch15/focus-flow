@@ -20,9 +20,7 @@ const ROLE_OPTIONS = [
   { value: 'all', label: 'All Roles' },
   { value: 'Owner', label: 'Owner' },
   { value: 'Admin', label: 'Admin' },
-  { value: 'Manager', label: 'Manager' },
-  { value: 'Developer', label: 'Developer' },
-  { value: 'Viewer', label: 'Viewer' },
+  { value: 'Member', label: 'Member' },
 ];
 
 const SORT_OPTIONS = [

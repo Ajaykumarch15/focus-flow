@@ -10,12 +10,37 @@ import type {
   WorkspaceTeam,
 } from '@collab/types/collaboration';
 import { computeFeatureCompletionRate, computeVelocity } from './collaborationKpis';
-import { computeWorkspaceProgress } from '@collab/pages/collaboration/TeamWorkspace';
-import {
-  computeFeatureProgress,
-  groupTasksByFeature,
-  type FeatureProgress,
-} from '@collab/pages/collaboration/FeaturesPage';
+
+// ── Inlined from deleted TeamWorkspace.tsx / FeaturesPage.tsx ──────────────
+function computeWorkspaceProgress(tasks: CollaborativeTask[]): { done: number; total: number; pct: number } {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.sprintStatus === 'done').length;
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
+
+export interface FeatureProgress {
+  done: number;
+  total: number;
+  pct: number;
+}
+
+function computeFeatureProgress(tasks: CollaborativeTask[]): FeatureProgress {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.sprintStatus === 'done').length;
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : null };
+}
+
+function groupTasksByFeature(tasks: CollaborativeTask[]): Map<string, CollaborativeTask[]> {
+  const map = new Map<string, CollaborativeTask[]>();
+  for (const task of tasks) {
+    if (!task.featureId) continue;
+    const arr = map.get(task.featureId) ?? [];
+    arr.push(task);
+    map.set(task.featureId, arr);
+  }
+  return map;
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 export interface ProjectFeatureView {
   feature: Feature;

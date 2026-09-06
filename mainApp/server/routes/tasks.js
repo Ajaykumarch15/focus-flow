@@ -8,8 +8,11 @@ const Project = require('../models/Project');
 const Sprint = require('../models/Sprint');
 const Feature = require('../models/Feature');
 const Workspace = require('../models/Workspace');
+const Team = require('../models/Team');
 const protect = require('../middleware/auth');
-const { findMember } = require('../middleware/workspace');
+const { can } = require('../authorization/authorization');
+const { TASK } = require('../authorization/permissions');
+const { getWorkspaceRole, getProjectRole, isTeamLeader } = require('../authorization/relationships');
 const { buildPatch } = require('../utils/patchSanitizer');
 const { syncWorkLog } = require('../utils/worklogSync');
 const { localDateToUtc, userTimezone } = require('../utils/dates');
@@ -222,37 +225,72 @@ async function resolveTaskScope({ workspaceId, projectId, sprintId, featureId })
   return { error: false, workspaceRef, projectRef, sprintRef, featureRef };
 }
 
-// IES-R1: workspace tasks are edited/deleted only by non-Viewer members.
-async function isWorkspaceEditor(workspaceRef, userId) {
-  const ws = await Workspace.findById(workspaceRef).select('members');
-  const m = ws && findMember(ws, userId);
-  return !!(m && m.role !== 'Viewer');
+// Phase 9: Authorization-based helpers using centralized can() + relationships.
+
+// Load workspace, project, and team context for a task.
+async function loadTaskContext(task) {
+  const context = { resource: task };
+  if (!task.workspaceRef) return context;
+
+  const ws = await Workspace.findById(task.workspaceRef).select('members createdBy');
+  if (ws) context.workspace = ws;
+
+  if (task.projectRef) {
+    const project = await Project.findById(task.projectRef).select('userId members workspaceRef');
+    if (project) context.project = project;
+  }
+
+  // Resolve team from task's teamRef if present
+  if (task.teamRef) {
+    const team = await Team.findById(task.teamRef).select('leaderId members workspaceRef');
+    if (team) context.team = team;
+  }
+
+  return context;
 }
 
-// EEP2-P5.1.2 (DDS §4.9): scope rules for task mutations. A workspace Task may
-// be modified/deleted by any non-Viewer member — not only its creator — while a
-// personal Task stays private to its owner. The `userId &&` guard keeps the
-// owner check a no-op for docs that predate the field; the schema requires
-// `userId` on every real document, so production tasks are always guarded.
+// Phase 9: Check if user can perform a task permission using centralized authorization.
+async function canTask(user, permission, task) {
+  const context = await loadTaskContext(task);
+  return can(user, permission, context);
+}
+
+// EEP2-P5.1.2 (DDS §4.9): scope rules for task mutations. Uses centralized authorization.
 async function loadTaskScoped(id, user, selectFields) {
   const task = await Task.findOne({ _id: id }).select(selectFields || 'workspaceRef userId');
   if (!task) return { error: true, status: 404, message: 'Task not found' };
-  if (task.workspaceRef) {
-    if (!(await isWorkspaceEditor(task.workspaceRef, user._id))) {
-      return { error: true, status: 403, message: 'Only workspace editors can modify this task' };
+
+  // Personal tasks: owner-only (even for platform admins)
+  if (!task.workspaceRef) {
+    if (task.userId && String(task.userId) !== String(user._id)) {
+      return { error: true, status: 404, message: 'Task not found' };
     }
     return { error: false, task };
   }
-  if (task.userId && String(task.userId) !== String(user._id)) {
-    return { error: true, status: 404, message: 'Task not found' };
+
+  // Workspace tasks: load workspace context for authorization
+  const ws = await Workspace.findById(task.workspaceRef).select('members createdBy');
+  if (!ws) return { error: true, status: 404, message: 'Workspace not found' };
+
+  const context = { resource: task, workspace: ws };
+  const allowed = can(user, TASK.EDIT, context);
+  if (!allowed) {
+    return { error: true, status: 403, message: 'You do not have permission to modify this task' };
   }
   return { error: false, task };
 }
 
-// EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be members of the workspace.
+// Phase 9: Check if user can create tasks in a workspace scope.
+async function canCreateTask(user, scope) {
+  const context = { workspace: scope.workspace, project: scope.project, team: scope.team };
+  return can(user, TASK.CREATE, context);
+}
+
+// EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
 async function isWorkspaceMember(workspaceRef, userId) {
   const ws = await Workspace.findById(workspaceRef).select('members');
-  return !!(ws && findMember(ws, userId));
+  if (!ws) return false;
+  return getWorkspaceRole({ _id: userId }, ws) !== null;
 }
 
 // EEP2-P5.2.1 (DDS §4.9): cycle guard for `dependencies`. Only the parent's
@@ -357,8 +395,10 @@ router.get('/', validate(null, { query: taskQuerySchema }), async (req, res, nex
         filter.featureRef = featureId;
       }
       if (!wsId) return res.status(400).json({ message: 'A workspace scope is required' });
-      const ws = await Workspace.findById(wsId).select('members');
-      if (!ws || !findMember(ws, req.user._id)) {
+      const ws = await Workspace.findById(wsId);
+      if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+      const wsRole = getWorkspaceRole(req.user, ws);
+      if (!wsRole) {
         return res.status(403).json({ message: 'You are not a member of this workspace' });
       }
       filter.workspaceRef = wsId;
@@ -404,12 +444,20 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
 
     // IES-R1: workspace task create — derive workspaceRef from the owning
-    // project, enforce the same-project invariant, and gate on editor role.
+    // project, enforce the same-project invariant, and gate on authorization.
     if (hasCollabScope) {
       const scope = await resolveTaskScope({ workspaceId, projectId, sprintId, featureId });
       if (scope.error) return res.status(scope.status).json({ message: scope.message });
-      if (!(await isWorkspaceEditor(scope.workspaceRef, req.user._id))) {
-        return res.status(403).json({ message: 'Only workspace editors can create tasks in this workspace' });
+
+      // Phase 9: Use centralized authorization for CREATE permission.
+      const ws = await Workspace.findById(scope.workspaceRef).select('members createdBy');
+      const context = { workspace: ws };
+      if (scope.projectRef) {
+        const project = await Project.findById(scope.projectRef).select('userId members workspaceRef');
+        if (project) context.project = project;
+      }
+      if (!(await can(req.user, TASK.CREATE, context))) {
+        return res.status(403).json({ message: 'You do not have permission to create tasks in this workspace' });
       }
 
       // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
@@ -544,8 +592,11 @@ router.post('/reorder', validate(reorderSchema), async (req, res, next) => {
       if (workspaceRefs.size > 1) {
         return res.status(400).json({ message: 'Reorder batch must belong to a single workspace' });
       }
-      if (!(await isWorkspaceEditor(tasks[0].workspaceRef, req.user._id))) {
-        return res.status(403).json({ message: 'Only workspace editors can reorder tasks' });
+      // Phase 9: Use centralized authorization for EDIT permission on workspace tasks.
+      const ws = await Workspace.findById(tasks[0].workspaceRef).select('members createdBy');
+      const context = { workspace: ws };
+      if (!(await can(req.user, TASK.EDIT, context))) {
+        return res.status(403).json({ message: 'You do not have permission to reorder tasks in this workspace' });
       }
     } else {
       const owned = tasks.every((t) => t.userId && String(t.userId) === String(req.user._id));

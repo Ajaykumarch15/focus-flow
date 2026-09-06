@@ -27,7 +27,6 @@ describe('deriveWorkspaceFromPath', () => {
   it('maps collaboration routes to collab', () => {
     expect(deriveWorkspaceFromPath('/collab/leaderboard')).toBe('collab');
     expect(deriveWorkspaceFromPath('/collab/activity')).toBe('collab');
-    expect(deriveWorkspaceFromPath('/w/ws-1/projects/p1')).toBe('collab');
     expect(deriveWorkspaceFromPath('/team')).toBe('collab');
     expect(deriveWorkspaceFromPath('/collab/dashboard')).toBe('collab');
     expect(deriveWorkspaceFromPath('/workspace')).toBe('collab');

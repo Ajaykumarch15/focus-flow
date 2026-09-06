@@ -75,16 +75,23 @@ const activityQuerySchema = z
   })
   .passthrough();
 
+// Phase 2: new invites should only use Admin or Member. Legacy roles are still
+// accepted for backward compatibility during transition but are not offered in
+// the UI.
+const NEW_INVITE_ROLES = ['Admin', 'Member'];
+
 const memberInviteSchema = z
   .object({
     userId: objectId.optional(),
     email: z.string().trim().max(255).optional(),
-    role: z.enum(MEMBER_ROLES).optional(),
+    role: z.enum(NEW_INVITE_ROLES).optional(),
   })
   .refine((d) => d.userId || d.email, 'Provide userId or email')
   .passthrough();
 
-const memberRoleSchema = z.object({ role: z.enum(MEMBER_ROLES) }).passthrough();
+// Phase 2: role PATCH only allows Admin or Member — Owner transfer is a
+// separate high-privilege operation and must NOT go through this endpoint.
+const memberRoleSchema = z.object({ role: z.enum(NEW_INVITE_ROLES) }).passthrough();
 
 // ── membership helpers ────────────────────────────────────────────────────────
 function activeMembers(ws) {
@@ -242,7 +249,7 @@ router.get('/:id/members', validate(null, { params: workspaceParamsSchema }), lo
 router.post('/:id/members', validate(memberInviteSchema, { params: workspaceParamsSchema }), loadWorkspace, requireManager, async (req, res, next) => {
   try {
     const ws = req.workspace;
-    const role = req.body.role || 'Developer';
+    const role = req.body.role || 'Member';
     let target = null;
     if (req.body.userId) {
       target = await User.findOne({ _id: req.body.userId, deletedAt: null }).select('_id');
@@ -287,7 +294,7 @@ router.post('/:id/join', validate(null, { params: workspaceParamsSchema }), load
       return res.status(403).json({ message: 'This workspace does not accept self-join requests' });
     }
 
-    ws.members.push({ userId: req.user._id, role: 'Developer', joinedAt: new Date() });
+    ws.members.push({ userId: req.user._id, role: 'Member', joinedAt: new Date() });
     await ws.save();
     const updated = await loadWorkspacePopulated(ws._id);
     const count = await Project.countDocuments({ workspaceRef: ws._id });
@@ -302,12 +309,29 @@ router.post('/:id/join', validate(null, { params: workspaceParamsSchema }), load
 router.patch('/:id/members/:userId', validate(memberRoleSchema, { params: memberParamsSchema }), loadWorkspace, requireManager, async (req, res, next) => {
   try {
     const ws = req.workspace;
+
+    // Phase 2: Owner role cannot be changed through this endpoint.
     if (String(ws.createdBy) === String(req.params.userId)) {
       return res.status(400).json({ message: 'The workspace owner role cannot be changed' });
     }
 
+    // Phase 2: only Owner or Admin may change roles (defense-in-depth alongside
+    // the requireManager middleware above).
+    const callerRole = memberRole(ws, req.user._id);
+    if (callerRole !== 'Owner' && callerRole !== 'Admin') {
+      return res.status(403).json({ message: 'You do not have permission to perform this action' });
+    }
+
+    // Phase 2: target must be an existing member.
     const idx = ws.members.findIndex((m) => m && String(memberUserId(m)) === String(req.params.userId));
     if (idx === -1) return res.status(404).json({ message: 'Member not found' });
+
+    // Phase 2: only Admin and Member are assignable through the normal role
+    // endpoint. Owner transfer requires a dedicated flow.
+    const allowedRoles = ['Admin', 'Member'];
+    if (!allowedRoles.includes(req.body.role)) {
+      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
 
     ws.members[idx].role = req.body.role;
     await ws.save();

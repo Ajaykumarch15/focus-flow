@@ -47,13 +47,6 @@ const PARAM_LABELS: Record<string, string> = {
 };
 
 const DYNAMIC_ROUTES = [
-  '/w/:workspaceId',
-  '/w/:workspaceId/members/:memberId',
-  '/w/:workspaceId/projects/:projectId',
-  '/w/:workspaceId/projects/:projectId/timeline',
-  '/w/:workspaceId/sprints/:sprintId',
-  '/w/:workspaceId/features/:featureId',
-  '/w/:workspaceId/knowledge/:docId',
   '/worklog/tasks/:id',
   '/worklog/logs/:id',
   '/personal/roadmaps/:id',

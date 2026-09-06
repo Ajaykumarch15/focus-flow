@@ -138,7 +138,7 @@ describe('EEP2-P5.1.1 · Task model — dependencyRefs/estimateHours (DDS §4.9)
 describe('EEP2-P5.1.2 · scope rules (DDS §4.9) — editor vs personal owner', () => {
   it('lets a non-creator workspace editor update a task', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate')
       .mockResolvedValue({ _id: TASK_ID, workspaceRef: WS_ID, sprintStatus: 'done' });
@@ -204,7 +204,7 @@ describe('EEP2-P5.1.2 · scope rules (DDS §4.9) — editor vs personal owner', 
 
   it('lets a non-creator workspace editor delete a task', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID, title: 'T' });
     const findOneAndDelete = vi.spyOn(Task, 'findOneAndDelete').mockResolvedValue({ _id: TASK_ID, title: 'T' });
     vi.spyOn(Session, 'deleteMany').mockResolvedValue({ deletedCount: 0 });
@@ -256,7 +256,7 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
 
   it('rejects patching a workspace task assignee to a non-member with 400', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate');
 
@@ -272,7 +272,7 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
 
   it('rejects patching a workspace task reviewer to a non-member with 400', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate');
 
@@ -290,7 +290,7 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
 describe('EEP2-P5.1.2 · POST /api/tasks/reorder', () => {
   it('reorders a workspace batch as an editor, assigning order by index', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     const tasks = [
       { _id: A_ID, workspaceRef: WS_ID, userId: OTHER_ID },
       { _id: B_ID, workspaceRef: WS_ID, userId: OTHER_ID },
@@ -407,7 +407,7 @@ describe('EEP2-P5.1.2 · POST /api/tasks/reorder', () => {
 describe('EEP2-P5.1.3 · subtask CRUD + toggle', () => {
   it('lets a non-creator workspace editor add a subtask', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate')
       .mockResolvedValue({ _id: TASK_ID, subtasks: [{ _id: SUB_ID, title: 'Write tests', completed: false }] });
@@ -427,7 +427,7 @@ describe('EEP2-P5.1.3 · subtask CRUD + toggle', () => {
 
   it('toggles a subtask via $set on subtasks.$.completed', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate')
       .mockResolvedValue({ _id: TASK_ID, subtasks: [{ _id: SUB_ID, title: 'Write tests', completed: true }] });
@@ -446,7 +446,7 @@ describe('EEP2-P5.1.3 · subtask CRUD + toggle', () => {
 
   it('deletes a subtask via $pull', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate')
       .mockResolvedValue({ _id: TASK_ID, subtasks: [] });
