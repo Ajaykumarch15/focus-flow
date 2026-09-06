@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import type { CollaborativeTask } from '@collab/types/collaboration';
 import type { KanbanTask, KanbanStatus, KanbanView, KanbanLabel, SortBy } from './types';
-import { SAMPLE_KANBAN_TASKS } from './types';
+import { SAMPLE_KANBAN_TASKS, LABEL_PRESETS } from './types';
 
 interface KanbanState {
   tasks: KanbanTask[];
@@ -17,6 +18,9 @@ interface KanbanState {
   showAddModal: boolean;
   addModalDefaultStatus: KanbanStatus;
   showDetailsPanel: boolean;
+  workspaceId: string | null;
+  projectId: string | null;
+  membersMap: Record<string, { name: string; avatar?: string }>;
 
   setSearch: (q: string) => void;
   setActiveView: (v: KanbanView) => void;
@@ -36,6 +40,9 @@ interface KanbanState {
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   addLabelToTask: (taskId: string, label: KanbanLabel) => void;
   removeLabelFromTask: (taskId: string, labelName: string) => void;
+  loadFromProject: (tasks: CollaborativeTask[], members?: Record<string, { name: string; avatar?: string }>) => void;
+  setDependencies: (taskId: string, depIds: string[]) => void;
+  setContext: (workspaceId: string, projectId: string, members?: Record<string, { name: string; avatar?: string }>) => void;
 }
 
 export const useKanbanStore = create<KanbanState>((set) => ({
@@ -48,6 +55,9 @@ export const useKanbanStore = create<KanbanState>((set) => ({
   showAddModal: false,
   addModalDefaultStatus: 'todo',
   showDetailsPanel: false,
+  workspaceId: null,
+  projectId: null,
+  membersMap: {},
 
   setSearch: (q) => set({ searchQuery: q }),
   setActiveView: (v) => set({ activeView: v }),
@@ -151,4 +161,57 @@ export const useKanbanStore = create<KanbanState>((set) => ({
           : t
       ),
     })),
+
+  loadFromProject: (collabTasks, members = {}) => {
+    const statusMap: Record<string, KanbanStatus> = {
+      backlog: 'todo',
+      ready: 'todo',
+      in_progress: 'doing',
+      review: 'review',
+      done: 'done',
+    };
+    const labelColorMap: Record<string, string> = {};
+    for (const lp of LABEL_PRESETS) labelColorMap[lp.name.toLowerCase()] = lp.color;
+
+    const mapped: KanbanTask[] = collabTasks.map((ct, i) => {
+      const status = statusMap[ct.sprintStatus] ?? 'todo';
+      const labels: KanbanLabel[] = (ct.labels ?? []).map((name) => ({
+        name,
+        color: labelColorMap[name.toLowerCase()] ?? '#6b7280',
+      }));
+      const assignees = ct.assigneeId
+        ? [{ id: ct.assigneeId, name: members[ct.assigneeId]?.name ?? ct.assigneeId, avatar: members[ct.assigneeId]?.avatar }]
+        : [];
+      return {
+        id: ct.id,
+        title: ct.title,
+        description: ct.description,
+        status,
+        priority: ct.priority,
+        labels,
+        assignees,
+        dueDate: ct.deadline,
+        subtasks: (ct.subtasks ?? []).map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
+        comments: 0,
+        attachments: 0,
+        createdAt: ct.createdAt,
+        order: i,
+        dependencies: ct.dependencies ?? [],
+        workspaceId: ct.workspaceId,
+        projectId: ct.projectId,
+        ownerId: ct.ownerId,
+      };
+    });
+    set({ tasks: mapped });
+  },
+
+  setDependencies: (taskId, depIds) =>
+    set((state) => ({
+      tasks: state.tasks.map((t) =>
+        t.id === taskId ? { ...t, dependencies: depIds } : t
+      ),
+    })),
+
+  setContext: (workspaceId, projectId, members = {}) =>
+    set({ workspaceId, projectId, membersMap: members }),
 }));

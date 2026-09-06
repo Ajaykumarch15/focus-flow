@@ -34,6 +34,10 @@ export interface KanbanTask {
   attachments: number;
   createdAt: string;
   order: number;
+  dependencies?: string[];
+  workspaceId?: string;
+  projectId?: string;
+  ownerId?: string;
 }
 
 export interface KanbanColumnData {

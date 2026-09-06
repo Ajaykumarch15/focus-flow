@@ -48,8 +48,13 @@ export function PeoplePage() {
   const [selectedStats, setSelectedStats] = useState<PersonStats | null>(null);
 
   useEffect(() => {
-    useCollaborationStore.getState().loadTeams();
-  }, []);
+    if (!workspaceId) return;
+    const store = useCollaborationStore.getState();
+    store.loadMembers(workspaceId);
+    store.loadProjects(workspaceId);
+    store.loadTasks(workspaceId);
+    store.loadTeams();
+  }, [workspaceId]);
 
   // Compute per-member statistics
   const allStats = useMemo<PersonStats[]>(() => {

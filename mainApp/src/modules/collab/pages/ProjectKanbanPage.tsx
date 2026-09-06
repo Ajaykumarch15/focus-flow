@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus } from 'lucide-react';
@@ -10,18 +10,44 @@ import { CalendarView } from '@worklog/components/kanban/CalendarView';
 import { AddTaskModal } from '@worklog/components/kanban/AddTaskModal';
 import { TaskDetailsPanel } from '@worklog/components/kanban/TaskDetailsPanel';
 import { useKanbanStore } from '@worklog/components/kanban/kanbanStore';
-import { SAMPLE_PROJECTS } from '@collab/components/projects/types';
+import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Button } from '@shared/components/ui/Button';
 
 export function ProjectKanbanPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
   const { activeView, openAddModal, showAddModal, closeAddModal } = useKanbanStore();
+  const loadFromProject = useKanbanStore((s) => s.loadFromProject);
+  const setContext = useKanbanStore((s) => s.setContext);
+
+  const collabTasks = useCollaborationStore((s) => s.tasks);
+  const members = useCollaborationStore((s) => s.members);
+  const projects = useCollaborationStore((s) => s.projects);
 
   const project = useMemo(
-    () => SAMPLE_PROJECTS.find((p) => p.id === projectId),
-    [projectId],
+    () => projects.find((p) => p.id === projectId),
+    [projects, projectId],
   );
+
+  const membersMap = useMemo(() => {
+    const map: Record<string, { name: string; avatar?: string }> = {};
+    for (const m of members) map[m.id] = { name: m.name, avatar: m.avatar };
+    return map;
+  }, [members]);
+
+  useEffect(() => {
+    if (!workspaceId || !projectId) return;
+    const store = useCollaborationStore.getState();
+    store.loadProjects(workspaceId);
+    store.loadTasks(workspaceId, projectId);
+    store.loadMembers(workspaceId);
+    setContext(workspaceId, projectId, membersMap);
+  }, [workspaceId, projectId, membersMap, setContext]);
+
+  useEffect(() => {
+    const projectTasks = collabTasks.filter((t) => t.projectId === projectId);
+    loadFromProject(projectTasks, membersMap);
+  }, [collabTasks, projectId, membersMap, loadFromProject]);
 
   return (
     <div className="min-h-screen bg-surface-950 relative overflow-x-hidden overflow-y-auto">

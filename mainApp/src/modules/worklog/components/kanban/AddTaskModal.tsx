@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Link2 } from 'lucide-react';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
@@ -7,6 +7,7 @@ import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
 import { Button } from '@shared/components/ui/Button';
 import { useKanbanStore } from './kanbanStore';
+import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { KANBAN_COLUMNS, LABEL_PRESETS } from './types';
 import type { KanbanStatus, KanbanPriority, KanbanSubtask } from './types';
 
@@ -22,17 +23,30 @@ const PRIORITY_OPTIONS: { value: KanbanPriority; label: string }[] = [
   { value: 'urgent', label: 'Urgent' },
 ];
 
+const KANBAN_TO_SPRINT: Record<KanbanStatus, string> = {
+  todo: 'backlog',
+  doing: 'in_progress',
+  review: 'review',
+  done: 'done',
+};
+
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
-  const { addTask, addModalDefaultStatus } = useKanbanStore();
+  const { addModalDefaultStatus, tasks, workspaceId, projectId, membersMap } = useKanbanStore();
+  const createTask = useCollaborationStore((s) => s.createTask);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<KanbanStatus>(addModalDefaultStatus);
   const [priority, setPriority] = useState<KanbanPriority>('medium');
   const [dueDate, setDueDate] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<KanbanSubtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
+  const [selectedDeps, setSelectedDeps] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ title?: string }>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const memberEntries = Object.entries(membersMap);
 
   const resetForm = () => {
     setTitle('');
@@ -40,9 +54,11 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     setStatus(addModalDefaultStatus);
     setPriority('medium');
     setDueDate('');
+    setAssigneeId('');
     setSelectedLabels([]);
     setSubtasks([]);
     setNewSubtask('');
+    setSelectedDeps([]);
     setErrors({});
   };
 
@@ -51,28 +67,37 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     onClose();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
     if (!title.trim()) next.title = 'Task name is required.';
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    addTask({
-      title: title.trim(),
-      description: description.trim(),
-      status,
-      priority,
-      labels: LABEL_PRESETS.filter((l) => selectedLabels.includes(l.name)),
-      assignees: [],
-      dueDate: dueDate || undefined,
-      subtasks,
-      comments: 0,
-      attachments: 0,
-    });
-
-    resetForm();
-    onClose();
+    setSubmitting(true);
+    try {
+      await createTask({
+        title: title.trim(),
+        description: description.trim(),
+        priority,
+        sprintStatus: KANBAN_TO_SPRINT[status] as any,
+        workspaceId: workspaceId || undefined,
+        projectId: projectId || undefined,
+        assigneeId: assigneeId || undefined,
+        labels: selectedLabels.length > 0 ? selectedLabels : ['General'],
+        dependencies: selectedDeps.length > 0 ? selectedDeps : [],
+        estimatedHours: 8,
+        actualHours: 0,
+        subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
+        deadline: dueDate ? new Date(dueDate).toISOString() : undefined,
+      });
+      resetForm();
+      onClose();
+    } catch {
+      setErrors({ title: 'Failed to create task. Please try again.' });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleAddSubtask = () => {
@@ -106,8 +131,8 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           <Button variant="secondary" onClick={handleClose} className="rounded-xl">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!title.trim()} className="rounded-xl">
-            Create Task
+          <Button onClick={handleSubmit} disabled={!title.trim() || submitting} className="rounded-xl">
+            {submitting ? 'Creating...' : 'Create Task'}
           </Button>
         </>
       }
@@ -151,6 +176,18 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             </Select>
           </Field>
         </div>
+
+        {/* Assignee */}
+        {memberEntries.length > 0 && (
+          <Field label="Assign to" htmlFor="task-assignee">
+            <Select id="task-assignee" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {memberEntries.map(([id, m]) => (
+                <option key={id} value={id}>{m.name}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         <Field label="Due Date" htmlFor="task-due">
           <Input
@@ -233,6 +270,58 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Dependencies */}
+        <div>
+          <label className="block text-sm font-medium text-surface-200 mb-2 flex items-center gap-1.5">
+            <Link2 size={14} className="text-brand-400" />
+            Blocked by (optional)
+          </label>
+          <p className="text-[11px] text-surface-500 mb-2">Select tasks that must finish before this one can start.</p>
+          <div className="max-h-32 overflow-y-auto space-y-1 rounded-lg border border-surface-800 bg-surface-850 p-2">
+            {tasks
+              .filter((t) => t.id !== undefined && !selectedDeps.includes(t.id))
+              .map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedDeps([...selectedDeps, t.id])}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs text-surface-300 hover:bg-surface-800 hover:text-surface-100 transition-colors"
+                >
+                  <Link2 size={12} className="text-surface-500 flex-shrink-0" />
+                  <span className="truncate">{t.title}</span>
+                  <span className="ml-auto text-[10px] text-surface-500 capitalize">{t.status}</span>
+                </button>
+              ))}
+            {tasks.filter((t) => !selectedDeps.includes(t.id)).length === 0 && (
+              <p className="text-[11px] text-surface-500 italic px-2 py-1">No other tasks available to link.</p>
+            )}
+          </div>
+          {selectedDeps.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {selectedDeps.map((depId) => {
+                const dep = tasks.find((t) => t.id === depId);
+                if (!dep) return null;
+                return (
+                  <span
+                    key={depId}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-brand-500/30 bg-brand-500/10 text-brand-400"
+                  >
+                    <Link2 size={10} />
+                    {dep.title}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDeps(selectedDeps.filter((id) => id !== depId))}
+                      className="ml-0.5 hover:text-brand-200"
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       </form>
     </Dialog>
