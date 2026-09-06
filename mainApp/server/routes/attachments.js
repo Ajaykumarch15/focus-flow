@@ -2,12 +2,16 @@ const express = require('express');
 const Attachment = require('../models/Attachment');
 const Activity = require('../models/Activity');
 const Workspace = require('../models/Workspace');
+const Project = require('../models/Project');
+const Task = require('../models/Task');
 const protect = require('../middleware/auth');
-const { findMember } = require('../middleware/workspace');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
 const text = (max, label) => z.string().trim().max(max, `${label} too long (max ${max})`);
 const { parsePageSize, decodeCursor, paginateCursor } = require('../utils/pagination');
 const { validateTarget } = require('../utils/targetValidation');
+const { can } = require('../authorization/authorization');
+const { FILE } = require('../authorization/permissions');
+const { getWorkspaceRole, getProjectRole } = require('../authorization/relationships');
 
 const router = express.Router();
 router.use(protect);
@@ -72,6 +76,29 @@ async function gateTarget(req, res, targetType, targetRef) {
     return null;
   }
   return target;
+}
+
+// Resolve parent resource context for authorization checks.
+async function resolveContext(attachment) {
+  const context = { resource: attachment };
+
+  if (!attachment.workspaceRef) return context;
+
+  const ws = await Workspace.findById(attachment.workspaceRef);
+  if (ws) context.workspace = ws;
+
+  if (attachment.targetType === 'task' && attachment.targetRef) {
+    const task = await Task.findById(attachment.targetRef);
+    if (task && task.projectRef) {
+      const project = await Project.findById(task.projectRef);
+      if (project) context.project = project;
+    }
+  } else if (attachment.targetType === 'project' && attachment.targetRef) {
+    const project = await Project.findById(attachment.targetRef);
+    if (project) context.project = project;
+  }
+
+  return context;
 }
 
 // GET /api/attachments?targetType=&targetRef=&limit=&cursor=
@@ -144,8 +171,8 @@ router.post('/', validate(attachmentCreateSchema), async (req, res, next) => {
   }
 });
 
-// DELETE /api/attachments/:id — uploader, or any non-Viewer workspace member
-// for workspace targets (mirrors the comment delete gate).
+// DELETE /api/attachments/:id — uploader, or moderator (Owner/Admin/PM/Team Leader)
+// for workspace targets.
 router.delete('/:id', validate(null, { params: attachmentParamsSchema }), async (req, res, next) => {
   try {
     const attachment = await Attachment.findById(req.params.id);
@@ -153,16 +180,18 @@ router.delete('/:id', validate(null, { params: attachmentParamsSchema }), async 
     const target = await gateTarget(req, res, attachment.targetType, attachment.targetRef);
     if (!target) return;
 
+    // Resolve parent resource context for authorization
+    const context = await resolveContext(attachment);
+
+    // Check if user can delete this attachment (own or moderate)
     const isUploader = String(attachment.uploadedBy) === String(req.user._id);
-    if (!isUploader) {
-      if (attachment.workspaceRef) {
-        const ws = await Workspace.findById(attachment.workspaceRef).select('members');
-        const m = ws && findMember(ws, req.user._id);
-        if (!m || m.role === 'Viewer') {
-          return res.status(403).json({ message: 'Only the uploader or a workspace editor can delete this attachment' });
-        }
-      } else {
-        return res.status(403).json({ message: 'Only the uploader can delete this attachment' });
+    if (isUploader) {
+      // Uploader can always delete own attachment
+    } else {
+      // Must have DELETE_ANY permission (Owner/Admin/PM/Team Leader)
+      const allowed = can(req.user, FILE.DELETE_ANY, context);
+      if (!allowed) {
+        return res.status(403).json({ message: 'Only the uploader or a moderator can delete this attachment' });
       }
     }
 

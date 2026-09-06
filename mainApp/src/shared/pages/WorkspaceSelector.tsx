@@ -19,7 +19,7 @@ export function WorkspaceSelector() {
   const handleSelect = (ws: WorkspaceType) => {
     setWorkspace(ws);
     setAuthWorkspace(ws === 'collab' ? 'collab' : ws);
-    navigate(ws === 'personal' ? '/dashboard' : ws === 'work' ? '/worklog/dashboard' : '/collab/dashboard');
+    navigate(ws === 'personal' ? '/dashboard' : ws === 'work' ? '/worklog/dashboard' : '/collab/workspaces');
   };
 
   return (

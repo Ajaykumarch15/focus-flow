@@ -12,7 +12,7 @@ interface InvitePeopleModalProps {
 export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
   const { teams } = useCollaborationStore();
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<string>('Developer');
+  const [role, setRole] = useState<string>('Member');
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +24,7 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
       await new Promise((r) => setTimeout(r, 800));
       toast.success('Invite sent', `An invitation has been sent to ${email}`);
       setEmail('');
-      setRole('Developer');
+      setRole('Member');
       setTeamId('');
       onClose();
     } catch {
@@ -37,7 +37,7 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
   const handleClose = () => {
     if (!loading) {
       setEmail('');
-      setRole('Developer');
+      setRole('Member');
       setTeamId('');
       onClose();
     }
@@ -88,10 +88,8 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
             onChange={(e) => setRole(e.target.value)}
             className="input appearance-none text-sm cursor-pointer"
           >
-            <option value="Developer">Developer</option>
-            <option value="Manager">Manager</option>
+            <option value="Member">Member</option>
             <option value="Admin">Admin</option>
-            <option value="Viewer">Viewer</option>
           </select>
         </div>
 

@@ -117,7 +117,11 @@ app.use(express.json());
 app.use(require('cookie-parser')()); // IES-P0-12: read the httpOnly session cookie
 // IES-P0-09: lenient per-IP safety net on every /api route (reports, admin, …).
 // Auth routes add their own stricter limiter on top.
-app.use('/api', createApiLimiter());
+// Exclude /auth/me from rate limiting to prevent session restore failures.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auth/me') return next();
+  createApiLimiter()(req, res, next);
+});
 // IES-P0-12: reject cross-site state-changing requests (Origin/Referer check).
 app.use('/api', csrfProtect);
 // IES-P0-19: count requests for /api/metrics.

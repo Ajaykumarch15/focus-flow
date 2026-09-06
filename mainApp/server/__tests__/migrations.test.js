@@ -25,6 +25,7 @@ const PENDING_ALL = [
   '0013_migrate_project_milestones.js',
   '0014_sprint_lifecycle.js',
   '0015_task_phase_ref_index.js',
+  '0016_migrate_legacy_workspace_roles.js',
 ];
 
 const silentLog = () => {};
@@ -120,12 +121,17 @@ function createFakeDb({
     milestones: milestonesCollection,
     phases: phasesCollection,
     modules: modulesCollection,
+    workspaces: {
+      find: vi.fn(() => ({ toArray: () => Promise.resolve([]) })),
+      updateOne: vi.fn(async (filter, update) => ({ filter, update })),
+    },
   };
 
   return {
     db: { collection: (name) => collections[name] },
     schemaMigrations,
     worklogs: worklogCollection,
+    workspaces: collections.workspaces,
     created,
   };
 }

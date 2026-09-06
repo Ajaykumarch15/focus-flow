@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Users, FolderOpen, CheckSquare, Map, ArrowRight } from 'lucide-react';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
@@ -9,6 +9,7 @@ const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 export function CollabDashboard() {
   const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
@@ -56,7 +57,7 @@ export function CollabDashboard() {
               Engineering Homepage
             </Button>
             <Button
-              onClick={() => navigate('/collab/team')}
+              onClick={() => navigate(`/collab/${workspaceId}/team`)}
               rightIcon={<ArrowRight size={14} />}
             >
               Team Projects

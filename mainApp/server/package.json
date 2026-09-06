@@ -6,6 +6,7 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "migrate": "node migrations/run.js",
+    "seed:authorization": "node seeds/authorizationTestSeed.js",
     "test": "vitest run"
   },
   "dependencies": {

@@ -5,7 +5,10 @@
 // (IES-P2-03) will enforce with a permission layer.
 const mongoose = require('mongoose');
 
-const MEMBER_ROLES = ['Owner', 'Admin', 'Manager', 'Developer', 'Viewer'];
+// Phase 2: canonical roles are Owner, Admin, Member. Legacy values (Manager,
+// Developer, Viewer) remain in the enum so existing documents can still be read
+// without crashing. They are mapped at read-time by the authorization layer.
+const MEMBER_ROLES = ['Owner', 'Admin', 'Member', 'Manager', 'Developer', 'Viewer'];
 const WORKSPACE_TYPES = ['Personal', 'Startup', 'College Project', 'Open Source', 'Internship', 'Enterprise'];
 
 const workspaceSettingsSchema = new mongoose.Schema(
@@ -25,7 +28,7 @@ const workspaceSettingsSchema = new mongoose.Schema(
 const workspaceMemberSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    role:   { type: String, enum: MEMBER_ROLES, default: 'Developer' },
+    role:   { type: String, enum: MEMBER_ROLES, default: 'Member' },
     joinedAt: { type: Date, default: Date.now },
   },
   { _id: false }

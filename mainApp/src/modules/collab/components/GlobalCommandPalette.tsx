@@ -37,13 +37,14 @@ export function GlobalCommandPalette({ isOpen, onClose }: { isOpen: boolean; onC
   // IES-P2-06: inside a workspace route, search is workspace-scoped; otherwise
   // the server falls back to the caller's personal scope.
   const workspaceMatch = location.pathname.match(/^\/w\/([0-9a-fA-F]{24})/);
-  const workspaceId = workspaceMatch ? workspaceMatch[1] : undefined;
+  const collabWorkspaceMatch = location.pathname.match(/^\/collab\/([0-9a-fA-F]{24})/);
+  const workspaceId = workspaceMatch?.[1] || collabWorkspaceMatch?.[1];
 
   // Derive workspace-prefixed search base from current path.
+  const collabWsId = collabWorkspaceMatch?.[1];
   const searchBase = location.pathname.startsWith('/worklog') ? '/worklog/search'
     : location.pathname.startsWith('/personal') ? '/personal/search'
-    : location.pathname.startsWith('/collab') ? '/collab/search'
-    : location.pathname.startsWith('/w/') ? '/collab/search'
+    : location.pathname.startsWith('/collab') ? collabWsId ? `/collab/${collabWsId}/search` : '/collab/workspaces'
     : '/worklog/search';
 
   useEffect(() => {

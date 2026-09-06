@@ -163,7 +163,7 @@ describe('EEP2-P2.2.1 · GET /api/projects/:id — member-gated read', () => {
     mockProjectFindById(projectDoc());
     const res = await request('/api/projects/' + PROJECT_ID);
     expect(res.status).toBe(403);
-    expect((await res.json()).message).toBe('You are not a member of this workspace');
+    expect((await res.json()).message).toBe('You do not have permission to perform this action');
   });
 
   it('lets the creator read a personal project', async () => {
@@ -179,7 +179,7 @@ describe('EEP2-P2.2.1 · GET /api/projects/:id — member-gated read', () => {
     mockProjectFindById(projectDoc({ workspaceRef: null, userId: OTHER_USER }));
     const res = await request('/api/projects/' + PROJECT_ID);
     expect(res.status).toBe(403);
-    expect((await res.json()).message).toBe('You do not have access to this project');
+    expect((await res.json()).message).toBe('You do not have permission to perform this action');
   });
 });
 
@@ -231,10 +231,10 @@ describe('EEP2-P2.2.2 · PATCH /api/projects/:id — role split + ref validation
     );
   });
 
-  it('rejects meta edits from a Viewer', async () => {
+  it('rejects meta edits from a non-creator Member', async () => {
     mockAuth();
-    mockWorkspace(wsDoc([roleMember(USER_ID, 'Viewer')]));
-    const doc = projectDoc();
+    mockWorkspace(wsDoc([roleMember(USER_ID, 'Member'), roleMember(OTHER_USER, 'Owner')]));
+    const doc = projectDoc({ userId: OTHER_USER });
     mockProjectFindById(doc);
     const res = await request('/api/projects/' + PROJECT_ID, {
       method: 'PATCH',
@@ -246,8 +246,8 @@ describe('EEP2-P2.2.2 · PATCH /api/projects/:id — role split + ref validation
 
   it('rejects members/teamIds/settings edits from a Developer', async () => {
     mockAuth();
-    mockWorkspace(wsDoc([roleMember(USER_ID, 'Developer')]));
-    const doc = projectDoc();
+    mockWorkspace(wsDoc([roleMember(USER_ID, 'Developer'), roleMember(OTHER_USER, 'Owner')]));
+    const doc = projectDoc({ userId: OTHER_USER });
     mockProjectFindById(doc);
     const res = await request('/api/projects/' + PROJECT_ID, {
       method: 'PATCH',

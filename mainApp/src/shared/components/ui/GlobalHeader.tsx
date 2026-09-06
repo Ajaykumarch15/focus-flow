@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
 import { useStore } from '@worklog/services/useStore';
@@ -17,6 +17,7 @@ export function GlobalHeader() {
   const { activeWorkspace } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -48,7 +49,7 @@ export function GlobalHeader() {
           aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
           <Menu size={18} />
         </button>
-        <button onClick={() => navigate(activeWorkspace === 'work' ? '/worklog/dashboard' : activeWorkspace === 'collab' ? '/collab/dashboard' : '/personal/today')}
+        <button onClick={() => navigate(activeWorkspace === 'work' ? '/worklog/dashboard' : activeWorkspace === 'collab' ? `/collab/${workspaceId || 'default'}/dashboard` : '/personal/today')}
           className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
           <FocusFlowLogo size="sm" showText={false} />
         </button>

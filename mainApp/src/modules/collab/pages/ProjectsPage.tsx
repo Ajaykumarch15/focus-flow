@@ -1,16 +1,17 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search, Plus, LayoutGrid, List, FolderOpen,
   ChevronDown, ArrowLeft,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { ProjectCard } from '@collab/components/projects/ProjectCard';
 import { AddProjectModal } from '@collab/components/projects/AddProjectModal';
-import { SAMPLE_PROJECTS, type ProjectData } from '@collab/components/projects/types';
+import { SAMPLE_PROJECTS, type ProjectData, mapProjectToCardData } from '@collab/components/projects/types';
+import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -51,10 +52,11 @@ function isWithinTimeline(dateStr: string, timeline: string): boolean {
   }
   return true;
 }
-
 export function ProjectsPage() {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<ProjectData[]>(SAMPLE_PROJECTS);
+  const { workspaceId: urlWorkspaceId } = useParams<{ workspaceId: string }>();
+  const { projects: storeProjects, activeWorkspaceId, tasks, workspaces, setActiveWorkspace } = useCollaborationStore();
+  const [localProjects, setLocalProjects] = useState<ProjectData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [clientFilter, setClientFilter] = useState('all');
@@ -62,13 +64,46 @@ export function ProjectsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddModal, setShowAddModal] = useState(false);
 
+  const workspaceId = urlWorkspaceId || activeWorkspaceId;
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId);
+  const hasAttemptedLoad = useRef(false);
+
+  useEffect(() => {
+    hasAttemptedLoad.current = false;
+  }, [workspaceId]);
+
+  useEffect(() => {
+    if (urlWorkspaceId && urlWorkspaceId !== activeWorkspaceId) {
+      setActiveWorkspace(urlWorkspaceId);
+    }
+  }, [urlWorkspaceId, activeWorkspaceId, setActiveWorkspace]);
+
+  useEffect(() => {
+    if (!workspaceId || hasAttemptedLoad.current) return;
+    hasAttemptedLoad.current = true;
+    useCollaborationStore.getState().loadProjects(workspaceId);
+    useCollaborationStore.getState().loadTasks(workspaceId);
+  }, [workspaceId]);
+
+  const projects = useMemo(() => {
+    const filteredByWorkspace = storeProjects.filter((p) => p.workspaceId === workspaceId);
+    if (filteredByWorkspace.length > 0) {
+      return filteredByWorkspace.map((p) => mapProjectToCardData(p, tasks));
+    }
+    return SAMPLE_PROJECTS;
+  }, [storeProjects, workspaceId, tasks]);
+
+  const displayProjects = useMemo(() => {
+    return [...projects, ...localProjects];
+  }, [projects, localProjects]);
+
   const uniqueClients = useMemo(() => {
-    const clients = new Set(projects.map((p) => p.client));
+    const clients = new Set(displayProjects.map((p) => p.client));
     return ['all', ...Array.from(clients)];
-  }, [projects]);
+  }, [displayProjects]);
 
   const filteredProjects = useMemo(() => {
-    return projects.filter((p) => {
+    return displayProjects.filter((p) => {
       const matchesSearch =
         searchQuery === '' ||
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -81,20 +116,20 @@ export function ProjectsPage() {
 
       return matchesSearch && matchesStatus && matchesClient && matchesTimeline;
     });
-  }, [projects, searchQuery, statusFilter, clientFilter, timelineFilter]);
+  }, [displayProjects, searchQuery, statusFilter, clientFilter, timelineFilter]);
 
   const handleToggleBookmark = useCallback((id: string) => {
-    setProjects((prev) =>
+    setLocalProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, bookmarked: !p.bookmarked } : p)),
     );
   }, []);
 
   const handleViewDetails = useCallback((project: ProjectData) => {
-    navigate(`/collab/team/${project.id}`);
+    navigate(`/collab/${workspaceId}/team/${project.id}`);
   }, [navigate]);
 
-  const handleCreateProject = useCallback((project: ProjectData) => {
-    setProjects((prev) => [project, ...prev]);
+  const handleCreateProject = useCallback(() => {
+    // Store handles the API call; projects will refresh from store
   }, []);
 
   return (
@@ -128,7 +163,7 @@ export function ProjectsPage() {
           <div className="flex items-center gap-2">
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-900 border border-surface-800 text-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-surface-300 font-medium">{projects.length} Projects</span>
+              <span className="text-surface-300 font-medium">{displayProjects.length} Projects</span>
             </div>
           </div>
         </div>
@@ -143,17 +178,19 @@ export function ProjectsPage() {
           transition={{ duration: 0.25 }}
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-3"
         >
-          <div>
-            <h2 className="text-2xl font-display font-extrabold text-surface-50 tracking-tight">
-              Projects
-            </h2>
-            <p className="text-sm text-surface-400 mt-0.5">
-              Manage all your projects in one place.
-            </p>
+            <div>
+                <h2 className="text-2xl font-display font-extrabold text-surface-50 tracking-tight">
+                  {activeWorkspace ? activeWorkspace.name : 'Projects'}
+                </h2>
+                <p className="text-sm text-surface-400 mt-0.5">
+                  {activeWorkspace ? `Manage projects in ${activeWorkspace.name}` : 'Manage all your projects in one place.'}
+                </p>
+              </div>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={16} />}>
+              Add Project
+            </Button>
           </div>
-          <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={16} />}>
-            Add Project
-          </Button>
         </motion.div>
 
         {/* Toolbar */}
@@ -179,6 +216,7 @@ export function ProjectsPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <select
+                aria-label="Filter by status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="appearance-none bg-surface-900 border border-surface-800 focus:border-brand-500/50 rounded-xl pl-3 pr-9 py-2.5 text-xs font-medium text-surface-300 outline-none transition-colors cursor-pointer"
@@ -194,6 +232,7 @@ export function ProjectsPage() {
 
             <div className="relative">
               <select
+                aria-label="Filter by client"
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
                 className="appearance-none bg-surface-900 border border-surface-800 focus:border-brand-500/50 rounded-xl pl-3 pr-9 py-2.5 text-xs font-medium text-surface-300 outline-none transition-colors cursor-pointer"
@@ -209,6 +248,7 @@ export function ProjectsPage() {
 
             <div className="relative">
               <select
+                aria-label="Filter by timeline"
                 value={timelineFilter}
                 onChange={(e) => setTimelineFilter(e.target.value)}
                 className="appearance-none bg-surface-900 border border-surface-800 focus:border-brand-500/50 rounded-xl pl-3 pr-9 py-2.5 text-xs font-medium text-surface-300 outline-none transition-colors cursor-pointer"
@@ -247,7 +287,7 @@ export function ProjectsPage() {
         {/* Results count */}
         {(searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || timelineFilter !== 'all') && (
           <p className="text-xs text-surface-400">
-            Showing {filteredProjects.length} of {projects.length} projects
+            Showing {filteredProjects.length} of {displayProjects.length} projects
           </p>
         )}
 

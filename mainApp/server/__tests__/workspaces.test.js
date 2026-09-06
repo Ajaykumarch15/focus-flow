@@ -41,7 +41,7 @@ function mockUser(u) {
 }
 
 // Populated member entry (userId is a populated subdoc).
-function member(userId, role = 'Developer', joinedAt = '2026-01-15T00:00:00.000Z', name = 'User') {
+function member(userId, role = 'Member', joinedAt = '2026-01-15T00:00:00.000Z', name = 'User') {
   return { userId: { _id: userId, name, email: `${name.toLowerCase()}@focusflow.io`, avatar: '', role: 'user' }, role, joinedAt };
 }
 
@@ -204,7 +204,7 @@ describe('IES-P2-01 · GET / lists only the caller’s workspaces', () => {
 describe('IES-P2-01 · GET /:id membership scoping', () => {
   it('returns the workspace for a member', async () => {
     mockUser(user(OWNER_ID));
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] }));
     vi.spyOn(Project, 'countDocuments').mockResolvedValue(2);
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}`, { headers: { Cookie: cookie() } });
@@ -214,7 +214,7 @@ describe('IES-P2-01 · GET /:id membership scoping', () => {
     expect(body.id).toBe(WS_ID);
     expect(body.membersCount).toBe(2);
     expect(body.projectsCount).toBe(2);
-    expect(body.members.map((m) => m.role)).toEqual(['Owner', 'Developer']);
+    expect(body.members.map((m) => m.role)).toEqual(['Owner', 'Member']);
   });
 
   it('forbids a non-member with 403', async () => {
@@ -274,7 +274,7 @@ describe('IES-P2-01 · PATCH /:id ownership + settings merge', () => {
 
   it('forbids a Developer from updating', async () => {
     mockUser(user(DEV_ID));
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] }));
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}`, {
       method: 'PATCH',
@@ -311,7 +311,7 @@ describe('IES-P2-01 · DELETE /:id owner-only + cascade', () => {
 });
 
 describe('IES-P2-01 · member invite (POST /:id/members)', () => {
-  it('adds a user by email as a manager and returns the member list', async () => {
+  it('adds a user by email as a Member and returns the member list', async () => {
     mockUser(user(OWNER_ID));
     const ws = wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(ADMIN_ID, 'Admin', undefined, 'Admin')] });
     mockFindById(ws);
@@ -323,20 +323,20 @@ describe('IES-P2-01 · member invite (POST /:id/members)', () => {
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie() },
-      body: JSON.stringify({ email: 'new@focusflow.io', role: 'Manager' }),
+      body: JSON.stringify({ email: 'new@focusflow.io', role: 'Member' }),
     });
 
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body).toHaveLength(3);
     const added = body.find((m) => m.id === NEW_MEMBER_ID);
-    expect(added.role).toBe('Manager');
+    expect(added.role).toBe('Member');
     expect(ws.save).toHaveBeenCalled();
   });
 
   it('forbids a Developer from inviting', async () => {
     mockUser(user(DEV_ID));
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] }));
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members`, {
       method: 'POST',
@@ -361,7 +361,7 @@ describe('IES-P2-01 · member invite (POST /:id/members)', () => {
     expect(notFound.status).toBe(404);
 
     // Existing member invite → 409 (member already in the workspace).
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] }));
     vi.spyOn(User, 'findOne').mockImplementation(() => ({
       select: () => Promise.resolve({ _id: DEV_ID }),
     }));
@@ -379,14 +379,14 @@ describe('IES-P2-01 · member invite (POST /:id/members)', () => {
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie() },
-      body: JSON.stringify({ role: 'Developer' }),
+      body: JSON.stringify({ role: 'Member' }),
     });
     expect(res.status).toBe(400);
   });
 });
 
 describe('IES-P2-01 · self-join (POST /:id/join)', () => {
-  it('joins as Developer when invites are enabled', async () => {
+  it('joins as Member when invites are enabled', async () => {
     mockUser(user(OUTSIDER_ID));
     const ws = wsDoc();
     mockFindById(ws);
@@ -397,7 +397,7 @@ describe('IES-P2-01 · self-join (POST /:id/join)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.role).toBe('Developer');
+    expect(body.role).toBe('Member');
     expect(ws.save).toHaveBeenCalled();
   });
 
@@ -411,7 +411,7 @@ describe('IES-P2-01 · self-join (POST /:id/join)', () => {
 
   it('is idempotent for an existing member', async () => {
     mockUser(user(DEV_ID));
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] }));
     vi.spyOn(Project, 'countDocuments').mockResolvedValue(0);
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/join`, { method: 'POST', headers: { Cookie: cookie(DEV_ID) } });
@@ -420,20 +420,20 @@ describe('IES-P2-01 · self-join (POST /:id/join)', () => {
 });
 
 describe('IES-P2-01 · member role changes (PATCH /:id/members/:userId)', () => {
-  it('lets an Admin promote a Developer', async () => {
+  it('lets an Admin promote a Member to Admin', async () => {
     mockUser(user(ADMIN_ID));
-    const ws = wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(ADMIN_ID, 'Admin', undefined, 'Admin'), member(DEV_ID, 'Developer')] });
+    const ws = wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(ADMIN_ID, 'Admin', undefined, 'Admin'), member(DEV_ID, 'Member')] });
     mockFindById(ws);
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${DEV_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(ADMIN_ID) },
-      body: JSON.stringify({ role: 'Manager' }),
+      body: JSON.stringify({ role: 'Admin' }),
     });
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.find((m) => m.id === DEV_ID).role).toBe('Manager');
+    expect(body.find((m) => m.id === DEV_ID).role).toBe('Admin');
   });
 
   it('never allows changing the owner role', async () => {
@@ -443,19 +443,19 @@ describe('IES-P2-01 · member role changes (PATCH /:id/members/:userId)', () => 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${OWNER_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(ADMIN_ID) },
-      body: JSON.stringify({ role: 'Viewer' }),
+      body: JSON.stringify({ role: 'Member' }),
     });
     expect(res.status).toBe(400);
   });
 
-  it('forbids a Developer from changing roles', async () => {
+  it('forbids a Member from changing roles', async () => {
     mockUser(user(DEV_ID));
-    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer'), member(ADMIN_ID, 'Admin', undefined, 'Admin')] }));
+    mockFindById(wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member'), member(ADMIN_ID, 'Admin', undefined, 'Admin')] }));
 
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${ADMIN_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(DEV_ID) },
-      body: JSON.stringify({ role: 'Viewer' }),
+      body: JSON.stringify({ role: 'Member' }),
     });
     expect(res.status).toBe(403);
   });
@@ -472,9 +472,9 @@ describe('IES-P2-01 · member role changes (PATCH /:id/members/:userId)', () => 
 });
 
 describe('IES-P2-01 · member removal (DELETE /:id/members/:userId)', () => {
-  it('lets an Owner remove a Developer and pulls them from teams', async () => {
+  it('lets an Owner remove a Member and pulls them from teams', async () => {
     mockUser(user(OWNER_ID));
-    const ws = wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Developer')] });
+    const ws = wsDoc({ members: [member(OWNER_ID, 'Owner', undefined, 'Owner'), member(DEV_ID, 'Member')] });
     mockFindById(ws);
     const teamPull = vi.spyOn(Team, 'updateMany').mockResolvedValue({});
     vi.spyOn(Activity, 'create').mockResolvedValue(undefined);
@@ -506,16 +506,15 @@ describe('IES-P2-01 · member removal (DELETE /:id/members/:userId)', () => {
 });
 
 describe('IES-P2-03 · workspace role authorization matrix', () => {
-  const MANAGER_ID = '5f0000000000000000000c06';
-  const VIEWER_ID = '5f0000000000000000000c07';
-  const ROLES = ['Owner', 'Admin', 'Manager', 'Developer', 'Viewer'];
-  const ROLE_IDS = { Owner: OWNER_ID, Admin: ADMIN_ID, Manager: MANAGER_ID, Developer: DEV_ID, Viewer: VIEWER_ID };
+  const ADMIN_ID_2 = '5f0000000000000000000c06';
+  const MEMBER_ID_2 = '5f0000000000000000000c07';
+  // Phase 2: canonical roles are Owner, Admin, Member.
+  const ROLES = ['Owner', 'Admin', 'Member'];
+  const ROLE_IDS = { Owner: OWNER_ID, Admin: ADMIN_ID, Member: DEV_ID };
   const ALL_MEMBERS = [
     member(OWNER_ID, 'Owner', undefined, 'Owner'),
     member(ADMIN_ID, 'Admin', undefined, 'Admin'),
-    member(MANAGER_ID, 'Manager', undefined, 'Manager'),
-    member(DEV_ID, 'Developer'),
-    member(VIEWER_ID, 'Viewer', undefined, 'Viewer'),
+    member(DEV_ID, 'Member'),
   ];
   const cloneMembers = () => ALL_MEMBERS.map((m) => ({ ...m, userId: { ...m.userId } }));
   const baseDoc = () => wsDoc({ members: cloneMembers(), createdBy: OWNER_ID });
@@ -562,7 +561,7 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
       });
       expect(res.status, `${role} should be able to update`).toBe(200);
     }
-    for (const role of ['Manager', 'Developer', 'Viewer']) {
+    for (const role of ['Member']) {
       mockUser(user(ROLE_IDS[role]));
       mockFindById(baseDoc());
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}`, {
@@ -595,7 +594,7 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
       });
       expect(res.status, `${role} should be able to invite`).toBe(201);
     }
-    for (const role of ['Manager', 'Developer', 'Viewer']) {
+    for (const role of ['Member']) {
       mockUser(user(ROLE_IDS[role]));
       mockFindById(baseDoc());
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members`, {
@@ -623,17 +622,17 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${DEV_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: cookie(ROLE_IDS[role]) },
-        body: JSON.stringify({ role: 'Manager' }),
+        body: JSON.stringify({ role: 'Admin' }),
       });
       expect(res.status, `${role} should be able to change roles`).toBe(200);
     }
-    for (const role of ['Manager', 'Developer', 'Viewer']) {
+    for (const role of ['Member']) {
       mockUser(user(ROLE_IDS[role]));
       mockFindById(baseDoc());
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${DEV_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Cookie: cookie(ROLE_IDS[role]) },
-        body: JSON.stringify({ role: 'Manager' }),
+        body: JSON.stringify({ role: 'Admin' }),
       });
       expect(res.status, `${role} should be denied`).toBe(403);
     }
@@ -642,7 +641,7 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
     const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${DEV_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(OUTSIDER_ID) },
-      body: JSON.stringify({ role: 'Manager' }),
+      body: JSON.stringify({ role: 'Admin' }),
     });
     expect(res.status).toBe(403);
   });
@@ -659,7 +658,7 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
       });
       expect(res.status, `${role} should be able to remove`).toBe(200);
     }
-    for (const role of ['Manager', 'Developer', 'Viewer']) {
+    for (const role of ['Member']) {
       mockUser(user(ROLE_IDS[role]));
       mockFindById(baseDoc());
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}/members/${DEV_ID}`, {
@@ -688,7 +687,7 @@ describe('IES-P2-03 · workspace role authorization matrix', () => {
     const ok = await fetch(`${baseUrl}/api/workspaces/${WS_ID}`, { method: 'DELETE', headers: { Cookie: cookie(OWNER_ID) } });
     expect(ok.status).toBe(200);
 
-    for (const role of ['Admin', 'Manager', 'Developer', 'Viewer']) {
+    for (const role of ['Admin', 'Member']) {
       mockUser(user(ROLE_IDS[role]));
       mockFindById(baseDoc());
       const res = await fetch(`${baseUrl}/api/workspaces/${WS_ID}`, { method: 'DELETE', headers: { Cookie: cookie(ROLE_IDS[role]) } });

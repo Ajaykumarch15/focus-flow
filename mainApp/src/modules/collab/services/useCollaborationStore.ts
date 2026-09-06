@@ -111,7 +111,7 @@ function toMember(raw: any): WorkspaceMember {
     name: raw.name ?? 'Unknown Member',
     email: raw.email ?? '',
     avatar: raw.avatar,
-    role: raw.role ?? 'Developer',
+    role: raw.role ?? 'Member',
     teams: raw.teams ?? [],
     status: 'available',
     currentFocusTask: undefined,
@@ -348,13 +348,13 @@ interface CollaborationStore {
   loadWorkspaces: () => Promise<void>;
   loadMembers: (workspaceId: string) => Promise<void>;
   loadTeams: () => Promise<void>;
-  loadProjects: () => Promise<void>;
+  loadProjects: (workspaceId?: string) => Promise<void>;
   loadSprints: () => Promise<void>;
   loadFeatures: () => Promise<void>;
   loadMilestones: () => Promise<void>;
   loadPhases: () => Promise<void>;
   loadModules: () => Promise<void>;
-  loadTasks: () => Promise<void>;
+  loadTasks: (workspaceId?: string) => Promise<void>;
   loadCollabData: () => Promise<void>;
 
   // Actions
@@ -524,15 +524,15 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
-  loadProjects: async () => {
-    const workspaceId = get().activeWorkspaceId;
-    if (!workspaceId) {
+  loadProjects: async (workspaceId?: string) => {
+    const wsId = workspaceId || get().activeWorkspaceId;
+    if (!wsId) {
       set({ projects: [] });
       return;
     }
     set({ projectsLoading: true });
     try {
-      const rawList = await api.projects.list(workspaceId);
+      const rawList = await api.projects.list(wsId);
       set({ projects: (Array.isArray(rawList) ? rawList : []).map(toProject) });
     } catch {
       set({ projects: [] });
@@ -624,14 +624,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
-  loadTasks: async () => {
-    const workspaceId = get().activeWorkspaceId;
-    if (!workspaceId) {
+  loadTasks: async (workspaceId?: string) => {
+    const wsId = workspaceId || get().activeWorkspaceId;
+    if (!wsId) {
       set({ tasks: [] });
       return;
     }
     try {
-      const rawList = await api.tasks.list({ workspaceId });
+      const rawList = await api.tasks.list({ workspaceId: wsId });
       set({ tasks: (Array.isArray(rawList) ? rawList : []).map(toCollabTask) });
     } catch {
       set({ tasks: [] });

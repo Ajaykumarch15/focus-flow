@@ -2,11 +2,15 @@ const express = require('express');
 const Comment = require('../models/Comment');
 const Activity = require('../models/Activity');
 const Workspace = require('../models/Workspace');
+const Project = require('../models/Project');
+const Task = require('../models/Task');
 const protect = require('../middleware/auth');
-const { findMember } = require('../middleware/workspace');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
 const { parsePageSize, decodeCursor, paginateCursor } = require('../utils/pagination');
 const { validateTarget } = require('../utils/targetValidation');
+const { can } = require('../authorization/authorization');
+const { DISCUSSION } = require('../authorization/permissions');
+const { getWorkspaceRole, getProjectRole } = require('../authorization/relationships');
 
 const router = express.Router();
 router.use(protect);
@@ -74,6 +78,30 @@ async function gateTarget(req, res, targetType, targetRef) {
     return null;
   }
   return target;
+}
+
+// Resolve parent resource context for authorization checks.
+// Loads workspace, project, and team from the comment's target.
+async function resolveContext(comment) {
+  const context = { resource: comment };
+
+  if (!comment.workspaceRef) return context;
+
+  const ws = await Workspace.findById(comment.workspaceRef);
+  if (ws) context.workspace = ws;
+
+  if (comment.targetType === 'task' && comment.targetRef) {
+    const task = await Task.findById(comment.targetRef);
+    if (task && task.projectRef) {
+      const project = await Project.findById(task.projectRef);
+      if (project) context.project = project;
+    }
+  } else if (comment.targetType === 'project' && comment.targetRef) {
+    const project = await Project.findById(comment.targetRef);
+    if (project) context.project = project;
+  }
+
+  return context;
 }
 
 // GET /api/comments?targetType=&targetRef=&limit=&cursor=
@@ -198,8 +226,8 @@ router.patch('/:id/resolve', validate(null, { params: commentParamsSchema }), as
   }
 });
 
-// DELETE /api/comments/:id — author, or any non-Viewer workspace member for
-// workspace threads. Cascades to the thread's replies.
+// DELETE /api/comments/:id — author, or moderator (Owner/Admin/PM/Team Leader)
+// for workspace threads. Cascades to the thread's replies.
 router.delete('/:id', validate(null, { params: commentParamsSchema }), async (req, res, next) => {
   try {
     const comment = await Comment.findById(req.params.id);
@@ -207,16 +235,18 @@ router.delete('/:id', validate(null, { params: commentParamsSchema }), async (re
     const target = await gateTarget(req, res, comment.targetType, comment.targetRef);
     if (!target) return;
 
+    // Resolve parent resource context for authorization
+    const context = await resolveContext(comment);
+
+    // Check if user can delete this comment (own or moderate)
     const isAuthor = String(comment.authorId) === String(req.user._id);
-    if (!isAuthor) {
-      if (comment.workspaceRef) {
-        const ws = await Workspace.findById(comment.workspaceRef).select('members');
-        const m = ws && findMember(ws, req.user._id);
-        if (!m || m.role === 'Viewer') {
-          return res.status(403).json({ message: 'Only the author or a workspace editor can delete this comment' });
-        }
-      } else {
-        return res.status(403).json({ message: 'Only the author can delete this comment' });
+    if (isAuthor) {
+      // Author can always delete own comment
+    } else {
+      // Must have DELETE_ANY permission (Owner/Admin/PM/Team Leader)
+      const allowed = can(req.user, DISCUSSION.DELETE_ANY, context);
+      if (!allowed) {
+        return res.status(403).json({ message: 'Only the author or a moderator can delete this comment' });
       }
     }
 

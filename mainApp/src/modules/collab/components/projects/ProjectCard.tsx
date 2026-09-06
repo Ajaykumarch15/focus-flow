@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Calendar, Bookmark, BookmarkCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
 import { Button } from '@shared/components/ui/Button';
@@ -53,6 +53,7 @@ interface ProjectCardProps {
 
 export function ProjectCard({ project, onToggleBookmark }: ProjectCardProps) {
   const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -64,7 +65,7 @@ export function ProjectCard({ project, onToggleBookmark }: ProjectCardProps) {
         hidden: { opacity: 0, y: 14 },
         show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
       }}
-      onClick={() => navigate(`/collab/team/${project.id}`)}
+      onClick={() => navigate(`/collab/${workspaceId}/team/${project.id}`)}
       className={cn(
         'group relative rounded-2xl border p-5 flex flex-col gap-3.5 transition-all duration-300 cursor-pointer',
         'bg-surface-900 border-surface-800',
@@ -132,7 +133,7 @@ export function ProjectCard({ project, onToggleBookmark }: ProjectCardProps) {
             {project.progress}%
           </span>
         </div>
-        <Progress value={project.progress} tone={PROGRESS_TONE[project.status]} className="h-1.5" />
+        <Progress value={project.progress} tone={PROGRESS_TONE[project.status]} className="h-1.5" ariaLabel={`${project.name} progress ${project.progress}%`} />
       </div>
 
       {/* View Details */}
@@ -140,7 +141,7 @@ export function ProjectCard({ project, onToggleBookmark }: ProjectCardProps) {
         variant="secondary"
         size="sm"
         className="w-full mt-1 rounded-xl text-xs font-bold opacity-80 group-hover:opacity-100 group-hover:bg-brand-500 group-hover:text-white group-hover:border-brand-500 transition-all duration-200"
-        onClick={() => navigate(`/collab/team/${project.id}`)}
+        onClick={() => navigate(`/collab/${workspaceId}/team/${project.id}`)}
       >
         View Details
       </Button>

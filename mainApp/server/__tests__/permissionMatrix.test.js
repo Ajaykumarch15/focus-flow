@@ -19,23 +19,24 @@ const {
   GATE_ROLES,
 } = require('../utils/permissions');
 
-// Workspace roles from DDS §7, most → least privileged.
+// Phase 2: 'Member' is the new canonical role; legacy roles remain for compat.
 const VIEWER = 'Viewer';
 const DEVELOPER = 'Developer';
 const MANAGER = 'Manager';
+const MEMBER = 'Member';
 const ADMIN = 'Admin';
 const OWNER = 'Owner';
-const ROLES = [VIEWER, DEVELOPER, MANAGER, ADMIN, OWNER];
+const ROLES = [VIEWER, DEVELOPER, MANAGER, MEMBER, ADMIN, OWNER];
 
 const allRoles = () => ROLES.slice();
 
 describe('DDS §7 · role tier ordering & groups', () => {
   it('exposes every matrix role, ordered most → least privileged', () => {
-    expect(ROLE_TIERS).toEqual([OWNER, ADMIN, MANAGER, DEVELOPER, VIEWER]);
+    expect(ROLE_TIERS).toEqual([OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER, VIEWER]);
   });
 
   it('EDITOR_ROLES = every role except Viewer', () => {
-    expect(EDITOR_ROLES).toEqual([OWNER, ADMIN, MANAGER, DEVELOPER]);
+    expect(EDITOR_ROLES).toEqual([OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER]);
   });
 
   it('MANAGER_ROLES = Owner | Admin', () => {
@@ -61,7 +62,7 @@ describe('DDS §7 · row 1: read workspace/project/roadmap/sprint/feature/task/k
 });
 
 describe('DDS §7 · rows 2 & 4: create/update entities + edit project meta', () => {
-  const allowed = [OWNER, ADMIN, MANAGER, DEVELOPER];
+  const allowed = [OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER];
   it('Viewer is denied; every other role is allowed', () => {
     for (const role of allRoles()) {
       expect(canEdit(role)).toBe(allowed.includes(role));

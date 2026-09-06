@@ -12,9 +12,13 @@ const Session = require('../models/Session');
 const Task = require('../models/Task');
 const Activity = require('../models/Activity');
 const Workspace = require('../models/Workspace');
+const Project = require('../models/Project');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
-const { findMember } = require('../middleware/workspace');
+const { can } = require('../authorization/authorization');
+const { TEAM } = require('../authorization/permissions');
+const { requireTeamPermission } = require('../authorization/middleware');
+const { getProjectRole } = require('../authorization/relationships');
 const { z, objectId, requiredString, validate } = require('../utils/validation');
 
 const router = express.Router();
@@ -28,6 +32,7 @@ const teamFields = {
 const teamCreateSchema = z.object({
   ...teamFields,
   workspaceId: objectId.optional(),
+  projectId: objectId.optional(),
   leaderId: objectId.optional(),
   color: z.string().max(20, 'Color too long').optional(),
 }).passthrough();
@@ -78,6 +83,36 @@ async function resolveMemberIds(members) {
   return { ok: true, ids: active.map((m) => m._id) };
 }
 
+// Phase 5: validate that team members belong to the workspace (and project if
+// project-scoped). Returns { ok, message } for route handlers.
+function validateTeamMemberRefs(memberIds, workspace, project) {
+  if (!workspace) return { ok: false, message: 'Workspace not found' };
+  if (!Array.isArray(workspace.members)) return { ok: false, message: 'Invalid workspace' };
+
+  const wsMemberIds = new Set(workspace.members.map((m) => String(m.userId)));
+  const notInWorkspace = memberIds.filter((id) => !wsMemberIds.has(String(id)));
+  if (notInWorkspace.length > 0) {
+    return { ok: false, message: 'One or more users are not members of this workspace' };
+  }
+
+  // If project-scoped, members must also belong to the project
+  if (project) {
+    const projectMemberIds = new Set([String(project.userId)]);
+    if (Array.isArray(project.members)) {
+      project.members.forEach((m) => {
+        const mId = m._id ? String(m._id) : String(m);
+        projectMemberIds.add(mId);
+      });
+    }
+    const notInProject = memberIds.filter((id) => !projectMemberIds.has(String(id)));
+    if (notInProject.length > 0) {
+      return { ok: false, message: 'One or more users are not members of this project' };
+    }
+  }
+
+  return { ok: true };
+}
+
 // ── IES-P2-01 ownership helpers ───────────────────────────────────────────────
 // Non-admin team reads are scoped to the workspaces the caller belongs to.
 async function workspaceIdsFor(userId) {
@@ -85,41 +120,12 @@ async function workspaceIdsFor(userId) {
   return ws.map((w) => w._id);
 }
 
-// Non-admin team mutations require the caller to be Owner/Admin of the workspace.
-async function requireWorkspaceManager(workspaceId, userId) {
-  const ws = await Workspace.findById(workspaceId).select('members createdBy');
-  if (!ws) return { ok: false, status: 404, message: 'Workspace not found' };
-  const m = findMember(ws, userId);
-  if (!m || !['Owner', 'Admin'].includes(m.role)) {
-    return { ok: false, status: 403, message: 'Only workspace owners and admins can manage teams' };
-  }
-  return { ok: true };
-}
-
-function isAdmin(user) {
-  return user && user.role === 'admin';
-}
-
-async function canReadTeam(team, user) {
-  if (isAdmin(user)) return true;
-  if (!team.workspaceRef) return false;
-  const ws = await Workspace.findById(team.workspaceRef).select('members');
-  if (!ws) return false;
-  return !!findMember(ws, user._id);
-}
-
-async function canManageTeam(team, user) {
-  if (isAdmin(user)) return true;
-  if (!team.workspaceRef) return false;
-  return requireWorkspaceManager(team.workspaceRef, user._id).then((r) => r.ok);
-}
-
 // ── GET /api/teams ────────────────────────────────────────────────────────────
 router.get('/', validate(null, { query: teamQuerySchema }), async (req, res, next) => {
   try {
     const { memberId } = req.query;
     let query = {};
-    if (!isAdmin(req.user)) {
+    if (req.user.role !== 'admin') {
       // IES-P2-02: a non-admin may only ask about their own memberships.
       if (memberId && String(memberId) !== String(req.user._id)) {
         return res.status(403).json({ message: 'You can only list your own team memberships' });
@@ -140,7 +146,7 @@ router.get('/', validate(null, { query: teamQuerySchema }), async (req, res, nex
 // ── POST /api/teams ───────────────────────────────────────────────────────────
 router.post('/', validate(teamCreateSchema), async (req, res, next) => {
   try {
-    const { name, description, members, workspaceId, leaderId, color } = req.body;
+    const { name, description, members, workspaceId, projectId, leaderId, color } = req.body;
 
     // IES-P2-02: validate every provided member before touching the DB.
     const resolved = await resolveMemberIds(members || []);
@@ -150,19 +156,42 @@ router.post('/', validate(teamCreateSchema), async (req, res, next) => {
 
     let team;
     if (workspaceId) {
-      const canManage = await requireWorkspaceManager(workspaceId, req.user._id);
-      if (!canManage.ok) return res.status(canManage.status).json({ message: canManage.message });
+      const ws = await Workspace.findById(workspaceId).select('members createdBy');
+      if (!ws) {
+        return res.status(404).json({ message: 'Workspace not found' });
+      }
+
+      // Phase 5: load project context for PM access and member validation
+      let project = null;
+      if (projectId) {
+        project = await Project.findById(projectId);
+        if (!project || String(project.workspaceRef) !== String(workspaceId)) {
+          return res.status(400).json({ message: 'Project not found in this workspace' });
+        }
+      }
+
+      if (!can(req.user, TEAM.CREATE, { workspace: ws, project })) {
+        return res.status(403).json({ message: 'You do not have permission to create teams in this workspace' });
+      }
+
+      // Phase 5: validate members belong to workspace (and project if project-scoped)
+      const memberCheck = validateTeamMemberRefs(resolved.ids, ws, project);
+      if (!memberCheck.ok) {
+        return res.status(400).json({ message: memberCheck.message });
+      }
+
       team = new Team({
         name,
         description,
         members: resolved.ids,
         createdBy: req.user._id,
         workspaceRef: workspaceId,
+        projectRef: projectId || undefined,
         leaderId,
         color,
       });
     } else {
-      if (!isAdmin(req.user)) {
+      if (req.user.role !== 'admin') {
         return res.status(400).json({ message: 'workspaceId is required to create a team' });
       }
       team = new Team({
@@ -185,28 +214,18 @@ router.post('/', validate(teamCreateSchema), async (req, res, next) => {
 });
 
 // ── GET /api/teams/:id ────────────────────────────────────────────────────────
-router.get('/:id', validate(null, { params: teamParamsSchema }), async (req, res, next) => {
+router.get('/:id', validate(null, { params: teamParamsSchema }), requireTeamPermission(TEAM.VIEW), async (req, res, next) => {
   try {
-    const team = keepActiveMembers(await Team.findById(req.params.id).populate(ACTIVE_MEMBERS_POPULATE));
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-    if (!(await canReadTeam(team, req.user))) {
-      return res.status(403).json({ message: 'You do not have access to this team' });
-    }
-    res.json(team);
+    res.json(keepActiveMembers(await req.team.populate(ACTIVE_MEMBERS_POPULATE)));
   } catch (err) {
     next(err);
   }
 });
 
 // ── PATCH /api/teams/:id ──────────────────────────────────────────────────────
-router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), async (req, res, next) => {
+router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), requireTeamPermission(TEAM.EDIT), async (req, res, next) => {
   try {
-    const team = await Team.findById(req.params.id);
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-    if (!(await canManageTeam(team, req.user))) {
-      return res.status(403).json({ message: 'Only workspace owners and admins can update this team' });
-    }
-
+    const team = req.team;
     const { name, description, members, leaderId, color } = req.body;
     const updates = {};
     if (name) updates.name = name;
@@ -216,9 +235,34 @@ router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), as
       if (!resolved.ok) {
         return res.status(404).json({ message: 'One or more team members do not exist' });
       }
+
+      // Phase 5: validate members belong to workspace (and project if project-scoped)
+      if (team.workspaceRef) {
+        const ws = req.workspace || await Workspace.findById(team.workspaceRef).select('members createdBy');
+        let project = null;
+        if (team.projectRef) {
+          project = req.project || await Project.findById(team.projectRef);
+        }
+        const memberCheck = validateTeamMemberRefs(resolved.ids, ws, project);
+        if (!memberCheck.ok) {
+          return res.status(400).json({ message: memberCheck.message });
+        }
+      }
+
       updates.members = resolved.ids;
     }
-    if (leaderId !== undefined) updates.leaderId = leaderId;
+    if (leaderId !== undefined) {
+      // Phase 5: leader must be a team member
+      const effectiveMembers = updates.members || team.members;
+      const leaderIsMember = effectiveMembers.some((m) => {
+        const mId = m._id ? String(m._id) : String(m);
+        return mId === String(leaderId);
+      });
+      if (!leaderIsMember) {
+        return res.status(400).json({ message: 'Team leader must be a member of the team' });
+      }
+      updates.leaderId = leaderId;
+    }
     if (color !== undefined) updates.color = color;
 
     // workspaceRef is deliberately absent: a PATCH can never move a team between workspaces.
@@ -233,14 +277,10 @@ router.patch('/:id', validate(teamPatchSchema, { params: teamParamsSchema }), as
 });
 
 // ── DELETE /api/teams/:id ─────────────────────────────────────────────────────
-router.delete('/:id', validate(null, { params: teamParamsSchema }), async (req, res, next) => {
+router.delete('/:id', validate(null, { params: teamParamsSchema }), requireTeamPermission(TEAM.DELETE), async (req, res, next) => {
   try {
-    const team = await Team.findById(req.params.id);
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-    if (!(await canManageTeam(team, req.user))) {
-      return res.status(403).json({ message: 'Only workspace owners and admins can delete this team' });
-    }
-    await Team.findByIdAndDelete(req.params.id);
+    const team = req.team;
+    await Team.findByIdAndDelete(team._id);
     res.json({ message: 'Team deleted' });
     Activity.create({ userId: req.user._id, action: 'team.deleted', workspaceRef: team.workspaceRef, teamRef: team._id, details: { teamName: team.name } }).catch(() => {});
   } catch (err) {
@@ -249,18 +289,27 @@ router.delete('/:id', validate(null, { params: teamParamsSchema }), async (req, 
 });
 
 // ── POST /api/teams/:id/members — add a member (admin / workspace manager) ────
-router.post('/:id/members', validate(teamMemberSchema, { params: teamParamsSchema }), async (req, res, next) => {
+router.post('/:id/members', validate(teamMemberSchema, { params: teamParamsSchema }), requireTeamPermission(TEAM.MANAGE_MEMBERS), async (req, res, next) => {
   try {
-    const team = await Team.findById(req.params.id);
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-    if (!(await canManageTeam(team, req.user))) {
-      return res.status(403).json({ message: 'Only workspace owners and admins can manage team members' });
-    }
+    const team = req.team;
 
     const resolved = await resolveMemberIds([req.body.userId]);
     if (!resolved.ok) return res.status(404).json({ message: 'User not found' });
     if (team.members.some((m) => m && String(m) === String(resolved.ids[0]))) {
       return res.status(409).json({ message: 'User is already a member of this team' });
+    }
+
+    // Phase 5: validate new member belongs to workspace (and project if project-scoped)
+    if (team.workspaceRef) {
+      const ws = req.workspace || await Workspace.findById(team.workspaceRef).select('members createdBy');
+      let project = null;
+      if (team.projectRef) {
+        project = req.project || await Project.findById(team.projectRef);
+      }
+      const memberCheck = validateTeamMemberRefs(resolved.ids, ws, project);
+      if (!memberCheck.ok) {
+        return res.status(400).json({ message: memberCheck.message });
+      }
     }
 
     team.members.push(resolved.ids[0]);
@@ -274,13 +323,9 @@ router.post('/:id/members', validate(teamMemberSchema, { params: teamParamsSchem
 });
 
 // ── DELETE /api/teams/:id/members/:userId — remove a member ───────────────────
-router.delete('/:id/members/:userId', validate(null, { params: teamMemberParamsSchema }), async (req, res, next) => {
+router.delete('/:id/members/:userId', validate(null, { params: teamMemberParamsSchema }), requireTeamPermission(TEAM.MANAGE_MEMBERS), async (req, res, next) => {
   try {
-    const team = await Team.findById(req.params.id);
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-    if (!(await canManageTeam(team, req.user))) {
-      return res.status(403).json({ message: 'Only workspace owners and admins can manage team members' });
-    }
+    const team = req.team;
     if (!team.members.some((m) => m && String(m) === String(req.params.userId))) {
       return res.status(404).json({ message: 'Member not found' });
     }

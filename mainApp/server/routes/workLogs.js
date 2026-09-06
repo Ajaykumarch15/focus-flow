@@ -1,6 +1,9 @@
 const express = require('express');
 const WorkLog = require('../models/WorkLog');
 const Task    = require('../models/Task');
+const Project = require('../models/Project');
+const Workspace = require('../models/Workspace');
+const Team = require('../models/Team');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { buildPatch } = require('../utils/patchSanitizer');
@@ -8,9 +11,156 @@ const { logger } = require('../utils/logger');
 const { syncWorkLog, syncWorkLogsBulk } = require('../utils/worklogSync');
 const { ARRAY_CAPS } = require('../utils/worklogLimits');
 const { z, objectId, timestamp, intInRange, validate } = require('../utils/validation');
+const { can } = require('../authorization/authorization');
+const { getWorkspaceRole, getProjectRole, isTeamLeader, isUserIdInTeam } = require('../authorization/relationships');
 
 const router = express.Router();
 router.use(protect);
+
+// ── GET /api/worklogs/workspace/:workspaceId ──────────────────────────────────
+// Returns all company WorkLogs in a workspace. Accessible by workspace Owner/Admin.
+router.get('/workspace/:workspaceId', validate(null, { params: z.object({ workspaceId: objectId }) }), async (req, res, next) => {
+  try {
+    const workspace = await Workspace.findById(req.params.workspaceId).select('members createdBy');
+    if (!workspace) return res.status(404).json({ message: 'Workspace not found' });
+
+    const allowed = can(req.user, 'worklog.view_team', { workspace });
+    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view workspace worklogs' });
+
+    // Find all tasks in this workspace
+    const workspaceTasks = await Task.find({ workspaceRef: workspace._id }).select('_id');
+    const taskIds = workspaceTasks.map(t => t._id);
+
+    // Find all projects in this workspace
+    const workspaceProjects = await Project.find({ workspaceRef: workspace._id }).select('_id');
+    const projectIds = workspaceProjects.map(p => p._id);
+
+    // Find WorkLogs that belong to this workspace (via task or project)
+    const filter = {
+      $or: [
+        { taskRef: { $in: taskIds } },
+        { projectRef: { $in: projectIds } },
+      ],
+    };
+
+    let logs = await WorkLog.find(filter)
+      .populate('taskRef', 'title color category totalTime')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId')
+      .sort({ isActive: -1, updatedAt: -1 });
+
+    const timeZone = userTimezone(req);
+    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
+
+    res.json(logs.map((log) => {
+      const json = typeof log.toObject === 'function' ? log.toObject() : log;
+      delete json.timelineEntries;
+      delete json.progressSnapshots;
+      delete json.attachments;
+      return json;
+    }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/worklogs/project/:projectId ──────────────────────────────────────
+// Returns all WorkLogs in a project. Accessible by PM and workspace Owner/Admin.
+router.get('/project/:projectId', validate(null, { params: z.object({ projectId: objectId }) }), async (req, res, next) => {
+  try {
+    const project = await Project.findById(req.params.projectId).select('workspaceRef userId members');
+    if (!project) return res.status(404).json({ message: 'Project not found' });
+
+    let workspace = null;
+    if (project.workspaceRef) {
+      workspace = await Workspace.findById(project.workspaceRef).select('members createdBy');
+    }
+
+    const allowed = can(req.user, 'worklog.view_project', { workspace, project });
+    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view project worklogs' });
+
+    // Find tasks in this project
+    const projectTasks = await Task.find({ projectRef: project._id }).select('_id');
+    const taskIds = projectTasks.map(t => t._id);
+
+    // Find WorkLogs that belong to this project (via task or direct projectRef)
+    const filter = {
+      $or: [
+        { taskRef: { $in: taskIds } },
+        { projectRef: project._id },
+      ],
+    };
+
+    let logs = await WorkLog.find(filter)
+      .populate('taskRef', 'title color category totalTime')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId')
+      .sort({ isActive: -1, updatedAt: -1 });
+
+    const timeZone = userTimezone(req);
+    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
+
+    res.json(logs.map((log) => {
+      const json = typeof log.toObject === 'function' ? log.toObject() : log;
+      delete json.timelineEntries;
+      delete json.progressSnapshots;
+      delete json.attachments;
+      return json;
+    }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/worklogs/team/:teamId ────────────────────────────────────────────
+// Returns WorkLogs of team members. Accessible by Team Leader and workspace Owner/Admin.
+router.get('/team/:teamId', validate(null, { params: z.object({ teamId: objectId }) }), async (req, res, next) => {
+  try {
+    const team = await Team.findById(req.params.teamId);
+    if (!team) return res.status(404).json({ message: 'Team not found' });
+
+    let workspace = null;
+    if (team.workspaceRef) {
+      workspace = await Workspace.findById(team.workspaceRef).select('members createdBy');
+    }
+
+    let project = null;
+    if (team.projectRef) {
+      project = await Project.findById(team.projectRef).select('workspaceRef userId members');
+    }
+
+    const allowed = can(req.user, 'worklog.view_team', { workspace, team, project });
+    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view team worklogs' });
+
+    // Find WorkLogs owned by team members
+    const memberIds = team.members || [];
+    const filter = { userId: { $in: memberIds } };
+
+    // If the team is project-scoped, also filter by project
+    if (team.projectRef) {
+      filter.$or = [
+        { projectRef: team.projectRef },
+        { taskRef: { $in: (await Task.find({ projectRef: team.projectRef }).select('_id')).map(t => t._id) } },
+      ];
+    }
+
+    let logs = await WorkLog.find(filter)
+      .populate('taskRef', 'title color category totalTime')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId')
+      .sort({ isActive: -1, updatedAt: -1 });
+
+    const timeZone = userTimezone(req);
+    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
+
+    res.json(logs.map((log) => {
+      const json = typeof log.toObject === 'function' ? log.toObject() : log;
+      delete json.timelineEntries;
+      delete json.progressSnapshots;
+      delete json.attachments;
+      return json;
+    }));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // IES-P0-16: body/param schemas — size caps keep documents well under the
 // Mongo 16 MB limit, enums match the model, numbers are NaN-safe.
@@ -279,13 +429,42 @@ router.get('/by-task/:taskId', validate(null, { params: z.object({ taskId: objec
 });
 
 // ── GET /api/worklogs/:id ─────────────────────────────────────────────────────
+// Returns a single WorkLog. Owner can always view their own.
+// Authorized users (Admin, PM, Team Leader) can view company WorkLogs.
 router.get('/:id', async (req, res, next) => {
   try {
-    let log = await WorkLog.findOne({ _id: req.params.id, userId: req.user._id })
-      .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId');
+    let log = await WorkLog.findById(req.params.id)
+      .populate('taskRef', 'title color category totalTime workspaceRef projectRef')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
 
     if (!log) return res.status(404).json({ message: 'Not found' });
+
+    // Owner can always view their own
+    const isOwner = String(log.userId) === String(req.user._id);
+
+    if (!isOwner) {
+      // For non-owners, derive scope and check authorization
+      let task = null;
+      if (log.taskRef) {
+        task = log.taskRef;
+      }
+
+      let project = null;
+      if (log.projectRef) {
+        project = log.projectRef;
+      } else if (task && task.projectRef) {
+        project = await Project.findById(task.projectRef).select('workspaceRef userId members');
+      }
+
+      let workspace = null;
+      const workspaceId = (task && task.workspaceRef) || (project && project.workspaceRef);
+      if (workspaceId) {
+        workspace = await Workspace.findById(workspaceId).select('members createdBy');
+      }
+
+      const allowed = can(req.user, 'worklog.view_team', { resource: log, workspace, project, task });
+      if (!allowed) return res.status(403).json({ message: 'You do not have permission to view this worklog' });
+    }
 
     // IES-P1-02: GET computes effective totals without writing to the DB.
     log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req), persist: false });

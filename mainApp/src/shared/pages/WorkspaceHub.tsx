@@ -181,7 +181,7 @@ export function HomePage() {
               { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },
             ]}
             actionLabel="View Projects & Workspaces"
-            onAction={() => navigate('/collab/team')}
+            onAction={() => navigate('/collab/workspaces')}
           />
 
         </motion.div>

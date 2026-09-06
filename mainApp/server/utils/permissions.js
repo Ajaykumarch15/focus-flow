@@ -1,23 +1,21 @@
 // EEP2-P1.2.1 · Single-source permission vocabulary (DDS §7 Permission Matrix).
-// The role constants and predicates below are THE canonical copy consumed by
-// every role-gate middleware and by the matrix spec (__tests__/permissionMatrix
-// .test.js) — so the enforced matrix can never drift from the tested one.
 //
-// Matrix rows (DDS §7): roles are workspace roles on the membership record.
-//   • read                 → any member (incl. Viewer)
-//   • create/update        → any except Viewer (EDITOR_ROLES)
-//   • delete structure     → Owner | Admin (MANAGER_ROLES)
-//   • edit project meta    → any except Viewer
-//   • edit project members → Owner | Admin
-//   • manage workspace     → Owner | Admin
-//   • delete workspace     → Owner only
-// Platform admin (user.role === 'admin') is orthogonal: it has NO implicit
-// workspace membership — workspace gates are pure role checks (SAD §10.3).
+// COMPATIBILITY LAYER — This file preserves the legacy permission API consumed
+// by middleware/workspace.js, routes/projects.js, and the permissionMatrix
+// test suite. New code should import from ../authorization/ instead.
+//
+// Phase 2: EDITOR_ROLES updated to reflect the new Owner/Admin/Member model.
+// Legacy role values (Manager, Developer) are included during the transition
+// period so that existing database documents with those roles can still be
+// processed by legacy middleware routes. These will be removed once all
+// consumers are migrated to the new authorization package.
 
-const ROLE_TIERS = ['Owner', 'Admin', 'Manager', 'Developer', 'Viewer'];
+const ROLE_TIERS = ['Owner', 'Admin', 'Member', 'Manager', 'Developer', 'Viewer'];
 
 // IES-R1: any role except Viewer may create/update workspace resources.
-const EDITOR_ROLES = ['Owner', 'Admin', 'Manager', 'Developer'];
+// Phase 2: 'Member' is the new canonical role; legacy Manager/Developer are
+// included for backward compatibility during the data migration period.
+const EDITOR_ROLES = ['Owner', 'Admin', 'Member', 'Manager', 'Developer'];
 
 // Owner | Admin — workspace settings + membership management + structural deletes.
 const MANAGER_ROLES = ['Owner', 'Admin'];

@@ -106,7 +106,7 @@ afterAll(async () => {
 describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycle guard', () => {
   it('persists a valid same-project dependency set on a workspace task', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: WS_ID, projectRef: PROJ_ID }]);
     mockTaskFindById();
@@ -127,7 +127,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('dedupes the stored dependency list', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: WS_ID, projectRef: PROJ_ID }]);
     mockTaskFindById();
@@ -146,7 +146,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects a dependency from another project with 400', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: WS_ID, projectRef: OTHER_PROJ_ID }]);
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate');
@@ -165,7 +165,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects a dependency from another workspace with 400', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: OTHER_PROJ_ID }]);
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate');
@@ -184,7 +184,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects an unknown dependency with 404', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([]);
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate');
@@ -201,7 +201,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects a self-dependency with 400 (trivial cycle)', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID }]);
     const findById = mockTaskFindById();
@@ -222,7 +222,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects a two-node cycle (B already depends on A, A now depends on B)', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: WS_ID, projectRef: PROJ_ID }]);
     // DEP_A depends on TASK_ID → adding TASK_ID → DEP_A closes the loop.
@@ -243,7 +243,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('rejects a three-node cycle (TASK → A → B → TASK)', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     vi.spyOn(Task, 'find').mockResolvedValue([{ _id: DEP_A_ID, workspaceRef: WS_ID, projectRef: PROJ_ID }]);
     // A depends on B; B depends on TASK → A's transitive deps reach TASK.
@@ -267,7 +267,7 @@ describe('EEP2-P5.2.1 · PATCH /api/tasks/:id dependencies — same-scope + cycl
 
   it('clears the dependency list with an empty array', async () => {
     mockUser();
-    mockWorkspace([{ userId: USER_ID, role: 'Editor' }]);
+    mockWorkspace([{ userId: USER_ID, role: 'Owner' }]);
     mockTaskFindOne({ _id: TASK_ID, workspaceRef: WS_ID, projectRef: PROJ_ID, userId: OTHER_ID });
     const find = vi.spyOn(Task, 'find');
     const findOneAndUpdate = vi.spyOn(Task, 'findOneAndUpdate').mockResolvedValue({ _id: TASK_ID, dependencies: [] });

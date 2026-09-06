@@ -6,17 +6,25 @@ import { Textarea } from '@shared/components/ui/Textarea';
 import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
 import { Button } from '@shared/components/ui/Button';
-import type { ProjectData, ProjectType, ProjectStatus, CardTint } from './types';
+import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import type { ProjectType, ProjectStatus, CardTint } from './types';
 
 interface AddProjectModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (project: ProjectData) => void;
+  onCreate?: () => void;
 }
 
 const PROJECT_TYPES: ProjectType[] = ['Web App', 'Mobile', 'UI/UX', 'Internal', 'Client', 'Research', 'Website', 'Dashboard', 'Tools'];
 
 const TINT_OPTIONS: CardTint[] = ['purple', 'green', 'pink', 'blue', 'orange', 'gray'];
+
+const STATUS_LABEL: Record<ProjectStatus, string> = {
+  active: 'Active',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  on_hold: 'On Hold',
+};
 
 export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProps) {
   const [name, setName] = useState('');
@@ -30,6 +38,8 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
   const [tags, setTags] = useState('');
   const [tint, setTint] = useState<CardTint>('blue');
   const [errors, setErrors] = useState<{ name?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const createProject = useCollaborationStore((s) => s.createProject);
 
   const resetForm = () => {
     setName('');
@@ -50,43 +60,27 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
     onClose();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
     if (!name.trim()) next.name = 'Project name is required.';
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
-
-    const project: ProjectData = {
-      id: `proj-${Date.now()}`,
-      name: name.trim(),
-      client: client.trim() || 'Untitled',
-      description: description.trim(),
-      type: [type],
-      status,
-      startDate: startDate || new Date().toISOString().slice(0, 10),
-      endDate: endDate || '',
-      tags: [type, ...(tagList.length > 0 ? tagList : [STATUS_LABEL[status]])],
-      completedTasks: 0,
-      totalTasks: 0,
-      progress: 0,
-      bookmarked: false,
-      tint,
-      iconEmoji: name.trim().charAt(0).toUpperCase(),
-    };
-
-    onCreate(project);
-    resetForm();
-    onClose();
-  };
-
-  const STATUS_LABEL: Record<ProjectStatus, string> = {
-    active: 'Active',
-    in_progress: 'In Progress',
-    completed: 'Completed',
-    on_hold: 'On Hold',
+    setIsSubmitting(true);
+    try {
+      await createProject({
+        name: name.trim(),
+        description: description.trim(),
+      });
+      onCreate?.();
+      resetForm();
+      onClose();
+    } catch {
+      // Error is handled by runMutation in the store
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -101,8 +95,8 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
           <Button variant="secondary" onClick={handleClose} className="rounded-xl">
             Cancel
           </Button>
-          <Button onClick={handleSubmit} disabled={!name.trim()} className="rounded-xl">
-            Create Project
+          <Button onClick={handleSubmit} disabled={!name.trim() || isSubmitting} className="rounded-xl">
+            {isSubmitting ? 'Creating...' : 'Create Project'}
           </Button>
         </>
       }

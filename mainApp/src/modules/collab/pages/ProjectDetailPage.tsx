@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -8,7 +8,7 @@ import {
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
 import { useKanbanStore } from '@worklog/components/kanban/kanbanStore';
-import { SAMPLE_PROJECTS, type ProjectStatus } from '@collab/components/projects/types';
+import { SAMPLE_PROJECTS, type ProjectStatus, mapProjectToCardData } from '@collab/components/projects/types';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
 import { Button } from '@shared/components/ui/Button';
@@ -40,16 +40,29 @@ const ICON_BG: Record<string, string> = {
 };
 
 export function ProjectDetailPage() {
-  const { projectId } = useParams<{ projectId: string }>();
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
-  const { members, tasks } = useCollaborationStore();
+  const { members, tasks, projects: storeProjects } = useCollaborationStore();
   const { events } = useCalendarStore();
   const kanbanTasks = useKanbanStore((s) => s.tasks);
+  const hasAttemptedLoad = useRef(false);
 
-  const project = useMemo(
-    () => SAMPLE_PROJECTS.find((p) => p.id === projectId),
-    [projectId],
-  );
+  useEffect(() => {
+    hasAttemptedLoad.current = false;
+  }, [projectId, workspaceId]);
+
+  useEffect(() => {
+    if (!projectId || !workspaceId || hasAttemptedLoad.current) return;
+    hasAttemptedLoad.current = true;
+    useCollaborationStore.getState().loadProjects(workspaceId);
+    useCollaborationStore.getState().loadTasks(workspaceId);
+  }, [projectId, workspaceId]);
+
+  const project = useMemo(() => {
+    const storeProject = storeProjects.find((p) => p.id === projectId);
+    if (storeProject) return mapProjectToCardData(storeProject, tasks);
+    return SAMPLE_PROJECTS.find((p) => p.id === projectId);
+  }, [projectId, storeProjects, tasks]);
 
   // Compute stats for the cards
   const stats = useMemo(() => {
@@ -101,7 +114,7 @@ export function ProjectDetailPage() {
           <FolderOpen size={40} className="mx-auto text-surface-500" />
           <h1 className="text-lg font-display font-bold text-surface-100">Project not found</h1>
           <p className="text-sm text-surface-400">This project does not exist.</p>
-          <Button onClick={() => navigate('/collab/team')} leftIcon={<ArrowLeft size={14} />}>
+          <Button onClick={() => navigate(`/collab/${workspaceId}/team`)} leftIcon={<ArrowLeft size={14} />}>
             Back to Projects
           </Button>
         </div>
@@ -124,7 +137,7 @@ export function ProjectDetailPage() {
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
           <button
-            onClick={() => navigate('/collab/team')}
+            onClick={() => navigate(`/collab/${workspaceId}/team`)}
             className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
           >
             <ArrowLeft size={14} /> Projects
@@ -201,7 +214,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate('/collab/people')}
+            onClick={() => navigate(`/collab/${workspaceId}/people`)}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
@@ -274,7 +287,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate(`/collab/team/${project.id}/kanban`)}
+            onClick={() => navigate(`/collab/${workspaceId}/team/${project.id}/kanban`)}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-4">
