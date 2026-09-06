@@ -1,7 +1,8 @@
 import { forwardRef } from 'react';
-import { MessageSquare, Link2, MoreHorizontal, ListTodo } from 'lucide-react';
+import { MessageSquare, Link2, MoreHorizontal, ListTodo, AlertTriangle } from 'lucide-react';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { cn } from '@shared/utils/cn';
+import { useKanbanStore } from './kanbanStore';
 import type { KanbanTask } from './types';
 
 interface KanbanCardProps {
@@ -13,9 +14,16 @@ interface KanbanCardProps {
 
 export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
   ({ task, onClick, onMenuClick, isDragging }, ref) => {
+    const allTasks = useKanbanStore((s) => s.tasks);
     const subtasksDone = task.subtasks.filter((s) => s.completed).length;
     const subtasksTotal = task.subtasks.length;
     const progress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
+
+    const depCount = task.dependencies?.length ?? 0;
+    const isBlocked = depCount > 0 && task.dependencies!.some((depId) => {
+      const dep = allTasks.find((t) => t.id === depId);
+      return dep && dep.status !== 'done';
+    });
 
     return (
       <div
@@ -85,7 +93,7 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
           </div>
         )}
 
-        {/* Footer: comments, links, avatars */}
+        {/* Footer: comments, links, dependencies, avatars */}
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-3 text-surface-500">
             <span className="flex items-center gap-1 text-[11px]">
@@ -96,6 +104,20 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
               <Link2 size={12} />
               {task.attachments}
             </span>
+            {depCount > 0 && (
+              <span className={cn(
+                'flex items-center gap-1 text-[11px] font-medium',
+                isBlocked ? 'text-warning-400' : 'text-emerald-400',
+              )}>
+                <Link2 size={12} />
+                {depCount}
+              </span>
+            )}
+            {isBlocked && (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-warning-400">
+                <AlertTriangle size={12} />
+              </span>
+            )}
           </div>
 
           {task.assignees.length > 0 && (

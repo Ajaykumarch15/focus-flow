@@ -307,6 +307,30 @@ export const useStore = create<StoreState>((set, get) => {
 
         const baseTasks = taskDocs.map(mapTask);
 
+        // Fetch workspace-scoped tasks (assigned to current user)
+        let workspaceTasks: Task[] = [];
+        try {
+          const workspaces = await api.workspaces.list();
+          const wsTaskResults = await Promise.all(
+            (Array.isArray(workspaces) ? workspaces : []).map((ws: any) =>
+              api.tasks.list({ workspaceId: ws._id ?? ws.id }).catch(() => [])
+            )
+          );
+          for (const docs of wsTaskResults) {
+            if (Array.isArray(docs)) {
+              for (const doc of docs) {
+                const mapped = mapTask(doc);
+                mapped.workspaceContext = 'collab';
+                workspaceTasks.push(mapped);
+              }
+            }
+          }
+        } catch {
+          // Workspace fetch failed — continue with personal tasks only
+        }
+
+        const allTasks = [...baseTasks, ...workspaceTasks];
+
         // Process any queued offline timer operations
         offlineQueue.processQueue().catch(() => {});
 
@@ -370,7 +394,7 @@ export const useStore = create<StoreState>((set, get) => {
         });
 
         set({
-          tasks: baseTasks,
+          tasks: allTasks,
           journals: journalDocs.map(mapJournal),
           profile,
           theme: mergedTheme,

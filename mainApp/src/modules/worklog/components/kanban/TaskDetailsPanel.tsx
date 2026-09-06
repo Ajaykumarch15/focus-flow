@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, MessageSquare, Link2, Trash2, ChevronRight } from 'lucide-react';
 import { Avatar } from '@shared/components/ui/Avatar';
@@ -5,14 +6,25 @@ import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
 import { Select } from '@shared/components/ui/Select';
 import { useKanbanStore } from './kanbanStore';
+import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { DependencyPanel } from '@collab/components/DependencyPanel';
 import { KANBAN_COLUMNS } from './types';
 import type { KanbanStatus, KanbanPriority } from './types';
+import type { CollaborativeTask } from '@collab/types/collaboration';
 
 export function TaskDetailsPanel() {
   const { tasks, selectedTaskId, showDetailsPanel, closeDetailsPanel, updateTask, deleteTask, toggleSubtask } =
     useKanbanStore();
 
   const task = tasks.find((t) => t.id === selectedTaskId);
+  const collabTasks = useCollaborationStore((s) => s.tasks);
+
+  const resolvedDependencies = useMemo(() => {
+    if (!task?.dependencies?.length) return [];
+    return task.dependencies
+      .map((depId) => collabTasks.find((ct) => ct.id === depId))
+      .filter((ct): ct is CollaborativeTask => Boolean(ct));
+  }, [task?.dependencies, collabTasks]);
 
   const handleClose = () => {
     closeDetailsPanel();
@@ -180,6 +192,32 @@ export function TaskDetailsPanel() {
                   ))}
                 </div>
               </div>
+
+              {/* Dependencies */}
+              {task.dependencies && (
+                <DependencyPanel
+                  task={{
+                    id: task.id,
+                    workspaceId: task.workspaceId ?? '',
+                    projectId: task.projectId ?? '',
+                    title: task.title,
+                    description: task.description,
+                    sprintStatus: task.status === 'done' ? 'done' : task.status === 'review' ? 'review' : task.status === 'doing' ? 'in_progress' : 'backlog',
+                    priority: task.priority,
+                    ownerId: task.ownerId ?? '',
+                    assigneeId: task.assignees[0]?.id,
+                    labels: task.labels.map((l) => l.name),
+                    dependencies: task.dependencies,
+                    estimatedHours: 0,
+                    actualHours: 0,
+                    followerIds: [],
+                    subtasks: task.subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
+                    createdAt: task.createdAt,
+                    updatedAt: task.createdAt,
+                  }}
+                  dependencies={resolvedDependencies}
+                />
+              )}
 
               {/* Meta */}
               <div className="flex items-center gap-4 text-surface-500">
