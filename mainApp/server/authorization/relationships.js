@@ -78,15 +78,15 @@ function isWorkspaceMember(user, workspace) {
 // ── Project relationships ────────────────────────────────────────────────────
 
 /**
- * Resolve a user's project relationship.
+ * Resolve a user's project role.
  *
- * Current model: project.userId = creator/PM, project.members[] = flat array
- * of user ObjectIds. This function returns the relationship type, not a role
- * string, because the project model does not yet have per-member roles.
+ * Project members are now subdocuments: { userId, role, addedAt }.
+ * The project.userId field is the Manager (creator/assigned PM).
+ * Falls back to flat ObjectId[] for backward compatibility during migration.
  *
  * @param {object} user    - The user document.
  * @param {object} project - The project document.
- * @returns {string|null}  - 'manager', 'member', or null.
+ * @returns {string|null}  - 'Manager', 'Editor', 'Viewer', or null.
  */
 function getProjectRole(user, project) {
   if (!user || !project) return null;
@@ -94,17 +94,21 @@ function getProjectRole(user, project) {
   const userId = String(user._id);
 
   // Project Manager = project.userId (the creator or assigned PM)
-  if (String(project.userId) === userId) return 'manager';
+  if (String(project.userId) === userId) return 'Manager';
 
   // Project Member = project.members[] contains the userId
   if (Array.isArray(project.members)) {
-    const isMember = project.members.some((m) => {
-      if (!m) return false;
-      // members may be populated (ObjectId ref) or raw ObjectId
+    for (const m of project.members) {
+      if (!m) continue;
+      // New structure: { userId, role, addedAt }
+      if (m.userId && m.role) {
+        const mId = m.userId._id ? String(m.userId._id) : String(m.userId);
+        if (mId === userId) return m.role;
+      }
+      // Legacy structure: flat ObjectId (backward compatibility)
       const mId = m._id ? String(m._id) : String(m);
-      return mId === userId;
-    });
-    if (isMember) return 'member';
+      if (mId === userId) return 'Editor';
+    }
   }
 
   return null;
@@ -118,7 +122,7 @@ function getProjectRole(user, project) {
  * @returns {boolean}
  */
 function isProjectManager(user, project) {
-  return getProjectRole(user, project) === 'manager';
+  return getProjectRole(user, project) === 'Manager';
 }
 
 /**

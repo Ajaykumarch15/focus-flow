@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search, Edit2, Trash2, Plus, X, Check, ArrowLeft,
-  Globe,
+  Globe, Crown,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -23,18 +23,21 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 function formatMs(ms: number): string { if (!ms) return '0h'; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m` : `${m}m`; }
 
 interface UserSummary { _id: string; name: string; email: string; role: string; }
-interface Team { _id: string; name: string; description?: string; members: UserSummary[]; createdAt: string; }
+interface Team { _id: string; name: string; description?: string; members: UserSummary[]; leaderId?: string; createdAt: string; }
 
 function TeamModal({ editing, users, onClose, onSave }: {
   editing: Team | null; users: UserSummary[]; onClose: () => void;
-  onSave: (data: { name: string; description: string; members: string[] }) => Promise<void>;
+  onSave: (data: { name: string; description: string; members: string[]; leaderId?: string }) => Promise<void>;
 }) {
   const [name, setName] = useState(editing?.name || '');
   const [desc, setDesc] = useState(editing?.description || '');
   const [members, setMembers] = useState<string[]>(editing?.members.map(m => m._id) || []);
+  const [leaderId, setLeaderId] = useState<string>(editing?.leaderId || '');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const filtered = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()));
+
+  const selectedMemberUsers = users.filter(u => members.includes(u._id));
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -64,10 +67,28 @@ function TeamModal({ editing, users, onClose, onSave }: {
               ))}
             </div>
           </div>
+          {members.length > 0 && (
+            <div>
+              <label htmlFor="admin-team-leader" className="text-xs text-surface-400 font-medium mb-1 flex items-center gap-1.5">
+                <Crown size={12} className="text-yellow-400" /> Team Leader
+              </label>
+              <select
+                id="admin-team-leader"
+                value={leaderId}
+                onChange={e => setLeaderId(e.target.value)}
+                className="w-full rounded-xl text-sm bg-surface-800 border border-surface-700 text-surface-200 px-3 py-2.5 outline-none focus:border-purple-500/50 transition-colors"
+              >
+                <option value="">No leader assigned</option>
+                {selectedMemberUsers.map(u => (
+                  <option key={u._id} value={u._id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex gap-3 mt-5 pt-4 border-t border-surface-800">
           <Button variant="secondary" size="lg" onClick={onClose} className="flex-1 py-2.5 text-sm">Cancel</Button>
-          <Button onClick={async () => { setSaving(true); try { await onSave({ name, description: desc, members }); onClose(); } catch {} finally { setSaving(false); } }}
+          <Button onClick={async () => { setSaving(true); try { await onSave({ name, description: desc, members, leaderId: leaderId || undefined }); onClose(); } catch {} finally { setSaving(false); } }}
             disabled={saving || !name.trim()}
             loading={saving}
             leftIcon={<Check size={14} />}
@@ -166,7 +187,7 @@ export function AdminTeams() {
     return teams.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
   }, [teams, search]);
 
-  const handleSave = async (data: { name: string; description: string; members: string[] }) => {
+  const handleSave = async (data: { name: string; description: string; members: string[]; leaderId?: string }) => {
     if (editing) {
       const updated = await api.teams.update(editing._id, data);
       setTeams(prev => prev.map(t => t._id === updated._id ? updated : t));
@@ -228,7 +249,15 @@ export function AdminTeams() {
                 onKeyDown={e => { if (e.key === 'Enter') setSelectedTeam(t); }}>
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center"><Users size={16} className="text-purple-400" /></div>
                 <div><p className="text-sm font-semibold text-surface-100">{t.name}</p>
-                  {t.description && <p className="text-[11px] text-surface-500 truncate max-w-[180px]">{t.description}</p>}</div>
+                  {t.description && <p className="text-[11px] text-surface-500 truncate max-w-[180px]">{t.description}</p>}
+                  {t.leaderId && (() => {
+                    const leader = t.members.find(m => m._id === t.leaderId);
+                    return leader ? (
+                      <p className="text-[11px] text-yellow-400/80 flex items-center gap-1 mt-0.5">
+                        <Crown size={10} /> {leader.name}
+                      </p>
+                    ) : null;
+                  })()}</div>
               </div>
             </div>
             <div className="flex items-center gap-1 mb-3">

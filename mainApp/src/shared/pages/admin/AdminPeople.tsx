@@ -267,7 +267,7 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
             </p>
           )}
         </div>
-        <Badge tone={user.role === 'admin' ? 'brand' : 'neutral'} className="uppercase px-3 py-1 rounded-lg">{user.role}</Badge>
+        <Badge tone={(user as any)?.roleId?.level >= 60 ? 'brand' : 'neutral'} className="uppercase px-3 py-1 rounded-lg">{(user as any)?.roleId?.name || (user as any)?.role}</Badge>
       </div>
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -465,7 +465,7 @@ export function AdminPeople() {
 
   const activeCount = users.filter(u => (u.status || 'active') === 'active').length;
   const disabledCount = users.filter(u => u.status === 'disabled').length;
-  const adminCount = users.filter(u => u.role === 'admin').length;
+  const adminCount = users.filter(u => (u as any).roleId?.level >= 60).length;
 
   if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
@@ -601,7 +601,7 @@ export function AdminPeople() {
                       <p className="text-[11px] text-surface-500">{u.email}</p>
                     </div>
                   </div>
-                  <Badge tone={u.role === 'admin' ? 'brand' : 'neutral'} className="uppercase px-2 py-0.5 rounded-md text-[10px]">{u.role}</Badge>
+                  <Badge tone={(u as any).roleId?.level >= 60 ? 'brand' : 'neutral'} className="uppercase px-2 py-0.5 rounded-md text-[10px]">{(u as any).roleId?.name || u.role}</Badge>
                 </div>
 
                 <div className="flex items-center justify-between">

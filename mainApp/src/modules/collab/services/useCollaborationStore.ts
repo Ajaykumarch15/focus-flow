@@ -139,7 +139,11 @@ function toProject(raw: any): Project {
     key: raw.nameKey ? raw.nameKey.toUpperCase() : (raw.name || 'PRJ').substring(0, 3).toUpperCase(),
     description: raw.description ?? '',
     repositoryUrl: raw.repositoryUrl,
-    members: (raw.members ?? []).map((m: any) => String(m._id ?? m.id ?? m)),
+    members: (raw.members ?? []).map((m: any) => ({
+      userId: String(m.userId ?? m._id ?? m.id ?? m),
+      role: m.role ?? 'Editor',
+      addedAt: m.addedAt ? new Date(m.addedAt).toISOString() : new Date().toISOString(),
+    })),
     teamIds: (raw.teamIds ?? []).map(String),
     status: raw.status ?? 'active',
     milestones: raw.milestones ?? [],
@@ -354,7 +358,7 @@ interface CollaborationStore {
   loadMilestones: () => Promise<void>;
   loadPhases: () => Promise<void>;
   loadModules: () => Promise<void>;
-  loadTasks: (workspaceId?: string) => Promise<void>;
+  loadTasks: (workspaceId?: string, projectId?: string) => Promise<void>;
   loadCollabData: () => Promise<void>;
 
   // Actions
@@ -363,7 +367,7 @@ interface CollaborationStore {
   createWorkspace: (name: string, type: WorkspaceType, description: string) => Promise<Workspace | undefined>;
   updateWorkspace: (workspaceId: string, patch: { name: string; type: WorkspaceType; description: string }) => Promise<Workspace | undefined>;
   deleteWorkspace: (workspaceId: string) => Promise<boolean>;
-  createTeam: (name: string, description: string, color: string, memberIds: string[]) => Promise<void>;
+  createTeam: (name: string, description: string, color: string, memberIds: string[], leaderId?: string) => Promise<void>;
   updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
   updateMemberStatus: (memberId: string, status: any, currentTask?: string) => void;
 
@@ -624,14 +628,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     }
   },
 
-  loadTasks: async (workspaceId?: string) => {
+  loadTasks: async (workspaceId?: string, projectId?: string) => {
     const wsId = workspaceId || get().activeWorkspaceId;
     if (!wsId) {
       set({ tasks: [] });
       return;
     }
     try {
-      const rawList = await api.tasks.list({ workspaceId: wsId });
+      const rawList = await api.tasks.list({ workspaceId: wsId, projectId: projectId || undefined });
       set({ tasks: (Array.isArray(rawList) ? rawList : []).map(toCollabTask) });
     } catch {
       set({ tasks: [] });
@@ -781,7 +785,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     return true;
   },
 
-  createTeam: async (name, description, color, memberIds) => {
+  createTeam: async (name, description, color, memberIds, leaderId) => {
     const tempId = `team-${Date.now()}`;
     const temp: WorkspaceTeam = {
       id: tempId,
@@ -789,14 +793,14 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       description,
       memberIds,
       color,
-      leaderId: memberIds[0],
+      leaderId: leaderId || memberIds[0],
     };
     const created = await runMutation(
       () => {
         set((state) => ({ teams: [...state.teams, temp] }));
         return () => set((state) => ({ teams: state.teams.filter((t) => t.id !== tempId) }));
       },
-      () => api.teams.create({ name, description, members: memberIds, color, workspaceId: get().activeWorkspaceId || undefined }),
+      () => api.teams.create({ name, description, members: memberIds, color, leaderId, workspaceId: get().activeWorkspaceId || undefined }),
       { errorTitle: 'Team creation failed' },
     );
     if (!created) return;

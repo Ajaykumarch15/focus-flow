@@ -1,0 +1,36 @@
+Name,Email,Platform Role,Global Role,Password
+"SIBLEY",sibley@gmail.com,user,OWNER,CONTACT_ADMIN
+"ARK",ark@test.com,user,OWNER,CONTACT_ADMIN
+"ADMIN",admin@focusflow.com,admin,SUPERADMIN,Admin2026!
+"Prudhvi",prudhvi@focusflow.com,user,MEMBER,CONTACT_ADMIN
+"Thrishank",thrishank@focusflow.com,user,MEMBER,CONTACT_ADMIN
+"FocusFlow",focusflow@flow.com,user,MEMBER,CONTACT_ADMIN
+"Auth Test Owner 01",ff-owner-01@focusflow.test,user,OWNER,CONTACT_ADMIN
+"Auth Test Owner 02",ff-owner-02@focusflow.test,user,OWNER,CONTACT_ADMIN
+"Auth Test Admin 01",ff-admin-01@focusflow.test,user,ADMIN,CONTACT_ADMIN
+"Auth Test Admin 02",ff-admin-02@focusflow.test,user,ADMIN,CONTACT_ADMIN
+"Auth Test Member 01",ff-member-01@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test Member 02",ff-member-02@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test Member 03",ff-member-03@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test Member 04",ff-member-04@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test PM 01",ff-pm-01@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test PM 02",ff-pm-02@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test TL 01",ff-tl-01@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Auth Test TL 02",ff-tl-02@focusflow.test,user,MEMBER,CONTACT_ADMIN
+"Platform Superadmin",superadmin@focusflow.com,admin,SUPERADMIN,SuperAdmin2026!
+"Prabhas Nizam",prabhas@focusflow.com,user,MEMBER,SharedPass2026!
+"Seshu",seshu@focusflow.com,user,MEMBER,SharedPass2026!
+"Aryan",aryan@focusflow.com,user,MEMBER,SharedPass2026!
+"Likitha",likitha@focusflow.com,user,MEMBER,SharedPass2026!
+"Mandy",mandy@focusflow.com,user,MEMBER,SharedPass2026!
+"Akash",akash@focusflow.com,user,MEMBER,SharedPass2026!
+"Bhargavi",bhargavi@focusflow.com,user,MEMBER,SharedPass2026!
+"Dharnesh",dharnesh@focusflow.com,user,MEMBER,SharedPass2026!
+"Reddy",reddy@focusflow.com,user,MEMBER,SharedPass2026!
+"Shashank",shashank@focusflow.com,user,MEMBER,SharedPass2026!
+"Hari",hari@focusflow.com,user,MEMBER,SharedPass2026!
+"Pramod",pramod@focusflow.com,user,MEMBER,SharedPass2026!
+"Bhavana",bhavana@focusflow.com,user,MEMBER,SharedPass2026!
+"Hemanth",hemanth@focusflow.com,user,MEMBER,SharedPass2026!
+"Hema",hema@focusflow.com,user,MEMBER,SharedPass2026!
+"Joseph",joseph@focusflow.com,user,MEMBER,SharedPass2026!

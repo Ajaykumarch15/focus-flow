@@ -235,6 +235,22 @@ router.delete('/:id', validate(null, { params: workspaceParamsSchema }), loadWor
   }
 });
 
+// ── GET /api/workspaces/:id/available-users ─────────────────────────────────
+// Returns all active system users NOT already in this workspace.
+router.get('/:id/available-users', validate(null, { params: workspaceParamsSchema }), loadWorkspace, requireMember, async (req, res, next) => {
+  try {
+    const ws = req.workspace;
+    const memberUserIds = (ws.members || []).map((m) => String(m.userId));
+    const users = await User.find({ deletedAt: null, _id: { $nin: memberUserIds } })
+      .select('name email avatar role')
+      .sort({ name: 1 })
+      .limit(200);
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── GET /api/workspaces/:id/members ───────────────────────────────────────────
 router.get('/:id/members', validate(null, { params: workspaceParamsSchema }), loadWorkspace, requireMember, async (req, res, next) => {
   try {

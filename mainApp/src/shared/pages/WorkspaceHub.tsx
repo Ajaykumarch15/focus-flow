@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Users, CheckCircle2,
-  Flame, GitBranch, BookMarked
+  Flame, GitBranch, BookMarked, ShieldCheck, Activity
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
@@ -183,6 +183,27 @@ export function HomePage() {
             actionLabel="View Projects & Workspaces"
             onAction={() => navigate('/collab/workspaces')}
           />
+
+          {(user?.roleId?.level ?? 0) >= 60 && (
+            <WorkspaceCard
+              variants={itemVariants}
+              accent="purple"
+              badges={['Admin', 'Management']}
+              title="Admin Console"
+              image={{
+                light: '/team_photo.png',
+                dark: '/team_photo.png',
+                lightSrcSet: cardSrcSet('/team_photo.png'),
+                darkSrcSet: cardSrcSet('/team_photo.png'),
+              }}
+              chips={[
+                { icon: <ShieldCheck size={14} className="text-purple-400" />, label: 'User & Team Management' },
+                { icon: <Activity size={14} className="text-pink-400" />, label: 'Audit & Analytics' },
+              ]}
+              actionLabel="Open Admin Console"
+              onAction={() => navigate('/admin/audit')}
+            />
+          )}
 
         </motion.div>
       </main>

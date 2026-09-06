@@ -112,6 +112,16 @@ export interface ProjectSettings {
   defaultVisibility: 'Private' | 'Team' | 'Project' | 'Workspace';
 }
 
+export type ProjectMemberRole = 'Manager' | 'Editor' | 'Viewer';
+
+export interface ProjectMember {
+  userId: string;
+  role: ProjectMemberRole;
+  addedAt?: string;
+  name?: string;
+  email?: string;
+}
+
 export interface Project {
   id: string;
   workspaceId: string;
@@ -119,7 +129,7 @@ export interface Project {
   key: string; // e.g. 'FF'
   description: string;
   repositoryUrl?: string;
-  members: string[]; // memberIds
+  members: ProjectMember[];
   teamIds: string[];
   status: 'planning' | 'active' | 'completed' | 'on_hold';
   milestones: ProjectMilestone[];
@@ -133,7 +143,7 @@ export type ProjectPatch = Partial<{
   description: string;
   key: string;
   status: Project['status'];
-  members: string[];
+  members: ProjectMember[];
   teamIds: string[];
   settings: Partial<ProjectSettings>;
 }>;

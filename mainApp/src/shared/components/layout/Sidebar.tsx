@@ -178,7 +178,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
             <ExpandedNavItem key={item.to} item={item} />
           ))}
 
-          {user?.role === 'admin' && (
+          {(user?.roleId?.level ?? 0) >= 60 && (
             <>
               <div className="my-3 border-t border-surface-800 mx-4" />
               <ExpandedNavItem item={adminNav} />
@@ -247,7 +247,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           />
         ))}
 
-        {user?.role === 'admin' && (
+        {(user?.roleId?.level ?? 0) >= 60 && (
           <>
             <div className="my-2 mx-2 border-t border-surface-800" />
             <RailIcon

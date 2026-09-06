@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
-import { useKanbanStore } from '@worklog/components/kanban/kanbanStore';
 import { SAMPLE_PROJECTS, type ProjectStatus, mapProjectToCardData } from '@collab/components/projects/types';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
@@ -44,7 +43,6 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const { members, tasks, projects: storeProjects } = useCollaborationStore();
   const { events } = useCalendarStore();
-  const kanbanTasks = useKanbanStore((s) => s.tasks);
   const hasAttemptedLoad = useRef(false);
 
   useEffect(() => {
@@ -55,7 +53,9 @@ export function ProjectDetailPage() {
     if (!projectId || !workspaceId || hasAttemptedLoad.current) return;
     hasAttemptedLoad.current = true;
     useCollaborationStore.getState().loadProjects(workspaceId);
-    useCollaborationStore.getState().loadTasks(workspaceId);
+    useCollaborationStore.getState().loadTasks(workspaceId, projectId);
+    useCollaborationStore.getState().loadMembers(workspaceId);
+    useCollaborationStore.getState().loadTeams();
   }, [projectId, workspaceId]);
 
   const project = useMemo(() => {
@@ -73,10 +73,8 @@ export function ProjectDetailPage() {
       ? members.filter((m) => project.memberIds!.includes(m.id)).length
       : members.length;
 
-    // Tasks: filter by project name (since SAMPLE_PROJECTS don't have real task links)
-    const projectTasks = tasks.filter(
-      (t) => t.projectId === project.id || t.title.toLowerCase().includes(project.name.toLowerCase()),
-    );
+    // Tasks: already project-scoped from loadTasks(workspaceId, projectId)
+    const projectTasks = tasks;
     const doneTasks = projectTasks.filter((t) => t.sprintStatus === 'done').length;
     const activeTasks = projectTasks.filter(
       (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',
@@ -87,11 +85,11 @@ export function ProjectDetailPage() {
       (e) => e.projectName?.toLowerCase() === project.name.toLowerCase(),
     );
 
-    // Kanban tasks breakdown
-    const kanbanTodo = kanbanTasks.filter((t) => t.status === 'todo').length;
-    const kanbanDoing = kanbanTasks.filter((t) => t.status === 'doing').length;
-    const kanbanReview = kanbanTasks.filter((t) => t.status === 'review').length;
-    const kanbanDone = kanbanTasks.filter((t) => t.status === 'done').length;
+    // Kanban breakdown from project-scoped tasks
+    const kanbanTodo = projectTasks.filter((t) => t.sprintStatus === 'backlog' || t.sprintStatus === 'ready').length;
+    const kanbanDoing = projectTasks.filter((t) => t.sprintStatus === 'in_progress').length;
+    const kanbanReview = projectTasks.filter((t) => t.sprintStatus === 'review').length;
+    const kanbanDone = projectTasks.filter((t) => t.sprintStatus === 'done').length;
 
     return {
       memberCount,
@@ -99,13 +97,13 @@ export function ProjectDetailPage() {
       doneTasks: projectTasks.length > 0 ? doneTasks : project.completedTasks,
       activeTasks: projectTasks.length > 0 ? activeTasks : project.totalTasks - project.completedTasks,
       eventCount: projectEvents.length,
-      kanbanTotal: kanbanTasks.length,
+      kanbanTotal: projectTasks.length,
       kanbanTodo,
       kanbanDoing,
       kanbanReview,
       kanbanDone,
     };
-  }, [project, members, tasks, events, kanbanTasks]);
+  }, [project, members, tasks, events]);
 
   if (!project) {
     return (
@@ -229,7 +227,7 @@ export function ProjectDetailPage() {
               <span className="text-xs text-surface-400">members</span>
             </div>
             <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-brand-400 group-hover:text-brand-300 transition-colors">
-              View People <ChevronRight size={14} />
+              Manage People <ChevronRight size={14} />
             </div>
           </motion.button>
 

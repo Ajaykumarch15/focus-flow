@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { api } from '@shared/utils/api';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Button } from '@shared/components/ui/Button';
 import { toast } from '@shared/services/useToastStore';
@@ -10,25 +11,25 @@ interface InvitePeopleModalProps {
 }
 
 export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
-  const { teams } = useCollaborationStore();
+  const { teams, activeWorkspaceId } = useCollaborationStore();
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<string>('Member');
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
-    if (!email.trim()) return;
+    if (!email.trim() || !activeWorkspaceId) return;
     setLoading(true);
     try {
-      // Simulated invite — in production this would call an API
-      await new Promise((r) => setTimeout(r, 800));
+      await api.workspaces.invite(activeWorkspaceId, { email: email.trim(), role });
       toast.success('Invite sent', `An invitation has been sent to ${email}`);
       setEmail('');
       setRole('Member');
       setTeamId('');
       onClose();
-    } catch {
-      toast.error('Failed to send invite', 'Please try again later.');
+    } catch (err: any) {
+      const message = err?.message || 'Failed to send invite';
+      toast.error('Invite failed', message);
     } finally {
       setLoading(false);
     }

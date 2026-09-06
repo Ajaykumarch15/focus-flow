@@ -672,7 +672,7 @@ function RangeControls({ from, to, onFrom, onTo, onApply }: {
 // ── Main Reports Page ─────────────────────────────────────────────────────────
 export function ReportsPage() {
   const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [month, setMonth]             = useState(new Date());
   const [summary, setSummary]         = useState<DaySummary[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);

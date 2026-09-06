@@ -7,7 +7,7 @@ const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { memberUserId } = require('../middleware/workspace');
 const { can } = require('../authorization/authorization');
-const { PROJECT, WORKSPACE } = require('../authorization/permissions');
+const { PROJECT, WORKSPACE, PROJECT_ROLES } = require('../authorization/permissions');
 const { requireProjectPermission } = require('../authorization/middleware');
 const { getAuthorizedClient, createProjectFolders, setDriveError, clearDriveError } = require('../utils/googleDrive');
 const { logger } = require('../utils/logger');
@@ -29,12 +29,16 @@ const projectQuerySchema = z.object({ workspaceId: objectId.optional() });
 // `settings` are Owner/Admin-gated (checked in the handler). `.passthrough()`
 // tolerates future fields without silently failing known ones.
 const PROJECT_STATUS = ['planning', 'active', 'completed', 'on_hold'];
+const PROJECT_MEMBER_ROLES = ['Manager', 'Editor', 'Viewer'];
 const projectPatchSchema = z
   .object({
     description: z.string().max(2000, 'Description too long (max 2000)').optional(),
     key: z.string().trim().max(10, 'Project key must be 10 characters or fewer').optional(),
     status: z.enum(PROJECT_STATUS).optional(),
-    members: z.array(objectId).max(500, 'Too many members').optional(),
+    members: z.array(z.object({
+      userId: objectId,
+      role: z.enum(PROJECT_MEMBER_ROLES).default('Editor'),
+    })).max(500, 'Too many members').optional(),
     teamIds: z.array(objectId).max(500, 'Too many teams').optional(),
     settings: z.record(z.any()).optional(),
   })
@@ -42,20 +46,26 @@ const projectPatchSchema = z
 
 // EEP2-P2.2.2: `members[]` must reference active users who belong to the
 // workspace (or, for personal projects, any active user).
-async function validateMemberRefs(memberIds, { ws, personal }) {
-  if (!memberIds || memberIds.length === 0) return { ok: true, ids: [] };
-  const active = await User.find({ _id: { $in: memberIds }, deletedAt: null }).select('_id');
+async function validateMemberRefs(members, { ws, personal }) {
+  if (!members || members.length === 0) return { ok: true, members: [] };
+  const userIds = members.map(m => m.userId);
+  const active = await User.find({ _id: { $in: userIds }, deletedAt: null }).select('_id');
   const found = new Set(active.map((u) => String(u._id)));
   const allowed = personal
     ? null
     : new Set((ws?.members || []).map((m) => String(memberUserId(m))));
-  const missing = memberIds.filter(
+  const missing = userIds.filter(
     (id) => !found.has(String(id)) || (allowed && !allowed.has(String(id)))
   );
   if (missing.length) {
     return { ok: false, message: personal ? 'Member not found' : 'members must belong to the workspace' };
   }
-  return { ok: true, ids: active.map((u) => u._id) };
+  // Preserve role assignments, default to Editor
+  const memberMap = new Map(members.map(m => [m.userId, m.role || 'Editor']));
+  return {
+    ok: true,
+    members: active.map((u) => ({ userId: u._id, role: memberMap.get(String(u._id)) || 'Editor', addedAt: new Date() })),
+  };
 }
 
 // EEP2-P2.2.2: `teamIds[]` must reference teams scoped to the project's
@@ -216,7 +226,7 @@ router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema 
       const gate = { ws: req.workspace, personal: !project.workspaceRef };
       const checked = await validateMemberRefs(members, gate);
       if (!checked.ok) return res.status(400).json({ message: checked.message });
-      project.members = checked.ids;
+      project.members = checked.members;
     }
     if (teamIds !== undefined) {
       const checked = await validateTeamRefs(teamIds, project.workspaceRef);
@@ -239,6 +249,116 @@ router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema 
         projectName: project.name,
         changed: Object.keys(req.body),
       },
+    }).catch(() => {});
+
+    res.json(project);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /api/projects/:id/members ──────────────────────────────────────────
+// Add a member to a project by email or userId with a role.
+const addMemberSchema = z.object({
+  email: z.string().email().optional(),
+  userId: objectId.optional(),
+  role: z.enum(PROJECT_MEMBER_ROLES).default('Editor'),
+}).refine((data) => data.email || data.userId, { message: 'email or userId is required' });
+
+router.post('/:id/members', validate(addMemberSchema, { params: projectParamsSchema }), requireProjectPermission(PROJECT.MANAGE_MEMBERS), async (req, res, next) => {
+  try {
+    const project = req.project;
+    const { email, userId: bodyUserId, role } = req.body;
+
+    // Resolve user by email or userId
+    let targetUser;
+    if (email) {
+      targetUser = await User.findOne({ email: email.toLowerCase(), deletedAt: null }).select('_id name email');
+    } else {
+      targetUser = await User.findOne({ _id: bodyUserId, deletedAt: null }).select('_id name email');
+    }
+    if (!targetUser) return res.status(404).json({ message: 'User not found' });
+
+    // Check if already a member
+    const existing = project.members.find(m => String(m.userId) === String(targetUser._id));
+    if (existing) return res.status(409).json({ message: 'User is already a project member' });
+
+    // For workspace projects, verify user belongs to the workspace
+    if (project.workspaceRef && req.workspace) {
+      const isWsMember = req.workspace.members.some(m => String(memberUserId(m)) === String(targetUser._id));
+      if (!isWsMember) return res.status(400).json({ message: 'User must be a workspace member first' });
+    }
+
+    project.members.push({ userId: targetUser._id, role, addedAt: new Date() });
+    await project.save();
+
+    Activity.create({
+      userId: req.user._id,
+      action: 'project.member.added',
+      workspaceRef: project.workspaceRef || undefined,
+      details: { projectId: String(project._id), projectName: project.name, addedUserId: String(targetUser._id), addedUserName: targetUser.name, role },
+    }).catch(() => {});
+
+    res.status(201).json(project);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /api/projects/:id/members/:userId ──────────────────────────────────
+// Change a member's role in a project.
+const updateMemberSchema = z.object({
+  role: z.enum(PROJECT_MEMBER_ROLES),
+});
+
+router.patch('/:id/members/:userId', validate(updateMemberSchema, { params: z.object({ id: objectId, userId: objectId }) }), requireProjectPermission(PROJECT.MANAGE_MEMBERS), async (req, res, next) => {
+  try {
+    const project = req.project;
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    const member = project.members.find(m => String(m.userId) === userId);
+    if (!member) return res.status(404).json({ message: 'User is not a project member' });
+
+    member.role = role;
+    await project.save();
+
+    Activity.create({
+      userId: req.user._id,
+      action: 'project.member.role_changed',
+      workspaceRef: project.workspaceRef || undefined,
+      details: { projectId: String(project._id), projectName: project.name, targetUserId: userId, newRole: role },
+    }).catch(() => {});
+
+    res.json(project);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── DELETE /api/projects/:id/members/:userId ──────────────────────────────────
+// Remove a member from a project.
+router.delete('/:id/members/:userId', validate(null, { params: z.object({ id: objectId, userId: objectId }) }), requireProjectPermission(PROJECT.MANAGE_MEMBERS), async (req, res, next) => {
+  try {
+    const project = req.project;
+    const { userId } = req.params;
+
+    // Cannot remove the project manager
+    if (String(project.userId) === userId) {
+      return res.status(400).json({ message: 'Cannot remove the project manager' });
+    }
+
+    const memberIndex = project.members.findIndex(m => String(m.userId) === userId);
+    if (memberIndex === -1) return res.status(404).json({ message: 'User is not a project member' });
+
+    project.members.splice(memberIndex, 1);
+    await project.save();
+
+    Activity.create({
+      userId: req.user._id,
+      action: 'project.member.removed',
+      workspaceRef: project.workspaceRef || undefined,
+      details: { projectId: String(project._id), projectName: project.name, removedUserId: userId },
     }).catch(() => {});
 
     res.json(project);

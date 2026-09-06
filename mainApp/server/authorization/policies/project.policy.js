@@ -1,21 +1,21 @@
 // authorization/policies/project.policy.js — Project authorization policy.
 //
 // Centralizes all project-level authorization decisions. Project authorization
-// considers both workspace role and project relationship (manager/member).
+// considers both workspace role and project role (Manager/Editor/Viewer).
 //
 // Two code paths:
 //   1. Personal projects (workspaceRef null): creator-only access. Platform
 //      admin receives a blanket bypass.
-//   2. Workspace projects: workspace role + project relationship determine
+//   2. Workspace projects: workspace role + project role determine
 //      the effective permission.
 //
-// Permission matrix (workspace role + project relationship):
+// Permission matrix (workspace role + project role):
 //   ┌─────────────────────┬──────┬──────┬──────┬─────────┬──────────┐
-//   │ Permission          │ Ownr │ Admn │ PM   │ PMember │ unrelated│
+//   │ Permission          │ Ownr │ Admn │ Mgr  │ Editor  │ Viewer   │
 //   ├─────────────────────┼──────┼──────┼──────┼─────────┼──────────┤
-//   │ project.view        │  ✓   │  ✓   │  ✓   │   ✓     │    ✗     │
-//   │ project.create      │  ✓   │  ✓   │  ✓   │   ✓     │    ✗     │
-//   │ project.edit        │  ✓   │  ✓   │  ✓   │   ✗     │    ✗     │
+//   │ project.view        │  ✓   │  ✓   │  ✓   │   ✓     │    ✓     │
+//   │ project.create      │  ✓   │  ✓   │  ✓   │   ✓     │    ✓     │
+//   │ project.edit        │  ✓   │  ✓   │  ✓   │   ✓     │    ✗     │
 //   │ project.delete      │  ✓   │  ✓   │  ✗   │   ✗     │    ✗     │
 //   │ project.archive     │  ✓   │  ✓   │  ✓   │   ✗     │    ✗     │
 //   │ project.manage_mbrs │  ✓   │  ✓   │  ✓   │   ✗     │    ✗     │
@@ -38,7 +38,7 @@ function can(user, permission, context) {
   if (!user || !context || !context.project) return false;
 
   // Platform admin bypass — covers every permission including personal projects.
-  if (user.role === 'admin') return true;
+  if (user.roleId?.level >= 60) return true;
 
   const project = context.project;
 
@@ -58,11 +58,13 @@ function can(user, permission, context) {
 
   const projectRole = getProjectRole(user, project);
   const isWsAdmin = wsRole === 'Owner' || wsRole === 'Admin';
-  const isProjectMgr = projectRole === 'manager';
+  const isProjectMgr = projectRole === 'Manager';
+  const isProjectEditor = projectRole === 'Editor';
+  const isProjectViewer = projectRole === 'Viewer';
   const isProjectMbr = projectRole !== null;
 
   switch (permission) {
-    // Owner/Admin can always view. Project Manager/Member can view their projects.
+    // Owner/Admin can always view. Project Manager/Editor/Viewer can view their projects.
     // Unrelated workspace members CANNOT view.
     case PROJECT.VIEW:
       return isWsAdmin || isProjectMbr;
@@ -71,9 +73,9 @@ function can(user, permission, context) {
     case PROJECT.CREATE:
       return true;
 
-    // Project Manager or workspace Admin/Owner can edit project metadata
+    // Project Manager, Editor, or workspace Admin/Owner can edit project metadata
     case PROJECT.EDIT:
-      return isProjectMgr || isWsAdmin;
+      return isProjectMgr || isProjectEditor || isWsAdmin;
 
     // workspace Owner/Admin can delete projects
     case PROJECT.DELETE:

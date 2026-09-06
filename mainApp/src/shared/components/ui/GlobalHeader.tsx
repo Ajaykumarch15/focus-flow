@@ -158,6 +158,11 @@ export function GlobalHeader() {
                 <div className="px-3 py-2.5 border-b border-surface-800">
                   <p className="text-sm font-medium text-surface-100 truncate">{user?.name}</p>
                   <p className="text-[11px] text-surface-400 truncate">{user?.email}</p>
+                  {user?.roleId?.name && (
+                    <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-brand-500/15 text-brand-400 border border-brand-500/20">
+                      {user.roleId.name}
+                    </span>
+                  )}
                 </div>
                 <div className="p-1">
                   <button onClick={() => { setMenuOpen(false); navigate('/settings'); }}

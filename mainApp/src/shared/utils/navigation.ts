@@ -1,6 +1,3 @@
-export type NavRole = 'user' | 'admin';
-
-export function resolveDefaultLanding(role: NavRole | null | undefined): string {
-  if (role === 'admin') return '/workspace';
+export function resolveDefaultLanding(_roleLevel?: number | null): string {
   return '/home';
 }

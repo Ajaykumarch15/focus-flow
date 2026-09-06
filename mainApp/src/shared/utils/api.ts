@@ -427,6 +427,10 @@ export const api = {
       request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => 
       request<any>(`/teams/${id}`, { method: 'DELETE' }),
+    addMember: (id: string, userId: string) =>
+      request<any>(`/teams/${id}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
+    removeMember: (id: string, userId: string) =>
+      request<any>(`/teams/${id}/members/${userId}`, { method: 'DELETE' }),
     getAnalytics: (id: string, from?: number, to?: number) => {
       const params = new URLSearchParams();
       if (from) params.set('from', String(from));
@@ -448,6 +452,12 @@ export const api = {
     update: (id: string, data: ProjectPatch) =>
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
+    addMember: (id: string, data: { email?: string; userId?: string; role: string }) =>
+      request<any>(`/projects/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
+    updateMemberRole: (id: string, userId: string, data: { role: string }) =>
+      request<any>(`/projects/${id}/members/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    removeMember: (id: string, userId: string) =>
+      request<any>(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
   },
 
   // IES-R1: real Sprint CRUD backed by the Phase 3 route (server/routes/sprints.js).
@@ -540,6 +550,7 @@ export const api = {
       request<any>(`/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     remove: (id: string) => request<any>(`/workspaces/${id}`, { method: 'DELETE' }),
     members: (id: string) => request<any[]>(`/workspaces/${id}/members`),
+    availableUsers: (id: string) => request<any[]>(`/workspaces/${id}/available-users`),
     invite: (id: string, data: { userId?: string; email?: string; role?: string }) =>
       request<any[]>(`/workspaces/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
     join: (id: string) => request<any>(`/workspaces/${id}/join`, { method: 'POST' }),

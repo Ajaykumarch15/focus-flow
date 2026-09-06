@@ -27,7 +27,7 @@ export interface FeatureProgress {
 function computeFeatureProgress(tasks: CollaborativeTask[]): FeatureProgress {
   const total = tasks.length;
   const done = tasks.filter((t) => t.sprintStatus === 'done').length;
-  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : null };
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
 }
 
 function groupTasksByFeature(tasks: CollaborativeTask[]): Map<string, CollaborativeTask[]> {
@@ -84,9 +84,11 @@ export function selectProjectTasks(tasks: CollaborativeTask[], projectId: string
   return tasks.filter((t) => t.projectId === projectId);
 }
 
-export function selectProjectMembers(members: WorkspaceMember[], memberIds: string[]): WorkspaceMember[] {
+export function selectProjectMembers(members: WorkspaceMember[], projectMembers: { userId: string }[] | string[]): WorkspaceMember[] {
   const byId = new Map(members.map((m) => [m.id, m]));
-  return memberIds.map((id) => byId.get(id)).filter((m): m is WorkspaceMember => Boolean(m));
+  // Support both new {userId, role} format and legacy string[]
+  const userIds = projectMembers.map((m) => typeof m === 'string' ? m : m.userId);
+  return userIds.map((id) => byId.get(id)).filter((m): m is WorkspaceMember => Boolean(m));
 }
 
 export function selectProjectTeams(teams: WorkspaceTeam[], teamIds: string[]): WorkspaceTeam[] {

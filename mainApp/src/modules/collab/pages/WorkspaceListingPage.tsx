@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Plus, Building2, Users, FolderOpen } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 import { CreateWorkspaceModal } from '@collab/components/CreateWorkspaceModal';
 import { Button } from '@shared/components/ui/Button';
 import { SkeletonCard } from '@shared/components/ui/Skeleton';
@@ -24,6 +25,8 @@ const WS_ICONS: Record<string, string> = {
 export function WorkspaceListingPage() {
   const navigate = useNavigate();
   const { workspaces, workspacesLoading, loadCollabData, setActiveWorkspace } = useCollaborationStore();
+  const { user } = useAuthStore();
+  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [showCreate, setShowCreate] = React.useState(false);
 
   React.useEffect(() => {
@@ -44,9 +47,11 @@ export function WorkspaceListingPage() {
             <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">Workspaces</h1>
             <p className="text-sm text-surface-400 mt-0.5">Select a workspace to view projects, teams, and members.</p>
           </div>
-          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
-            New Workspace
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
+              New Workspace
+            </Button>
+          )}
         </motion.div>
 
         {workspacesLoading ? (
@@ -59,11 +64,13 @@ export function WorkspaceListingPage() {
           <EmptyState
             icon={<Building2 size={28} />}
             title="No workspaces yet"
-            description="Create your first engineering workspace to start collaborating with your team."
+            description={isAdmin ? "Create your first engineering workspace to start collaborating with your team." : "No workspaces have been created yet. Ask an admin to create one."}
             action={
-              <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={14} />}>
-                Create Workspace
-              </Button>
+              isAdmin ? (
+                <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={14} />}>
+                  Create Workspace
+                </Button>
+              ) : undefined
             }
             hint="Workspaces group projects, teams, and members together."
           />

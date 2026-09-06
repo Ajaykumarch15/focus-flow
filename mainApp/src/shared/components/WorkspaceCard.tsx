@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { motion, type Variants } from 'framer-motion';
 import { useStore } from '@worklog/services/useStore';
 
-export type HubAccent = 'green' | 'cyan' | 'violet';
+export type HubAccent = 'green' | 'cyan' | 'violet' | 'purple';
 
 interface AccentTokens {
   dot: string;
@@ -30,6 +30,12 @@ const ACCENTS: Record<HubAccent, AccentTokens> = {
     wash: 'from-violet-500/20',
     actionHover: 'hover:bg-violet-500/30 hover:border-violet-300/30',
     focusRing: 'focus-within:ring-2 focus-within:ring-violet-400/50',
+  },
+  purple: {
+    dot: 'bg-purple-400',
+    wash: 'from-purple-500/20',
+    actionHover: 'hover:bg-purple-500/30 hover:border-purple-300/30',
+    focusRing: 'focus-within:ring-2 focus-within:ring-purple-400/50',
   },
 };
 
