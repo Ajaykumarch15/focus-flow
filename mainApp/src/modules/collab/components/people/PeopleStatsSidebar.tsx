@@ -76,14 +76,14 @@ export function PeopleStatsSidebar() {
     ).length;
     const total = completed + active;
     const productivity = total > 0 ? Math.round((completed / total) * 100) : 0;
-    const projectCount = projects.filter((p) => p.members.includes(currentUserMember.id)).length;
+    const projectCount = projects.filter((p) => p.members.some(m => m.userId === currentUserMember.id)).length;
     return { completed, active, projectCount, productivity };
   }, [currentUserMember, tasks, projects]);
 
   const myProjects = useMemo(() => {
     if (!currentUserMember) return [];
     return projects
-      .filter((p) => p.members.includes(currentUserMember.id))
+      .filter((p) => p.members.some(m => m.userId === currentUserMember.id))
       .slice(0, 3)
       .map((p) => ({
         id: p.id,

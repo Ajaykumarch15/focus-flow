@@ -40,7 +40,7 @@ function can(user, permission, context) {
   if (!user || !context) return false;
 
   // Platform admin bypass — covers every permission.
-  if (user.role === 'admin') return true;
+  if (user.roleId?.level >= 60) return true;
 
   const log = context.resource;
   const isOwner = log ? isResourceOwner(user, log) : false;

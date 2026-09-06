@@ -12,6 +12,7 @@ import { ProjectCard } from '@collab/components/projects/ProjectCard';
 import { AddProjectModal } from '@collab/components/projects/AddProjectModal';
 import { SAMPLE_PROJECTS, type ProjectData, mapProjectToCardData } from '@collab/components/projects/types';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -56,6 +57,8 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const { workspaceId: urlWorkspaceId } = useParams<{ workspaceId: string }>();
   const { projects: storeProjects, activeWorkspaceId, tasks, workspaces, setActiveWorkspace } = useCollaborationStore();
+  const { user } = useAuthStore();
+  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [localProjects, setLocalProjects] = useState<ProjectData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -186,11 +189,13 @@ export function ProjectsPage() {
                   {activeWorkspace ? `Manage projects in ${activeWorkspace.name}` : 'Manage all your projects in one place.'}
                 </p>
               </div>
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={16} />}>
-              Add Project
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={16} />}>
+                Add Project
+              </Button>
+            </div>
+          )}
         </motion.div>
 
         {/* Toolbar */}
@@ -305,11 +310,13 @@ export function ProjectsPage() {
                 : 'No projects yet'}
               description={searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || timelineFilter !== 'all'
                 ? 'Try a different search term or adjust your filters.'
-                : 'Create your first project and start organizing your work.'}
+                : isAdmin ? 'Create your first project and start organizing your work.' : 'No projects have been created yet. Ask an admin to create one.'}
               action={
-                <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={14} />}>
-                  Create Project
-                </Button>
+                isAdmin ? (
+                  <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={14} />}>
+                    Create Project
+                  </Button>
+                ) : undefined
               }
             />
           </motion.div>

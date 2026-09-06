@@ -1,16 +1,19 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Search, Plus, Users, ChevronDown, ArrowLeft,
+  Search, Plus, Users, ChevronDown, ArrowLeft, UsersRound, ChevronRight, UserPlus,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { PersonCard } from '@collab/components/people/PersonCard';
 import { PersonDetailsDrawer } from '@collab/components/people/PersonDetailsDrawer';
 import { InvitePeopleModal } from '@collab/components/people/InvitePeopleModal';
+import { AddSystemUsersModal } from '@collab/components/people/AddSystemUsersModal';
 import { PeopleStatsSidebar } from '@collab/components/people/PeopleStatsSidebar';
+import { CreateTeamModal } from '@collab/components/CreateTeamModal';
 import type { PersonStats } from '@collab/components/people/types';
 
 const fadeUp = { hidden: { opacity: 0, y: -6 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
@@ -31,18 +34,27 @@ const SORT_OPTIONS = [
 
 export function PeoplePage() {
   const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId: string }>();
   const { members, teams, projects, tasks } = useCollaborationStore();
+  const { user } = useAuthStore();
+  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [searchQuery, setSearchQuery] = useState('');
   const [teamFilter, setTeamFilter] = useState('all');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showAddSystemUsersModal, setShowAddSystemUsersModal] = useState(false);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [selectedStats, setSelectedStats] = useState<PersonStats | null>(null);
+
+  useEffect(() => {
+    useCollaborationStore.getState().loadTeams();
+  }, []);
 
   // Compute per-member statistics
   const allStats = useMemo<PersonStats[]>(() => {
     return members.map((member) => {
-      const memberProjects = projects.filter((p) => p.members.includes(member.id));
+      const memberProjects = projects.filter((p) => p.members.some(m => m.userId === member.id));
       const assignedTasks = tasks.filter((t) => t.assigneeId === member.id);
       const completedTasks = assignedTasks.filter((t) => t.sprintStatus === 'done').length;
       const activeTasks = assignedTasks.filter(
@@ -173,9 +185,19 @@ export function PeoplePage() {
                   Manage your team and see who's working on what.
                 </p>
               </div>
-              <Button onClick={() => setShowInviteModal(true)} leftIcon={<Plus size={16} />}>
-                Invite People
-              </Button>
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" onClick={() => setShowCreateTeamModal(true)} leftIcon={<UsersRound size={16} />}>
+                    Create Team
+                  </Button>
+                  <Button variant="secondary" onClick={() => setShowAddSystemUsersModal(true)} leftIcon={<UserPlus size={16} />}>
+                    Add from System
+                  </Button>
+                  <Button onClick={() => setShowInviteModal(true)} leftIcon={<Plus size={16} />}>
+                    Invite People
+                  </Button>
+                </div>
+              )}
             </motion.div>
 
             {/* Toolbar */}
@@ -249,6 +271,42 @@ export function PeoplePage() {
                 </div>
               </div>
             </motion.div>
+
+            {/* Teams Section */}
+            {teams.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: 0.1 }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-display font-bold text-surface-200">Teams</h3>
+                  <span className="text-[11px] text-surface-500">{teams.length} teams</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {teams.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => navigate(`/collab/${workspaceId}/teams/${t.id}`)}
+                      className="card card-hover p-4 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
+                    >
+                      <div className="flex items-center gap-2.5 mb-2">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                          <UsersRound size={14} className="text-purple-400" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-surface-100 truncate">{t.name}</p>
+                          <p className="text-[10px] text-surface-500">{t.memberIds.length} members</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-[10px] font-semibold text-purple-400 group-hover:text-purple-300 transition-colors">
+                        View Team <ChevronRight size={10} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
 
             {/* Results count */}
             {isFiltering && (
@@ -325,6 +383,18 @@ export function PeoplePage() {
       <InvitePeopleModal
         open={showInviteModal}
         onClose={() => setShowInviteModal(false)}
+      />
+
+      {/* Create Team Modal */}
+      <CreateTeamModal
+        isOpen={showCreateTeamModal}
+        onClose={() => setShowCreateTeamModal(false)}
+      />
+
+      {/* Add System Users Modal */}
+      <AddSystemUsersModal
+        open={showAddSystemUsersModal}
+        onClose={() => setShowAddSystemUsersModal(false)}
       />
     </div>
   );

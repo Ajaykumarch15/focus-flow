@@ -39,7 +39,7 @@ module.exports = async (req, res, next) => {
     // Load fresh user doc. googleTokens is deliberately retained on req.user:
     // server-side Drive sync reads it from this doc (googleDrive.js, projects.js,
     // workLogs.js). It is stripped from every response by User's toJSON transform.
-    const user = await User.findById(decoded.id).select('-passwordHash');
+    const user = await User.findById(decoded.id).select('-passwordHash').populate({ path: 'roleId', select: 'name level' });
 
     // IES-P0-08: soft-deleted users are blocked per-request...
     if (!user || user.deletedAt) return res.status(401).json({ message: 'Token invalid or expired' });

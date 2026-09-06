@@ -54,7 +54,7 @@ export function AdminRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || user.role !== 'admin') return <Navigate to={resolveDefaultLanding(user?.role)} replace />;
+  if (!user || !user.roleId || user.roleId.level < 60) return <Navigate to={resolveDefaultLanding(user?.roleId?.level)} replace />;
 
   return <>{children}</>;
 }

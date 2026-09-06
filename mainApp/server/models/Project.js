@@ -74,7 +74,11 @@ nameKey: {
         targetPoints: { type: Number, default: 0 },
       },
     ],
-    members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    members: [{
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+      role: { type: String, enum: ['Manager', 'Editor', 'Viewer'], default: 'Editor' },
+      addedAt: { type: Date, default: Date.now },
+    }],
     teamIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],
     // DDS §4.4 / Blueprint §2.2: project settings override workspace defaults
     // for that project (visibility · review policy · defaults). Free-form object,

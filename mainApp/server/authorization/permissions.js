@@ -59,6 +59,14 @@ const PROJECT = {
   ASSIGN_MANAGER:   'project.assign_manager',
 };
 
+// ── Project member roles ────────────────────────────────────────────────────
+
+const PROJECT_ROLES = {
+  MANAGER: 'Manager',
+  EDITOR:  'Editor',
+  VIEWER:  'Viewer',
+};
+
 // ── Team permissions ─────────────────────────────────────────────────────────
 
 const TEAM = {
@@ -162,6 +170,7 @@ module.exports = {
   LEGACY_ROLE_MAP,
   WORKSPACE,
   PROJECT,
+  PROJECT_ROLES,
   TEAM,
   TASK,
   DISCUSSION,

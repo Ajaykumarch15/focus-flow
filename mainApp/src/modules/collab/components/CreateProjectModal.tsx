@@ -1,22 +1,31 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FolderPlus, X, Plus, Trash2, GitBranch } from 'lucide-react';
+import { FolderPlus, X, Plus, Trash2, GitBranch, Users, Check } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
+import type { ProjectMemberRole } from '@collab/types/collaboration';
 
 export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { createProject, teams } = useCollaborationStore();
+  const { createProject, teams, members } = useCollaborationStore();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [repositoryUrl, setRepositoryUrl] = useState('');
   // IES-P2-08: no fabricated defaults — teams/milestones start empty and are
   // only attached if the user actually picks them.
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
+  const [selectedMembers, setSelectedMembers] = useState<{ userId: string; role: ProjectMemberRole }[]>([]);
+  const [memberSearch, setMemberSearch] = useState('');
   const [milestones, setMilestones] = useState<{ title: string; dueDate: string }[]>([]);
 
   if (!isOpen) return null;
+
+  const filteredMembers = members.filter(
+    (m) =>
+      m.name.toLowerCase().includes(memberSearch.toLowerCase()) ||
+      m.email.toLowerCase().includes(memberSearch.toLowerCase()),
+  );
 
   const defaultMilestoneDate = () => {
     const d = new Date();
@@ -41,6 +50,7 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
       description: description.trim(),
       repositoryUrl: repositoryUrl.trim(),
       teamIds: selectedTeams,
+      members: selectedMembers,
       milestones: milestones
         .filter((m) => m.title.trim())
         .map((m, i) => ({
@@ -123,6 +133,54 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Members */}
+          <div>
+            <label className="block text-xs font-semibold text-surface-300 mb-1.5 flex items-center gap-1.5">
+              <Users size={13} className="text-brand-400" /> Team Members ({selectedMembers.length})
+            </label>
+            <Input
+              className="rounded-xl text-sm w-full mb-2"
+              placeholder="Search workspace members..."
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+            />
+            <div className="max-h-32 overflow-y-auto space-y-1 scrollbar-thin">
+              {filteredMembers.length === 0 ? (
+                <p className="text-xs text-surface-500 italic py-1">No members found.</p>
+              ) : (
+                filteredMembers.map((m) => {
+                  const selected = selectedMembers.some(sm => sm.userId === m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedMembers((prev) =>
+                          prev.some(sm => sm.userId === m.id)
+                            ? prev.filter((sm) => sm.userId !== m.id)
+                            : [...prev, { userId: m.id, role: 'Editor' as ProjectMemberRole }],
+                        )
+                      }
+                      className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left ${
+                        selected
+                          ? 'bg-brand-500/10 border border-brand-500/30'
+                          : 'hover:bg-surface-850 border border-transparent'
+                      }`}
+                    >
+                      <div className="w-6 h-6 rounded-full bg-surface-800 flex items-center justify-center text-[10px] font-bold text-surface-300">
+                        {m.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-surface-200 truncate">{m.name}</p>
+                      </div>
+                      {selected && <Check size={12} className="text-brand-400" />}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 

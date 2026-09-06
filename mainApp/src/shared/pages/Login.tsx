@@ -48,7 +48,7 @@ export function Login() {
     if (!validate()) return;
     try {
       await login(form.email.trim(), form.password);
-      navigate(resolveDefaultLanding(useAuthStore.getState().user?.role));
+      navigate(resolveDefaultLanding(useAuthStore.getState().user?.roleId?.level));
     } catch {
       // Error surfaced via the store; mapped to friendly copy below.
     }

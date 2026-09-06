@@ -11,6 +11,7 @@ interface AuthUser {
   name:     string;
   email:    string;
   role:     'user' | 'admin';
+  roleId?:  { _id: string; name: string; level: number } | null;
   avatar?:  string;
   settings: Record<string, any>;
   googleConnected?: boolean;

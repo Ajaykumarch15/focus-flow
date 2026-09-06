@@ -6,6 +6,7 @@
     "dev": "nodemon index.js",
     "start": "node index.js",
     "migrate": "node migrations/run.js",
+    "migrate:roles": "node migrations/001_role_migration.js",
     "seed:authorization": "node seeds/authorizationTestSeed.js",
     "test": "vitest run"
   },

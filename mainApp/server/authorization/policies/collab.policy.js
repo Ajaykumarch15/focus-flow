@@ -78,7 +78,7 @@ function canDiscussion(user, permission, context) {
   if (!user || !context) return false;
 
   // Platform admin bypass
-  if (user.role === 'admin') return true;
+  if (user.roleId?.level >= 60) return true;
 
   const resource = context.resource;
   const isOwner = resource ? isResourceOwner(user, resource) : false;
@@ -137,7 +137,7 @@ function canFile(user, permission, context) {
   if (!user || !context) return false;
 
   // Platform admin bypass
-  if (user.role === 'admin') return true;
+  if (user.roleId?.level >= 60) return true;
 
   const resource = context.resource;
   const isOwner = resource ? isResourceOwner(user, resource) : false;

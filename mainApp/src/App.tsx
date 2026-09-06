@@ -58,6 +58,7 @@ const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').th
 const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 const WorkspaceListingPage = lazy(() => import('@collab/pages/WorkspaceListingPage').then(module => ({ default: module.WorkspaceListingPage })));
 const PeoplePage       = lazy(() => import('@collab/pages/PeoplePage').then(module => ({ default: module.PeoplePage })));
+const TeamDetailPage   = lazy(() => import('@collab/pages/TeamDetailPage').then(module => ({ default: module.TeamDetailPage })));
 const ActivityFeedPage = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
 
 // Admin workspace pages
@@ -91,8 +92,9 @@ function ChunkLoadFallback() {
 }
 
 function AdminWorkspaceRouter() {
-  const { workspace } = useAuthStore();
-  if (workspace !== 'admin') return <Navigate to="/workspace" replace />;
+  const { pathname } = useLocation();
+  const isOnAdminRoute = pathname.startsWith('/admin');
+  if (!isOnAdminRoute) return <Navigate to="/workspace" replace />;
   return <AdminLayout />;
 }
 
@@ -218,6 +220,7 @@ export default function App() {
                 <Route path="/collab/:workspaceId/team/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/collab/:workspaceId/team/:projectId/kanban" element={<ProjectKanbanPage />} />
                 <Route path="/collab/:workspaceId/people" element={<PeoplePage />} />
+                <Route path="/collab/:workspaceId/teams/:teamId" element={<TeamDetailPage />} />
                 <Route path="/collab/:workspaceId/leaderboard" element={<Leaderboard />} />
                 <Route path="/collab/:workspaceId/activity" element={<ActivityFeedPage />} />
                 <Route path="/collab/:workspaceId/search" element={<SearchResultsPage />} />

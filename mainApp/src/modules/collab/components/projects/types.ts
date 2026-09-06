@@ -70,6 +70,7 @@ export function mapProjectToCardData(project: any, tasks: any[]): ProjectData {
     bookmarked: false,
     tint: TINT_OPTIONS[Math.floor(Math.random() * TINT_OPTIONS.length)],
     iconEmoji: project.key?.charAt(0) || project.name.charAt(0),
+    memberIds: (project.members ?? []).map((m: any) => String(m.userId ?? m._id ?? m.id ?? m)),
   };
 }
 

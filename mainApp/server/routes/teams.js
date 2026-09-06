@@ -125,7 +125,7 @@ router.get('/', validate(null, { query: teamQuerySchema }), async (req, res, nex
   try {
     const { memberId } = req.query;
     let query = {};
-    if (req.user.role !== 'admin') {
+    if (!req.user.roleId || req.user.roleId.level < 60) {
       // IES-P2-02: a non-admin may only ask about their own memberships.
       if (memberId && String(memberId) !== String(req.user._id)) {
         return res.status(403).json({ message: 'You can only list your own team memberships' });
@@ -191,7 +191,7 @@ router.post('/', validate(teamCreateSchema), async (req, res, next) => {
         color,
       });
     } else {
-      if (req.user.role !== 'admin') {
+      if (!req.user.roleId || req.user.roleId.level < 60) {
         return res.status(400).json({ message: 'workspaceId is required to create a team' });
       }
       team = new Team({

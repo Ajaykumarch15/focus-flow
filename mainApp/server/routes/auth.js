@@ -2,6 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const jwt     = require('jsonwebtoken');
 const User    = require('../models/User');
+const Role    = require('../models/Role');
 const Activity = require('../models/Activity');
 const protect = require('../middleware/auth');
 const { createAuthLoginLimiter, createAuthRegisterLimiter } = require('../middleware/rateLimit');
@@ -116,6 +117,7 @@ router.post('/register', registerLimiter, validate(registerSchema), async (req, 
     }
 
     setSessionCookie(res, signToken(user), req);
+    await user.populate({ path: 'roleId', select: 'name level' });
     res.status(201).json({ user });
   } catch (err) {
     next(err);
@@ -145,6 +147,7 @@ router.post('/login', loginLimiter, validate(loginSchema), async (req, res, next
     if (!valid)
       return res.status(401).json({ message: 'Invalid email or password' });
 
+    await user.populate({ path: 'roleId', select: 'name level' });
     setSessionCookie(res, signToken(user), req);
     res.json({ user });   // passwordHash stripped by toJSON transform
     Activity.create({ userId: user._id, action: 'login', details: { email: user.email } }).catch(() => {});
@@ -170,7 +173,8 @@ router.post('/logout', protect, async (req, res, next) => {
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
 // Returns the currently authenticated user (used on app boot to restore session)
-router.get('/me', protect, (req, res) => {
+router.get('/me', protect, async (req, res) => {
+  await req.user.populate({ path: 'roleId', select: 'name level' });
   res.json({ user: req.user });
 });
 

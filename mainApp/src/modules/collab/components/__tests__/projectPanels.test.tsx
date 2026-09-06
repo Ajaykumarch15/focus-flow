@@ -25,7 +25,7 @@ const project: Project = {
   name: 'AI Copilot',
   key: 'FF',
   description: 'Build the copilot',
-  members: ['m-1'],
+  members: [{ userId: 'm-1', role: 'Editor' }],
   teamIds: ['t-1'],
   status: 'active',
   milestones: [],
@@ -34,7 +34,7 @@ const project: Project = {
 };
 
 const member: WorkspaceMember = {
-  id: 'm-1', name: 'Ada Lovelace', email: 'ada@focusflow.io', role: 'Developer',
+  id: 'm-1', name: 'Ada Lovelace', email: 'ada@focusflow.io', role: 'Member',
   teams: [], status: 'available', joinedAt: '2026-01-01',
 };
 

@@ -1,13 +1,15 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Shield, CheckCircle2, Zap, FolderOpen,
-  Mail, Calendar, ExternalLink,
+  Mail, Calendar, ExternalLink, UsersRound, ChevronDown,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { api } from '@shared/utils/api';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
+import { toast } from '@shared/services/useToastStore';
 import type { PersonStats } from './types';
 import type { MemberStatus } from '@collab/types/collaboration';
 
@@ -34,7 +36,9 @@ interface PersonDetailsDrawerProps {
 }
 
 export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawerProps) {
-  const { tasks } = useCollaborationStore();
+  const { tasks, teams, activeWorkspaceId, loadTeams } = useCollaborationStore();
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false);
+  const [addingToTeam, setAddingToTeam] = useState(false);
 
   const recentTasks = useMemo(() => {
     if (!stats) return [];
@@ -43,6 +47,26 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5);
   }, [stats, tasks]);
+
+  const availableTeams = useMemo(() => {
+    if (!stats) return [];
+    return teams.filter((t) => !t.memberIds.includes(stats.member.id));
+  }, [stats, teams]);
+
+  const handleAddToTeam = async (teamId: string) => {
+    if (!stats) return;
+    setAddingToTeam(true);
+    try {
+      await api.teams.addMember(teamId, stats.member.id);
+      toast.success('Added to team', `${stats.member.name} has been added to the team`);
+      if (activeWorkspaceId) loadTeams();
+      setShowTeamDropdown(false);
+    } catch {
+      toast.error('Error', 'Failed to add to team');
+    } finally {
+      setAddingToTeam(false);
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -230,21 +254,51 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
             </div>
 
             {/* Actions */}
-            <div className="px-6 pb-6 flex items-center gap-2">
-              <button
-                type="button"
-                className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-brand-500/10 text-brand-400 text-xs font-semibold hover:bg-brand-500/20 transition-colors"
-              >
-                <Mail size={13} />
-                Message
-              </button>
-              <button
-                type="button"
-                className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-surface-850 border border-surface-800 text-surface-300 text-xs font-semibold hover:bg-surface-800 hover:text-surface-100 transition-colors"
-              >
-                <ExternalLink size={13} />
-                View Profile
-              </button>
+            <div className="px-6 pb-6 space-y-2">
+              {/* Add to Team */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowTeamDropdown(!showTeamDropdown)}
+                  disabled={availableTeams.length === 0 || addingToTeam}
+                  className="w-full flex items-center justify-center gap-2 h-9 rounded-xl bg-purple-500/10 text-purple-400 text-xs font-semibold hover:bg-purple-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <UsersRound size={13} />
+                  {addingToTeam ? 'Adding...' : 'Add to Team'}
+                  {availableTeams.length > 0 && <ChevronDown size={12} className={`transition-transform ${showTeamDropdown ? 'rotate-180' : ''}`} />}
+                </button>
+                {showTeamDropdown && availableTeams.length > 0 && (
+                  <div className="absolute bottom-full left-0 right-0 mb-1 bg-surface-800 border border-surface-700 rounded-xl shadow-lg overflow-hidden z-10">
+                    {availableTeams.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => handleAddToTeam(t.id)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-surface-200 hover:bg-surface-700 transition-colors text-left"
+                      >
+                        <UsersRound size={12} className="text-purple-400" />
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-brand-500/10 text-brand-400 text-xs font-semibold hover:bg-brand-500/20 transition-colors"
+                >
+                  <Mail size={13} />
+                  Message
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-surface-850 border border-surface-800 text-surface-300 text-xs font-semibold hover:bg-surface-800 hover:text-surface-100 transition-colors"
+                >
+                  <ExternalLink size={13} />
+                  View Profile
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>

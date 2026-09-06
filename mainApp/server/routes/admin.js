@@ -178,6 +178,36 @@ router.get('/users/deleted', async (req, res, next) => {
   }
 });
 
+// ── POST /api/admin/users ─────────────────────────────────────────────────
+const createUserSchema = z.object({
+  name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
+  email,
+  password: z.string().min(12, 'Password must be at least 12 characters'),
+  role: z.enum(['user', 'admin']).default('user'),
+});
+
+router.post('/users', validate(createUserSchema), async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    const exists = await User.findOne({ email: email.toLowerCase() });
+    if (exists) return res.status(409).json({ message: 'An account with this email already exists' });
+
+    const passwordHash = await User.hashPassword(password);
+    const user = await User.create({ name, email: email.toLowerCase(), passwordHash, role });
+
+    const details = { targetUserId: user._id, targetName: user.name, targetEmail: user.email };
+    Activity.create({ userId: req.user._id, action: 'user.provisioned', details }).catch(() => {});
+
+    res.status(201).json(user);
+  } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ message: 'Email already in use' });
+    }
+    next(err);
+  }
+});
+
 // ── PATCH /api/admin/users/:userId ──────────────────────────────────────────
 router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userParamsSchema }), async (req, res, next) => {
   try {

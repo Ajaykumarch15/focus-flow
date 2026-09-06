@@ -47,7 +47,7 @@ function can(user, permission, context) {
   }
 
   // Platform admin bypass — covers every permission for company tasks.
-  if (user.role === 'admin') return true;
+  if (user.roleId?.level >= 60) return true;
 
   // ── Company tasks require workspace context ──────────────────────────────
   if (!context.workspace) return false;
