@@ -240,7 +240,7 @@ export interface CollaborativeTask {
   sprintStatus: SprintStatus;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   ownerId: string;
-  assigneeId?: string;
+  assigneeIds?: string[];
   reviewerId?: string;
   followerIds: string[];
   labels: string[];

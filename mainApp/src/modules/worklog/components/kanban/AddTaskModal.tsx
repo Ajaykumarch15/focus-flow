@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Plus, Trash2, Link2 } from 'lucide-react';
+import { Plus, Trash2, Link2, Check, Users } from 'lucide-react';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
 import { Button } from '@shared/components/ui/Button';
+import { Avatar } from '@shared/components/ui/Avatar';
 import { useKanbanStore } from './kanbanStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { KANBAN_COLUMNS, LABEL_PRESETS } from './types';
@@ -38,7 +39,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [status, setStatus] = useState<KanbanStatus>(addModalDefaultStatus);
   const [priority, setPriority] = useState<KanbanPriority>('medium');
   const [dueDate, setDueDate] = useState('');
-  const [assigneeId, setAssigneeId] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<KanbanSubtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -54,7 +55,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     setStatus(addModalDefaultStatus);
     setPriority('medium');
     setDueDate('');
-    setAssigneeId('');
+    setAssigneeIds([]);
     setSelectedLabels([]);
     setSubtasks([]);
     setNewSubtask('');
@@ -83,7 +84,7 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
         sprintStatus: KANBAN_TO_SPRINT[status] as any,
         workspaceId: workspaceId || undefined,
         projectId: projectId || undefined,
-        assigneeId: assigneeId || undefined,
+        assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
         labels: selectedLabels.length > 0 ? selectedLabels : ['General'],
         dependencies: selectedDeps.length > 0 ? selectedDeps : [],
         estimatedHours: 8,
@@ -98,6 +99,12 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const toggleAssignee = (userId: string) => {
+    setAssigneeIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    );
   };
 
   const handleAddSubtask = () => {
@@ -177,16 +184,37 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
           </Field>
         </div>
 
-        {/* Assignee */}
+        {/* Assignees */}
         {memberEntries.length > 0 && (
-          <Field label="Assign to" htmlFor="task-assignee">
-            <Select id="task-assignee" value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}>
-              <option value="">Unassigned</option>
-              {memberEntries.map(([id, m]) => (
-                <option key={id} value={id}>{m.name}</option>
-              ))}
-            </Select>
-          </Field>
+          <div>
+            <label className="text-xs font-semibold text-surface-300 mb-2 flex items-center gap-1.5">
+              <Users size={12} className="text-brand-400" />
+              Assign Members {assigneeIds.length > 0 && <span className="text-brand-400">({assigneeIds.length})</span>}
+            </label>
+            <div className="max-h-32 overflow-y-auto space-y-1 rounded-xl border border-surface-800 bg-surface-900/50 p-2">
+              {memberEntries.map(([id, m]) => {
+                const isSelected = assigneeIds.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleAssignee(id)}
+                    className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
+                      isSelected
+                        ? 'bg-brand-500/10 border border-brand-500/30'
+                        : 'hover:bg-surface-850 border border-transparent'
+                    }`}
+                  >
+                    <Avatar name={m.name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-surface-200 truncate">{m.name}</p>
+                    </div>
+                    {isSelected && <Check size={12} className="text-brand-400 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         <Field label="Due Date" htmlFor="task-due">

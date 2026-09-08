@@ -60,7 +60,7 @@ export function PeoplePage() {
   const allStats = useMemo<PersonStats[]>(() => {
     return members.map((member) => {
       const memberProjects = projects.filter((p) => p.members.some(m => m.userId === member.id));
-      const assignedTasks = tasks.filter((t) => t.assigneeId === member.id);
+      const assignedTasks = tasks.filter((t) => t.assigneeIds?.includes(member.id));
       const completedTasks = assignedTasks.filter((t) => t.sprintStatus === 'done').length;
       const activeTasks = assignedTasks.filter(
         (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',

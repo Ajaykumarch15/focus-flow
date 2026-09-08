@@ -19,8 +19,7 @@ export interface TeamTodayItem {
   taskId: string;
   title: string;
   priority: CollaborativeTask['priority'];
-  assigneeId: string | null;
-  assigneeName: string | null;
+  assigneeIds: string[];
   assignedToMe: boolean;
   branch: string | null;
   updatedAt: number;
@@ -41,14 +40,12 @@ function toMs(value: string): number {
 export function selectTeamToday(
   workspaceTasks: Pick<
     CollaborativeTask,
-    'id' | 'title' | 'priority' | 'assigneeId' | 'sprintStatus' | 'gitContext' | 'updatedAt'
+    'id' | 'title' | 'priority' | 'assigneeIds' | 'sprintStatus' | 'gitContext' | 'updatedAt'
   >[],
   members: Pick<WorkspaceMember, 'id' | 'name' | 'status' | 'currentFocusTask' | 'currentFocusTimeMs'>[],
   userId: string | null,
   limit = 6,
 ): TeamTodayView {
-  const memberById = new Map(members.map((m) => [m.id, m]));
-
   const working = members
     .filter((m) => m.status === 'in_focus')
     .map((m) => ({
@@ -61,14 +58,12 @@ export function selectTeamToday(
   const inProgress = workspaceTasks
     .filter((t) => t.sprintStatus === 'in_progress')
     .map((t) => {
-      const assignee = t.assigneeId ? memberById.get(t.assigneeId) : undefined;
       return {
         taskId: t.id,
         title: t.title,
         priority: t.priority,
-        assigneeId: t.assigneeId ?? null,
-        assigneeName: assignee?.name ?? null,
-        assignedToMe: Boolean(t.assigneeId && userId && t.assigneeId === userId),
+        assigneeIds: t.assigneeIds ?? [],
+        assignedToMe: Boolean(t.assigneeIds?.includes(userId ?? '')),
         branch: t.gitContext?.branch ?? null,
         updatedAt: toMs(t.updatedAt),
       };

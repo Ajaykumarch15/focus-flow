@@ -204,9 +204,11 @@ export const useKanbanStore = create<KanbanState>((set) => ({
         name,
         color: labelColorMap[name.toLowerCase()] ?? '#6b7280',
       }));
-      const assignees = ct.assigneeId
-        ? [{ id: ct.assigneeId, name: members[ct.assigneeId]?.name ?? ct.assigneeId, avatar: members[ct.assigneeId]?.avatar }]
-        : [];
+      const assignees = (ct.assigneeIds ?? []).map((id) => ({
+        id,
+        name: members[id]?.name ?? id,
+        avatar: members[id]?.avatar,
+      }));
       return {
         id: ct.id,
         title: ct.title,

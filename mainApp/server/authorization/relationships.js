@@ -247,17 +247,17 @@ function isUserIdInTeam(userId, team) {
 // ── Task relationships ───────────────────────────────────────────────────────
 
 /**
- * Check whether a user is the task assignee.
+ * Check whether a user is a task assignee.
  *
- * Uses task.assigneeId.
+ * Uses task.assigneeIds (array).
  *
  * @param {object} user - The user document.
  * @param {object} task - The task document.
  * @returns {boolean}
  */
 function isTaskAssignee(user, task) {
-  if (!user || !task || !task.assigneeId) return false;
-  return String(task.assigneeId) === String(user._id);
+  if (!user || !task || !Array.isArray(task.assigneeIds)) return false;
+  return task.assigneeIds.some((id) => String(id) === String(user._id));
 }
 
 /**

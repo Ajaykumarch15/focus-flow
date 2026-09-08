@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, MessageSquare, Link2, Trash2, ChevronRight } from 'lucide-react';
+import { X, Calendar, MessageSquare, Link2, Trash2, ChevronRight, Pencil } from 'lucide-react';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
@@ -8,13 +8,15 @@ import { Select } from '@shared/components/ui/Select';
 import { useKanbanStore } from './kanbanStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { DependencyPanel } from '@collab/components/DependencyPanel';
+import { canEditTask } from './taskPermissions';
 import { KANBAN_COLUMNS } from './types';
 import type { KanbanStatus, KanbanPriority } from './types';
 import type { CollaborativeTask } from '@collab/types/collaboration';
 
 export function TaskDetailsPanel() {
-  const { tasks, selectedTaskId, showDetailsPanel, closeDetailsPanel, updateTask, deleteTask, toggleSubtask } =
+  const { tasks, selectedTaskId, showDetailsPanel, closeDetailsPanel, updateTask, deleteTask, toggleSubtask, membersMap } =
     useKanbanStore();
+  const assignTask = useCollaborationStore((s) => s.assignTask);
 
   const task = tasks.find((t) => t.id === selectedTaskId);
   const collabTasks = useCollaborationStore((s) => s.tasks);
@@ -40,6 +42,7 @@ export function TaskDetailsPanel() {
   const subtasksDone = task ? task.subtasks.filter((s) => s.completed).length : 0;
   const subtasksTotal = task ? task.subtasks.length : 0;
   const progress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
+  const canEdit = task ? canEditTask(task) : false;
 
   return (
     <AnimatePresence>
@@ -94,6 +97,7 @@ export function TaskDetailsPanel() {
                   <Select
                     value={task.status}
                     onChange={(e) => updateTask(task.id, { status: e.target.value as KanbanStatus })}
+                    disabled={!canEdit}
                     className="text-xs"
                   >
                     {KANBAN_COLUMNS.map((col) => (
@@ -106,6 +110,7 @@ export function TaskDetailsPanel() {
                   <Select
                     value={task.priority}
                     onChange={(e) => updateTask(task.id, { priority: e.target.value as KanbanPriority })}
+                    disabled={!canEdit}
                     className="text-xs"
                   >
                     <option value="low">Low</option>
@@ -143,10 +148,38 @@ export function TaskDetailsPanel() {
               )}
 
               {/* Assignees */}
-              {task.assignees.length > 0 && (
-                <div>
-                  <label className="block text-xs font-semibold text-surface-400 mb-2">Assignees</label>
-                  <div className="flex items-center gap-2">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-surface-400">
+                    Assignees {task.assignees.length > 0 && <span className="text-surface-500">({task.assignees.length})</span>}
+                  </label>
+                  {canEdit && (
+                    <button
+                      onClick={() => {
+                        // Trigger AssigneeDialog via store or simple prompt
+                        const currentIds = task.assignees.map((a) => a.id);
+                        const memberNames = Object.entries(membersMap)
+                          .filter(([id]) => id !== task.ownerId)
+                          .map(([id, m]) => `${m.name} (${id.slice(-4)})`)
+                          .join('\n');
+                        const input = window.prompt(
+                          `Current assignees: ${currentIds.length > 0 ? task.assignees.map(a => a.name).join(', ') : 'None'}\n\nEnter member IDs (comma-separated) from:\n${memberNames}`,
+                          currentIds.join(', '),
+                        );
+                        if (input !== null) {
+                          const ids = input.split(',').map((s) => s.trim()).filter(Boolean);
+                        assignTask(task.id, ids);
+                      }
+                    }}
+                    className="text-[10px] text-surface-500 hover:text-brand-400 transition-colors flex items-center gap-1"
+                  >
+                    <Pencil size={10} />
+                    Edit
+                  </button>
+                  )}
+                </div>
+                {task.assignees.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
                     {task.assignees.map((a) => (
                       <div key={a.id} className="flex items-center gap-2 bg-surface-850 border border-surface-800 rounded-lg px-2.5 py-1.5">
                         <Avatar name={a.name} src={a.avatar} size="xs" />
@@ -154,8 +187,10 @@ export function TaskDetailsPanel() {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <p className="text-xs text-surface-500 italic">No assignees</p>
+                )}
+              </div>
 
               {/* Subtasks */}
               <div>
@@ -205,7 +240,7 @@ export function TaskDetailsPanel() {
                     sprintStatus: task.status === 'done' ? 'done' : task.status === 'review' ? 'review' : task.status === 'doing' ? 'in_progress' : 'backlog',
                     priority: task.priority,
                     ownerId: task.ownerId ?? '',
-                    assigneeId: task.assignees[0]?.id,
+                    assigneeIds: task.assignees.map((a) => a.id),
                     labels: task.labels.map((l) => l.name),
                     dependencies: task.dependencies,
                     estimatedHours: 0,

@@ -9,9 +9,10 @@ import type { KanbanColumnData, KanbanTask } from './types';
 interface KanbanColumnProps {
   column: KanbanColumnData;
   tasks: KanbanTask[];
+  taskPermissions: Record<string, boolean>;
 }
 
-export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ column, tasks, taskPermissions }: KanbanColumnProps) {
   const { openAddModal, openDetailsPanel } = useKanbanStore();
 
   return (
@@ -50,7 +51,7 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
             )}
           >
             {tasks.map((task, index) => (
-              <Draggable key={task.id} draggableId={task.id} index={index}>
+              <Draggable key={task.id} draggableId={task.id} index={index} isDragDisabled={!taskPermissions[task.id]}>
                 {(dragProvided, dragSnapshot) => (
                   <div
                     ref={dragProvided.innerRef}
@@ -60,6 +61,7 @@ export function KanbanColumn({ column, tasks }: KanbanColumnProps) {
                     <KanbanCard
                       task={task}
                       isDragging={dragSnapshot.isDragging}
+                      isDragDisabled={!taskPermissions[task.id]}
                       onClick={() => openDetailsPanel(task.id)}
                     />
                   </div>

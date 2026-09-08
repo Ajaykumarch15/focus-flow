@@ -86,7 +86,7 @@ function makeTask(creatorId = 'user1', assigneeId = null, workspaceRef = null) {
   return {
     _id: 'task1',
     userId: creatorId,
-    assigneeId: assigneeId,
+    assigneeIds: assigneeId ? [assigneeId] : [],
     reviewerId: null,
     workspaceRef: workspaceRef,
   };
@@ -1116,7 +1116,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user3');
     const ws = makeWorkspace('user1', [{ userId: 'user3', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, TASK.VIEW, { workspace: ws, project, task })).toBe(true);
   });
 
@@ -1124,7 +1124,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user3');
     const ws = makeWorkspace('user1', [{ userId: 'user3', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj1', followerIds: ['user3'] };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj1', followerIds: ['user3'] };
     expect(can(user, TASK.VIEW, { workspace: ws, project, task })).toBe(true);
   });
 
@@ -1240,7 +1240,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user3');
     const ws = makeWorkspace('user1', [{ userId: 'user3', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, TASK.APPROVE, { workspace: ws, project, task })).toBe(true);
   });
 
@@ -1248,7 +1248,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user2');
     const ws = makeWorkspace('user1', [{ userId: 'user2', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', reviewerId: 'user2', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], reviewerId: 'user2', workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, TASK.APPROVE, { workspace: ws, project, task })).toBe(false);
   });
 
@@ -1256,7 +1256,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user3');
     const ws = makeWorkspace('user1', [{ userId: 'user3', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, TASK.REQUEST_CHANGES, { workspace: ws, project, task })).toBe(true);
   });
 
@@ -1312,7 +1312,7 @@ describe('can() — Task permissions', () => {
     const user = makeUser('user3');
     const ws = makeWorkspace('user1', [{ userId: 'user3', role: 'Member' }]);
     const project = makeProject('user1', []);
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user2', reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user2'], reviewerId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, TASK.REVIEW, { workspace: ws, project, task })).toBe(true);
   });
 
@@ -1647,7 +1647,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('user1');
     const project = makeProject('user1');
     const log = makeWorklog('user2');
-    const task = { _id: 'task1', userId: 'user2', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user2', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, WORKLOG.VIEW_PROJECT, { workspace: ws, project, resource: log, task })).toBe(true);
   });
 
@@ -1656,7 +1656,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('user1', [{ userId: 'user2', role: 'Admin' }]);
     const project = makeProject('user1');
     const log = makeWorklog('user1');
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user1', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user1'], workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, WORKLOG.VIEW_PROJECT, { workspace: ws, project, resource: log, task })).toBe(true);
   });
 
@@ -1665,7 +1665,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('user1', [{ userId: 'user2', role: 'Member' }]);
     const project = makeProject('user1', ['user2']); // user2 is member, not PM
     const log = makeWorklog('user3');
-    const task = { _id: 'task1', userId: 'user3', assigneeId: 'user3', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user3', assigneeIds: ['user3'], workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, WORKLOG.VIEW_PROJECT, { workspace: ws, project, resource: log, task })).toBe(false);
   });
 
@@ -1675,7 +1675,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('owner', [{ userId: 'user1', role: 'Member' }]);
     const project = makeProject('user1'); // user1 is PM of project A
     const log = makeWorklog('user2');
-    const task = { _id: 'task1', userId: 'user2', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
+    const task = { _id: 'task1', userId: 'user2', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
     expect(can(user, WORKLOG.VIEW_PROJECT, { workspace: ws, project, resource: log, task })).toBe(false);
   });
 
@@ -1694,7 +1694,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('user1');
     const project = makeProject('user1');
     const log = makeWorklog('user2');
-    const task = { _id: 'task1', userId: 'user2', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user2', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, WORKLOG.APPROVE, { workspace: ws, project, resource: log, task })).toBe(true);
   });
 
@@ -1703,7 +1703,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('user1');
     const project = makeProject('user1');
     const log = makeWorklog('user1'); // user1 owns the worklog
-    const task = { _id: 'task1', userId: 'user1', assigneeId: 'user1', workspaceRef: 'ws1', projectRef: 'proj1' };
+    const task = { _id: 'task1', userId: 'user1', assigneeIds: ['user1'], workspaceRef: 'ws1', projectRef: 'proj1' };
     expect(can(user, WORKLOG.APPROVE, { workspace: ws, project, resource: log, task })).toBe(false);
   });
 
@@ -1750,7 +1750,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('owner', [{ userId: 'user1', role: 'Member' }]);
     const project = makeProject('user1'); // PM of project A
     const log = makeWorklog('user2');
-    const task = { _id: 'task1', userId: 'user2', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
+    const task = { _id: 'task1', userId: 'user2', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
     expect(can(user, WORKLOG.APPROVE, { workspace: ws, project, resource: log, task })).toBe(false);
   });
 
@@ -1797,7 +1797,7 @@ describe('can() — Worklog permissions', () => {
     const ws = makeWorkspace('owner', [{ userId: 'user1', role: 'Member' }]);
     const project = makeProject('user1'); // PM of project A
     const log = makeWorklog('user2');
-    const task = { _id: 'task1', userId: 'user2', assigneeId: 'user2', workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
+    const task = { _id: 'task1', userId: 'user2', assigneeIds: ['user2'], workspaceRef: 'ws1', projectRef: 'proj2' }; // project B
     expect(can(user, WORKLOG.VIEW_PROJECT, { workspace: ws, project, resource: log, task })).toBe(false);
   });
 

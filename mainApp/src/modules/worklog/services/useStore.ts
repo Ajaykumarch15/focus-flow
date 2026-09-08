@@ -317,11 +317,15 @@ export const useStore = create<StoreState>((set, get) => {
         const belongsToUser = (doc: any): boolean => {
           if (!currentUserId) return true;
           const norm = (v: any) => (v ? String(v._id ?? v) : null);
-          const assignee = norm(doc.assigneeId);
+          const assigneeIds: string[] = Array.isArray(doc.assigneeIds)
+            ? doc.assigneeIds.map((id: any) => norm(id))
+            : doc.assigneeId
+              ? [norm(doc.assigneeId)]
+              : [];
           const owner = norm(doc.userId);
           const reviewer = norm(doc.reviewerId);
           return (
-            assignee === currentUserId ||
+            assigneeIds.includes(currentUserId) ||
             owner === currentUserId ||
             reviewer === currentUserId
           );

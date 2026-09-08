@@ -6,7 +6,7 @@ function task(overrides: Record<string, unknown> = {}) {
     id: 't-1',
     title: 'Ship the dashboard',
     priority: 'medium',
-    assigneeId: 'm-1',
+    assigneeIds: ['m-1'],
     sprintStatus: 'in_progress',
     gitContext: undefined,
     updatedAt: '2026-08-05T09:00:00Z',
@@ -60,20 +60,20 @@ describe('selectTeamToday (S3-T4 Mission Control)', () => {
   });
 
   it('resolves the assignee name from the member roster', () => {
-    const tasks = [task({ id: 't-1', assigneeId: 'm-1' })];
+    const tasks = [task({ id: 't-1', assigneeIds: ['m-1'] })];
     const view = selectTeamToday(tasks as any, [member({ id: 'm-1' })] as any, null);
-    expect(view.inProgress[0].assigneeName).toBe('Ada');
+    expect(view.inProgress[0].assigneeIds).toEqual(['m-1']);
   });
 
-  it('keeps assigneeName null when the assignee is not on the roster', () => {
-    const tasks = [task({ id: 't-1', assigneeId: 'ghost' })];
-    expect(selectTeamToday(tasks as any, [], null).inProgress[0].assigneeName).toBeNull();
+  it('keeps assigneeIds empty when the assignee is not on the roster', () => {
+    const tasks = [task({ id: 't-1', assigneeIds: ['ghost'] })];
+    expect(selectTeamToday(tasks as any, [], null).inProgress[0].assigneeIds).toEqual(['ghost']);
   });
 
   it('marks a task assignedToMe only for the current user', () => {
     const tasks = [
-      task({ id: 't-1', assigneeId: 'm-1' }),
-      task({ id: 't-2', assigneeId: 'm-2' }),
+      task({ id: 't-1', assigneeIds: ['m-1'] }),
+      task({ id: 't-2', assigneeIds: ['m-2'] }),
     ];
     const view = selectTeamToday(tasks as any, [member({ id: 'm-1' })] as any, 'm-1');
     expect(view.inProgress.find((t) => t.taskId === 't-1')?.assignedToMe).toBe(true);
@@ -90,10 +90,10 @@ describe('selectTeamToday (S3-T4 Mission Control)', () => {
 
   it('ranks assigned-to-me first, then priority, then recency', () => {
     const tasks = [
-      task({ id: 'urgent-other', priority: 'urgent', assigneeId: 'm-2', updatedAt: '2026-08-05T09:00:00Z' }),
-      task({ id: 'mine-low', priority: 'low', assigneeId: 'm-1', updatedAt: '2026-08-04T09:00:00Z' }),
-      task({ id: 'high-new', priority: 'high', assigneeId: 'm-2', updatedAt: '2026-08-05T11:00:00Z' }),
-      task({ id: 'high-old', priority: 'high', assigneeId: 'm-2', updatedAt: '2026-08-05T08:00:00Z' }),
+      task({ id: 'urgent-other', priority: 'urgent', assigneeIds: ['m-2'], updatedAt: '2026-08-05T09:00:00Z' }),
+      task({ id: 'mine-low', priority: 'low', assigneeIds: ['m-1'], updatedAt: '2026-08-04T09:00:00Z' }),
+      task({ id: 'high-new', priority: 'high', assigneeIds: ['m-2'], updatedAt: '2026-08-05T11:00:00Z' }),
+      task({ id: 'high-old', priority: 'high', assigneeIds: ['m-2'], updatedAt: '2026-08-05T08:00:00Z' }),
     ];
     const view = selectTeamToday(tasks as any, [member({ id: 'm-1' })] as any, 'm-1');
     expect(view.inProgress.map((t) => t.taskId)).toEqual([

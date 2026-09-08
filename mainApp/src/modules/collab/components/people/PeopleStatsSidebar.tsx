@@ -70,7 +70,7 @@ export function PeopleStatsSidebar() {
 
   const stats = useMemo(() => {
     if (!currentUserMember) return { completed: 0, active: 0, projectCount: 0, productivity: 0 };
-    const assigned = tasks.filter((t) => t.assigneeId === currentUserMember.id);
+    const assigned = tasks.filter((t) => t.assigneeIds?.includes(currentUserMember.id));
     const completed = assigned.filter((t) => t.sprintStatus === 'done').length;
     const active = assigned.filter(
       (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',

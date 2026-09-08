@@ -231,7 +231,7 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
     const res = await fetch(`${baseUrl}/api/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(USER_ID) },
-      body: JSON.stringify(workspaceTaskBody({ assigneeId: OUTSIDER_ID })),
+      body: JSON.stringify(workspaceTaskBody({ assigneeIds: [OUTSIDER_ID] })),
     });
 
     expect(res.status).toBe(400);
@@ -247,11 +247,11 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
     const res = await fetch(`${baseUrl}/api/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(USER_ID) },
-      body: JSON.stringify(workspaceTaskBody({ assigneeId: MEMBER_ID })),
+      body: JSON.stringify(workspaceTaskBody({ assigneeIds: [MEMBER_ID] })),
     });
 
     expect(res.status).toBe(201);
-    expect(create.mock.calls[0][0]).toMatchObject({ assigneeId: MEMBER_ID });
+    expect(create.mock.calls[0][0]).toMatchObject({ assigneeIds: [MEMBER_ID] });
   });
 
   it('rejects patching a workspace task assignee to a non-member with 400', async () => {
@@ -263,7 +263,7 @@ describe('EEP2-P5.1.2 · assignee/reviewer membership (DDS §4.9)', () => {
     const res = await fetch(`${baseUrl}/api/tasks/${TASK_ID}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Cookie: cookie(USER_ID) },
-      body: JSON.stringify({ assigneeId: OUTSIDER_ID }),
+      body: JSON.stringify({ assigneeIds: [OUTSIDER_ID] }),
     });
 
     expect(res.status).toBe(400);

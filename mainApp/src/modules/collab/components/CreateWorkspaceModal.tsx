@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, X, Check, Search } from 'lucide-react';
+import { Building2, X, Check, Search, ShieldCheck } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import type { WorkspaceType } from '@collab/types/collaboration';
 import { api } from '@shared/utils/api';
@@ -24,6 +24,7 @@ interface UserOption {
   name: string;
   email: string;
   avatar?: string;
+  role?: string;
 }
 
 export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalProps) {
@@ -42,7 +43,14 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
     if (!isOpen) return;
     setUsersLoading(true);
     api.users.list()
-      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setUsers(list);
+        const adminIds = list
+          .filter((u) => u.role === 'admin' || u.role === 'superadmin')
+          .map((u) => u._id);
+        setSelectedMembers(new Set(adminIds));
+      })
       .catch(() => setUsers([]))
       .finally(() => setUsersLoading(false));
   }, [isOpen]);
@@ -53,7 +61,11 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
     return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
   }, [users, memberSearch]);
 
+  const isAdminUser = (u: UserOption) => u.role === 'admin' || u.role === 'superadmin';
+
   const toggleMember = (userId: string) => {
+    const user = users.find((u) => u._id === userId);
+    if (user && isAdminUser(user)) return; // admins can't be toggled
     setSelectedMembers((prev) => {
       const next = new Set(prev);
       if (next.has(userId)) next.delete(userId);
@@ -66,18 +78,21 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
     e.preventDefault();
     if (!name.trim() || saving) return;
     setSaving(true);
-    const members = Array.from(selectedMembers).map((userId) => ({
-      userId,
-      role: 'nonadmin' as const,
-      isProjectManager: false,
-    }));
+    const members = Array.from(selectedMembers).map((userId) => {
+      const user = users.find((u) => u._id === userId);
+      return {
+        userId,
+        role: (user?.role === 'superadmin' ? 'superadmin' : user?.role === 'admin' ? 'admin' : 'nonadmin') as 'superadmin' | 'admin' | 'nonadmin',
+        isProjectManager: false,
+      };
+    });
     const created = await createWorkspace(name.trim(), type, description.trim(), members.length > 0 ? members : undefined);
     setSaving(false);
     if (created) {
       setName('');
       setType('Startup');
       setDescription('');
-      setSelectedMembers(new Set());
+      setSelectedMembers(new Set(users.filter((u) => isAdminUser(u)).map((u) => u._id)));
       setMemberSearch('');
       onClose();
     }
@@ -170,15 +185,19 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
               ) : (
                 filteredUsers.map((u) => {
                   const isSelected = selectedMembers.has(u._id);
+                  const locked = isAdminUser(u);
                   return (
                     <button
                       key={u._id}
                       type="button"
                       onClick={() => toggleMember(u._id)}
+                      disabled={locked}
                       className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
-                        isSelected
-                          ? 'bg-brand-500/10 border border-brand-500/30'
-                          : 'hover:bg-surface-850 border border-transparent'
+                        locked
+                          ? 'opacity-70 cursor-not-allowed bg-brand-500/5 border border-brand-500/20'
+                          : isSelected
+                            ? 'bg-brand-500/10 border border-brand-500/30'
+                            : 'hover:bg-surface-850 border border-transparent'
                       }`}
                     >
                       <Avatar name={u.name || u.email} size="sm" />
@@ -186,7 +205,11 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
                         <p className="text-xs text-surface-200 truncate">{u.name || u.email}</p>
                         <p className="text-[10px] text-surface-500 truncate">{u.email}</p>
                       </div>
-                      {isSelected && <Check size={12} className="text-brand-400 shrink-0" />}
+                      {locked ? (
+                        <ShieldCheck size={12} className="text-brand-400 shrink-0" />
+                      ) : isSelected ? (
+                        <Check size={12} className="text-brand-400 shrink-0" />
+                      ) : null}
                     </button>
                   );
                 })

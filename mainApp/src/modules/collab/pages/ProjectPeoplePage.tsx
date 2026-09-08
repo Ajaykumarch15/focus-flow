@@ -67,7 +67,7 @@ export function ProjectPeoplePage() {
       .filter((m) => projectMemberIds.has(m.id))
       .map((member) => {
         const memberProjects = projects.filter((p) => p.members.some((m) => m.userId === member.id));
-        const assignedTasks = projectTasks.filter((t) => t.assigneeId === member.id);
+        const assignedTasks = projectTasks.filter((t) => t.assigneeIds?.includes(member.id));
         const completedTasks = assignedTasks.filter((t) => t.sprintStatus === 'done').length;
         const activeTasks = assignedTasks.filter(
           (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',

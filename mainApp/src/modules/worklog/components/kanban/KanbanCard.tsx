@@ -12,10 +12,11 @@ interface KanbanCardProps {
   onClick?: () => void;
   onMenuClick?: (e: React.MouseEvent) => void;
   isDragging?: boolean;
+  isDragDisabled?: boolean;
 }
 
 export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
-  ({ task, onClick, onMenuClick, isDragging }, ref) => {
+  ({ task, onClick, onMenuClick, isDragging, isDragDisabled }, ref) => {
     const allTasks = useKanbanStore((s) => s.tasks);
     const worklogTaskIds = useKanbanStore((s) => s.worklogTaskIds);
     const navigate = useNavigate();
@@ -67,8 +68,10 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
         ref={ref}
         onClick={onClick}
         className={cn(
-          'bg-surface-900 border border-surface-800 rounded-xl p-3.5 cursor-pointer relative',
-          'hover:border-surface-700 hover:shadow-sm transition-all duration-200',
+          'bg-surface-900 border border-surface-800 rounded-xl p-3.5 relative',
+          isDragDisabled
+            ? 'cursor-default opacity-60'
+            : 'cursor-pointer hover:border-surface-700 hover:shadow-sm transition-all duration-200',
           'dark:bg-surface-850 dark:border-surface-800 dark:hover:border-surface-700',
           isDragging && 'opacity-90 shadow-lg border-brand-500/30',
         )}

@@ -34,7 +34,7 @@ export function TeamDetailPage() {
 
   const teamStats = useMemo(() => {
     const memberIds = new Set(teamMembers.map((m) => m.id));
-    const teamTasks = tasks.filter((t) => t.assigneeId && memberIds.has(t.assigneeId));
+    const teamTasks = tasks.filter((t) => t.assigneeIds?.some((id) => memberIds.has(id)));
     const doneTasks = teamTasks.filter((t) => t.sprintStatus === 'done').length;
     const activeTasks = teamTasks.filter(
       (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',

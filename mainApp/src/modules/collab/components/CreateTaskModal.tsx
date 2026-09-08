@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { CheckSquare, X, UserPlus } from 'lucide-react';
+import { CheckSquare, X, UserPlus, Check } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Select } from '@shared/components/ui/Select';
+import { Avatar } from '@shared/components/ui/Avatar';
 
 interface CreateTaskModalProps {
   isOpen: boolean;
@@ -30,7 +31,7 @@ export function CreateTaskModal({
   const [featureId, setFeatureId] = useState(defaultFeatureId ?? '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [assigneeId, setAssigneeId] = useState(me);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>([me]);
   const [reviewerId, setReviewerId] = useState('');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [sprintStatus, setSprintStatus] = useState<'backlog' | 'ready' | 'in_progress' | 'review' | 'done'>('backlog');
@@ -44,7 +45,7 @@ export function CreateTaskModal({
     setFeatureId(defaultFeatureId ?? '');
     setTitle('');
     setDescription('');
-    setAssigneeId(useAuthStore.getState().user?._id ?? '');
+    setAssigneeIds([useAuthStore.getState().user?._id ?? '']);
     setReviewerId('');
     setPriority('medium');
     setSprintStatus('backlog');
@@ -75,7 +76,7 @@ export function CreateTaskModal({
       projectId,
       sprintId: sprintId || undefined,
       featureId: featureId || undefined,
-      assigneeId: assigneeId || undefined,
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       reviewerId: reviewerId || undefined,
       priority,
       sprintStatus,
@@ -169,16 +170,35 @@ export function CreateTaskModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-surface-300 mb-1.5 flex items-center gap-1">
-                <UserPlus size={12} className="text-brand-400" /> Assignee
+                <UserPlus size={12} className="text-brand-400" /> Assignees {assigneeIds.length > 0 && <span className="text-brand-400">({assigneeIds.length})</span>}
               </label>
-              <Select name="assigneeId" aria-label="Assignee"
-                value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}
-                className="bg-surface-850 border border-surface-700 text-sm text-surface-50 rounded-xl px-3 py-2.5 outline-none w-full">
-                <option value="">Unassigned</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
-              </Select>
+              <div className="max-h-32 overflow-y-auto space-y-1 rounded-xl border border-surface-800 bg-surface-900/50 p-2">
+                {members.map((m) => {
+                  const isSelected = assigneeIds.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setAssigneeIds((prev) =>
+                          prev.includes(m.id) ? prev.filter((id) => id !== m.id) : [...prev, m.id],
+                        );
+                      }}
+                      className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
+                        isSelected
+                          ? 'bg-brand-500/10 border border-brand-500/30'
+                          : 'hover:bg-surface-850 border border-transparent'
+                      }`}
+                    >
+                      <Avatar name={m.name} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-surface-200 truncate">{m.name}</p>
+                      </div>
+                      {isSelected && <Check size={12} className="text-brand-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-surface-300 mb-1.5">Reviewer</label>
@@ -186,7 +206,7 @@ export function CreateTaskModal({
                 value={reviewerId} onChange={(e) => setReviewerId(e.target.value)}
                 className="bg-surface-850 border border-surface-700 text-sm text-surface-50 rounded-xl px-3 py-2.5 outline-none w-full">
                 <option value="">None</option>
-                {members.filter((m) => m.id !== assigneeId).map((m) => (
+                {members.filter((m) => !assigneeIds.includes(m.id)).map((m) => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}
               </Select>

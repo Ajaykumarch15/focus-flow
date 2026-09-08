@@ -94,7 +94,7 @@ const collabCreateFields = {
   projectId: objectId.optional(),
   sprintId: objectId.optional(),
   featureId: objectId.optional(),
-  assigneeId: objectId.optional(),
+  assigneeIds: z.array(objectId).optional(),
   reviewerId: objectId.optional(),
   followerIds: z.array(objectId).max(100, 'Too many followers').optional(),
   labels: z.array(z.string().trim().max(50, 'Label too long')).max(50, 'Too many labels').optional(),
@@ -122,7 +122,7 @@ const taskPatchSchema = z.object({
   // labels/dependencies/hours persist via this route. Refs (workspace/project/
   // sprint/feature) stay managed by the sprint/feature routes, not here.
   sprintStatus: z.enum(COLLAB_TASK_STATUS).optional(),
-  assigneeId: objectId.optional(),
+  assigneeIds: z.array(objectId).optional(),
   reviewerId: objectId.optional(),
   followerIds: z.array(objectId).max(100, 'Too many followers').optional(),
   labels: z.array(z.string().trim().max(50, 'Label too long')).max(50, 'Too many labels').optional(),
@@ -163,7 +163,7 @@ const TASK_PATCH_FIELDS = {
   tags: true,
   // IES-R1 (P5-T3): collab writable fields (see taskPatchSchema above).
   sprintStatus: true,
-  assigneeId: true,
+  assigneeIds: true,
   reviewerId: true,
   followerIds: true,
   labels: true,
@@ -428,7 +428,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
     const {
       workspaceId, projectId, sprintId, featureId,
-      assigneeId, reviewerId, followerIds, labels, dependencies,
+      assigneeIds, reviewerId, followerIds, labels, dependencies,
       estimatedHours, actualHours, sprintStatus, gitContext,
       roadmapRef, phaseRef, milestoneRef,
       workspaceContext,
@@ -462,7 +462,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
       // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
       const memberChecks = [
-        { id: assigneeId, field: 'Assignee' },
+        ...(Array.isArray(assigneeIds) ? assigneeIds.map(id => ({ id, field: 'Assignee' })) : []),
         { id: reviewerId, field: 'Reviewer' },
       ].filter((c) => c.id !== undefined);
       for (const c of memberChecks) {
@@ -509,7 +509,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         phaseRef: phaseRef || undefined,
         milestoneRef: milestoneRef || undefined,
         workspaceContext: workspaceContext || 'personal',
-        assigneeId: assigneeId ?? undefined,
+        assigneeIds: assigneeIds || [],
         reviewerId: reviewerId ?? undefined,
         followerIds: followerIds || [],
         labels: labels || [],
@@ -638,7 +638,7 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
     // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
     if (existing.workspaceRef) {
       const memberChecks = [
-        { id: patch.assigneeId, field: 'Assignee' },
+        ...(Array.isArray(patch.assigneeIds) ? patch.assigneeIds.map(id => ({ id, field: 'Assignee' })) : []),
         { id: patch.reviewerId, field: 'Reviewer' },
       ].filter((c) => c.id !== undefined);
       for (const c of memberChecks) {
