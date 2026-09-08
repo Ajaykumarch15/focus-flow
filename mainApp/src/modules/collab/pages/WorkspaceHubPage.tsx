@@ -5,7 +5,6 @@ import {
   ArrowLeft, Users, FolderOpen, LayoutGrid, Settings, Activity, ChevronRight,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { cn } from '@shared/utils/cn';
@@ -79,7 +78,6 @@ const SECTION_CARDS = [
 export function WorkspaceHubPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   const { workspaces, loadProjects, loadMembers } = useCollaborationStore();
 
   const workspace = workspaces.find((w) => w.id === workspaceId);

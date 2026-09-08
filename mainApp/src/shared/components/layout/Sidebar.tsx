@@ -2,7 +2,7 @@ import { NavLink, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
-  Settings, LogOut, BookMarked, LineChart, Activity, Trophy, ShieldCheck,
+  Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
   History, Library, Map, BarChart3, Calendar, CalendarDays, Clock, Brain, Lightbulb,
   FolderOpen, Bell, HelpCircle, ChevronRight, User,
 } from 'lucide-react';

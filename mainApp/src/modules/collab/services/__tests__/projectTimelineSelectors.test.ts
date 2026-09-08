@@ -99,7 +99,7 @@ const member = (id: string, name: string): WorkspaceMember => ({
   id,
   name,
   email: `${id}@focusflow.io`,
-  role: 'Member',
+  role: 'nonadmin',
   teams: [],
   status: 'available',
   joinedAt: '2026-01-01',

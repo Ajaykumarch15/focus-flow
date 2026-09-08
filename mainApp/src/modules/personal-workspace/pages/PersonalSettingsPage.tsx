@@ -1,10 +1,8 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Check, Target, Clock, Trophy } from 'lucide-react';
+import { ArrowLeft, Check, Target, Clock, Trophy } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
-import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
@@ -31,7 +29,6 @@ const TIMEZONE_OPTIONS = [
 export function PersonalSettingsPage() {
   const navigate = useNavigate();
   const { profile, updateProfile } = useStore();
-  const { user } = useAuthStore();
   const [saved, setSaved] = useState(false);
 
   const [dailyGoal, setDailyGoal] = useState(profile.dailyGoal);

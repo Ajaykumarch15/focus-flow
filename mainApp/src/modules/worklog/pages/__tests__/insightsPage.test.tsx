@@ -119,6 +119,7 @@ function seededStore() {
     profile: {
       name: 'Ada',
       dailyGoal: 8 * HOUR,
+      personalDailyGoal: 6 * HOUR,
       timezone: 'UTC',
       streak: { current: 0, best: 0, lastDate: '' },
       totalPoints: 0,
