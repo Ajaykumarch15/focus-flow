@@ -131,6 +131,7 @@ export interface LinkedProject {
   name: string;
   googleFolderId?: string;
   workLogsFolderId?: string;
+  workspaceRef?: string;
 }
 
 export interface WorkLog {

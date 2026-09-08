@@ -8,6 +8,7 @@
     "migrate": "node migrations/run.js",
     "migrate:roles": "node migrations/001_role_migration.js",
     "seed:authorization": "node seeds/authorizationTestSeed.js",
+    "seed:cleanup": "node seeds/cleanupTestData.js",
     "test": "vitest run"
   },
   "dependencies": {

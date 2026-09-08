@@ -26,6 +26,7 @@ import type {
 import { useWorkLogStore } from './useWorkLogStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { toast } from '@shared/services/useToastStore';
 import { generateBrandShades } from '@shared/utils/colorUtils';
@@ -39,7 +40,7 @@ const DEFAULT_THEME: ThemeSettings = {
   glassmorphism: true, animatedBackground: true, reducedMotion: false,
 };
 const DEFAULT_PROFILE: UserProfile = {
-  name: 'Focus Master', dailyGoal: 8,
+  name: 'Focus Master', dailyGoal: 8, personalDailyGoal: 6,
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   streak: { current: 0, best: 0, lastDate: '' },
   totalPoints: 0,
@@ -175,6 +176,7 @@ function mapSettings(userDoc: any) {
     profile: {
       name: userDoc?.name ?? DEFAULT_PROFILE.name,
       dailyGoal: s.dailyGoal ?? DEFAULT_PROFILE.dailyGoal,
+      personalDailyGoal: s.personalDailyGoal ?? DEFAULT_PROFILE.personalDailyGoal,
       timezone: s.timezone ?? DEFAULT_PROFILE.timezone,
       streak: userDoc.streak ?? DEFAULT_PROFILE.streak,
       totalPoints: userDoc.totalPoints ?? 0,
@@ -307,7 +309,23 @@ export const useStore = create<StoreState>((set, get) => {
 
         const baseTasks = taskDocs.map(mapTask);
 
-        // Fetch workspace-scoped tasks (assigned to current user)
+        // Fetch workspace-scoped tasks assigned to, created by, or under review
+        // for the current user. A kanban task must surface on a member's Today/
+        // WorkLog view only when it belongs to them (assignee/owner/reviewer) —
+        // never every task for every team member.
+        const currentUserId = useAuthStore.getState().user?._id ?? null;
+        const belongsToUser = (doc: any): boolean => {
+          if (!currentUserId) return true;
+          const norm = (v: any) => (v ? String(v._id ?? v) : null);
+          const assignee = norm(doc.assigneeId);
+          const owner = norm(doc.userId);
+          const reviewer = norm(doc.reviewerId);
+          return (
+            assignee === currentUserId ||
+            owner === currentUserId ||
+            reviewer === currentUserId
+          );
+        };
         let workspaceTasks: Task[] = [];
         try {
           const workspaces = await api.workspaces.list();
@@ -319,6 +337,7 @@ export const useStore = create<StoreState>((set, get) => {
           for (const docs of wsTaskResults) {
             if (Array.isArray(docs)) {
               for (const doc of docs) {
+                if (!belongsToUser(doc)) continue;
                 const mapped = mapTask(doc);
                 mapped.workspaceContext = 'collab';
                 workspaceTasks.push(mapped);
@@ -749,6 +768,7 @@ export const useStore = create<StoreState>((set, get) => {
         leaderboardOptIn: updates.leaderboardOptIn ?? current.leaderboardOptIn,
         settings: {
           dailyGoal: updates.dailyGoal ?? current.dailyGoal,
+          personalDailyGoal: updates.personalDailyGoal ?? current.personalDailyGoal,
           timezone: updates.timezone ?? current.timezone,
         },
       }).catch((err) => {

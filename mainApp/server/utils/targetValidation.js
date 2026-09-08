@@ -54,7 +54,7 @@ async function validateTarget(user, { targetType, targetRef }) {
 
       // Owner/Admin of workspace: full access to all workspace resources
       const wsRole = getWorkspaceRole(user, ws);
-      if (wsRole === 'Owner' || wsRole === 'Admin') {
+      if (wsRole === 'admin' || wsRole === 'superadmin') {
         return { ok: true, workspaceRef: task.workspaceRef };
       }
 
@@ -104,7 +104,7 @@ async function validateTarget(user, { targetType, targetRef }) {
 
       // Owner/Admin: full access
       const wsRole = getWorkspaceRole(user, ws);
-      if (wsRole === 'Owner' || wsRole === 'Admin') {
+      if (wsRole === 'admin' || wsRole === 'superadmin') {
         return { ok: true, workspaceRef: project.workspaceRef };
       }
 

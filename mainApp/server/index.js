@@ -87,6 +87,7 @@ const moduleRoutes = require('./routes/modules');            // EEP2-P3.2.3
 const commentRoutes = require('./routes/comments');          // EEP2-P5.3.1
 const attachmentRoutes = require('./routes/attachments');    // EEP2-P5.3.2
 const personalRoadmapIsolatedRoutes = require('./routes/personalRoadmapsIsolated'); // Personal Roadmaps (isolated)
+const usersRoutes = require('./routes/users');                 // User list for member pickers
 const scheduleRoutes = require('./routes/schedules');         // Schedule & Planner
 const personalTaskRoutes = require('./routes/personalTasks'); // Personal Tasks
 const personalSessionRoutes = require('./routes/personalSessions'); // Personal Sessions
@@ -132,6 +133,7 @@ app.use(requestLogger);
 app.get('/auth/google/callback', authRoutes.handleGoogleCallback);
 
 app.use('/api/auth', authRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/journals', journalRoutes);

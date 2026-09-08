@@ -57,9 +57,18 @@ const PersonalSchedule   = lazy(() => import('@personal/pages/PersonalSchedule')
 const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 const WorkspaceListingPage = lazy(() => import('@collab/pages/WorkspaceListingPage').then(module => ({ default: module.WorkspaceListingPage })));
+const WorkspaceHubPage   = lazy(() => import('@collab/pages/WorkspaceHubPage').then(module => ({ default: module.WorkspaceHubPage })));
+const WorkspaceSettingsPage = lazy(() => import('@collab/pages/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
 const PeoplePage       = lazy(() => import('@collab/pages/PeoplePage').then(module => ({ default: module.PeoplePage })));
+const ProjectPeoplePage = lazy(() => import('@collab/pages/ProjectPeoplePage').then(module => ({ default: module.ProjectPeoplePage })));
 const TeamDetailPage   = lazy(() => import('@collab/pages/TeamDetailPage').then(module => ({ default: module.TeamDetailPage })));
 const ActivityFeedPage = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
+const PeopleSettingsPage = lazy(() => import('@collab/pages/PeopleSettingsPage').then(module => ({ default: module.PeopleSettingsPage })));
+const ProjectsSettingsPage = lazy(() => import('@collab/pages/ProjectsSettingsPage').then(module => ({ default: module.ProjectsSettingsPage })));
+const ActivitySettingsPage = lazy(() => import('@collab/pages/ActivitySettingsPage').then(module => ({ default: module.ActivitySettingsPage })));
+const OverviewSettingsPage = lazy(() => import('@collab/pages/OverviewSettingsPage').then(module => ({ default: module.OverviewSettingsPage })));
+const PersonalSettingsPage = lazy(() => import('@personal/pages/PersonalSettingsPage').then(module => ({ default: module.PersonalSettingsPage })));
+const WorklogSettingsPage = lazy(() => import('@worklog/pages/WorklogSettingsPage').then(module => ({ default: module.WorklogSettingsPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -189,6 +198,7 @@ export default function App() {
                 <Route path="/worklog/insights" element={<InsightsPage />} />
                 <Route path="/worklog/habits" element={<Habits />} />
                 <Route path="/worklog/worklog-dashboard" element={<WorkLogDashboard />} />
+                <Route path="/worklog/settings" element={<WorklogSettingsPage />} />
               </Route>
             </Route>
 
@@ -208,6 +218,7 @@ export default function App() {
                 <Route path="/personal/roadmaps/:id/phases/:phaseId/milestones/:milestoneId" element={<RoadmapMilestoneDetail />} />
                 <Route path="/personal/journal" element={<Journal />} />
                 <Route path="/personal/search" element={<SearchResultsPage />} />
+                <Route path="/personal/settings" element={<PersonalSettingsPage />} />
               </Route>
             </Route>
 
@@ -215,14 +226,21 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/collab/workspaces" element={<WorkspaceListingPage />} />
+                <Route path="/collab/:workspaceId" element={<WorkspaceHubPage />} />
                 <Route path="/collab/:workspaceId/dashboard" element={<CollabDashboard />} />
                 <Route path="/collab/:workspaceId/team" element={<ProjectsPage />} />
                 <Route path="/collab/:workspaceId/team/:projectId" element={<ProjectDetailPage />} />
                 <Route path="/collab/:workspaceId/team/:projectId/kanban" element={<ProjectKanbanPage />} />
+                <Route path="/collab/:workspaceId/team/:projectId/people" element={<ProjectPeoplePage />} />
                 <Route path="/collab/:workspaceId/people" element={<PeoplePage />} />
                 <Route path="/collab/:workspaceId/teams/:teamId" element={<TeamDetailPage />} />
                 <Route path="/collab/:workspaceId/leaderboard" element={<Leaderboard />} />
                 <Route path="/collab/:workspaceId/activity" element={<ActivityFeedPage />} />
+                <Route path="/collab/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
+                <Route path="/collab/:workspaceId/people/settings" element={<PeopleSettingsPage />} />
+                <Route path="/collab/:workspaceId/projects/settings" element={<ProjectsSettingsPage />} />
+                <Route path="/collab/:workspaceId/activity/settings" element={<ActivitySettingsPage />} />
+                <Route path="/collab/:workspaceId/overview/settings" element={<OverviewSettingsPage />} />
                 <Route path="/collab/:workspaceId/search" element={<SearchResultsPage />} />
               </Route>
             </Route>

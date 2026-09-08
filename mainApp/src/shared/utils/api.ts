@@ -168,6 +168,10 @@ export const api = {
     logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
   },
 
+  users: {
+    list: () => request<any[]>('/users'),
+  },
+
   tasks: {
     // IES-R1: optional collab filters hit the workspace-scoped GET /tasks
     // (member-gated); omitted, it stays the personal task list.
@@ -386,6 +390,15 @@ export const api = {
       request<any>(`/admin/users/${userId}`, { method: 'DELETE' }),
     restoreUser: (userId: string) =>
       request<any>(`/admin/users/${userId}/restore`, { method: 'POST' }),
+    getOwnerStatus: (userId: string) =>
+      request<{ isOwner: boolean; workspaces: any[] }>(`/admin/users/${userId}/owner-status`),
+    getUserWorkspaces: (userId: string) =>
+      request<any[]>(`/admin/users/${userId}/workspaces`),
+    setWorkspaceRole: (userId: string, data: { workspaceId: string; role: string }) =>
+      request<any>(`/admin/users/${userId}/workspace-role`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
     getSystemAnalytics: (period?: string) => {
       const qs = period ? `?period=${period}` : '';
       return request<any>(`/admin/system-analytics${qs}`);
@@ -445,19 +458,20 @@ export const api = {
       const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
       return request<any[]>(`/projects${qs}`);
     },
-    create: (data: { name: string; workspaceId?: string }) =>
+    create: (data: { name: string; workspaceId?: string; description?: string; members?: Array<{ userId: string; role?: string; isProjectManager?: boolean }> }) =>
       request<any>('/projects', { method: 'POST', body: JSON.stringify(data) }),
     // EEP2-P2.2.1/P2.2.2: single-project read + Project Info PATCH.
     get: (id: string) => request<any>(`/projects/${id}`),
     update: (id: string, data: ProjectPatch) =>
       request<any>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     syncDrive: (id: string) => request<any>(`/projects/${id}/sync-drive`, { method: 'POST' }),
-    addMember: (id: string, data: { email?: string; userId?: string; role: string }) =>
+    addMember: (id: string, data: { email?: string; userId?: string; role: string; isProjectManager?: boolean }) =>
       request<any>(`/projects/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
-    updateMemberRole: (id: string, userId: string, data: { role: string }) =>
+    updateMemberRole: (id: string, userId: string, data: { role: string; isProjectManager?: boolean }) =>
       request<any>(`/projects/${id}/members/${userId}`, { method: 'PATCH', body: JSON.stringify(data) }),
     removeMember: (id: string, userId: string) =>
       request<any>(`/projects/${id}/members/${userId}`, { method: 'DELETE' }),
+    remove: (id: string) => request<any>(`/projects/${id}`, { method: 'DELETE' }),
   },
 
   // IES-R1: real Sprint CRUD backed by the Phase 3 route (server/routes/sprints.js).
@@ -544,7 +558,7 @@ export const api = {
   workspaces: {
     list: () => request<any[]>('/workspaces'),
     get: (id: string) => request<any>(`/workspaces/${id}`),
-    create: (data: { name: string; type?: string; icon?: string; description?: string; settings?: Record<string, any> }) =>
+    create: (data: { name: string; type?: string; icon?: string; description?: string; settings?: Record<string, any>; members?: Array<{ userId: string; role?: string; isProjectManager?: boolean }> }) =>
       request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, any>) =>
       request<any>(`/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

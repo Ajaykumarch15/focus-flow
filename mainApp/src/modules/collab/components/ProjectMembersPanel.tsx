@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardBody } from '@shared/components/ui/Car
 import { Badge } from '@shared/components/ui/Badge';
 import { api } from '@shared/utils/api';
 
-const ROLE_OPTIONS: ProjectMemberRole[] = ['Manager', 'Editor', 'Viewer'];
+const ROLE_OPTIONS: ProjectMemberRole[] = ['admin', 'nonadmin'];
 
 export function ProjectMembersPanel({ projectId, canManage = true }: { projectId: string; canManage?: boolean }) {
   const project = useCollaborationStore((s) => s.projects.find((p) => p.id === projectId));
@@ -18,7 +18,7 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
   const [localMembers, setLocalMembers] = useState<ProjectMember[]>([]);
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<ProjectMemberRole>('Editor');
+  const [inviteRole, setInviteRole] = useState<ProjectMemberRole>('nonadmin');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -84,7 +84,7 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
   const handleSave = () => {
     if (!isDirty) return;
     const patch: ProjectPatch = {};
-    patch.members = localMembers.map(m => ({ userId: m.userId, role: m.role }));
+    patch.members = localMembers.map(m => ({ userId: m.userId, role: m.role, isProjectManager: m.isProjectManager }));
     patch.teamIds = selectedTeams;
     updateProjectMeta(project.id, patch);
     setSaved(true);
@@ -126,7 +126,7 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
-                    {canManage && pm.role !== 'Manager' && (
+                    {canManage && !pm.isProjectManager && (
                       <button
                         onClick={() => handleRemoveMember(pm.userId)}
                         className="text-surface-500 hover:text-red-400 transition-colors"

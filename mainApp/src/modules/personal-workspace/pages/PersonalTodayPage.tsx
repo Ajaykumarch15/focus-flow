@@ -92,7 +92,7 @@ export function PersonalTodayPage() {
     return personalTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt).getTime() >= sod).length;
   }, [personalTasks]);
 
-  const dailyGoalMs = profile.dailyGoal * 3600000;
+  const dailyGoalMs = profile.personalDailyGoal * 3600000;
   const progressPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : null;
   const remainingMs = progressPct !== null ? Math.max(0, dailyGoalMs - todayMs) : null;
 
@@ -229,7 +229,7 @@ const startTask = (task: Task) => {
                   <div className="text-4xl font-display font-extrabold text-surface-50 leading-none mt-3">{progressPct}%</div>
                   <Progress value={progressPct} tone={progressPct >= 100 ? 'success' : 'brand'} className="mt-3" ariaLabel="Daily goal progress" />
                   <p className="text-sm font-semibold text-surface-200 mt-2 pt-3 border-t border-surface-800/70">
-                    {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
+                    {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.personalDailyGoal}h
                   </p>
                   {remainingMs != null && remainingMs > 0 && progressPct < 100 && (
                     <p className="text-xs text-surface-400 mt-0.5">{formatMs(remainingMs)} remaining today</p>
@@ -264,7 +264,7 @@ const startTask = (task: Task) => {
       {/* KEY METRICS */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Stat icon={<Clock size={18} className="text-amber-700 dark:text-amber-500" />} label="Today's Focus Time"
-          value={formatHours(todayMs)} sub={`Target: ${profile.dailyGoal}h`}
+          value={formatHours(todayMs)} sub={`Target: ${profile.personalDailyGoal}h`}
           gradient="linear-gradient(135deg, #FDE8D0, #F9D4B0)" iconBg="#F5C89A"
           darkBg="#3A2B1C" darkBorder="#5A4025"
           onExpand={() => navigate('/personal/analytics')} />

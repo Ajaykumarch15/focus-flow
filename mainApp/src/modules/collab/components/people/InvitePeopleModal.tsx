@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 import { api } from '@shared/utils/api';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Button } from '@shared/components/ui/Button';
@@ -12,10 +13,14 @@ interface InvitePeopleModalProps {
 
 export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
   const { teams, activeWorkspaceId } = useCollaborationStore();
+  const { user } = useAuthStore();
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<string>('Member');
+  const [role, setRole] = useState<string>('nonadmin');
   const [teamId, setTeamId] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isSuperAdmin = (user?.roleId?.level ?? 0) === 100;
+  const availableRoles = isSuperAdmin ? ['nonadmin', 'admin', 'superadmin'] : ['nonadmin', 'admin'];
 
   const handleSubmit = async () => {
     if (!email.trim() || !activeWorkspaceId) return;
@@ -24,7 +29,7 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
       await api.workspaces.invite(activeWorkspaceId, { email: email.trim(), role });
       toast.success('Invite sent', `An invitation has been sent to ${email}`);
       setEmail('');
-      setRole('Member');
+      setRole('nonadmin');
       setTeamId('');
       onClose();
     } catch (err: any) {
@@ -38,7 +43,7 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
   const handleClose = () => {
     if (!loading) {
       setEmail('');
-      setRole('Member');
+      setRole('nonadmin');
       setTeamId('');
       onClose();
     }
@@ -89,8 +94,9 @@ export function InvitePeopleModal({ open, onClose }: InvitePeopleModalProps) {
             onChange={(e) => setRole(e.target.value)}
             className="input appearance-none text-sm cursor-pointer"
           >
-            <option value="Member">Member</option>
-            <option value="Admin">Admin</option>
+            {availableRoles.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
           </select>
         </div>
 

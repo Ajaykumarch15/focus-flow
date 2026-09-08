@@ -1,7 +1,7 @@
 export type WorkspaceType = 'Personal' | 'Startup' | 'College Project' | 'Open Source' | 'Internship' | 'Enterprise';
-// Phase 9: canonical workspace roles are Owner, Admin, Member.
-// Legacy values (Manager, Developer, Viewer) are no longer valid.
-export type MemberRole = 'Owner' | 'Admin' | 'Member';
+// UNIFIED ROLE SYSTEM: All roles use the same three levels: superadmin, admin, nonadmin.
+// Project manager is a designation granted to nonadmin users, not a separate role level.
+export type MemberRole = 'superadmin' | 'admin' | 'nonadmin';
 export type MemberStatus = 'available' | 'in_focus' | 'away' | 'in_meeting' | 'offline';
 export type SprintStatus = 'backlog' | 'ready' | 'in_progress' | 'review' | 'done';
 export type BlockerSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -15,6 +15,7 @@ export interface WorkspaceMember {
   email: string;
   avatar?: string;
   role: MemberRole;
+  isProjectManager?: boolean;
   teams: string[]; // e.g. ['Frontend', 'AI']
   status: MemberStatus;
   currentFocusTask?: string;
@@ -40,6 +41,7 @@ export interface Workspace {
   membersCount: number;
   projectsCount: number;
   createdAt: string;
+  role?: string;
   settings: {
     allowMemberInvites: boolean;
     requireReviewForDone: boolean;
@@ -112,11 +114,13 @@ export interface ProjectSettings {
   defaultVisibility: 'Private' | 'Team' | 'Project' | 'Workspace';
 }
 
-export type ProjectMemberRole = 'Manager' | 'Editor' | 'Viewer';
+// UNIFIED ROLE SYSTEM: Project member roles use the same three levels.
+export type ProjectMemberRole = 'superadmin' | 'admin' | 'nonadmin';
 
 export interface ProjectMember {
   userId: string;
   role: ProjectMemberRole;
+  isProjectManager?: boolean;
   addedAt?: string;
   name?: string;
   email?: string;

@@ -4,6 +4,7 @@ import { CheckCircle2, Zap, FolderOpen, TrendingUp } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { Avatar } from '@shared/components/ui/Avatar';
+import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 
 interface CircularProgressProps {
@@ -93,7 +94,7 @@ export function PeopleStatsSidebar() {
   }, [currentUserMember, projects]);
 
   const displayName = user?.name || currentUserMember?.name || 'Team Member';
-  const displayRole = currentUserMember?.role || 'Member';
+  const displayRole = getRoleDisplayName(currentUserMember?.role || 'nonadmin');
 
   return (
     <aside className="w-full lg:w-80 shrink-0 space-y-5">

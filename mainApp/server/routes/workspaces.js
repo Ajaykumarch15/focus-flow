@@ -1,9 +1,9 @@
 // IES-P2-01 · Workspace surface for regular users — CRUD + membership (invite /
 // self-join / role / removal) + team & project scoping. IES-P2-03 pushes the
-// role checks into middleware/workspace.js. Ownership model (SAD §10.3):
+// role checks into middleware/workspace.js. UNIFIED ROLE SYSTEM:
 //   • read          → any workspace member
-//   • mutate         → Owner | Admin (MANAGER_ROLES)
-//   • delete / owner → Owner only
+//   • mutate         → admin | superadmin
+//   • delete / owner → superadmin only
 // The admin surface (server/routes/admin.js + teams.js analytics) is untouched.
 const express = require('express');
 const Workspace = require('../models/Workspace');
@@ -52,6 +52,8 @@ const settingsSchema = z
   })
   .passthrough();
 
+const NEW_MEMBER_ROLES = ['admin', 'nonadmin'];
+
 const workspaceCreateSchema = z
   .object({
     name: requiredString(100, 'name', 'Workspace name is required'),
@@ -59,6 +61,11 @@ const workspaceCreateSchema = z
     icon: z.string().max(20, 'Icon too long').optional(),
     description: z.string().max(2000, 'Description too long').optional(),
     settings: settingsSchema.optional(),
+    members: z.array(z.object({
+      userId: objectId,
+      role: z.enum(NEW_MEMBER_ROLES).optional(),
+      isProjectManager: z.boolean().optional(),
+    })).max(200).optional(),
   })
   .passthrough();
 
@@ -75,23 +82,22 @@ const activityQuerySchema = z
   })
   .passthrough();
 
-// Phase 2: new invites should only use Admin or Member. Legacy roles are still
-// accepted for backward compatibility during transition but are not offered in
-// the UI.
-const NEW_INVITE_ROLES = ['Admin', 'Member'];
+// UNIFIED ROLE SYSTEM: new invites use unified roles.
+const NEW_INVITE_ROLES = ['admin', 'nonadmin'];
+const SUPER_ADMIN_ROLES = ['admin', 'nonadmin', 'superadmin'];
 
 const memberInviteSchema = z
   .object({
     userId: objectId.optional(),
     email: z.string().trim().max(255).optional(),
-    role: z.enum(NEW_INVITE_ROLES).optional(),
+    role: z.string().optional(),
   })
   .refine((d) => d.userId || d.email, 'Provide userId or email')
   .passthrough();
 
 // Phase 2: role PATCH only allows Admin or Member — Owner transfer is a
 // separate high-privilege operation and must NOT go through this endpoint.
-const memberRoleSchema = z.object({ role: z.enum(NEW_INVITE_ROLES) }).passthrough();
+const memberRoleSchema = z.object({ role: z.string() }).passthrough();
 
 // ── membership helpers ────────────────────────────────────────────────────────
 function activeMembers(ws) {
@@ -165,8 +171,32 @@ router.get('/', async (req, res, next) => {
 // ── POST /api/workspaces ──────────────────────────────────────────────────────
 router.post('/', validate(workspaceCreateSchema), async (req, res, next) => {
   try {
-    const { name, type, icon, description, settings } = req.body;
+    if ((req.user.roleId?.level ?? 0) < 60) {
+      return res.status(403).json({ message: 'Only admins can create workspaces' });
+    }
+    const { name, type, icon, description, settings, members: requestedMembers } = req.body;
     const workspaceType = type || 'Personal';
+
+    // Build members list: creator always admin + selected members
+    const memberDocs = [{ userId: req.user._id, role: 'admin', isProjectManager: true, joinedAt: new Date() }];
+
+    if (Array.isArray(requestedMembers) && requestedMembers.length > 0) {
+      const userIds = requestedMembers.map((m) => m.userId);
+      const validUsers = await User.find({ _id: { $in: userIds }, deletedAt: null }).select('_id');
+      const validIds = new Set(validUsers.map((u) => String(u._id)));
+
+      for (const m of requestedMembers) {
+        if (String(m.userId) === String(req.user._id)) continue; // creator already added
+        if (!validIds.has(String(m.userId))) continue;
+        memberDocs.push({
+          userId: m.userId,
+          role: m.role || 'nonadmin',
+          isProjectManager: !!m.isProjectManager,
+          joinedAt: new Date(),
+        });
+      }
+    }
+
     const ws = await Workspace.create({
       name,
       type: workspaceType,
@@ -174,7 +204,7 @@ router.post('/', validate(workspaceCreateSchema), async (req, res, next) => {
       description: description || '',
       createdBy: req.user._id,
       settings: settings || {},
-      members: [{ userId: req.user._id, role: 'Owner', joinedAt: new Date() }],
+      members: memberDocs,
     });
     const populated = await loadWorkspacePopulated(ws._id);
     res.status(201).json(toWorkspaceJson(populated, req.user._id, 0));
@@ -223,13 +253,33 @@ router.patch('/:id', validate(workspacePatchSchema, { params: workspaceParamsSch
 router.delete('/:id', validate(null, { params: workspaceParamsSchema }), loadWorkspace, requireOwner, async (req, res, next) => {
   try {
     const ws = req.workspace;
+
+    // Find all projects in this workspace so we can cascade-delete their sub-collections
+    const projectIds = (await Project.find({ workspaceRef: ws._id }).select('_id').lean()).map(p => p._id);
+
     await Promise.all([
+      // Delete workspace-scoped data
       Team.deleteMany({ workspaceRef: ws._id }),
-      Project.updateMany({ workspaceRef: ws._id }, { $set: { workspaceRef: null } }),
+      Activity.deleteMany({ workspaceRef: ws._id }),
+      Notification.deleteMany({ workspaceRef: ws._id }),
+      // Delete project sub-collections (tasks, sprints, features, etc.)
+      ...(projectIds.length > 0 ? [
+        require('../models/Task').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Sprint').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Feature').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Milestone').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Module').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Phase').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/WorkLog').deleteMany({ projectRef: { $in: projectIds } }),
+        require('../models/Session').deleteMany({ projectRef: { $in: projectIds } }),
+      ] : []),
+      // Delete projects and workspace
+      Project.deleteMany({ workspaceRef: ws._id }),
       Workspace.findByIdAndDelete(ws._id),
     ]);
+
     res.json({ message: 'Workspace deleted' });
-    Activity.create({ userId: req.user._id, action: 'workspace.deleted', workspaceRef: ws._id, details: { workspaceName: ws.name } }).catch(() => {});
+    Activity.create({ userId: req.user._id, action: 'workspace.deleted', details: { workspaceName: ws.name } }).catch(() => {});
   } catch (err) {
     next(err);
   }
@@ -265,7 +315,15 @@ router.get('/:id/members', validate(null, { params: workspaceParamsSchema }), lo
 router.post('/:id/members', validate(memberInviteSchema, { params: workspaceParamsSchema }), loadWorkspace, requireManager, async (req, res, next) => {
   try {
     const ws = req.workspace;
-    const role = req.body.role || 'Member';
+    const isSuperAdmin = req.user.roleId && req.user.roleId.level === 100;
+    const role = req.body.role || 'nonadmin';
+
+    // Non-super-admins can only assign nonadmin or admin
+    const allowedRoles = isSuperAdmin ? SUPER_ADMIN_ROLES : NEW_INVITE_ROLES;
+    if (role && !allowedRoles.includes(role)) {
+      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
+
     let target = null;
     if (req.body.userId) {
       target = await User.findOne({ _id: req.body.userId, deletedAt: null }).select('_id');
@@ -310,7 +368,7 @@ router.post('/:id/join', validate(null, { params: workspaceParamsSchema }), load
       return res.status(403).json({ message: 'This workspace does not accept self-join requests' });
     }
 
-    ws.members.push({ userId: req.user._id, role: 'Member', joinedAt: new Date() });
+    ws.members.push({ userId: req.user._id, role: 'nonadmin', joinedAt: new Date() });
     await ws.save();
     const updated = await loadWorkspacePopulated(ws._id);
     const count = await Project.countDocuments({ workspaceRef: ws._id });
@@ -325,16 +383,17 @@ router.post('/:id/join', validate(null, { params: workspaceParamsSchema }), load
 router.patch('/:id/members/:userId', validate(memberRoleSchema, { params: memberParamsSchema }), loadWorkspace, requireManager, async (req, res, next) => {
   try {
     const ws = req.workspace;
+    const isSuperAdmin = req.user.roleId && req.user.roleId.level === 100;
 
-    // Phase 2: Owner role cannot be changed through this endpoint.
-    if (String(ws.createdBy) === String(req.params.userId)) {
+    // Phase 2: Owner role cannot be changed through this endpoint (unless super admin).
+    if (!isSuperAdmin && String(ws.createdBy) === String(req.params.userId)) {
       return res.status(400).json({ message: 'The workspace owner role cannot be changed' });
     }
 
-    // Phase 2: only Owner or Admin may change roles (defense-in-depth alongside
+    // UNIFIED ROLE SYSTEM: only admin or superadmin may change roles (defense-in-depth alongside
     // the requireManager middleware above).
     const callerRole = memberRole(ws, req.user._id);
-    if (callerRole !== 'Owner' && callerRole !== 'Admin') {
+    if (callerRole !== 'admin' && callerRole !== 'superadmin') {
       return res.status(403).json({ message: 'You do not have permission to perform this action' });
     }
 
@@ -342,9 +401,8 @@ router.patch('/:id/members/:userId', validate(memberRoleSchema, { params: member
     const idx = ws.members.findIndex((m) => m && String(memberUserId(m)) === String(req.params.userId));
     if (idx === -1) return res.status(404).json({ message: 'Member not found' });
 
-    // Phase 2: only Admin and Member are assignable through the normal role
-    // endpoint. Owner transfer requires a dedicated flow.
-    const allowedRoles = ['Admin', 'Member'];
+    // Super admins can assign any role; others can only assign Admin or Member.
+    const allowedRoles = isSuperAdmin ? SUPER_ADMIN_ROLES : NEW_INVITE_ROLES;
     if (!allowedRoles.includes(req.body.role)) {
       return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
     }

@@ -5,6 +5,7 @@ import {
   Mail, Calendar, ExternalLink, UsersRound, ChevronDown,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useAuthStore } from '@shared/services/useAuthStore';
 import { api } from '@shared/utils/api';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
@@ -12,6 +13,7 @@ import { Progress } from '@shared/components/ui/Progress';
 import { toast } from '@shared/services/useToastStore';
 import type { PersonStats } from './types';
 import type { MemberStatus } from '@collab/types/collaboration';
+import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   available: 'success',
@@ -36,9 +38,19 @@ interface PersonDetailsDrawerProps {
 }
 
 export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawerProps) {
-  const { tasks, teams, activeWorkspaceId, loadTeams } = useCollaborationStore();
+  const { tasks, teams, activeWorkspaceId, loadTeams, updateMemberRole } = useCollaborationStore();
+  const { user } = useAuthStore();
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [addingToTeam, setAddingToTeam] = useState(false);
+  const [editingRole, setEditingRole] = useState(false);
+  const [updatingRole, setUpdatingRole] = useState(false);
+
+  const isSuperAdmin = (user?.roleId?.level ?? 0) === 100;
+  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
+  const isTargetSuperAdmin = stats?.member.role === 'superadmin';
+  const isTargetSelf = stats?.member.id === user?.id;
+
+  const canChangeRole = (isSuperAdmin || isAdmin) && !isTargetSelf && stats?.member.id;
 
   const recentTasks = useMemo(() => {
     if (!stats) return [];
@@ -67,6 +79,24 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
       setAddingToTeam(false);
     }
   };
+
+  const handleRoleChange = async (newRole: string) => {
+    if (!stats) return;
+    setUpdatingRole(true);
+    try {
+      await updateMemberRole(stats.member.id, newRole);
+      toast.success('Role updated', `${stats.member.name} is now ${newRole}`);
+      setEditingRole(false);
+    } catch {
+      toast.error('Error', 'Failed to update role');
+    } finally {
+      setUpdatingRole(false);
+    }
+  };
+
+  const availableRoles = isSuperAdmin
+    ? ['nonadmin', 'admin', 'superadmin']
+    : ['nonadmin', 'admin'];
 
   return (
     <AnimatePresence>
@@ -108,7 +138,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
                   <h2 className="text-lg font-display font-extrabold text-surface-50 truncate">
                     {stats.member.name}
                   </h2>
-                  <p className="text-xs text-surface-400 mt-0.5">{stats.member.role}</p>
+                  <p className="text-xs text-surface-400 mt-0.5">{getRoleDisplayName(stats.member.role)}</p>
                   {stats.member.teams.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {stats.member.teams.map((t) => (
@@ -126,10 +156,44 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
                 <Badge tone={STATUS_TONE[stats.member.status]} className="text-[10px] font-extrabold uppercase tracking-wider">
                   {STATUS_LABEL[stats.member.status]}
                 </Badge>
-                <Badge tone="neutral" className="text-[10px] font-bold uppercase tracking-wider">
-                  <Shield size={10} className="mr-0.5" />
-                  {stats.member.role}
-                </Badge>
+                {canChangeRole && !isTargetSuperAdmin ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setEditingRole(!editingRole)}
+                      disabled={updatingRole}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg bg-surface-800 border border-surface-700 text-[10px] font-bold uppercase tracking-wider text-surface-300 hover:border-brand-500/50 hover:text-brand-400 transition-colors disabled:opacity-50"
+                    >
+                      <Shield size={10} />
+                      {updatingRole ? '...' : getRoleDisplayName(stats.member.role)}
+                      <ChevronDown size={10} />
+                    </button>
+                    {editingRole && (
+                      <div className="absolute top-full left-0 mt-1 bg-surface-800 border border-surface-700 rounded-xl shadow-lg overflow-hidden z-20 min-w-[120px]">
+                        {availableRoles.map((role) => (
+                          <button
+                            key={role}
+                            onClick={() => handleRoleChange(role)}
+                            disabled={role === stats.member.role}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] font-semibold transition-colors text-left ${
+                              role === stats.member.role
+                                ? 'text-brand-400 bg-brand-500/10 cursor-default'
+                                : 'text-surface-300 hover:bg-surface-700 hover:text-surface-100'
+                            }`}
+                          >
+                            <Shield size={10} />
+                            {getRoleDisplayName(role)}
+                            {role === stats.member.role && <span className="ml-auto text-[9px]">current</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Badge tone="neutral" className="text-[10px] font-bold uppercase tracking-wider">
+                    <Shield size={10} className="mr-0.5" />
+                    {getRoleDisplayName(stats.member.role)}
+                  </Badge>
+                )}
               </div>
 
               {/* Contact */}

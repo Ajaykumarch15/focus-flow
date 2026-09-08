@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { KanbanToolbar } from '@worklog/components/kanban/KanbanToolbar';
@@ -12,11 +12,13 @@ import { TaskDetailsPanel } from '@worklog/components/kanban/TaskDetailsPanel';
 import { useKanbanStore } from '@worklog/components/kanban/kanbanStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Button } from '@shared/components/ui/Button';
+import { api } from '@shared/utils/api';
 
 export function ProjectKanbanPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { activeView, openAddModal, showAddModal, closeAddModal } = useKanbanStore();
+  const { activeView, openAddModal, showAddModal, closeAddModal, openDetailsPanel, setWorklogTaskIds, tasks } = useKanbanStore();
   const loadFromProject = useKanbanStore((s) => s.loadFromProject);
   const setContext = useKanbanStore((s) => s.setContext);
 
@@ -34,6 +36,39 @@ export function ProjectKanbanPage() {
     for (const m of members) map[m.id] = { name: m.name, avatar: m.avatar };
     return map;
   }, [members]);
+
+  // Fetch user's worklogs and build taskId -> worklogId map
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchWorklogMap() {
+      try {
+        const logs = await api.workLogs.list();
+        const map = new Map<string, string>();
+        for (const log of logs) {
+          if (log.taskRef?._id) {
+            map.set(log.taskRef._id, log._id);
+          }
+        }
+        if (!cancelled) setWorklogTaskIds(map);
+      } catch (err) {
+        console.error('Failed to fetch worklog map:', err);
+      }
+    }
+    fetchWorklogMap();
+    return () => { cancelled = true; };
+  }, [setWorklogTaskIds]);
+
+  // Handle ?select= query param to open task details panel
+  useEffect(() => {
+    const selectId = searchParams.get('select');
+    if (selectId && tasks.some((t) => t.id === selectId)) {
+      openDetailsPanel(selectId);
+      // Clean up the query param after opening
+      const params = new URLSearchParams(searchParams);
+      params.delete('select');
+      setSearchParams(params, { replace: true });
+    }
+  }, [searchParams, tasks, openDetailsPanel, setSearchParams]);
 
   useEffect(() => {
     if (!workspaceId || !projectId) return;

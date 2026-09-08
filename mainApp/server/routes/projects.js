@@ -17,9 +17,18 @@ const router = express.Router();
 router.use(protect);
 
 // IES-P0-16: body/param/query schemas.
+const PROJECT_STATUS = ['planning', 'active', 'completed', 'on_hold'];
+const PROJECT_MEMBER_ROLES = ['admin', 'nonadmin'];
+
 const projectCreateSchema = z.object({
   name: requiredString(100, 'name', 'Project name is required'),
   workspaceId: objectId.optional(),
+  description: z.string().max(2000).optional(),
+  members: z.array(z.object({
+    userId: objectId,
+    role: z.enum(PROJECT_MEMBER_ROLES).default('nonadmin'),
+    isProjectManager: z.boolean().optional(),
+  })).max(500).optional(),
 });
 const projectParamsSchema = z.object({ id: objectId });
 const projectQuerySchema = z.object({ workspaceId: objectId.optional() });
@@ -28,8 +37,6 @@ const projectQuerySchema = z.object({ workspaceId: objectId.optional() });
 // (`description`/`key`/`status`) are editor-gated; `members[]`/`teamIds[]`/
 // `settings` are Owner/Admin-gated (checked in the handler). `.passthrough()`
 // tolerates future fields without silently failing known ones.
-const PROJECT_STATUS = ['planning', 'active', 'completed', 'on_hold'];
-const PROJECT_MEMBER_ROLES = ['Manager', 'Editor', 'Viewer'];
 const projectPatchSchema = z
   .object({
     description: z.string().max(2000, 'Description too long (max 2000)').optional(),
@@ -37,7 +44,8 @@ const projectPatchSchema = z
     status: z.enum(PROJECT_STATUS).optional(),
     members: z.array(z.object({
       userId: objectId,
-      role: z.enum(PROJECT_MEMBER_ROLES).default('Editor'),
+      role: z.enum(PROJECT_MEMBER_ROLES).default('nonadmin'),
+      isProjectManager: z.boolean().optional(),
     })).max(500, 'Too many members').optional(),
     teamIds: z.array(objectId).max(500, 'Too many teams').optional(),
     settings: z.record(z.any()).optional(),
@@ -61,10 +69,10 @@ async function validateMemberRefs(members, { ws, personal }) {
     return { ok: false, message: personal ? 'Member not found' : 'members must belong to the workspace' };
   }
   // Preserve role assignments, default to Editor
-  const memberMap = new Map(members.map(m => [m.userId, m.role || 'Editor']));
+  const memberMap = new Map(members.map(m => [m.userId, m.role || 'nonadmin']));
   return {
     ok: true,
-    members: active.map((u) => ({ userId: u._id, role: memberMap.get(String(u._id)) || 'Editor', addedAt: new Date() })),
+    members: active.map((u) => ({ userId: u._id, role: memberMap.get(String(u._id)) || 'nonadmin', addedAt: new Date() })),
   };
 }
 
@@ -107,7 +115,7 @@ router.get('/', validate(null, { query: projectQuerySchema }), async (req, res, 
 // ── POST /api/projects ─────────────────────────────────────────────────────────
 router.post('/', validate(projectCreateSchema), async (req, res, next) => {
   try {
-    const { name, workspaceId } = req.body;
+    const { name, workspaceId, description, members } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Project name is required' });
     }
@@ -124,11 +132,35 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
       if (existing) {
         return res.status(400).json({ message: 'A project with this name already exists in the workspace' });
       }
+
+      // Build members array — ensure creator is included, apply isProjectManager flags
+      const memberDocs = [];
+      if (members && Array.isArray(members)) {
+        for (const m of members) {
+          // Verify each member is a workspace member
+          const wsMember = ws.members.find(wm => String(wm.userId) === String(m.userId));
+          if (!wsMember) continue;
+          memberDocs.push({
+            userId: m.userId,
+            role: m.role || 'nonadmin',
+            isProjectManager: !!m.isProjectManager,
+            addedAt: new Date(),
+          });
+        }
+      }
+      // Ensure creator is in the members list
+      const creatorInMembers = memberDocs.some(m => String(m.userId) === String(req.user._id));
+      if (!creatorInMembers) {
+        memberDocs.push({ userId: req.user._id, role: 'admin', isProjectManager: true, addedAt: new Date() });
+      }
+
       try {
         const project = await Project.create({
           userId: req.user._id,
           name: trimmedName,
+          description: description || '',
           workspaceRef: workspaceId,
+          members: memberDocs,
         });
         Activity.create({
           userId: req.user._id,
@@ -262,13 +294,14 @@ router.patch('/:id', validate(projectPatchSchema, { params: projectParamsSchema 
 const addMemberSchema = z.object({
   email: z.string().email().optional(),
   userId: objectId.optional(),
-  role: z.enum(PROJECT_MEMBER_ROLES).default('Editor'),
+  role: z.enum(PROJECT_MEMBER_ROLES).default('nonadmin'),
+  isProjectManager: z.boolean().optional(),
 }).refine((data) => data.email || data.userId, { message: 'email or userId is required' });
 
 router.post('/:id/members', validate(addMemberSchema, { params: projectParamsSchema }), requireProjectPermission(PROJECT.MANAGE_MEMBERS), async (req, res, next) => {
   try {
     const project = req.project;
-    const { email, userId: bodyUserId, role } = req.body;
+    const { email, userId: bodyUserId, role, isProjectManager } = req.body;
 
     // Resolve user by email or userId
     let targetUser;
@@ -289,7 +322,7 @@ router.post('/:id/members', validate(addMemberSchema, { params: projectParamsSch
       if (!isWsMember) return res.status(400).json({ message: 'User must be a workspace member first' });
     }
 
-    project.members.push({ userId: targetUser._id, role, addedAt: new Date() });
+    project.members.push({ userId: targetUser._id, role, isProjectManager: !!isProjectManager, addedAt: new Date() });
     await project.save();
 
     Activity.create({
@@ -309,18 +342,22 @@ router.post('/:id/members', validate(addMemberSchema, { params: projectParamsSch
 // Change a member's role in a project.
 const updateMemberSchema = z.object({
   role: z.enum(PROJECT_MEMBER_ROLES),
+  isProjectManager: z.boolean().optional(),
 });
 
 router.patch('/:id/members/:userId', validate(updateMemberSchema, { params: z.object({ id: objectId, userId: objectId }) }), requireProjectPermission(PROJECT.MANAGE_MEMBERS), async (req, res, next) => {
   try {
     const project = req.project;
     const { userId } = req.params;
-    const { role } = req.body;
+    const { role, isProjectManager } = req.body;
 
     const member = project.members.find(m => String(m.userId) === userId);
     if (!member) return res.status(404).json({ message: 'User is not a project member' });
 
     member.role = role;
+    if (isProjectManager !== undefined) {
+      member.isProjectManager = isProjectManager;
+    }
     await project.save();
 
     Activity.create({
@@ -362,6 +399,38 @@ router.delete('/:id/members/:userId', validate(null, { params: z.object({ id: ob
     }).catch(() => {});
 
     res.json(project);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── DELETE /api/projects/:id ──────────────────────────────────────────────────
+// Hard-delete a project and all its sub-collections. Workspace admin or superadmin only.
+router.delete('/:id', validate(null, { params: projectParamsSchema }), requireProjectPermission(PROJECT.DELETE), async (req, res, next) => {
+  try {
+    const project = req.project;
+    const projectId = project._id;
+
+    await Promise.all([
+      require('../models/Task').deleteMany({ projectRef: projectId }),
+      require('../models/Sprint').deleteMany({ projectRef: projectId }),
+      require('../models/Feature').deleteMany({ projectRef: projectId }),
+      require('../models/Milestone').deleteMany({ projectRef: projectId }),
+      require('../models/Module').deleteMany({ projectRef: projectId }),
+      require('../models/Phase').deleteMany({ projectRef: projectId }),
+      require('../models/WorkLog').deleteMany({ projectRef: projectId }),
+      require('../models/Session').deleteMany({ projectRef: projectId }),
+      Project.findByIdAndDelete(projectId),
+    ]);
+
+    // Update workspace project count
+    if (project.workspaceRef) {
+      const count = await Project.countDocuments({ workspaceRef: project.workspaceRef });
+      Workspace.findByIdAndUpdate(project.workspaceRef, { projectsCount: count }).catch(() => {});
+    }
+
+    res.json({ message: 'Project deleted' });
+    Activity.create({ userId: req.user._id, action: 'project.deleted', workspaceRef: project.workspaceRef || undefined, details: { projectId: String(projectId), projectName: project.name } }).catch(() => {});
   } catch (err) {
     next(err);
   }

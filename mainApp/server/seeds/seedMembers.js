@@ -65,10 +65,10 @@ async function run() {
     members: [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, role: String, joinedAt: Date }],
   }, { collection: 'workspaces' }));
 
-  // Find MEMBER role
-  const memberRole = await Role.findOne({ name: 'MEMBER' });
-  if (!memberRole) { logFail('MEMBER role not found'); process.exit(1); }
-  log(`MEMBER role: ${memberRole._id} (level ${memberRole.level})`);
+  // Find nonadmin role
+  const memberRole = await Role.findOne({ name: 'nonadmin' });
+  if (!memberRole) { logFail('nonadmin role not found'); process.exit(1); }
+  log(`nonadmin role: ${memberRole._id} (level ${memberRole.level})`);
 
   // Find "Pending Tasks" workspace
   const workspace = await Workspace.findOne({ name: 'Pending Tasks' });
@@ -105,7 +105,7 @@ async function run() {
     // Add to workspace if not already a member
     const alreadyMember = workspace.members.some(m => m.userId.toString() === user._id.toString());
     if (!alreadyMember) {
-      workspace.members.push({ userId: user._id, role: 'Member', joinedAt: new Date() });
+      workspace.members.push({ userId: user._id, role: 'nonadmin', joinedAt: new Date() });
       addedToWorkspace++;
     }
 

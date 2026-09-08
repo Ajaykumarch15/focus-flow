@@ -10,6 +10,7 @@ import { SkeletonStatCard } from '@shared/components/ui/Skeleton';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
+import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -153,7 +154,7 @@ export function AdminOverview() {
                     <p className="text-sm text-surface-200 font-medium truncate">{u.name}</p>
                     <p className="text-[11px] text-surface-500 truncate">{u.email}</p>
                   </div>
-                  <Badge tone={u.role === 'admin' ? 'brand' : 'neutral'} className="rounded-md px-2 text-[10px] font-bold uppercase">{u.role}</Badge>
+                  <Badge tone={u.role === 'admin' ? 'brand' : 'neutral'} className="rounded-md px-2 text-[10px] font-bold uppercase">{getRoleDisplayName(u.role)}</Badge>
                 </div>
               ))}
             </div>

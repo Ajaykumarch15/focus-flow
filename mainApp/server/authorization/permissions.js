@@ -3,36 +3,51 @@
 // This module defines every permission identifier used across FocusFlow's
 // authorization system. Permissions follow the `resource.action` convention.
 //
-// These identifiers define the future authorization vocabulary. Only permissions
-// that correspond to actual existing functionality are enforced in policies;
-// the rest are declared here for vocabulary completeness and future use.
-//
-// Phase 1: Vocabulary definition only. No enforcement logic lives here.
+// UNIFIED ROLE SYSTEM: All roles (system, workspace, project) use the same
+// three levels: superadmin, admin, nonadmin. Project manager is a designation
+// granted to nonadmin users, not a separate role level.
 
-// ── Workspace roles ──────────────────────────────────────────────────────────
-// The three canonical workspace roles. During the transition period, legacy
-// role values (Manager, Developer, Viewer) stored in the database are mapped
-// to these by the relationship-resolution layer, not by this vocabulary module.
+// ── Unified roles ────────────────────────────────────────────────────────────
+// Three role levels used across the entire platform.
 
-const WORKSPACE_ROLES = {
-  OWNER:  'Owner',
-  ADMIN:  'Admin',
-  MEMBER: 'Member',
+const UNIFIED_ROLES = {
+  SUPERADMIN: 'superadmin',
+  ADMIN:      'admin',
+  NONADMIN:   'nonadmin',
 };
 
+// Role levels for numeric comparisons (higher = more privileges)
+const ROLE_LEVELS = {
+  superadmin: 100,
+  admin:      60,
+  nonadmin:   10,
+};
+
+// Role hierarchy for comparison helpers
+const ROLE_HIERARCHY = ['nonadmin', 'admin', 'superadmin'];
+
 // ── Legacy role mapping ──────────────────────────────────────────────────────
-// Maps old workspace role strings to the new canonical roles. Used by
-// relationship-resolution helpers so callers do not need to know about the
-// transition. This mapping is NOT authoritative for stored data — it is a
-// read-time translation only.
+// Maps old workspace/system role strings to the new unified roles.
 
 const LEGACY_ROLE_MAP = {
-  'Owner':     'Owner',
-  'Admin':     'Admin',
-  'Member':    'Member',
-  'Manager':   'Member',
-  'Developer': 'Member',
-  'Viewer':    'Member',
+  // System roles
+  'SUPERADMIN': 'superadmin',
+  'OWNER':      'admin',
+  'ADMIN':      'admin',
+  'MEMBER':     'nonadmin',
+  'user':       'nonadmin',
+  // Workspace roles
+  'Owner':      'admin',
+  'Admin':      'admin',
+  'Member':     'nonadmin',
+  // Legacy workspace roles
+  'Manager':    'nonadmin',
+  'Developer':  'nonadmin',
+  'Viewer':     'nonadmin',
+  // Project roles
+  'Manager':    'admin',
+  'Editor':     'nonadmin',
+  'Viewer':     'nonadmin',
 };
 
 // ── Workspace permissions ────────────────────────────────────────────────────
@@ -60,11 +75,11 @@ const PROJECT = {
 };
 
 // ── Project member roles ────────────────────────────────────────────────────
+// UNIFIED ROLE SYSTEM: Project roles use the same three levels.
 
 const PROJECT_ROLES = {
-  MANAGER: 'Manager',
-  EDITOR:  'Editor',
-  VIEWER:  'Viewer',
+  ADMIN:    'admin',
+  NONADMIN: 'nonadmin',
 };
 
 // ── Team permissions ─────────────────────────────────────────────────────────
@@ -166,7 +181,9 @@ function isValidPermission(permission) {
 }
 
 module.exports = {
-  WORKSPACE_ROLES,
+  UNIFIED_ROLES,
+  ROLE_LEVELS,
+  ROLE_HIERARCHY,
   LEGACY_ROLE_MAP,
   WORKSPACE,
   PROJECT,

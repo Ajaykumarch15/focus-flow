@@ -5,6 +5,7 @@ import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
 import type { PersonStats } from './types';
 import type { MemberStatus } from '@collab/types/collaboration';
+import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
   available: 'success',
@@ -51,7 +52,7 @@ export function PersonCard({ stats, onClick }: PersonCardProps) {
           {member.name}
         </h3>
         <p className="text-[11px] text-surface-400 mt-0.5 truncate">
-          {member.role}
+          {getRoleDisplayName(member.role)}
           {member.teams.length > 0 && (
             <span className="text-surface-500"> · {member.teams[0]}</span>
           )}

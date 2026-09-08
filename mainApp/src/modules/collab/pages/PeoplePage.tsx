@@ -21,9 +21,9 @@ const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 const ROLE_OPTIONS = [
   { value: 'all', label: 'All Roles' },
-  { value: 'Owner', label: 'Owner' },
-  { value: 'Admin', label: 'Admin' },
-  { value: 'Member', label: 'Member' },
+  { value: 'superadmin', label: 'Superadmin' },
+  { value: 'admin', label: 'Admin' },
+  { value: 'nonadmin', label: 'Nonadmin' },
 ];
 
 const SORT_OPTIONS = [
@@ -142,10 +142,10 @@ export function PeoplePage() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/home')}
+              onClick={() => navigate(`/collab/${workspaceId}`)}
               className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
             >
-              <ArrowLeft size={14} /> Home
+              <ArrowLeft size={14} /> Workspace
             </button>
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">

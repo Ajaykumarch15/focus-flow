@@ -1,7 +1,7 @@
 // authorization/policies/project.policy.js — Project authorization policy.
 //
 // Centralizes all project-level authorization decisions. Project authorization
-// considers both workspace role and project role (Manager/Editor/Viewer).
+// considers both workspace role and project role (unified: superadmin/admin/nonadmin).
 //
 // Two code paths:
 //   1. Personal projects (workspaceRef null): creator-only access. Platform
@@ -9,21 +9,14 @@
 //   2. Workspace projects: workspace role + project role determine
 //      the effective permission.
 //
-// Permission matrix (workspace role + project role):
-//   ┌─────────────────────┬──────┬──────┬──────┬─────────┬──────────┐
-//   │ Permission          │ Ownr │ Admn │ Mgr  │ Editor  │ Viewer   │
-//   ├─────────────────────┼──────┼──────┼──────┼─────────┼──────────┤
-//   │ project.view        │  ✓   │  ✓   │  ✓   │   ✓     │    ✓     │
-//   │ project.create      │  ✓   │  ✓   │  ✓   │   ✓     │    ✓     │
-//   │ project.edit        │  ✓   │  ✓   │  ✓   │   ✓     │    ✗     │
-//   │ project.delete      │  ✓   │  ✓   │  ✗   │   ✗     │    ✗     │
-//   │ project.archive     │  ✓   │  ✓   │  ✓   │   ✗     │    ✗     │
-//   │ project.manage_mbrs │  ✓   │  ✓   │  ✓   │   ✗     │    ✗     │
-//   │ project.assign_mgr  │  ✓   │  ✓   │  ✗   │   ✗     │    ✗     │
-//   └─────────────────────┴──────┴──────┴──────┴─────────┴──────────┘
+// UNIFIED ROLE SYSTEM:
+//   - superadmin: blanket bypass
+//   - admin: full project management
+//   - nonadmin: can view/edit tasks, cannot delete/archive projects
+//   - project manager (nonadmin+): admin-level permissions within their project
 
-const { PROJECT } = require('../permissions');
-const { getWorkspaceRole, getProjectRole } = require('../relationships');
+const { PROJECT, ROLE_LEVELS } = require('../permissions');
+const { getWorkspaceRole, getProjectRole, isProjectManager } = require('../relationships');
 
 /**
  * Evaluate a project permission.
@@ -57,39 +50,37 @@ function can(user, permission, context) {
   if (!wsRole) return false;
 
   const projectRole = getProjectRole(user, project);
-  const isWsAdmin = wsRole === 'Owner' || wsRole === 'Admin';
-  const isProjectMgr = projectRole === 'Manager';
-  const isProjectEditor = projectRole === 'Editor';
-  const isProjectViewer = projectRole === 'Viewer';
+  const isWsAdmin = wsRole === 'admin' || wsRole === 'superadmin';
+  const isProjectMgr = isProjectManager(user, project);
   const isProjectMbr = projectRole !== null;
 
   switch (permission) {
-    // Owner/Admin can always view. Project Manager/Editor/Viewer can view their projects.
+    // Admin/superadmin can always view. Project members can view their projects.
     // Unrelated workspace members CANNOT view.
     case PROJECT.VIEW:
       return isWsAdmin || isProjectMbr;
 
-    // Owner/Admin/Member can create projects (preserve existing behavior)
+    // All workspace members can create projects
     case PROJECT.CREATE:
       return true;
 
-    // Project Manager, Editor, or workspace Admin/Owner can edit project metadata
+    // Project Manager, or workspace admin/superadmin can edit project metadata
     case PROJECT.EDIT:
-      return isProjectMgr || isProjectEditor || isWsAdmin;
+      return isProjectMgr || isWsAdmin;
 
-    // workspace Owner/Admin can delete projects
+    // workspace admin/superadmin can delete projects
     case PROJECT.DELETE:
       return isWsAdmin;
 
-    // workspace Owner/Admin or Project Manager can archive projects
+    // workspace admin/superadmin or Project Manager can archive projects
     case PROJECT.ARCHIVE:
       return isProjectMgr || isWsAdmin;
 
-    // workspace Owner/Admin or Project Manager can manage project members
+    // workspace admin/superadmin or Project Manager can manage project members
     case PROJECT.MANAGE_MEMBERS:
       return isProjectMgr || isWsAdmin;
 
-    // workspace Owner/Admin can reassign project manager
+    // workspace admin/superadmin can reassign project manager
     case PROJECT.ASSIGN_MANAGER:
       return isWsAdmin;
 

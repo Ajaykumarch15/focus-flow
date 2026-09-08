@@ -1,12 +1,12 @@
 // @vitest-environment node
-// EEP2-P1.2.1 · DDS §7 Permission Matrix — the vocabulary in utils/permissions.js
-// must match the documented matrix exactly, action-by-action and role-by-role.
-// Any drift here (or in the module) means enforcement and spec disagree.
+// UNIFIED ROLE SYSTEM · Permission Matrix tests
+// The vocabulary in utils/permissions.js must match the unified role system.
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
+  UNIFIED_ROLES,
   ROLE_TIERS,
   EDITOR_ROLES,
   MANAGER_ROLES,
@@ -19,32 +19,33 @@ const {
   GATE_ROLES,
 } = require('../utils/permissions');
 
-// Phase 2: 'Member' is the new canonical role; legacy roles remain for compat.
-const VIEWER = 'Viewer';
-const DEVELOPER = 'Developer';
-const MANAGER = 'Manager';
-const MEMBER = 'Member';
-const ADMIN = 'Admin';
-const OWNER = 'Owner';
-const ROLES = [VIEWER, DEVELOPER, MANAGER, MEMBER, ADMIN, OWNER];
+// Unified role names
+const SUPERADMIN = 'superadmin';
+const ADMIN = 'admin';
+const NONADMIN = 'nonadmin';
+const ROLES = [NONADMIN, ADMIN, SUPERADMIN];
 
 const allRoles = () => ROLES.slice();
 
-describe('DDS §7 · role tier ordering & groups', () => {
-  it('exposes every matrix role, ordered most → least privileged', () => {
-    expect(ROLE_TIERS).toEqual([OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER, VIEWER]);
+describe('Unified Role System · role tier ordering & groups', () => {
+  it('exposes every unified role', () => {
+    expect(UNIFIED_ROLES).toEqual([SUPERADMIN, ADMIN, NONADMIN]);
   });
 
-  it('EDITOR_ROLES = every role except Viewer', () => {
-    expect(EDITOR_ROLES).toEqual([OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER]);
+  it('ROLE_TIERS matches UNIFIED_ROLES', () => {
+    expect(ROLE_TIERS).toEqual(UNIFIED_ROLES);
   });
 
-  it('MANAGER_ROLES = Owner | Admin', () => {
-    expect(MANAGER_ROLES).toEqual([OWNER, ADMIN]);
+  it('EDITOR_ROLES = admin | superadmin', () => {
+    expect(EDITOR_ROLES).toEqual([ADMIN, SUPERADMIN]);
   });
 
-  it('OWNER_ROLES = Owner only', () => {
-    expect(OWNER_ROLES).toEqual([OWNER]);
+  it('MANAGER_ROLES = admin | superadmin', () => {
+    expect(MANAGER_ROLES).toEqual([ADMIN, SUPERADMIN]);
+  });
+
+  it('OWNER_ROLES = superadmin only', () => {
+    expect(OWNER_ROLES).toEqual([SUPERADMIN]);
   });
 
   it('GATE_ROLES mirrors the four requireWorkspace* gates exactly', () => {
@@ -55,49 +56,49 @@ describe('DDS §7 · role tier ordering & groups', () => {
   });
 });
 
-describe('DDS §7 · row 1: read workspace/project/roadmap/sprint/feature/task/knowledge', () => {
-  it('any member, including Viewer, may read', () => {
+describe('Unified Role System · row 1: read workspace/project/roadmap/sprint/feature/task/knowledge', () => {
+  it('any member may read', () => {
     for (const role of allRoles()) expect(canRead(role)).toBe(true);
   });
 });
 
-describe('DDS §7 · rows 2 & 4: create/update entities + edit project meta', () => {
-  const allowed = [OWNER, ADMIN, MEMBER, MANAGER, DEVELOPER];
-  it('Viewer is denied; every other role is allowed', () => {
+describe('Unified Role System · rows 2 & 4: create/update entities + edit project meta', () => {
+  const allowed = [ADMIN, SUPERADMIN];
+  it('nonadmin is denied; admin and superadmin are allowed', () => {
     for (const role of allRoles()) {
       expect(canEdit(role)).toBe(allowed.includes(role));
     }
   });
 });
 
-describe('DDS §7 · row 3: delete Milestone/Phase/Module/Feature/Sprint', () => {
-  const allowed = [OWNER, ADMIN];
-  it('only Owner | Admin may delete structure', () => {
+describe('Unified Role System · row 3: delete Milestone/Phase/Module/Feature/Sprint', () => {
+  const allowed = [ADMIN, SUPERADMIN];
+  it('only admin | superadmin may delete structure', () => {
     for (const role of allRoles()) {
       expect(canDeleteStructure(role)).toBe(allowed.includes(role));
     }
   });
 });
 
-describe('DDS §7 · rows 5 & 6: edit project members[]/teamIds[]/settings + manage workspace', () => {
-  const allowed = [OWNER, ADMIN];
-  it('only Owner | Admin may manage', () => {
+describe('Unified Role System · rows 5 & 6: edit project members[]/teamIds[]/settings + manage workspace', () => {
+  const allowed = [ADMIN, SUPERADMIN];
+  it('only admin | superadmin may manage', () => {
     for (const role of allRoles()) {
       expect(canManage(role)).toBe(allowed.includes(role));
     }
   });
 });
 
-describe('DDS §7 · row 7: delete workspace', () => {
-  it('Owner only', () => {
+describe('Unified Role System · row 7: delete workspace', () => {
+  it('superadmin only', () => {
     for (const role of allRoles()) {
-      expect(canDeleteWorkspace(role)).toBe(role === OWNER);
+      expect(canDeleteWorkspace(role)).toBe(role === SUPERADMIN);
     }
   });
 });
 
-describe('DDS §7 · unknown / absent role is denied everywhere', () => {
-  const unknownRoles = [undefined, null, '', 'Superuser', 'member', 'owner', 'OWNER'];
+describe('Unified Role System · unknown / absent role is denied everywhere', () => {
+  const unknownRoles = [undefined, null, '', 'Superuser', 'member', 'owner', 'OWNER', 'Admin', 'Member'];
   for (const bad of unknownRoles) {
     it(`denies "${String(bad)}"`, () => {
       expect(canRead(bad)).toBe(false);
@@ -107,14 +108,4 @@ describe('DDS §7 · unknown / absent role is denied everywhere', () => {
       expect(canDeleteWorkspace(bad)).toBe(false);
     });
   }
-});
-
-describe('DDS §7 · platform admin carries no implicit workspace privileges', () => {
-  it("platform role 'admin' is not a workspace role and passes no gate", () => {
-    expect(ROLE_TIERS).not.toContain('admin');
-    expect(canRead('admin')).toBe(false);
-    expect(canEdit('admin')).toBe(false);
-    expect(canManage('admin')).toBe(false);
-    expect(canDeleteWorkspace('admin')).toBe(false);
-  });
 });
