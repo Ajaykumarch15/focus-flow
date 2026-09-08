@@ -58,7 +58,7 @@ export function PersonalPage() {
     }, 0);
   }, [tasks]);
 
-  const dailyGoalMs = (profile.dailyGoal || 8) * 3600000;
+  const dailyGoalMs = (profile.personalDailyGoal ?? 6) * 3600000;
   const goalPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : 0;
 
   const completedTasks = tasks.filter(t => t.status === 'completed').length;

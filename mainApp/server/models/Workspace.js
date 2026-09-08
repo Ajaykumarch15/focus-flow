@@ -1,14 +1,12 @@
 // IES-P2-01 · Workspace — top-level collaborative container (DDD §3.2, WPS §2.1).
 // Mirrors the frontend `Workspace` type (src/types/collaboration.ts) so the
 // store can consume it directly once wired (IES-P2-08). The creator becomes the
-// sole `Owner` member; membership carries a per-member role that later phases
-// (IES-P2-03) will enforce with a permission layer.
+// sole `admin` member; membership carries a per-member role that the
+// authorization layer enforces with a unified role system.
 const mongoose = require('mongoose');
 
-// Phase 2: canonical roles are Owner, Admin, Member. Legacy values (Manager,
-// Developer, Viewer) remain in the enum so existing documents can still be read
-// without crashing. They are mapped at read-time by the authorization layer.
-const MEMBER_ROLES = ['Owner', 'Admin', 'Member', 'Manager', 'Developer', 'Viewer'];
+// UNIFIED ROLE SYSTEM: All roles use the same three levels.
+const MEMBER_ROLES = ['superadmin', 'admin', 'nonadmin'];
 const WORKSPACE_TYPES = ['Personal', 'Startup', 'College Project', 'Open Source', 'Internship', 'Enterprise'];
 
 const workspaceSettingsSchema = new mongoose.Schema(
@@ -28,7 +26,8 @@ const workspaceSettingsSchema = new mongoose.Schema(
 const workspaceMemberSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    role:   { type: String, enum: MEMBER_ROLES, default: 'Member' },
+    role:   { type: String, enum: MEMBER_ROLES, default: 'nonadmin' },
+    isProjectManager: { type: Boolean, default: false },
     joinedAt: { type: Date, default: Date.now },
   },
   { _id: false }

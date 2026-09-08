@@ -76,7 +76,8 @@ nameKey: {
     ],
     members: [{
       userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-      role: { type: String, enum: ['Manager', 'Editor', 'Viewer'], default: 'Editor' },
+      role: { type: String, enum: ['superadmin', 'admin', 'nonadmin'], default: 'nonadmin' },
+      isProjectManager: { type: Boolean, default: false },
       addedAt: { type: Date, default: Date.now },
     }],
     teamIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Team' }],

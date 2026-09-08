@@ -202,6 +202,7 @@ export function AdminSidebar({ expanded = false }: AdminSidebarProps) {
           className="sidebar-rail-icon mx-auto"
           onMouseEnter={() => handleIconEnter('profile')}
           onMouseLeave={handleIconLeave}
+          onClick={() => navigate('/admin/settings')}
           ref={(el) => { if (el) iconRefs.current['profile'] = el; }}
           role="button"
           tabIndex={0}
@@ -252,6 +253,7 @@ const AdminRailIcon = forwardRef<HTMLDivElement, {
   onLeave: () => void;
 }>(({ item, onEnter, onLeave }, ref) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isActive = location.pathname === item.to ||
     (item.children && item.children.some(c => location.pathname === c.to));
 
@@ -265,6 +267,7 @@ const AdminRailIcon = forwardRef<HTMLDivElement, {
       }`}
       onMouseEnter={() => onEnter(item.to)}
       onMouseLeave={onLeave}
+      onClick={() => navigate(item.to)}
       role="button"
       tabIndex={0}
       aria-label={item.label}

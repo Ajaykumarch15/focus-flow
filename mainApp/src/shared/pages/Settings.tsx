@@ -162,10 +162,14 @@ export function Settings() {
                   <Input className="h-11 rounded-xl" value={profile.name}
                     onChange={e => { updateProfile({ name: e.target.value }); flashSaved(); }} />
                 </Field>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Daily Goal (hours)">
-                    <Input type="number" className="h-11 rounded-xl" min="1" max="24" value={profile.dailyGoal}
+                <div className="grid grid-cols-3 gap-4">
+                  <Field label="Work Goal (hours)">
+                    <Input type="number" className="h-11 rounded-xl" min="0" max="24" value={profile.dailyGoal}
                       onChange={e => { updateProfile({ dailyGoal: Number(e.target.value) }); flashSaved(); }} />
+                  </Field>
+                  <Field label="Personal Goal (hours)">
+                    <Input type="number" className="h-11 rounded-xl" min="0" max="24" value={profile.personalDailyGoal}
+                      onChange={e => { updateProfile({ personalDailyGoal: Number(e.target.value) }); flashSaved(); }} />
                   </Field>
                   <Field label="Timezone">
                     <Select className="h-11 rounded-xl" value={profile.timezone}
@@ -174,7 +178,7 @@ export function Settings() {
                     </Select>
                   </Field>
                 </div>
-                <p className="text-xs text-surface-500">Daily reports and work-log history use this timezone for day boundaries.</p>
+                <p className="text-xs text-surface-500">Work goal tracks focus time in the Worklog. Personal goal tracks focus time in the Personal workspace. Set to 0 to disable.</p>
               </div>
             </Section>
 

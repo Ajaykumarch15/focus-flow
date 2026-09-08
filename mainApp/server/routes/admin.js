@@ -1,11 +1,13 @@
 const express = require('express');
 const User = require('../models/User');
+const Role = require('../models/Role');
 const Task = require('../models/Task');
 const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
 const Team = require('../models/Team');
 const ReportShare = require('../models/ReportShare');
+const Workspace = require('../models/Workspace');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const reportsRouter = require('./reports');
@@ -13,6 +15,7 @@ const { buildDayReport, buildSummaryDays, resolveSummaryRange, userTimezone, day
 const { runSystemAnalytics } = require('../utils/adminAnalytics');
 const { logger } = require('../utils/logger');
 const { z, objectId, email, validate } = require('../utils/validation');
+const { parsePageSize, encodeCursor, decodeCursor, paginateCursor } = require('../utils/pagination');
 
 const router = express.Router();
 
@@ -20,7 +23,7 @@ const router = express.Router();
 //
 // IES-P1-22: the `settings` object is whitelisted field-by-field so hostile or
 // misshapen values can't be persisted. Bounds mirror the User model settings
-// sub-schema and the Settings UI (dailyGoal 0–24h,
+// sub-schema and the Settings UI (dailyGoal / personalDailyGoal 0–24h,
 // 6-digit hex accent, fixed enums). `.strict()` rejects unknown keys entirely.
 const settingsNumber = (label, { min, max, int = false } = {}) => {
   let schema = z.coerce.number({ message: `${label} must be a number` });
@@ -35,6 +38,7 @@ const settingsNumber = (label, { min, max, int = false } = {}) => {
 const adminSettingsSchema = z.object({
   mode: z.enum(['dark', 'light']),
   dailyGoal: settingsNumber('dailyGoal', { min: 0, max: 24 }),
+  personalDailyGoal: settingsNumber('personalDailyGoal', { min: 0, max: 24 }),
   timezone: z.string().trim().min(1, 'Timezone cannot be empty').max(50, 'Timezone too long'),
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Invalid accent color'),
   fontSize: z.enum(['sm', 'md', 'lg']),
@@ -46,7 +50,7 @@ const adminSettingsSchema = z.object({
 const adminUserPatchSchema = z.object({
   name: z.string().trim().min(1, 'Name cannot be empty').max(100, 'Name too long'),
   email,
-  role: z.enum(['user', 'admin']),
+  role: z.enum(['nonadmin', 'admin', 'superadmin']),
   settings: adminSettingsSchema,
 }).partial().passthrough();
 
@@ -55,65 +59,6 @@ const analyticsQuerySchema = z.object({
   from: z.coerce.number().finite('from must be a valid timestamp'),
   to: z.coerce.number().finite('to must be a valid timestamp'),
 }).partial();
-
-// ── Cursor pagination (IES-P1-18) ─────────────────────────────────────────────
-// Keyset pagination keeps admin lists bounded and the ordering stable:
-//   - `limit`  caps the page size (default 50, max 100).
-//   - `cursor` is an opaque base64url token encoding { t, id } — the last item's
-//     primary timestamp and _id — so the next page is fetched with
-//     (t < cursor.t) OR (t == cursor.t AND _id < cursor.id), which matches the
-//     (t: -1, _id: -1) sort exactly.
-const DEFAULT_PAGE_SIZE = 50;
-const MAX_PAGE_SIZE = 100;
-
-function parsePageSize(value) {
-  const n = parseInt(value, 10);
-  if (Number.isFinite(n) && n > 0) return Math.min(n, MAX_PAGE_SIZE);
-  return DEFAULT_PAGE_SIZE;
-}
-
-function encodeCursor(t, id) {
-  return Buffer.from(JSON.stringify({ t, id })).toString('base64url');
-}
-
-// Returns null when no cursor was provided, { t, id } when valid, or { error: true }.
-function decodeCursor(raw) {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8'));
-    if (typeof parsed.t === 'number' && typeof parsed.id === 'string') return parsed;
-  } catch { /* fallthrough */ }
-  return { error: true };
-}
-
-// Mongo filter selecting docs strictly after (t, id) in a (t: -1, _id: -1) sort.
-function cursorFilter(tField, cursor) {
-  if (!cursor) return {};
-  return {
-    $or: [
-      { [tField]: { $lt: cursor.t } },
-      { [tField]: cursor.t, _id: { $lt: cursor.id } },
-    ],
-  };
-}
-
-async function paginateCursor({ model, filter, tField, limit, cursor, select }) {
-  let query = model.find({ ...filter, ...cursorFilter(tField, cursor) })
-    .sort({ [tField]: -1, _id: -1 })
-    .limit(limit + 1);
-  if (select) query = query.select(select);
-  const docs = await query;
-  const hasMore = docs.length > limit;
-  const items = hasMore ? docs.slice(0, limit) : docs;
-  const last = items[items.length - 1];
-  return {
-    items,
-    hasMore,
-    nextCursor: hasMore && last
-      ? encodeCursor(last[tField] instanceof Date ? last[tField].getTime() : Number(last[tField]), last._id.toString())
-      : null,
-  };
-}
 
 // Apply protect and admin middleware to all routes in this router
 router.use(protect);
@@ -153,7 +98,7 @@ router.get('/users', async (req, res, next) => {
     const cursor = decodeCursor(req.query.cursor);
     if (cursor && cursor.error) return res.status(400).json({ message: 'Invalid cursor' });
     const filter = req.query.includeDeleted ? {} : { deletedAt: null };
-    res.json(await paginateCursor({ model: User, filter, tField: 'createdAt', limit, cursor, select: '-googleTokens' }));
+    res.json(await paginateCursor({ model: User, filter, tField: 'createdAt', limit, cursor, select: '-googleTokens', populate: { path: 'roleId', select: 'name level' } }));
   } catch (err) {
     next(err);
   }
@@ -172,7 +117,109 @@ router.get('/users/deleted', async (req, res, next) => {
       limit,
       cursor,
       select: '-googleTokens',
+      populate: { path: 'roleId', select: 'name level' },
     }));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/admin/users/:userId/owner-status ────────────────────────────────
+router.get('/users/:userId/owner-status', validate(null, { params: userParamsSchema }), async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const ownedWorkspaces = await Workspace.find({ createdBy: userId }).select('name type').lean();
+    res.json({ isOwner: ownedWorkspaces.length > 0, workspaces: ownedWorkspaces });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── GET /api/admin/users/:userId/workspaces ──────────────────────────────────
+router.get('/users/:userId/workspaces', validate(null, { params: userParamsSchema }), async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const workspaces = await Workspace.find({ 'members.userId': userId })
+      .select('name type icon description createdBy members createdAt')
+      .lean();
+    const result = workspaces.map(ws => {
+      const member = ws.members.find(m => String(m.userId) === String(userId));
+      return {
+        workspaceId: ws._id,
+        name: ws.name,
+        type: ws.type,
+        icon: ws.icon,
+        description: ws.description,
+        memberRole: member ? member.role : null,
+        joinedAt: member?.joinedAt,
+        isCreator: String(ws.createdBy) === String(userId),
+        createdAt: ws.createdAt,
+      };
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── PATCH /api/admin/users/:userId/workspace-role ────────────────────────────
+const workspaceRoleSchema = z.object({
+  workspaceId: objectId,
+  role: z.enum(['superadmin', 'admin', 'nonadmin']),
+}).strict();
+
+router.patch('/users/:userId/workspace-role', validate(workspaceRoleSchema, { params: userParamsSchema }), async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { workspaceId, role } = req.body;
+    const isSuperAdmin = req.user.roleId?.level === 100;
+
+    const ws = await Workspace.findById(workspaceId);
+    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
+
+    const memberIdx = ws.members.findIndex(m => String(m.userId) === String(userId));
+    if (memberIdx === -1) {
+      return res.status(404).json({ message: 'User is not a member of this workspace' });
+    }
+
+    const currentRole = ws.members[memberIdx].role;
+    const isTargetOwner = String(ws.createdBy) === String(userId);
+
+    if (isTargetOwner && !isSuperAdmin) {
+      return res.status(403).json({ message: 'Only super admins can change the workspace owner role' });
+    }
+
+    const allowedRoles = isSuperAdmin ? ['superadmin', 'admin', 'nonadmin'] : ['admin', 'nonadmin'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
+    }
+
+    ws.members[memberIdx].role = role;
+    await ws.save();
+
+    Activity.create({
+      userId: req.user._id,
+      action: 'workspace.member.roleChanged',
+      details: {
+        workspaceId: ws._id,
+        workspaceName: ws.name,
+        member: userId,
+        oldRole: currentRole,
+        newRole: role,
+        source: 'admin_console',
+      },
+    }).catch(() => {});
+
+    Notification.create({
+      userId,
+      actor: { id: req.user._id, name: req.user.name, email: req.user.email, avatar: req.user.avatar || '' },
+      type: 'role_changed',
+      title: `Your role changed to ${role} in ${ws.name}`,
+      body: `${req.user.name} changed your workspace role to ${role}.`,
+      targetUrl: `/w/${ws._id}/overview`,
+    }).catch(() => {});
+
+    res.json({ workspaceId: ws._id, name: ws.name, memberRole: role, oldRole: currentRole });
   } catch (err) {
     next(err);
   }
@@ -183,7 +230,7 @@ const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
   email,
   password: z.string().min(12, 'Password must be at least 12 characters'),
-  role: z.enum(['user', 'admin']).default('user'),
+  role: z.enum(['nonadmin', 'admin', 'superadmin']).default('nonadmin'),
 });
 
 router.post('/users', validate(createUserSchema), async (req, res, next) => {
@@ -193,8 +240,14 @@ router.post('/users', validate(createUserSchema), async (req, res, next) => {
     const exists = await User.findOne({ email: email.toLowerCase() });
     if (exists) return res.status(409).json({ message: 'An account with this email already exists' });
 
+    // Find or create the Role document for the assigned role
+    const level = role === 'superadmin' ? 100 : role === 'admin' ? 60 : 0;
+    const roleName = role === 'superadmin' ? 'superadmin' : role === 'admin' ? 'admin' : 'nonadmin';
+    let roleDoc = await Role.findOne({ name: roleName });
+    if (!roleDoc) roleDoc = await Role.create({ name: roleName, level });
+
     const passwordHash = await User.hashPassword(password);
-    const user = await User.create({ name, email: email.toLowerCase(), passwordHash, role });
+    const user = await User.create({ name, email: email.toLowerCase(), passwordHash, role, roleId: roleDoc._id });
 
     const details = { targetUserId: user._id, targetName: user.name, targetEmail: user.email };
     Activity.create({ userId: req.user._id, action: 'user.provisioned', details }).catch(() => {});
@@ -218,10 +271,25 @@ router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userPara
     if (name !== undefined)  update.name = name;
     if (email !== undefined) update.email = email.toLowerCase().trim();
     if (role !== undefined) {
-      if (!['user', 'admin'].includes(role)) {
+      if (!['nonadmin', 'admin', 'superadmin'].includes(role)) {
         return res.status(400).json({ message: 'Invalid role' });
       }
+      // Only super admins can assign the superadmin role
+      if (role === 'superadmin' && req.user.roleId?.level !== 100) {
+        return res.status(403).json({ message: 'Only super admins can assign the Super Admin role' });
+      }
+      // Check if target user is a workspace owner
+      const isOwner = await Workspace.exists({ createdBy: userId });
+      if (isOwner && req.user.roleId?.level !== 100) {
+        return res.status(403).json({ message: 'Only super admins can change the role of a workspace owner' });
+      }
       update.role = role;
+      // Also update the roleId reference to the Role model
+      const level = role === 'superadmin' ? 100 : role === 'admin' ? 60 : 0;
+      const roleName = role === 'superadmin' ? 'superadmin' : role === 'admin' ? 'admin' : 'nonadmin';
+      let roleDoc = await Role.findOne({ name: roleName });
+      if (!roleDoc) roleDoc = await Role.create({ name: roleName, level });
+      update.roleId = roleDoc._id;
     }
     // IES-P1-22: write only the whitelisted fields as dotted paths, so an admin
     // editing one setting doesn't wipe the user's other settings (e.g. timezone
@@ -240,7 +308,7 @@ router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userPara
     // Role change invalidates any previously-issued tokens (IES-P0-08).
     if (role !== undefined) ops.$inc = { tokenVersion: 1 };
 
-    const user = await User.findByIdAndUpdate(userId, ops, { new: true, runValidators: true }).select('-googleTokens');
+    const user = await User.findByIdAndUpdate(userId, ops, { new: true, runValidators: true }).select('-googleTokens').populate('roleId', 'name level');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(user);
     const details = { targetUserId: userId, targetName: user.name };

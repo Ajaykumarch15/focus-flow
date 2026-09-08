@@ -5,33 +5,27 @@
 //
 // Access hierarchy:
 //   1. Platform admin — blanket bypass.
-//   2. Workspace Owner/Admin — full access to all teams in workspace.
-//   3. Project Manager — access teams belonging to their project.
-//   4. Team Leader — access/manage their own team.
-//   5. Team Member — view/participate in their team.
-//   6. Unrelated — no access.
+//   2. Workspace superadmin — full access to all teams in workspace.
+//   3. Workspace admin — full access to all teams in workspace.
+//   4. Project Manager — create/manage teams belonging to their project.
+//   5. Team Leader — access/manage their own team.
+//   6. Team Member — view/participate in their team.
+//   7. Unrelated — no access.
 //
 // Two code paths:
 //   1. Legacy teams (workspaceRef null): admin-only access.
 //   2. Workspace teams: workspace role + project relationship + team
 //      leadership determine the effective permission.
 //
-// Permission matrix:
-//   ┌───────────────────┬──────┬──────┬──────┬──────┬──────┬─────────┐
-//   │ Permission        │ Ownr │ Admn │ PM   │ TL   │ TM   │ unrelated│
-//   ├───────────────────┼──────┼──────┼──────┼──────┼──────┼─────────┤
-//   │ team.view         │  ✓   │  ✓   │  ✓¹  │  ✓²  │  ✓²  │    ✗    │
-//   │ team.create       │  ✓   │  ✓   │  ✓¹  │  ✗   │  ✗   │    ✗    │
-//   │ team.edit         │  ✓   │  ✓   │  ✗   │  ✓²  │  ✗   │    ✗    │
-//   │ team.delete       │  ✓   │  ✓   │  ✗   │  ✗   │  ✗   │    ✗    │
-//   │ team.manage_mbrs  │  ✓   │  ✓   │  ✗   │  ✓²  │  ✗   │    ✗    │
-//   │ team.assign_leader│  ✓   │  ✓   │  ✗   │  ✗   │  ✗   │    ✗    │
-//   └───────────────────┴──────┴──────┴──────┴──────┴──────┴─────────┘
-//   ¹ PM access only for project-scoped teams (team.projectRef set).
-//   ² TL/TM access only for their own team (team membership check).
+// UNIFIED ROLE SYSTEM:
+//   - superadmin: blanket bypass
+//   - admin: full team management
+//   - project manager (nonadmin+): can create/manage teams within their project
+//   - team leader: can edit/manage their own team
+//   - team member: can view their own team
 
-const { TEAM } = require('../permissions');
-const { getWorkspaceRole, getProjectRole, isTeamLeader, isTeamMember } = require('../relationships');
+const { TEAM, ROLE_LEVELS } = require('../permissions');
+const { getWorkspaceRole, getProjectRole, isProjectManager, isTeamLeader, isTeamMember } = require('../relationships');
 
 /**
  * Evaluate a team permission.
@@ -55,12 +49,12 @@ function can(user, permission, context) {
     if (!context.workspace) return false;
     const wsRole = getWorkspaceRole(user, context.workspace);
     if (!wsRole) return false;
-    // Owner/Admin can always create
-    if (wsRole === 'Owner' || wsRole === 'Admin') return true;
+    const isWsAdmin = wsRole === 'admin' || wsRole === 'superadmin';
+    // Admin/superadmin can always create
+    if (isWsAdmin) return true;
     // Project Manager can create teams within their project
     if (context.project) {
-      const projectRole = getProjectRole(user, context.project);
-      if (projectRole === 'manager') return true;
+      if (isProjectManager(user, context.project)) return true;
     }
     return false;
   }
@@ -71,36 +65,35 @@ function can(user, permission, context) {
   const wsRole = getWorkspaceRole(user, context.workspace);
   if (!wsRole) return false;
 
-  const isWsAdmin = wsRole === 'Owner' || wsRole === 'Admin';
+  const isWsAdmin = wsRole === 'admin' || wsRole === 'superadmin';
   const leader = isTeamLeader(user, context.team);
   const member = isTeamMember(user, context.team);
 
   // Project Manager access (only for project-scoped teams)
   let isProjectMgr = false;
   if (context.team.projectRef && context.project) {
-    const projectRole = getProjectRole(user, context.project);
-    isProjectMgr = projectRole === 'manager';
+    isProjectMgr = isProjectManager(user, context.project);
   }
 
   switch (permission) {
-    // Owner/Admin can always view. PM can view project-scoped teams.
+    // Admin/superadmin can always view. PM can view project-scoped teams.
     // Team Leader/Member can view their own team.
     case TEAM.VIEW:
       return isWsAdmin || isProjectMgr || leader || member;
 
-    // Owner/Admin or Team Leader can edit team
+    // Admin/superadmin or Team Leader can edit team
     case TEAM.EDIT:
       return isWsAdmin || leader;
 
-    // Owner/Admin can delete teams
+    // Admin/superadmin can delete teams
     case TEAM.DELETE:
       return isWsAdmin;
 
-    // Owner/Admin or Team Leader can manage team members
+    // Admin/superadmin or Team Leader can manage team members
     case TEAM.MANAGE_MEMBERS:
       return isWsAdmin || leader;
 
-    // Owner/Admin can assign team leader
+    // Admin/superadmin can assign team leader
     case TEAM.ASSIGN_LEADER:
       return isWsAdmin;
 

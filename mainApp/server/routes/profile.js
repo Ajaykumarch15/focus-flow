@@ -11,13 +11,13 @@ router.use(protect);
 // persist a value that the User model (validated on every save) would reject.
 const profileSettingsSchema = z.record(z.string(), z.unknown()).refine(
   (settings) => {
-    if (settings.dailyGoal !== undefined) {
-      const goal = settings.dailyGoal;
-      return typeof goal === 'number' && Number.isFinite(goal) && goal >= 0 && goal <= 24;
-    }
+    const validGoal = (v) =>
+      typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 24;
+    if (settings.dailyGoal !== undefined && !validGoal(settings.dailyGoal)) return false;
+    if (settings.personalDailyGoal !== undefined && !validGoal(settings.personalDailyGoal)) return false;
     return true;
   },
-  { message: 'dailyGoal must be between 0 and 24 hours' }
+  { message: 'dailyGoal and personalDailyGoal must be between 0 and 24 hours' }
 );
 
 const profilePatchSchema = z.object({

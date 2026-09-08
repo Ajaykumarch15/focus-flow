@@ -83,6 +83,11 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
 
   const handleBack = onBack ?? (() => navigate(-1));
 
+  const kanbanWorkspaceId = log.projectRef?.workspaceRef;
+  const kanbanProjectId = log.projectRef?._id;
+  const kanbanTaskId = log.taskRef?._id;
+  const canOpenKanban = !!kanbanWorkspaceId && !!kanbanProjectId && !!kanbanTaskId;
+
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -112,11 +117,23 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                     {log.gitBranch}
                   </Badge>
                 )}
-                {log.taskRef && (
-                  <span className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
-                    style={{ background: `${log.taskRef.color}15`, color: log.taskRef.color }}>
-                    <Timer size={11} /> {log.taskRef.title}
-                  </span>
+                {canOpenKanban && log.taskRef && (
+                  <>
+                    <span className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
+                      style={{ background: `${log.taskRef.color}15`, color: log.taskRef.color }}>
+                      <Timer size={11} /> {log.taskRef.title}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => navigate(`/collab/${kanbanWorkspaceId}/team/${kanbanProjectId}/kanban?select=${kanbanTaskId}`)}
+                      className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10"
+                      leftIcon={<ExternalLink size={11} />}
+                      aria-label="View in Kanban"
+                    >
+                      Kanban
+                    </Button>
+                  </>
                 )}
                 {log.projectRef && (
                   <Badge tone="neutral" icon={<FolderOpen size={11} />}>

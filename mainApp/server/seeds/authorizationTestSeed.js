@@ -250,15 +250,15 @@ async function seed() {
     name: 'Authorization Test Workspace A',
     createdBy: users['owner-01']._id,
     members: [
-      { userId: users['owner-01']._id,  role: 'Owner' },
-      { userId: users['admin-01']._id,  role: 'Admin' },
-      { userId: users['member-01']._id, role: 'Member' },
-      { userId: users['member-02']._id, role: 'Member' },
-      { userId: users['member-03']._id, role: 'Member' },
-      { userId: users['pm-01']._id,     role: 'Member' },
-      { userId: users['pm-02']._id,     role: 'Member' },
-      { userId: users['tl-01']._id,     role: 'Member' },
-      { userId: users['tl-02']._id,     role: 'Member' },
+      { userId: users['owner-01']._id,  role: 'admin', isProjectManager: true },
+      { userId: users['admin-01']._id,  role: 'admin', isProjectManager: true },
+      { userId: users['member-01']._id, role: 'nonadmin' },
+      { userId: users['member-02']._id, role: 'nonadmin' },
+      { userId: users['member-03']._id, role: 'nonadmin' },
+      { userId: users['pm-01']._id,     role: 'nonadmin', isProjectManager: true },
+      { userId: users['pm-02']._id,     role: 'nonadmin', isProjectManager: true },
+      { userId: users['tl-01']._id,     role: 'nonadmin' },
+      { userId: users['tl-02']._id,     role: 'nonadmin' },
     ],
   });
 
@@ -266,9 +266,9 @@ async function seed() {
     name: 'Authorization Test Workspace B',
     createdBy: users['owner-02']._id,
     members: [
-      { userId: users['owner-02']._id,  role: 'Owner' },
-      { userId: users['admin-02']._id,  role: 'Admin' },
-      { userId: users['member-04']._id, role: 'Member' },
+      { userId: users['owner-02']._id,  role: 'admin', isProjectManager: true },
+      { userId: users['admin-02']._id,  role: 'admin', isProjectManager: true },
+      { userId: users['member-04']._id, role: 'nonadmin' },
     ],
   });
 

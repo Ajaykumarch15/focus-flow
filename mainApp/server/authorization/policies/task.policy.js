@@ -9,11 +9,19 @@
 //
 // A Task is "personal" if workspaceRef is null.
 // A Task is "company" if workspaceRef is set.
+//
+// UNIFIED ROLE SYSTEM:
+//   - superadmin: blanket bypass
+//   - admin: full task management
+//   - project manager (nonadmin+): admin-level permissions within their project
+//   - team leader: can edit/manage tasks in their team
+//   - assignee/reviewer: can edit/submit/review their assigned tasks
 
-const { TASK } = require('../permissions');
+const { TASK, ROLE_LEVELS } = require('../permissions');
 const {
   getWorkspaceRole,
   getProjectRole,
+  isProjectManager,
   isTeamLeader,
   isTeamMember,
   isTaskAssignee,
@@ -55,16 +63,15 @@ function can(user, permission, context) {
   const wsRole = getWorkspaceRole(user, context.workspace);
   if (!wsRole) return false;
 
-  const isWsAdmin = wsRole === 'Owner' || wsRole === 'Admin';
+  const isWsAdmin = wsRole === 'admin' || wsRole === 'superadmin';
   const isWsMember = wsRole !== null;
 
   // ── Project relationship ─────────────────────────────────────────────────
   let isProjectMgr = false;
   let isProjectMbr = false;
   if (context.project) {
-    const projectRole = getProjectRole(user, context.project);
-    isProjectMgr = projectRole === 'manager';
-    isProjectMbr = projectRole !== null;
+    isProjectMgr = isProjectManager(user, context.project);
+    isProjectMbr = getProjectRole(user, context.project) !== null;
   }
 
   // ── Task-specific relationships ──────────────────────────────────────────

@@ -111,7 +111,7 @@ function toMember(raw: any): WorkspaceMember {
     name: raw.name ?? 'Unknown Member',
     email: raw.email ?? '',
     avatar: raw.avatar,
-    role: raw.role ?? 'Member',
+    role: raw.role ?? 'nonadmin',
     teams: raw.teams ?? [],
     status: 'available',
     currentFocusTask: undefined,
@@ -141,7 +141,8 @@ function toProject(raw: any): Project {
     repositoryUrl: raw.repositoryUrl,
     members: (raw.members ?? []).map((m: any) => ({
       userId: String(m.userId ?? m._id ?? m.id ?? m),
-      role: m.role ?? 'Editor',
+      role: m.role ?? 'nonadmin',
+      isProjectManager: m.isProjectManager ?? false,
       addedAt: m.addedAt ? new Date(m.addedAt).toISOString() : new Date().toISOString(),
     })),
     teamIds: (raw.teamIds ?? []).map(String),
@@ -364,7 +365,7 @@ interface CollaborationStore {
   // Actions
   setActiveWorkspace: (id: string) => void;
   updateWorkspaceSettings: (workspaceId: string, settings: Partial<Workspace['settings']>) => Promise<void>;
-  createWorkspace: (name: string, type: WorkspaceType, description: string) => Promise<Workspace | undefined>;
+  createWorkspace: (name: string, type: WorkspaceType, description: string, members?: Array<{ userId: string; role?: string; isProjectManager?: boolean }>) => Promise<Workspace | undefined>;
   updateWorkspace: (workspaceId: string, patch: { name: string; type: WorkspaceType; description: string }) => Promise<Workspace | undefined>;
   deleteWorkspace: (workspaceId: string) => Promise<boolean>;
   createTeam: (name: string, description: string, color: string, memberIds: string[], leaderId?: string) => Promise<void>;
@@ -376,6 +377,7 @@ interface CollaborationStore {
   // EEP2-P2.2.3: persist DDS §4.4 Project Info (description/key/status/members/
   // teamIds/settings). Optimistic with rollback — see updateWorkspaceSettings.
   updateProjectMeta: (projectId: string, patch: ProjectPatch) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<boolean>;
   createFeature: (data: Partial<Feature>) => Promise<Feature | undefined>;
   createSprint: (projectId: string, name: string, startDate: string, endDate: string, goal: string, opts?: { capacityHours?: number; targetVelocity?: number }) => Promise<Sprint | undefined>;
   // EEP2-P4.3.2: planning-page persistence (DDS §10). updateSprint PATCHes
@@ -660,8 +662,15 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
   },
 
   // ── Actions ─────────────────────────────────────────────────────────────────
-  setActiveWorkspace: (id) => {
+  setActiveWorkspace: async (id) => {
     set({ activeWorkspaceId: id });
+    // Reload workspace-scoped data so the new workspace's data is fresh
+    await Promise.all([
+      get().loadMembers(id),
+      get().loadTeams(),
+      get().loadProjects(),
+    ]);
+    await get().loadTasks();
     const ws = get().workspaces.find(w => w.id === id);
     if (ws) toast.info(`Switched to workspace: ${ws.name}`);
   },
@@ -688,16 +697,17 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     );
   },
 
-  createWorkspace: async (name, type, description) => {
+  createWorkspace: async (name, type, description, members) => {
     const tempId = `ws-tmp-${Date.now()}`;
     const prevActive = get().activeWorkspaceId;
+    const memberCount = 1 + (members?.length || 0);
     const temp: Workspace = {
       id: tempId,
       name,
       type,
       icon: workspaceIconFor(type),
       description,
-      membersCount: 1,
+      membersCount: memberCount,
       projectsCount: 0,
       createdAt: new Date().toISOString(),
       settings: { ...DEFAULT_WORKSPACE_SETTINGS },
@@ -712,7 +722,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
           }));
         };
       },
-      () => api.workspaces.create({ name, type, description }),
+      () => api.workspaces.create({ name, type, description, members }),
       { errorTitle: 'Workspace creation failed' },
     );
     if (!created) return undefined;
@@ -781,7 +791,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       { errorTitle: 'Workspace deletion failed' },
     );
     if (!removed) return false;
-    toast.success('Workspace deleted', target ? `${target.name} and its teams were removed.` : undefined);
+    toast.success('Workspace deleted', target ? `${target.name} and all its data have been permanently removed.` : undefined);
     return true;
   },
 
@@ -863,7 +873,16 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         set((state) => ({ projects: [temp, ...state.projects] }));
         return () => set({ projects: prevProjects });
       },
-      () => api.projects.create({ name: temp.name, workspaceId: activeWsId || undefined }),
+      () => api.projects.create({
+        name: temp.name,
+        workspaceId: activeWsId || undefined,
+        description: temp.description || undefined,
+        members: temp.members.length > 0 ? temp.members.map(m => ({
+          userId: m.userId,
+          role: m.role,
+          isProjectManager: m.isProjectManager,
+        })) : undefined,
+      }),
       { errorTitle: 'Project creation failed' },
     );
     if (!created) return undefined;
@@ -895,6 +914,27 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       () => api.projects.update(projectId, patch),
       { errorTitle: 'Project update failed' },
     );
+  },
+
+  deleteProject: async (projectId) => {
+    const target = get().projects.find((p) => p.id === projectId);
+    const removed = await runMutation(
+      () => {
+        set((state) => ({
+          projects: state.projects.filter((p) => p.id !== projectId),
+        }));
+        return () => {
+          set((state) => ({
+            projects: target ? [target, ...state.projects] : state.projects,
+          }));
+        };
+      },
+      () => api.projects.remove(projectId),
+      { errorTitle: 'Project deletion failed' },
+    );
+    if (!removed) return false;
+    toast.success('Project deleted', target ? `${target.name} has been permanently removed.` : undefined);
+    return true;
   },
 
   // IES-R1 (P6-T5/UX-R1): create a backlog feature (sprintRef stays null). Real

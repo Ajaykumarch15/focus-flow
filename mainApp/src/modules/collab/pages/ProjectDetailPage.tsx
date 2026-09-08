@@ -1,9 +1,9 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, CheckSquare, Users,
-  CalendarDays, FolderOpen, ChevronRight, LayoutGrid,
+  CalendarDays, FolderOpen, ChevronRight, LayoutGrid, Trash2,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
@@ -11,6 +11,8 @@ import { SAMPLE_PROJECTS, type ProjectStatus, mapProjectToCardData } from '@coll
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
 import { Button } from '@shared/components/ui/Button';
+import { Input } from '@shared/components/ui/Input';
+import { Card } from '@shared/components/ui/Card';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.08 } } };
@@ -41,9 +43,16 @@ const ICON_BG: Record<string, string> = {
 export function ProjectDetailPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
   const navigate = useNavigate();
-  const { members, tasks, projects: storeProjects } = useCollaborationStore();
+  const { members, tasks, projects: storeProjects, workspaces, deleteProject } = useCollaborationStore();
   const { events } = useCalendarStore();
   const hasAttemptedLoad = useRef(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const workspace = workspaces.find((w) => w.id === workspaceId);
+  const canDelete = workspace?.role === 'superadmin' || workspace?.role === 'admin';
 
   useEffect(() => {
     hasAttemptedLoad.current = false;
@@ -104,6 +113,14 @@ export function ProjectDetailPage() {
       kanbanDone,
     };
   }, [project, members, tasks, events]);
+
+  const handleDelete = async () => {
+    if (!projectId || deleting) return;
+    setDeleting(true);
+    const ok = await deleteProject(projectId);
+    setDeleting(false);
+    if (ok) navigate(`/collab/${workspaceId}/team`);
+  };
 
   if (!project) {
     return (
@@ -212,7 +229,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate(`/collab/${workspaceId}/people`)}
+            onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}/people`)}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
@@ -235,7 +252,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate('/worklog/tasks')}
+            onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}/kanban`)}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-4">
@@ -254,7 +271,7 @@ export function ProjectDetailPage() {
               <span className="text-brand-400 font-semibold">{stats.activeTasks} active</span>
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
-              View Tasks <ChevronRight size={14} />
+              View Board <ChevronRight size={14} />
             </div>
           </motion.button>
 
@@ -262,7 +279,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate('/worklog/calendar')}
+            onClick={() => navigate(`/worklog/calendar?project=${encodeURIComponent(project.name)}`)}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4">
@@ -310,6 +327,40 @@ export function ProjectDetailPage() {
             </div>
           </motion.button>
         </motion.div>
+
+        {/* Danger Zone */}
+        {canDelete && (
+          <motion.div variants={fadeUp} initial="hidden" animate="show">
+            <Card className="p-6 border-danger-500/20">
+              <h3 className="font-display font-bold text-danger-400 mb-2">Danger Zone</h3>
+              <p className="text-xs text-surface-400 mb-4">
+                Deleting this project will permanently remove all associated tasks, sprints, features, and data. This action cannot be undone.
+              </p>
+              {!showDeleteConfirm ? (
+                <Button variant="danger" size="sm" onClick={() => setShowDeleteConfirm(true)} leftIcon={<Trash2 size={13} />}>
+                  Delete Project
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <Input
+                    placeholder={`Type "${project.name}" to confirm`}
+                    value={deleteConfirmName}
+                    onChange={(e) => setDeleteConfirmName(e.target.value)}
+                    className="max-w-xs"
+                  />
+                  <div className="flex items-center gap-3">
+                    <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleteConfirmName !== project.name || deleting} loading={deleting}>
+                      Confirm Delete
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmName(''); }}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          </motion.div>
+        )}
       </main>
     </div>
   );

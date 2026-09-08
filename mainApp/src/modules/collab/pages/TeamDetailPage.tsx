@@ -5,6 +5,7 @@ import { ArrowLeft, Users, Crown, Mail } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
+import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -154,7 +155,7 @@ export function TeamDetailPage() {
                       <Mail size={10} /> {m.email}
                     </p>
                   </div>
-                  <Badge tone="neutral" className="text-[10px]">{m.role}</Badge>
+                  <Badge tone="neutral" className="text-[10px]">{getRoleDisplayName(m.role)}</Badge>
                 </div>
               ))}
             </div>

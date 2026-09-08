@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, X } from 'lucide-react';
+import { Building2, X, Check, Search } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import type { WorkspaceType } from '@collab/types/collaboration';
+import { api } from '@shared/utils/api';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Select } from '@shared/components/ui/Select';
+import { Avatar } from '@shared/components/ui/Avatar';
 
 const WORKSPACE_TYPES: WorkspaceType[] = [
   'Startup', 'Personal', 'College Project', 'Open Source', 'Internship', 'Enterprise',
@@ -17,6 +19,13 @@ interface CreateWorkspaceModalProps {
   onClose: () => void;
 }
 
+interface UserOption {
+  _id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
 export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalProps) {
   const { createWorkspace } = useCollaborationStore();
   const [name, setName] = useState('');
@@ -24,16 +33,52 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setUsersLoading(true);
+    api.users.list()
+      .then((data) => setUsers(Array.isArray(data) ? data : []))
+      .catch(() => setUsers([]))
+      .finally(() => setUsersLoading(false));
+  }, [isOpen]);
+
+  const filteredUsers = useMemo(() => {
+    if (!memberSearch.trim()) return users;
+    const q = memberSearch.toLowerCase();
+    return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+  }, [users, memberSearch]);
+
+  const toggleMember = (userId: string) => {
+    setSelectedMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || saving) return;
     setSaving(true);
-    const created = await createWorkspace(name.trim(), type, description.trim());
+    const members = Array.from(selectedMembers).map((userId) => ({
+      userId,
+      role: 'nonadmin' as const,
+      isProjectManager: false,
+    }));
+    const created = await createWorkspace(name.trim(), type, description.trim(), members.length > 0 ? members : undefined);
     setSaving(false);
     if (created) {
       setName('');
       setType('Startup');
       setDescription('');
+      setSelectedMembers(new Set());
+      setMemberSearch('');
       onClose();
     }
   };
@@ -52,10 +97,10 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
-        className="bg-surface-900 border border-surface-700/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden"
+        className="bg-surface-900 border border-surface-700/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800 bg-surface-850/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800 bg-surface-850/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-brand-400">
               <Building2 size={18} />
@@ -70,7 +115,7 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div>
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Workspace Name <span className="text-red-400">*</span>
@@ -104,7 +149,52 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div>
+            <label className="block text-xs font-semibold text-surface-300 mb-1.5">
+              Add Members {selectedMembers.size > 0 && <span className="text-brand-400">({selectedMembers.size} selected)</span>}
+            </label>
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+              <Input
+                className="rounded-xl text-sm w-full pl-8"
+                placeholder="Search by name or email..."
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-40 overflow-y-auto space-y-1 rounded-xl border border-surface-800 bg-surface-900/50 p-2">
+              {usersLoading ? (
+                <p className="text-xs text-surface-500 text-center py-3">Loading users...</p>
+              ) : filteredUsers.length === 0 ? (
+                <p className="text-xs text-surface-500 text-center py-3">No users found</p>
+              ) : (
+                filteredUsers.map((u) => {
+                  const isSelected = selectedMembers.has(u._id);
+                  return (
+                    <button
+                      key={u._id}
+                      type="button"
+                      onClick={() => toggleMember(u._id)}
+                      className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
+                        isSelected
+                          ? 'bg-brand-500/10 border border-brand-500/30'
+                          : 'hover:bg-surface-850 border border-transparent'
+                      }`}
+                    >
+                      <Avatar name={u.name || u.email} size="sm" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-surface-200 truncate">{u.name || u.email}</p>
+                        <p className="text-[10px] text-surface-500 truncate">{u.email}</p>
+                      </div>
+                      {isSelected && <Check size={12} className="text-brand-400 shrink-0" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-2 shrink-0">
             <Button type="button" variant="secondary" onClick={onClose} className="flex-1 rounded-xl">Cancel</Button>
             <Button type="submit" disabled={!name.trim() || saving} loading={saving} className="flex-1 rounded-xl">
               Create Workspace

@@ -4,38 +4,45 @@
 // by middleware/workspace.js, routes/projects.js, and the permissionMatrix
 // test suite. New code should import from ../authorization/ instead.
 //
-// Phase 2: EDITOR_ROLES updated to reflect the new Owner/Admin/Member model.
-// Legacy role values (Manager, Developer) are included during the transition
-// period so that existing database documents with those roles can still be
-// processed by legacy middleware routes. These will be removed once all
-// consumers are migrated to the new authorization package.
+// UNIFIED ROLE SYSTEM: All roles use the same three levels: superadmin, admin, nonadmin.
+// Project manager is a designation granted to nonadmin users, not a separate role level.
 
-const ROLE_TIERS = ['Owner', 'Admin', 'Member', 'Manager', 'Developer', 'Viewer'];
+const { ROLE_LEVELS, LEGACY_ROLE_MAP } = require('../authorization/permissions');
 
-// IES-R1: any role except Viewer may create/update workspace resources.
-// Phase 2: 'Member' is the new canonical role; legacy Manager/Developer are
-// included for backward compatibility during the data migration period.
-const EDITOR_ROLES = ['Owner', 'Admin', 'Member', 'Manager', 'Developer'];
+// Unified role constants
+const UNIFIED_ROLES = ['superadmin', 'admin', 'nonadmin'];
 
-// Owner | Admin — workspace settings + membership management + structural deletes.
-const MANAGER_ROLES = ['Owner', 'Admin'];
+// Role tiers for backward compatibility
+const ROLE_TIERS = UNIFIED_ROLES;
 
-// Owner only — workspace deletion / owner-role mutation.
-const OWNER_ROLES = ['Owner'];
+// Admin roles: admin, superadmin
+const ADMIN_ROLES = ['admin', 'superadmin'];
+
+// Superadmin roles: superadmin only
+const SUPERADMIN_ROLES = ['superadmin'];
+
+// Editor roles: admin, superadmin (nonadmin cannot edit workspace resources)
+const EDITOR_ROLES = ['admin', 'superadmin'];
+
+// Manager roles: admin, superadmin (workspace settings + membership management)
+const MANAGER_ROLES = ['admin', 'superadmin'];
+
+// Owner roles: superadmin only (workspace deletion / role mutation)
+const OWNER_ROLES = ['superadmin'];
 
 const hasRole = (role, allowed) => allowed.includes(role);
 
 // DDS §7 row 1 — any workspace member may read.
 function canRead(role) {
-  return ROLE_TIERS.includes(role);
+  return UNIFIED_ROLES.includes(role);
 }
 
-// DDS §7 rows 2 & 4 — create/update entities + edit project meta: any except Viewer.
+// DDS §7 rows 2 & 4 — create/update entities + edit project meta: admin/superadmin.
 function canEdit(role) {
   return hasRole(role, EDITOR_ROLES);
 }
 
-// DDS §7 row 3 — delete Milestone/Phase/Module/Feature/Sprint: Owner | Admin.
+// DDS §7 row 3 — delete Milestone/Phase/Module/Feature/Sprint: admin/superadmin.
 function canDeleteStructure(role) {
   return hasRole(role, MANAGER_ROLES);
 }
@@ -45,21 +52,24 @@ function canManage(role) {
   return hasRole(role, MANAGER_ROLES);
 }
 
-// DDS §7 row 7 — delete the workspace: Owner only.
+// DDS §7 row 7 — delete the workspace: superadmin only.
 function canDeleteWorkspace(role) {
   return hasRole(role, OWNER_ROLES);
 }
 
 // Permitted roles per gate — one-to-one with the requireWorkspace* factories.
 const GATE_ROLES = {
-  member: ROLE_TIERS,
+  member: UNIFIED_ROLES,
   editor: EDITOR_ROLES,
   ownerAdmin: MANAGER_ROLES,
   owner: OWNER_ROLES,
 };
 
 module.exports = {
+  UNIFIED_ROLES,
   ROLE_TIERS,
+  ADMIN_ROLES,
+  SUPERADMIN_ROLES,
   EDITOR_ROLES,
   MANAGER_ROLES,
   OWNER_ROLES,

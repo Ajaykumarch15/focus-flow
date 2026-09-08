@@ -11,11 +11,19 @@
 //
 // A WorkLog is "company" if its task has a workspaceRef OR it has a projectRef.
 // A WorkLog is "personal" otherwise (standalone or task with workspaceRef null).
+//
+// UNIFIED ROLE SYSTEM:
+//   - superadmin: blanket bypass
+//   - admin: full worklog management
+//   - project manager (nonadmin+): can review/approve worklogs in their project
+//   - team leader: can view/review worklogs of their team members
+//   - owner: can view/edit/delete their own worklogs
 
-const { WORKLOG } = require('../permissions');
+const { WORKLOG, ROLE_LEVELS } = require('../permissions');
 const {
   getWorkspaceRole,
   getProjectRole,
+  isProjectManager,
   isTeamLeader,
   isResourceOwner,
   isUserIdInTeam,
@@ -47,11 +55,10 @@ function can(user, permission, context) {
 
   // ── Workspace role ────────────────────────────────────────────────────────
   const wsRole = context.workspace ? getWorkspaceRole(user, context.workspace) : null;
-  const isWsAdmin = wsRole === 'Owner' || wsRole === 'Admin';
+  const isWsAdmin = wsRole === 'admin' || wsRole === 'superadmin';
 
   // ── Project role ──────────────────────────────────────────────────────────
-  const projectRole = context.project ? getProjectRole(user, context.project) : null;
-  const isProjectMgr = projectRole === 'manager';
+  const isProjectMgr = context.project ? isProjectManager(user, context.project) : false;
 
   // ── Team role ─────────────────────────────────────────────────────────────
   const isLeader = context.team ? isTeamLeader(user, context.team) : false;
@@ -90,11 +97,11 @@ function can(user, permission, context) {
 
     // ── Team visibility ───────────────────────────────────────────────────
     // Allowed for: Team Leader (of a team the worklog owner belongs to),
-    //   workspace Owner/Admin, Project Manager (of the worklog's project).
-    // Denied for: plain Members, Team Leaders of unrelated teams.
+    //   workspace admin/superadmin, Project Manager (of the worklog's project).
+    // Denied for: plain nonadmins, Team Leaders of unrelated teams.
     case WORKLOG.VIEW_TEAM: {
       if (!hasWorkspaceScope) return false;
-      // Admin/Owner: blanket workspace access
+      // Admin/superadmin: blanket workspace access
       if (isWsAdmin) return true;
       // PM: can view worklogs in their project
       if (isProjectMgr) return true;
@@ -105,8 +112,8 @@ function can(user, permission, context) {
 
     // ── Project visibility ────────────────────────────────────────────────
     // Allowed for: Project Manager (of the worklog's project),
-    //   workspace Owner/Admin.
-    // Denied for: plain Members, PMs of unrelated projects.
+    //   workspace admin/superadmin.
+    // Denied for: plain nonadmins, PMs of unrelated projects.
     case WORKLOG.VIEW_PROJECT: {
       if (!hasWorkspaceScope) return false;
       if (isWsAdmin) return true;
@@ -122,9 +129,9 @@ function can(user, permission, context) {
 
     // ── Review / Approve / Request Changes ────────────────────────────────
     // Allowed for: Team Leader (of the owner's team), PM (of the worklog's
-    //   project), workspace Owner/Admin.
+    //   project), workspace admin/superadmin.
     // Denied for: the worklog owner themselves (self-approval prevention),
-    //   plain Members, unrelated Leaders/PMs.
+    //   plain nonadmins, unrelated Leaders/PMs.
     case WORKLOG.REVIEW:
     case WORKLOG.REQUEST_CHANGES: {
       if (!hasWorkspaceScope) return false;

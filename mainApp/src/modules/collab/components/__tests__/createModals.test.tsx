@@ -55,7 +55,7 @@ const feature = (id: string): Feature => ({
 });
 
 const member = (id: string, name: string): WorkspaceMember => ({
-  id, name, email: `${name}@focusflow.io`, role: 'Member',
+  id, name, email: `${name}@focusflow.io`, role: 'nonadmin',
   teams: [], status: 'available', joinedAt: '2026-01-01',
 });
 

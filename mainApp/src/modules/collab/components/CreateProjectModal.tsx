@@ -161,7 +161,7 @@ export function CreateProjectModal({ isOpen, onClose }: { isOpen: boolean; onClo
                         setSelectedMembers((prev) =>
                           prev.some(sm => sm.userId === m.id)
                             ? prev.filter((sm) => sm.userId !== m.id)
-                            : [...prev, { userId: m.id, role: 'Editor' as ProjectMemberRole }],
+                            : [...prev, { userId: m.id, role: 'nonadmin' as ProjectMemberRole }],
                         )
                       }
                       className={`w-full flex items-center gap-3 p-2 rounded-xl transition-all text-left ${

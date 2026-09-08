@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { CollaborativeTask } from '@collab/types/collaboration';
+import type { SprintStatus } from '@collab/types/collaboration';
 import type { KanbanTask, KanbanStatus, KanbanView, KanbanLabel, SortBy } from './types';
 import { SAMPLE_KANBAN_TASKS, LABEL_PRESETS } from './types';
 
@@ -21,6 +22,8 @@ interface KanbanState {
   workspaceId: string | null;
   projectId: string | null;
   membersMap: Record<string, { name: string; avatar?: string }>;
+  worklogTaskIds: Map<string, string>;
+  setWorklogTaskIds: (ids: Map<string, string>) => void;
 
   setSearch: (q: string) => void;
   setActiveView: (v: KanbanView) => void;
@@ -58,6 +61,8 @@ export const useKanbanStore = create<KanbanState>((set) => ({
   workspaceId: null,
   projectId: null,
   membersMap: {},
+
+  worklogTaskIds: new Map(),
 
   setSearch: (q) => set({ searchQuery: q }),
   setActiveView: (v) => set({ activeView: v }),
@@ -97,10 +102,21 @@ export const useKanbanStore = create<KanbanState>((set) => ({
       showDetailsPanel: state.selectedTaskId === id ? false : state.showDetailsPanel,
     })),
 
-  moveTask: (taskId, toStatus, toIndex) =>
+  moveTask: (taskId, toStatus, toIndex) => {
+    // Reverse map: kanban status -> sprint status for server persistence
+    const kanbanToSprint: Record<KanbanStatus, SprintStatus> = {
+      todo: 'backlog',
+      doing: 'in_progress',
+      review: 'review',
+      done: 'done',
+    };
+
+    // Capture task before set() for server persistence
+    let movedTask: KanbanTask | undefined;
     set((state) => {
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return state;
+      movedTask = task;
 
       const tasks = state.tasks.filter((t) => t.id !== taskId);
       const destTasks = tasks.filter((t) => t.status === toStatus);
@@ -114,7 +130,16 @@ export const useKanbanStore = create<KanbanState>((set) => ({
       const otherTasks = tasks.filter((t) => t.status !== toStatus);
 
       return { tasks: [...otherTasks, ...reordered] };
-    }),
+    });
+
+    // Persist to server (fire-and-forget — local state is already optimistic)
+    if (movedTask?.workspaceId) {
+      const sprintStatus = kanbanToSprint[toStatus];
+      import('@collab/services/useCollaborationStore').then(({ useCollaborationStore }) => {
+        useCollaborationStore.getState().updateTaskStatus(taskId, sprintStatus);
+      });
+    }
+  },
 
   reorderInColumn: (status, fromIndex, toIndex) =>
     set((state) => {
@@ -214,4 +239,6 @@ export const useKanbanStore = create<KanbanState>((set) => ({
 
   setContext: (workspaceId, projectId, members = {}) =>
     set({ workspaceId, projectId, membersMap: members }),
+
+  setWorklogTaskIds: (ids) => set({ worklogTaskIds: ids }),
 }));

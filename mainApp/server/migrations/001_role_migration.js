@@ -22,10 +22,9 @@ const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'SuperAdmin2026!'
 const SUPERADMIN_NAME = 'Platform Superadmin';
 
 const SYSTEM_ROLES = [
-  { name: 'SUPERADMIN', level: 100 },
-  { name: 'OWNER',      level: 80 },
-  { name: 'ADMIN',      level: 60 },
-  { name: 'MEMBER',     level: 10 },
+  { name: 'superadmin', level: 100 },
+  { name: 'admin',      level: 60 },
+  { name: 'nonadmin',   level: 10 },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -136,15 +135,15 @@ async function seedRoles(Role) {
 function determineWorkspaceRole(workspaceRoleAssignments) {
   // workspaceRoleAssignments = [{ workspace, role }]
   // Return the HIGHEST role across all workspaces
-  const rolePriority = { 'Owner': 80, 'Admin': 60, 'Member': 10 };
+  const rolePriority = { 'Owner': 60, 'Admin': 60, 'Member': 10 };
   let highest = 0;
-  let highestName = 'MEMBER';
+  let highestName = 'nonadmin';
 
   for (const assignment of workspaceRoleAssignments) {
     const priority = rolePriority[assignment.role] || 0;
     if (priority > highest) {
       highest = priority;
-      highestName = assignment.role === 'Owner' ? 'OWNER' : assignment.role === 'Admin' ? 'ADMIN' : 'MEMBER';
+      highestName = assignment.role === 'Owner' || assignment.role === 'Admin' ? 'admin' : 'nonadmin';
     }
   }
 
@@ -164,9 +163,9 @@ async function assignUserRoles(User, Role, roleMap, snapshot) {
     let globalRoleName;
 
     if (assignments.length === 0) {
-      // User has no workspace membership — default to MEMBER
-      globalRoleName = 'MEMBER';
-      log(`${user.email}: No workspace membership → MEMBER`);
+      // User has no workspace membership — default to nonadmin
+      globalRoleName = 'nonadmin';
+      log(`${user.email}: No workspace membership → nonadmin`);
     } else {
       globalRoleName = determineWorkspaceRole(assignments);
       log(`${user.email}: Workspaces [${assignments.map(a => `${a.workspace}(${a.role})`).join(', ')}] → ${globalRoleName}`);
@@ -203,9 +202,9 @@ async function assignUserRoles(User, Role, roleMap, snapshot) {
 async function createSuperadmin(User, Role, roleMap) {
   logHeader('PHASE 4: Create Superadmin User');
 
-  const superadminRole = roleMap['SUPERADMIN'];
+  const superadminRole = roleMap['superadmin'];
   if (!superadminRole) {
-    logFail('SUPERADMIN role not found');
+    logFail('superadmin role not found');
     process.exit(1);
   }
 
@@ -216,9 +215,9 @@ async function createSuperadmin(User, Role, roleMap) {
     if (String(user.roleId) !== String(superadminRole._id)) {
       user.roleId = superadminRole._id;
       await user.save();
-      log(`Updated roleId to SUPERADMIN`);
+      log(`Updated roleId to superadmin`);
     } else {
-      log(`Already has SUPERADMIN role`);
+      log(`Already has superadmin role`);
     }
     return user;
   }
@@ -229,7 +228,7 @@ async function createSuperadmin(User, Role, roleMap) {
     name: SUPERADMIN_NAME,
     email: SUPERADMIN_EMAIL,
     passwordHash,
-    role: 'admin',  // Legacy platform role (backward compat)
+    role: 'superadmin',  // Unified role
     roleId: superadminRole._id,
   });
 
@@ -379,19 +378,19 @@ async function verifyIntegrity(User, Workspace, Project, Team, Task, Comment, At
     check(`Notification ${n._id} user ${uid} exists`, existingUserIds.includes(uid));
   }
 
-  // 16. Role count is exactly 4
+  // 16. Role count is exactly 3
   const roleCount = await Role.countDocuments();
-  check(`Role count: ${roleCount} (expected 4)`, roleCount === 4);
+  check(`Role count: ${roleCount} (expected 3)`, roleCount === 3);
 
   // 17. Legacy role field still intact
   const legacyRoles = await User.distinct('role', { deletedAt: null });
   check(`Legacy "role" field still has values: [${legacyRoles.join(', ')}]`, legacyRoles.length > 0);
 
   // 18. Superadmin exists with correct role
-  const superadminRole = await Role.findOne({ name: 'SUPERADMIN' });
+  const superadminRole = await Role.findOne({ name: 'superadmin' });
   const superadmin = await User.findOne({ email: SUPERADMIN_EMAIL });
   if (superadmin && superadminRole) {
-    check(`Superadmin exists with roleId → SUPERADMIN`, String(superadmin.roleId) === String(superadminRole._id));
+    check(`Superadmin exists with roleId → superadmin`, String(superadmin.roleId) === String(superadminRole._id));
   } else {
     check(`Superadmin exists`, !!superadmin);
   }

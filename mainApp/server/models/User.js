@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
     name:         { type: String, required: true, trim: true, maxlength: 100 },
     email:        { type: String, required: true, unique: true, lowercase: true, trim: true, match: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ },
     passwordHash: { type: String, required: true },
-    role:         { type: String, enum: ['user', 'admin'], default: 'user' },
+    role:         { type: String, enum: ['nonadmin', 'admin', 'superadmin'], default: 'nonadmin' },
     roleId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Role', default: null },
     avatar:       { type: String, default: '', maxlength: 2000 },
     streak: {
@@ -19,7 +19,8 @@ const userSchema = new mongoose.Schema(
     totalPoints:      { type: Number,  default: 0, min: 0 },
     settings: {
       mode:          { type: String,  enum: ['dark', 'light'], default: 'dark' },
-      dailyGoal:     { type: Number,  default: 8, min: 0, max: 24 },
+      dailyGoal:        { type: Number,  default: 8, min: 0, max: 24 },
+      personalDailyGoal:{ type: Number,  default: 6, min: 0, max: 24 },
       timezone:      { type: String,  default: 'UTC', maxlength: 50 },
       accentColor:   { type: String,  default: '#0ea5e9', maxlength: 7 },
       fontSize:      { type: String,  enum: ['sm', 'md', 'lg'], default: 'md' },

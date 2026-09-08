@@ -5,12 +5,10 @@
 // the actual field names from the existing Mongoose models so callers do not
 // need to know the schema details.
 //
-// Phase 1: These helpers are pure functions over in-memory objects. They do
-// NOT perform database queries — the caller is responsible for loading the
-// required documents and passing them in. This keeps the authorization layer
-// testable without a database.
+// UNIFIED ROLE SYSTEM: All roles use the same three levels: superadmin, admin, nonadmin.
+// Project manager is a designation granted to nonadmin users, not a separate role level.
 
-const { LEGACY_ROLE_MAP, WORKSPACE_ROLES } = require('./permissions');
+const { LEGACY_ROLE_MAP, ROLE_LEVELS } = require('./permissions');
 
 // ── Workspace membership ─────────────────────────────────────────────────────
 
@@ -18,12 +16,11 @@ const { LEGACY_ROLE_MAP, WORKSPACE_ROLES } = require('./permissions');
  * Resolve a user's effective workspace role.
  *
  * Reads from workspace.members[] (the canonical membership array) and maps
- * legacy role values (Manager, Developer, Viewer) to the new canonical roles
- * via LEGACY_ROLE_MAP.
+ * legacy role values to the new unified roles via LEGACY_ROLE_MAP.
  *
  * @param {object} user      - The user document (must have _id).
  * @param {object} workspace - The workspace document (must have members[]).
- * @returns {string|null}    - 'Owner', 'Admin', 'Member', or null if not a member.
+ * @returns {string|null}    - 'superadmin', 'admin', 'nonadmin', or null if not a member.
  */
 function getWorkspaceRole(user, workspace) {
   if (!user || !workspace) return null;
@@ -38,8 +35,8 @@ function getWorkspaceRole(user, workspace) {
 
   if (!member) return null;
 
-  // Map legacy roles to canonical roles
-  return LEGACY_ROLE_MAP[member.role] || null;
+  // Map legacy roles to unified roles
+  return LEGACY_ROLE_MAP[member.role] || member.role;
 }
 
 /**
@@ -65,6 +62,27 @@ function getRawWorkspaceRole(user, workspace) {
 }
 
 /**
+ * Check if a user is a project manager in a workspace.
+ *
+ * @param {object} user      - The user document.
+ * @param {object} workspace - The workspace document.
+ * @returns {boolean}
+ */
+function isWorkspaceProjectManager(user, workspace) {
+  if (!user || !workspace) return false;
+  if (!Array.isArray(workspace.members)) return false;
+
+  const userId = String(user._id);
+  const member = workspace.members.find((m) => {
+    if (!m) return false;
+    const mUserId = m.userId && m.userId._id ? String(m.userId._id) : String(m.userId);
+    return mUserId === userId;
+  });
+
+  return member ? member.isProjectManager === true : false;
+}
+
+/**
  * Check whether a user is a member of a workspace (any role).
  *
  * @param {object} user
@@ -75,39 +93,53 @@ function isWorkspaceMember(user, workspace) {
   return getWorkspaceRole(user, workspace) !== null;
 }
 
+/**
+ * Check if a user has admin-level access in a workspace.
+ * Admin level = role level >= 60 (admin or superadmin).
+ *
+ * @param {object} user
+ * @param {object} workspace
+ * @returns {boolean}
+ */
+function isWorkspaceAdmin(user, workspace) {
+  const role = getWorkspaceRole(user, workspace);
+  if (!role) return false;
+  return ROLE_LEVELS[role] >= 60;
+}
+
 // ── Project relationships ────────────────────────────────────────────────────
 
 /**
  * Resolve a user's project role.
  *
- * Project members are now subdocuments: { userId, role, addedAt }.
- * The project.userId field is the Manager (creator/assigned PM).
+ * Project members use unified roles: superadmin, admin, nonadmin.
+ * The project.userId field is the admin (creator/assigned PM).
  * Falls back to flat ObjectId[] for backward compatibility during migration.
  *
  * @param {object} user    - The user document.
  * @param {object} project - The project document.
- * @returns {string|null}  - 'Manager', 'Editor', 'Viewer', or null.
+ * @returns {string|null}  - 'superadmin', 'admin', 'nonadmin', or null.
  */
 function getProjectRole(user, project) {
   if (!user || !project) return null;
 
   const userId = String(user._id);
 
-  // Project Manager = project.userId (the creator or assigned PM)
-  if (String(project.userId) === userId) return 'Manager';
+  // Project admin = project.userId (the creator or assigned PM)
+  if (String(project.userId) === userId) return 'admin';
 
-  // Project Member = project.members[] contains the userId
+  // Project member = project.members[] contains the userId
   if (Array.isArray(project.members)) {
     for (const m of project.members) {
       if (!m) continue;
-      // New structure: { userId, role, addedAt }
+      // New structure: { userId, role, isProjectManager, addedAt }
       if (m.userId && m.role) {
         const mId = m.userId._id ? String(m.userId._id) : String(m.userId);
         if (mId === userId) return m.role;
       }
       // Legacy structure: flat ObjectId (backward compatibility)
       const mId = m._id ? String(m._id) : String(m);
-      if (mId === userId) return 'Editor';
+      if (mId === userId) return 'nonadmin';
     }
   }
 
@@ -115,18 +147,34 @@ function getProjectRole(user, project) {
 }
 
 /**
- * Check whether a user is a project manager.
+ * Check if a user is a project manager.
  *
  * @param {object} user
  * @param {object} project
  * @returns {boolean}
  */
 function isProjectManager(user, project) {
-  return getProjectRole(user, project) === 'Manager';
+  if (!user || !project) return false;
+
+  const userId = String(user._id);
+
+  // Check if user is the project creator (implicit manager)
+  if (String(project.userId) === userId) return true;
+
+  // Check project.members[] for explicit manager flag
+  if (Array.isArray(project.members)) {
+    for (const m of project.members) {
+      if (!m) continue;
+      const mId = m.userId && m.userId._id ? String(m.userId._id) : String(m.userId);
+      if (mId === userId && m.isProjectManager) return true;
+    }
+  }
+
+  return false;
 }
 
 /**
- * Check whether a user is a project member (including manager).
+ * Check whether a user is a project member (including admin).
  *
  * @param {object} user
  * @param {object} project
@@ -255,7 +303,9 @@ function isResourceOwner(user, resource) {
 module.exports = {
   getWorkspaceRole,
   getRawWorkspaceRole,
+  isWorkspaceProjectManager,
   isWorkspaceMember,
+  isWorkspaceAdmin,
   getProjectRole,
   isProjectManager,
   isProjectMember,

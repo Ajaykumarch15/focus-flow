@@ -1,8 +1,10 @@
-import { forwardRef } from 'react';
-import { MessageSquare, Link2, MoreHorizontal, ListTodo, AlertTriangle } from 'lucide-react';
+import { forwardRef, useState } from 'react';
+import { MessageSquare, Link2, MoreHorizontal, ListTodo, AlertTriangle, BookOpen, FileText, Plus } from 'lucide-react';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { cn } from '@shared/utils/cn';
+import { useNavigate } from 'react-router-dom';
 import { useKanbanStore } from './kanbanStore';
+import { api } from '@shared/utils/api';
 import type { KanbanTask } from './types';
 
 interface KanbanCardProps {
@@ -15,6 +17,9 @@ interface KanbanCardProps {
 export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
   ({ task, onClick, onMenuClick, isDragging }, ref) => {
     const allTasks = useKanbanStore((s) => s.tasks);
+    const worklogTaskIds = useKanbanStore((s) => s.worklogTaskIds);
+    const navigate = useNavigate();
+    const [creating, setCreating] = useState(false);
     const subtasksDone = task.subtasks.filter((s) => s.completed).length;
     const subtasksTotal = task.subtasks.length;
     const progress = subtasksTotal > 0 ? (subtasksDone / subtasksTotal) * 100 : 0;
@@ -25,17 +30,86 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
       return dep && dep.status !== 'done';
     });
 
+    const worklogId = worklogTaskIds.get(task.id);
+    const hasWorklog = !!worklogId;
+
+    const handleBadgeClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (hasWorklog && worklogId) {
+        navigate(`/worklog/logs/${worklogId}`);
+      } else {
+        onClick?.();
+      }
+    };
+
+    const handleStartWorklog = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (creating) return;
+      setCreating(true);
+      try {
+        const log = await api.workLogs.create({
+          title: task.title,
+          taskRef: task.id,
+          projectId: task.projectId || undefined,
+        });
+        if (log?._id) {
+          navigate(`/worklog/logs/${log._id}`);
+        }
+      } catch {
+        // Silently fail — user can retry
+      } finally {
+        setCreating(false);
+      }
+    };
+
     return (
       <div
         ref={ref}
         onClick={onClick}
         className={cn(
-          'bg-surface-900 border border-surface-800 rounded-xl p-3.5 cursor-pointer',
+          'bg-surface-900 border border-surface-800 rounded-xl p-3.5 cursor-pointer relative',
           'hover:border-surface-700 hover:shadow-sm transition-all duration-200',
           'dark:bg-surface-850 dark:border-surface-800 dark:hover:border-surface-700',
           isDragging && 'opacity-90 shadow-lg border-brand-500/30',
         )}
       >
+        {/* Top-right badge: Task / Log / Start Worklog */}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {hasWorklog ? (
+            <button
+              type="button"
+              onClick={handleBadgeClick}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25"
+              aria-label="Open work log"
+            >
+              <FileText size={10} />
+              <span className="hidden sm:inline">Log</span>
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleStartWorklog}
+                disabled={creating}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 disabled:opacity-50"
+                aria-label="Start work log"
+              >
+                <Plus size={10} />
+                <span className="hidden sm:inline">{creating ? '...' : 'Log'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBadgeClick}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-medium transition-all bg-brand-500/15 text-brand-400 border border-brand-500/30 hover:bg-brand-500/25"
+                aria-label="Open task details"
+              >
+                <BookOpen size={10} />
+                <span className="hidden sm:inline">Task</span>
+              </button>
+            </>
+          )}
+        </div>
+
         {/* Labels + menu */}
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">

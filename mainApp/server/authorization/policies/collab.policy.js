@@ -11,15 +11,19 @@
 //   Comment/Attachment → targetType/targetRef → Task/Project/WorkLog
 //   Task → Project → Workspace
 //
-// Context may contain:
-//   workspace {object} - The workspace document
-//   project   {object} - The project document (from task.projectRef)
-//   resource  {object} - The comment or attachment document
+// UNIFIED ROLE SYSTEM:
+//   - superadmin: blanket bypass
+//   - admin: full collab management
+//   - project manager (nonadmin+): can moderate within their project
+//   - team leader: can moderate within their team scope
+//   - workspace member: can view/create/comment
+//   - resource owner: can edit/delete own resources
 
-const { DISCUSSION, FILE } = require('../permissions');
+const { DISCUSSION, FILE, ROLE_LEVELS } = require('../permissions');
 const {
   getWorkspaceRole,
   getProjectRole,
+  isProjectManager,
   isTeamLeader,
   isResourceOwner,
 } = require('../relationships');
@@ -27,12 +31,12 @@ const {
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 /**
- * Determine if a user has admin-level workspace access (Owner or Admin).
+ * Determine if a user has admin-level workspace access (admin or superadmin).
  */
 function isWsAdmin(user, workspace) {
   if (!workspace) return false;
   const wsRole = getWorkspaceRole(user, workspace);
-  return wsRole === 'Owner' || wsRole === 'Admin';
+  return wsRole === 'admin' || wsRole === 'superadmin';
 }
 
 /**
@@ -45,21 +49,13 @@ function hasProjectAccess(user, project) {
 }
 
 /**
- * Determine if a user is a project manager.
- */
-function isProjectMgr(user, project) {
-  if (!project) return false;
-  return getProjectRole(user, project) === 'manager';
-}
-
-/**
  * Determine if a user can moderate collab resources.
- * Owner/Admin can moderate anywhere. PM can moderate within their project.
+ * Admin/superadmin can moderate anywhere. PM can moderate within their project.
  * Team Leader can moderate within their team scope.
  */
 function canModerate(user, context) {
   if (isWsAdmin(user, context.workspace)) return true;
-  if (isProjectMgr(user, context.project)) return true;
+  if (context.project && isProjectManager(user, context.project)) return true;
   if (context.team && isTeamLeader(user, context.team)) return true;
   return false;
 }
@@ -106,15 +102,15 @@ function canDiscussion(user, permission, context) {
     case DISCUSSION.DELETE_OWN:
       return isOwner;
 
-    // DELETE_ANY: Owner/Admin, PM, or Team Leader can moderate
+    // DELETE_ANY: Admin/superadmin, PM, or Team Leader can moderate
     case DISCUSSION.DELETE_ANY:
       return canModerate(user, context);
 
-    // PIN: Owner/Admin, PM, or Team Leader can pin
+    // PIN: Admin/superadmin, PM, or Team Leader can pin
     case DISCUSSION.PIN:
       return canModerate(user, context);
 
-    // MODERATE: Owner/Admin, PM, or Team Leader can moderate
+    // MODERATE: Admin/superadmin, PM, or Team Leader can moderate
     case DISCUSSION.MODERATE:
       return canModerate(user, context);
 
@@ -161,7 +157,7 @@ function canFile(user, permission, context) {
     case FILE.DELETE_OWN:
       return isOwner;
 
-    // DELETE_ANY: Owner/Admin, PM, or Team Leader can moderate
+    // DELETE_ANY: Admin/superadmin, PM, or Team Leader can moderate
     case FILE.DELETE_ANY:
       return canModerate(user, context);
 

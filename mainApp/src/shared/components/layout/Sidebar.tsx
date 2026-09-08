@@ -62,7 +62,6 @@ const getCollabNav = (workspaceId: string): NavPanelDef[] => [
     ],
   },
   { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
-  { to: `/collab/${workspaceId}/leaderboard`, icon: Trophy, label: 'Leaderboard' },
   { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },
 ];
 
@@ -107,7 +106,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
   const navItems = workspace === 'personal'
     ? PERSONAL_NAV
     : workspace === 'collab'
-      ? [...WORKLOG_NAV, ...collabNav]
+      ? collabNav
       : WORKLOG_NAV;
 
   const adminNav: NavPanelDef = {
@@ -285,6 +284,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           className="sidebar-rail-icon mx-auto"
           onMouseEnter={() => handleIconEnter('profile')}
           onMouseLeave={handleIconLeave}
+          onClick={() => navigate('/settings')}
           ref={(el) => { if (el) iconRefs.current['profile'] = el; }}
           role="button"
           tabIndex={0}
@@ -336,6 +336,7 @@ interface RailIconProps {
 const RailIcon = forwardRef<HTMLDivElement, RailIconProps>(
   ({ item, onEnter, onLeave, accent = 'brand' }, ref) => {
     const location = useLocation();
+    const navigate = useNavigate();
     const isActive = location.pathname === item.to ||
       (item.children && item.children.some(c => location.pathname === c.to));
 
@@ -361,6 +362,7 @@ const RailIcon = forwardRef<HTMLDivElement, RailIconProps>(
         }`}
         onMouseEnter={() => onEnter(item.to)}
         onMouseLeave={onLeave}
+        onClick={() => navigate(item.to)}
         role="button"
         tabIndex={0}
         aria-label={item.label}
