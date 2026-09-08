@@ -162,10 +162,10 @@ export function ProjectsSettingsPage() {
 
           <div className="space-y-3">
             {[
-              { label: 'Auto-assign on task creation', desc: 'Automatically assign tasks to the creator', disabled: true },
-              { label: 'Move to review on PR open', desc: 'Auto-move linked tasks when a PR is opened', disabled: true },
-              { label: 'Close task on merge', desc: 'Auto-close tasks when their PR is merged', disabled: true },
-            ].map(({ label, desc, disabled }) => (
+              { label: 'Auto-assign on task creation', desc: 'Automatically assign tasks to the creator' },
+              { label: 'Move to review on PR open', desc: 'Auto-move linked tasks when a PR is opened' },
+              { label: 'Close task on merge', desc: 'Auto-close tasks when their PR is merged' },
+            ].map(({ label, desc }) => (
               <div key={label} className="flex items-center justify-between p-3 rounded-xl border border-surface-800 bg-surface-850/50 opacity-60">
                 <div>
                   <p className="text-sm font-medium text-surface-200">{label}</p>

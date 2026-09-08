@@ -12,7 +12,7 @@ import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
 import { toast } from '@shared/services/useToastStore';
 import type { PersonStats } from './types';
-import type { MemberStatus } from '@collab/types/collaboration';
+import type { MemberStatus, MemberRole } from '@collab/types/collaboration';
 import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
 const STATUS_TONE: Record<MemberStatus, BadgeTone> = {
@@ -48,7 +48,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
   const isSuperAdmin = (user?.roleId?.level ?? 0) === 100;
   const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const isTargetSuperAdmin = stats?.member.role === 'superadmin';
-  const isTargetSelf = stats?.member.id === user?.id;
+  const isTargetSelf = stats?.member.id === user?._id;
 
   const canChangeRole = (isSuperAdmin || isAdmin) && !isTargetSelf && stats?.member.id;
 
@@ -80,7 +80,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
     }
   };
 
-  const handleRoleChange = async (newRole: string) => {
+  const handleRoleChange = async (newRole: MemberRole) => {
     if (!stats) return;
     setUpdatingRole(true);
     try {
@@ -94,7 +94,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
     }
   };
 
-  const availableRoles = isSuperAdmin
+  const availableRoles: MemberRole[] = isSuperAdmin
     ? ['nonadmin', 'admin', 'superadmin']
     : ['nonadmin', 'admin'];
 

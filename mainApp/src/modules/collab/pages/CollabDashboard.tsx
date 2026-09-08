@@ -12,17 +12,10 @@ import { Progress } from '@shared/components/ui/Progress';
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
-const STATUS_COLORS: Record<string, string> = {
-  active: 'text-emerald-400',
-  in_progress: 'text-blue-400',
-  completed: 'text-brand-400',
-  on_hold: 'text-amber-400',
-};
-
 export function CollabDashboard() {
   const navigate = useNavigate();
   const { workspaceId } = useParams<{ workspaceId: string }>();
-  const { projects, tasks, members, workspaces } = useCollaborationStore();
+  const { projects, tasks, members } = useCollaborationStore();
   const { roadmaps, loadRoadmaps } = useRoadmapStore();
 
   useEffect(() => {
@@ -53,7 +46,7 @@ export function CollabDashboard() {
   const recentProjects = useMemo(() => {
     return projects
       .filter((p) => p.workspaceId === workspaceId)
-      .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 4);
   }, [projects, workspaceId]);
 
@@ -155,7 +148,7 @@ export function CollabDashboard() {
                     <h3 className="font-semibold text-surface-50 text-sm group-hover:text-brand-400 transition-colors truncate">
                       {project.name}
                     </h3>
-                    <Badge tone={project.status === 'active' ? 'success' : project.status === 'in_progress' ? 'info' : 'neutral'}>
+                    <Badge tone={project.status === 'active' ? 'success' : project.status === 'planning' ? 'info' : 'neutral'}>
                       {project.status?.replace('_', ' ')}
                     </Badge>
                   </div>

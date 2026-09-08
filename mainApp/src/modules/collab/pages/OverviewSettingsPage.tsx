@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, LayoutGrid, Check, BarChart3, LayoutList, Pin } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, Check, LayoutList, Pin } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Button } from '@shared/components/ui/Button';
 import { Select } from '@shared/components/ui/Select';

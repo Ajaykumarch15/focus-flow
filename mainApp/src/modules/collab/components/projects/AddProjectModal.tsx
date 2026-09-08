@@ -8,6 +8,7 @@ import { Field } from '@shared/components/ui/Field';
 import { Button } from '@shared/components/ui/Button';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import type { MemberRole } from '@collab/types/collaboration';
 import type { ProjectType, ProjectStatus, CardTint } from './types';
 
 interface AddProjectModalProps {
@@ -47,7 +48,7 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
   const members = useCollaborationStore((s) => s.members);
 
   const workspaceMembers = useMemo(() => {
-    return members.filter(m => m.status !== 'disabled');
+    return members.filter(m => m.status !== 'offline');
   }, [members]);
 
   const resetForm = () => {
@@ -94,15 +95,15 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
     setIsSubmitting(true);
     try {
       // Build members array — PM is always included with isProjectManager: true
-      const membersList = Array.from(selectedMembers).map(userId => ({
+      const membersList: Array<{ userId: string; role: MemberRole; isProjectManager: boolean }> = Array.from(selectedMembers).map(userId => ({
         userId,
-        role: 'nonadmin' as const,
+        role: 'nonadmin',
         isProjectManager: userId === selectedPM,
       }));
 
       // Ensure PM is in the list
       if (!selectedMembers.has(selectedPM)) {
-        membersList.unshift({ userId: selectedPM, role: 'admin' as const, isProjectManager: true });
+        membersList.unshift({ userId: selectedPM, role: 'admin', isProjectManager: true });
       } else {
         // If PM was in selected members, update their role to admin
         const pmIdx = membersList.findIndex(m => m.userId === selectedPM);

@@ -1,12 +1,9 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, Clock, Timer, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Check, Timer, FileText } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { Button } from '@shared/components/ui/Button';
-import { Input } from '@shared/components/ui/Input';
 import { Select } from '@shared/components/ui/Select';
-import { Field } from '@shared/components/ui/Field';
 
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 
@@ -46,7 +43,7 @@ const EXPORT_OPTIONS = [
 
 export function WorklogSettingsPage() {
   const navigate = useNavigate();
-  const { theme } = useStore();
+  useStore();
   const [saved, setSaved] = useState(false);
 
   const [sessionLength, setSessionLength] = useState('50');

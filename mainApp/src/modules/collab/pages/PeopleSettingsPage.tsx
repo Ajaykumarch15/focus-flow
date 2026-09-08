@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Check, Shield, UserPlus, Eye } from 'lucide-react';
+import { ArrowLeft, Users, Check, Shield } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { Select } from '@shared/components/ui/Select';
@@ -24,10 +23,8 @@ function Toggle({ enabled, onToggle }: { enabled: boolean; onToggle: () => void 
 export function PeopleSettingsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   const { workspaces, updateWorkspaceSettings } = useCollaborationStore();
   const workspace = workspaces.find((w) => w.id === workspaceId);
-  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [saved, setSaved] = useState(false);
 
   const [allowInvites, setAllowInvites] = useState(false);
