@@ -5,12 +5,15 @@
  * 1. Active timer state → localStorage so refresh restores the running clock.
  * 2. Today's completed-session total → localStorage so daily progress bar
  *    never resets to 0 when a new task starts or the page refreshes.
+ *
+ * Supports both legacy single-timer format and new parallel multi-timer format.
  */
 
 import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, getTimezone, dayKeyInTz } from '@shared/utils/time';
 
-// ── Active timer ──────────────────────────────────────────────────────────────
-const TIMER_KEY = 'ff_active_timer';
+// ── Active timer(s) ──────────────────────────────────────────────────────────
+const TIMER_KEY = 'ff_active_timer';      // Legacy single timer
+const TIMERS_KEY = 'ff_active_timers';    // New parallel multi-timer
 const DAY_CACHE_KEY = 'ff_day_cache';
 const LEGACY_TODAY_KEY = 'ff_today_ms';
 
@@ -24,6 +27,8 @@ export interface PersistedTimer {
   baseElapsedMs?: number;   // pre-existing accumulated time (resumed task total)
   sessionKind?: 'work' | 'personal';   // which backend owns this session
 }
+
+// ── Legacy single-timer API (kept for backward compat / migration) ──────────
 
 export function saveTimer(data: PersistedTimer): void {
   try { localStorage.setItem(TIMER_KEY, JSON.stringify(data)); }
@@ -39,6 +44,74 @@ export function loadTimer(): PersistedTimer | null {
 
 export function clearTimer(): void {
   localStorage.removeItem(TIMER_KEY);
+}
+
+// ── Parallel multi-timer API ────────────────────────────────────────────────
+
+export function saveTimers(data: PersistedTimer[]): void {
+  try {
+    // Migrate any legacy single timer into the array
+    const migrated = migrateLegacyTimer(data);
+    // Deduplicate by taskId (latest timestamp wins) to prevent duplicates
+    // from concurrent cross-tab migration
+    const deduped = deduplicateTimers(migrated);
+    localStorage.setItem(TIMERS_KEY, JSON.stringify(deduped));
+    // Clear legacy key once migrated
+    localStorage.removeItem(TIMER_KEY);
+  } catch { /* storage full */ }
+}
+
+export function loadTimers(): PersistedTimer[] {
+  try {
+    const raw = localStorage.getItem(TIMERS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+    // Fall back to legacy single timer format
+    const legacy = loadTimer();
+    return legacy ? [legacy] : [];
+  } catch { return []; }
+}
+
+export function clearTimers(): void {
+  localStorage.removeItem(TIMERS_KEY);
+  localStorage.removeItem(TIMER_KEY);
+}
+
+/**
+ * Migrate legacy single timer into parallel format if not already present.
+ */
+function migrateLegacyTimer(newTimers: PersistedTimer[]): PersistedTimer[] {
+  const legacy = loadTimer();
+  if (!legacy) return newTimers;
+
+  // Check if legacy timer is already in the new array
+  const exists = newTimers.some((t) => t.taskId === legacy.taskId);
+  if (exists) {
+    // Legacy already migrated, clear it
+    localStorage.removeItem(TIMER_KEY);
+    return newTimers;
+  }
+
+  // Add legacy timer to array and clear legacy storage
+  localStorage.removeItem(TIMER_KEY);
+  return [legacy, ...newTimers];
+}
+
+/**
+ * Deduplicate timers by taskId. If duplicates exist, keep the one with the
+ * latest sessionStartTime (most recent).
+ */
+function deduplicateTimers(timers: PersistedTimer[]): PersistedTimer[] {
+  const map = new Map<string, PersistedTimer>();
+  for (const timer of timers) {
+    const existing = map.get(timer.taskId);
+    if (!existing || timer.sessionStartTime > existing.sessionStartTime) {
+      map.set(timer.taskId, timer);
+    }
+  }
+  return Array.from(map.values());
 }
 
 /**

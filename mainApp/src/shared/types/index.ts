@@ -121,10 +121,14 @@ export interface AppState {
   journals: JournalEntry[];
   theme: ThemeSettings;
   profile: UserProfile;
-  activeTaskId: string | null;
-  activeTimerState: TimerState;
+  activeTaskId: string | null;  // Legacy: single active task
+  activeTimerState: TimerState; // Legacy: single timer state
   currentSessionStart?: number;
   currentPauseStart?: number;
+
+  // Parallel timer support
+  activeTimers: Record<string, TimerState>;  // taskId -> timer state
+  activeTaskIds: string[];                    // list of all running task IDs
 }
 
 export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'missed' | 'cancelled';

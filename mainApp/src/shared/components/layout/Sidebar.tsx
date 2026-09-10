@@ -12,6 +12,7 @@ import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { useStore } from '@worklog/services/useStore';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
+import { ActiveTimersBar } from './ActiveTimersBar';
 
 // ── Navigation definitions with sub-items ──────────────────────────────────
 
@@ -206,6 +207,11 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           ))}
         </nav>
 
+        {/* Parallel Timers */}
+        <div className="px-2.5 py-2 border-t border-surface-800">
+          <ActiveTimersBar />
+        </div>
+
         {/* Timer */}
         {activeTaskId && timerMatchesWorkspace && (
           <div className="px-2.5 py-2 border-t border-surface-800">
@@ -286,6 +292,11 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           />
         ))}
       </nav>
+
+      {/* Parallel Timers */}
+      <div className="px-2 py-2 border-t border-surface-800">
+        <ActiveTimersBar />
+      </div>
 
       {/* Timer Indicator — always visible */}
       {activeTaskId && timerMatchesWorkspace && (

@@ -301,12 +301,15 @@ class TimerEngine {
     const now = stopTime || Date.now();
 
     try {
+      // Calculate active time BEFORE updating totalPauseDuration to avoid
+      // double-subtraction when the timer is paused.
+      const activeTime = this.getElapsedMs(now);
+
       // If currently paused, finalize current pause duration
       if (this.timerState === 'paused' && this.pauseStart) {
         this.totalPauseDuration += Math.max(0, now - this.pauseStart);
       }
 
-      const activeTime = this.getElapsedMs(now);
       const stoppedTaskId = this.taskId;
       const stoppedSessionId = this.sessionId;
 

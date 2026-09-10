@@ -1,53 +1,98 @@
 /**
  * useActiveTimer.ts — High-Performance Live Timer Hook
  *
- * Subscribes directly to the authoritative TimerEngine.
+ * Subscribes to both the legacy single-timer engine and the new parallel timer engine.
+ * Returns the first active timer found (legacy or parallel).
  * Only re-renders the subscribing component (e.g. Sidebar / TaskCard),
  * without causing entire app/Zustand store re-renders every second.
  */
 
 import { useState, useEffect, useMemo } from 'react';
 import { timerEngine, TimerFSMState } from '@worklog/services/timerEngine';
+import { parallelTimerEngine, TimerStateSnapshot as ParallelSnapshot } from '@worklog/services/parallelTimerEngine';
 import { formatDuration } from '@shared/utils/time';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import type { Task } from '@shared/types';
 
 export function useActiveTimer(externalTasks?: Task[]) {
-  const [snapshot, setSnapshot] = useState(() => timerEngine.getSnapshot());
-  const [elapsedMs, setElapsedMs] = useState(() => timerEngine.getElapsedMs());
+  // Legacy single-timer state
+  const [legacySnapshot, setLegacySnapshot] = useState(() => timerEngine.getSnapshot());
+  const [legacyElapsedMs, setLegacyElapsedMs] = useState(() => timerEngine.getElapsedMs());
+
+  // Parallel multi-timer state
+  const [parallelSnapshots, setParallelSnapshots] = useState<Map<string, ParallelSnapshot>>(
+    () => parallelTimerEngine.getAllSnapshots()
+  );
 
   useEffect(() => {
-    // Subscribe to timerEngine updates
-    const unsubscribe = timerEngine.subscribe((newSnapshot, newElapsed) => {
-      setSnapshot(newSnapshot);
-      setElapsedMs(newElapsed);
+    const unsubLegacy = timerEngine.subscribe((newSnapshot, newElapsed) => {
+      setLegacySnapshot(newSnapshot);
+      setLegacyElapsedMs(newElapsed);
     });
 
-    return unsubscribe;
+    const unsubParallel = parallelTimerEngine.subscribe((_, __, allSnapshots) => {
+      setParallelSnapshots(new Map(allSnapshots));
+    });
+
+    return () => {
+      unsubLegacy();
+      unsubParallel();
+    };
   }, []);
+
+  // Find first active parallel timer (running or paused)
+  const firstParallel = useMemo(() => {
+    for (const [taskId, snapshot] of parallelSnapshots) {
+      if (snapshot.timerState !== 'idle') {
+        return { taskId, snapshot };
+      }
+    }
+    return null;
+  }, [parallelSnapshots]);
+
+  // Determine which timer to use: parallel takes priority if no legacy is active
+  const useParallel = !legacySnapshot.taskId && firstParallel;
+  const activeTaskId = useParallel ? firstParallel!.taskId : legacySnapshot.taskId;
+  const activeTimerState = useParallel
+    ? firstParallel!.snapshot.timerState as TimerFSMState
+    : legacySnapshot.timerState as TimerFSMState;
+  const elapsedMs = useParallel
+    ? parallelTimerEngine.getElapsedMs(firstParallel!.taskId)
+    : legacyElapsedMs;
+  const sessionStartTime = useParallel
+    ? firstParallel!.snapshot.sessionStartTime
+    : legacySnapshot.sessionStartTime;
+  const totalPauseDuration = useParallel
+    ? firstParallel!.snapshot.totalPauseDuration
+    : legacySnapshot.totalPauseDuration;
+  const sessionKind = useParallel
+    ? firstParallel!.snapshot.sessionKind
+    : legacySnapshot.sessionKind;
+  const baseElapsedMs = useParallel
+    ? firstParallel!.snapshot.baseElapsedMs
+    : legacySnapshot.baseElapsedMs;
 
   const storeTasks = useStore(s => s.tasks);
   const personalTasks = usePersonalTaskStore(s => s.tasks);
-  const tasks = externalTasks ?? (snapshot.sessionKind === 'personal' ? personalTasks : storeTasks);
-  const activeTask = tasks.find(t => t.id === snapshot.taskId);
-  // `elapsedMs` stays the pure live session elapsed (Focus Mode, daily totals);
-  // the display adds the pre-existing base so resuming a task keeps its clock.
+  const tasks = externalTasks ?? (sessionKind === 'personal' ? personalTasks : storeTasks);
+  const activeTask = tasks.find(t => t.id === activeTaskId);
+
   const display = useMemo(
-    () => formatDuration(elapsedMs + (snapshot.baseElapsedMs || 0)),
-    [elapsedMs, snapshot.baseElapsedMs]
+    () => formatDuration(elapsedMs + (baseElapsedMs || 0)),
+    [elapsedMs, baseElapsedMs]
   );
 
   return {
-    activeTaskId: snapshot.taskId,
-    activeSessionId: snapshot.sessionId,
-    activeTimerState: snapshot.timerState as TimerFSMState,
+    activeTaskId,
+    activeSessionId: useParallel ? firstParallel!.snapshot.sessionId : legacySnapshot.sessionId,
+    activeTimerState,
     activeTask,
     display,
     elapsedMs,
-    baseElapsedMs: snapshot.baseElapsedMs,
-    sessionStartTime: snapshot.sessionStartTime,
-    totalPauseDuration: snapshot.totalPauseDuration,
-    sessionKind: snapshot.sessionKind,
+    baseElapsedMs,
+    sessionStartTime,
+    totalPauseDuration,
+    sessionKind,
   };
 }

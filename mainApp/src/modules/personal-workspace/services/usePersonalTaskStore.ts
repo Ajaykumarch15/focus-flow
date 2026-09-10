@@ -3,15 +3,16 @@
  *
  * Mirrors the task-related slice of useStore but operates on its own tasks array.
  * All tasks created through this store are tagged with workspaceContext: 'personal'.
- * Uses the shared timerEngine singleton for focus timer state.
+ * Uses the shared parallelTimerEngine for focus timer state (supports multiple concurrent timers).
  */
 
 import { create } from 'zustand';
 import { api } from '@shared/utils/api';
 import { timerEngine } from '@worklog/services/timerEngine';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { offlineQueue, createOpId } from '@shared/utils/offlineQueue';
 import { startTimerHeartbeat, stopTimerHeartbeat } from '@worklog/services/timerHeartbeat';
-import type { Task, Priority, Subtask, JournalEntry } from '@shared/types';
+import type { Task, Priority, Subtask, JournalEntry, TimerState } from '@shared/types';
 import { useStore } from '@worklog/services/useStore';
 import { useRoadmapStore } from './useRoadmapStore';
 import { toast } from '@shared/services/useToastStore';
@@ -62,6 +63,10 @@ interface PersonalTaskState {
   loading: boolean;
   error: string | null;
 
+  // Parallel timer support
+  parallelTimers: Record<string, TimerState>;  // taskId -> timer state
+  activeTaskIds: string[];                      // all running task IDs
+
   fetchTasks: () => Promise<void>;
   fetchJournals: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline' | 'scheduledDate' | 'order'> & { deadline?: string | number; scheduledDate?: string | number }) => Promise<string>;
@@ -82,6 +87,12 @@ interface PersonalTaskState {
   resumeTimer: (taskId: string) => void;
   stopTimer: (taskId: string) => Promise<void>;
 
+  // Parallel timer methods
+  startParallelTimer: (taskId: string, baseMs?: number) => Promise<void>;
+  pauseParallelTimer: (taskId: string) => void;
+  resumeParallelTimer: (taskId: string) => void;
+  stopParallelTimer: (taskId: string) => Promise<void>;
+
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
@@ -97,26 +108,56 @@ interface PersonalTaskState {
   rehydratePersonalTimer: () => Promise<void>;
 }
 
-export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
-  tasks: [],
-  journals: [],
-  selectedTaskIds: new Set<string>(),
-  loading: false,
-  error: null,
-
-  fetchTasks: async () => {
-    try {
-      set({ loading: true, error: null });
-      const docs = await api.personalTasks.list();
-      const personal = docs.map(mapTask);
-      set({ tasks: personal, loading: false });
-    } catch (err: any) {
-      console.error('❌ usePersonalTaskStore.fetchTasks failed:', err);
-      set({ error: err.message, loading: false });
+export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
+  // Initialize parallel timers state from engine
+  const initParallelTimers: Record<string, TimerState> = {};
+  const initActiveTaskIds: string[] = [];
+  const allSnapshots = parallelTimerEngine.getAllSnapshots();
+  allSnapshots.forEach((s, taskId) => {
+    if (s.timerState !== 'idle' && s.sessionKind === 'personal') {
+      initParallelTimers[taskId] = s.timerState as TimerState;
+      initActiveTaskIds.push(taskId);
     }
-  },
+  });
 
-  fetchJournals: async () => {
+  // Listen to parallelTimerEngine updates
+  parallelTimerEngine.subscribe((_taskId, _snapshot, allTimers) => {
+    const newParallelTimers: Record<string, TimerState> = {};
+    const newActiveTaskIds: string[] = [];
+    allTimers.forEach((s, id) => {
+      if (s.timerState !== 'idle' && s.sessionKind === 'personal') {
+        newParallelTimers[id] = s.timerState as TimerState;
+        newActiveTaskIds.push(id);
+      }
+    });
+    set({
+      parallelTimers: newParallelTimers,
+      activeTaskIds: newActiveTaskIds,
+    });
+  });
+
+  return {
+    tasks: [],
+    journals: [],
+    selectedTaskIds: new Set<string>(),
+    loading: false,
+    error: null,
+    parallelTimers: initParallelTimers,
+    activeTaskIds: initActiveTaskIds,
+
+    fetchTasks: async () => {
+      try {
+        set({ loading: true, error: null });
+        const docs = await api.personalTasks.list();
+        const personal = docs.map(mapTask);
+        set({ tasks: personal, loading: false });
+      } catch (err: any) {
+        console.error('❌ usePersonalTaskStore.fetchTasks failed:', err);
+        set({ error: err.message, loading: false });
+      }
+    },
+
+    fetchJournals: async () => {
     try {
       const docs = await api.journals.list();
       const mapped = docs.map((j: any) => ({
@@ -362,6 +403,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     const now = Date.now();
     const opId = createOpId();
 
+    // Stop heartbeat immediately to prevent stale pings during API call
+    if (sessionId) {
+      stopTimerHeartbeat();
+    }
+
     const res = await timerEngine.stop(taskId, now);
     if (!res.success && res.error !== 'Timer is already idle') {
       if (res.error) toast.error('Timer Error', res.error);
@@ -375,11 +421,116 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
     if (sessionId) {
       try {
         await api.personalSessions.stop(sessionId, now, opId);
-        stopTimerHeartbeat();
         await get().fetchTasks();
       } catch {
         console.warn('Network issue on session stop. Enqueuing offline op.');
           offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId, 'personal');
+      }
+    }
+  },
+
+  // ── Parallel Timer Operations ─────────────────────────────────────────────
+  // These methods use parallelTimerEngine to support multiple concurrent timers.
+
+  startParallelTimer: async (taskId, baseMs) => {
+    const now = Date.now();
+    const opId = createOpId();
+
+    // Resuming a task continues from its accumulated time (display continuity).
+    const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
+
+    const res = await parallelTimerEngine.start(taskId, undefined, now, resumeFromMs, 'personal');
+    if (!res.success) {
+      if (res.error) toast.error('Timer Error', res.error);
+      return;
+    }
+
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, status: 'active' } : t)),
+    }));
+
+    try {
+      const sessionDoc = await api.personalSessions.start(taskId, now, opId);
+      parallelTimerEngine.setSessionId(taskId, sessionDoc._id);
+      startTimerHeartbeat(() => {
+        // On heartbeat failure, stop this specific timer
+        parallelTimerEngine.stop(taskId);
+      });
+    } catch (err) {
+      console.warn('Network issue on session start. Enqueuing offline op.');
+      offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId, 'personal');
+    }
+  },
+
+  pauseParallelTimer: (taskId) => {
+    const snapshot = parallelTimerEngine.getSnapshot(taskId);
+    const sessionId = snapshot?.sessionId ?? null;
+    const now = Date.now();
+    const opId = createOpId();
+
+    const res = parallelTimerEngine.pause(taskId, now);
+    if (!res.success) {
+      if (res.error) toast.error('Timer Error', res.error);
+      return;
+    }
+
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, status: 'paused' } : t)),
+    }));
+
+    if (sessionId) {
+      api.personalSessions.pause(sessionId, now, opId).catch(() => {
+        offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now }, opId, 'personal');
+      });
+    }
+  },
+
+  resumeParallelTimer: (taskId) => {
+    const snapshot = parallelTimerEngine.getSnapshot(taskId);
+    const sessionId = snapshot?.sessionId ?? null;
+    const now = Date.now();
+    const opId = createOpId();
+
+    const res = parallelTimerEngine.resume(taskId, now);
+    if (!res.success) {
+      if (res.error) toast.error('Timer Error', res.error);
+      return;
+    }
+
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, status: 'active' } : t)),
+    }));
+
+    if (sessionId) {
+      api.personalSessions.resume(sessionId, now, opId).catch(() => {
+        offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now }, opId, 'personal');
+      });
+    }
+  },
+
+  stopParallelTimer: async (taskId) => {
+    const snapshot = parallelTimerEngine.getSnapshot(taskId);
+    const sessionId = snapshot?.sessionId ?? null;
+    const now = Date.now();
+    const opId = createOpId();
+
+    const res = await parallelTimerEngine.stop(taskId, now);
+    if (!res.success && res.error !== 'Timer is already idle') {
+      if (res.error) toast.error('Timer Error', res.error);
+      return;
+    }
+
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === taskId ? { ...t } : t)),
+    }));
+
+    if (sessionId) {
+      try {
+        await api.personalSessions.stop(sessionId, now, opId);
+        await get().fetchTasks();
+      } catch {
+        console.warn('Network issue on session stop. Enqueuing offline op.');
+        offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId, 'personal');
       }
     }
   },
@@ -466,4 +617,5 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => ({
       // Offline: engine keeps whatever localStorage restored on construction.
     }
   },
-}));
+  };
+});
