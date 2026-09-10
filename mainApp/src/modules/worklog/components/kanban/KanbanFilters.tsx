@@ -1,14 +1,15 @@
 import { X, Filter } from 'lucide-react';
 import { useKanbanStore } from './kanbanStore';
 import { KANBAN_COLUMNS, LABEL_PRESETS } from './types';
+import { TaskFilters } from './TaskFilters';
 
 export function KanbanFilters() {
-  const { filters, setFilter, clearFilters, membersMap } = useKanbanStore();
+  const { filters, setFilter, clearFilters, membersMap, toggleAssigneeFilter, clearAssigneeFilter } = useKanbanStore();
 
   const hasActiveFilters =
-    filters.status !== 'all' || filters.priority || filters.label || filters.assignee;
+    filters.status !== 'all' || filters.priority || filters.label || filters.assignees.length > 0;
 
-  const assignees = Object.entries(membersMap).map(([id, { name }]) => ({ id, name }));
+  const members = Object.entries(membersMap).map(([id, { name, avatar }]) => ({ id, name, avatar }));
 
   return (
     <div className="flex items-center gap-2 flex-wrap mb-4">
@@ -54,17 +55,13 @@ export function KanbanFilters() {
         ))}
       </select>
 
-      {/* Assignee */}
-      <select
-        value={filters.assignee}
-        onChange={(e) => setFilter('assignee', e.target.value)}
-        className="appearance-none bg-surface-900 border border-surface-800 rounded-lg pl-3 pr-8 py-1.5 text-xs font-medium text-surface-300 outline-none transition-colors cursor-pointer hover:border-surface-700"
-      >
-        <option value="">Assignee: All</option>
-        {assignees.map((a) => (
-          <option key={a.id} value={a.id}>{a.name}</option>
-        ))}
-      </select>
+      {/* Members (multi-select) */}
+      <TaskFilters
+        members={members}
+        selectedIds={filters.assignees}
+        onToggle={toggleAssigneeFilter}
+        onClear={clearAssigneeFilter}
+      />
 
       {/* Clear */}
       {hasActiveFilters && (

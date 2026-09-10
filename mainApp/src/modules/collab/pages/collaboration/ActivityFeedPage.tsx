@@ -1,13 +1,13 @@
 import { useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Clock, Activity, Users, FolderOpen } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { activityActionLabel, activityDetail } from '@collab/services/collaborationActivity';
 import { Card } from '@shared/components/ui/Card';
 
 export function ActivityFeedPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
   const {
     activities, activeWorkspaceId, loadWorkspaceActivity,
     activityLoading, activityHasMore, activityNextCursor,

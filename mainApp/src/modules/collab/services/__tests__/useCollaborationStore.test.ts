@@ -320,13 +320,13 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'Acme', slug: 'acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],
     });
     mocks.wsUpdate.mockResolvedValue({
-      id: 'ws-1', name: 'Acme AI', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
+      id: 'ws-1', name: 'Acme AI', slug: 'acme-ai', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
       createdAt: '2026-01-01T00:00:00.000Z',
       settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
     } as any);
@@ -345,7 +345,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'Acme', slug: 'acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],
@@ -362,8 +362,8 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [
-        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
-        { id: 'ws-2', name: 'B', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-2', name: 'B', slug: 'b', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
       ],
     });
     mocks.wsRemove.mockResolvedValue({ message: 'Workspace deleted' } as any);
@@ -380,7 +380,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [
-        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
       ],
     });
     mocks.wsRemove.mockRejectedValue(new Error('boom'));
@@ -488,7 +488,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'A', type: 'Startup', icon: '⚡', description: '', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '⚡', description: '', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],

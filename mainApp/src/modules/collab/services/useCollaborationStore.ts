@@ -86,9 +86,26 @@ function workspaceIconFor(type: string): string {
   }
 }
 
-function toWorkspace(raw: any): Workspace {
+function toSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function toWorkspace(raw: any, _index?: number, existingSlugs?: Set<string>): Workspace {
+  const baseSlug = toSlug(raw.name ?? 'untitled-workspace');
+  let slug = baseSlug;
+  if (existingSlugs) {
+    let counter = 1;
+    while (existingSlugs.has(slug)) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+    existingSlugs.add(slug);
+  }
   return {
     id: String(raw.id ?? raw._id ?? ''),
+    slug,
     name: raw.name ?? 'Untitled Workspace',
     type: raw.type ?? 'Startup',
     icon: raw.icon ?? '🚀',
@@ -487,7 +504,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     set({ workspacesLoading: true });
     try {
       const rawList = await api.workspaces.list();
-      const workspaces = (Array.isArray(rawList) ? rawList : []).map(toWorkspace);
+      const arr = Array.isArray(rawList) ? rawList : [];
+      const existingSlugs = new Set<string>();
+      const workspaces = arr.map((raw, i) => toWorkspace(raw, i, existingSlugs));
       set((state) => {
         const stillValid = workspaces.some((w) => w.id === state.activeWorkspaceId);
         return {
@@ -703,6 +722,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     const memberCount = 1 + (members?.length || 0);
     const temp: Workspace = {
       id: tempId,
+      slug: toSlug(name),
       name,
       type,
       icon: workspaceIconFor(type),

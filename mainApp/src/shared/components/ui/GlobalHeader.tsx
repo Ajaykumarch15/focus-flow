@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
 import { useStore } from '@worklog/services/useStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
 import { NowIndicator } from '@worklog/components/NowIndicator';
@@ -17,7 +18,7 @@ export function GlobalHeader() {
   const { activeWorkspace } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -169,7 +170,7 @@ export function GlobalHeader() {
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-300 hover:text-surface-100 hover:bg-surface-800 transition-all">
                     <Settings size={14} /> Settings
                   </button>
-                  <button onClick={() => { setMenuOpen(false); navigate('/settings'); }}
+                  <button onClick={() => { setMenuOpen(false); navigate('/profile'); }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-300 hover:text-surface-100 hover:bg-surface-800 transition-all">
                     <User size={14} /> Profile
                   </button>

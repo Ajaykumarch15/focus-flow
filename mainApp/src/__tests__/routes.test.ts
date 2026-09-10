@@ -40,11 +40,11 @@ describe('route table', () => {
       '/personal/search',
       '/collab/workspaces',
       '/home',
-      '/collab/:workspaceId/dashboard',
-      '/collab/:workspaceId/team',
-      '/collab/:workspaceId/leaderboard',
-      '/collab/:workspaceId/activity',
-      '/collab/:workspaceId/search',
+      '/collab/:workspaceSlug/dashboard',
+      '/collab/:workspaceSlug/projects',
+      '/collab/:workspaceSlug/leaderboard',
+      '/collab/:workspaceSlug/activity',
+      '/collab/:workspaceSlug/search',
       '/settings',
       '/admin/audit',
       '/admin/people',
@@ -72,11 +72,11 @@ describe('S4-T3 regression: admin sidebar', () => {
   });
 });
 
-describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () => {
-  it('/collab/:workspaceId/team is declared once, backed by ProjectsPage', () => {
-    const teamRoutes = appSource.match(/<Route\s+path="\/collab\/:workspaceId\/team"/g) ?? [];
-    expect(teamRoutes).toHaveLength(1);
-    expect(appSource).toMatch(/<Route\s+path="\/collab\/:workspaceId\/team"\s+element={<ProjectsPage \/>}/);
+describe('S4-T4 regression: role-aware defaults + /projects collision cleanup', () => {
+  it('/collab/:workspaceSlug/projects is declared once, backed by ProjectsPage', () => {
+    const projectRoutes = appSource.match(/<Route\s+path="\/collab\/:workspaceSlug\/projects"/g) ?? [];
+    expect(projectRoutes).toHaveLength(1);
+    expect(appSource).toMatch(/<Route\s+path="\/collab\/:workspaceSlug\/projects"\s+element={<ProjectsPage \/>}/);
   });
 
   it('role-aware landings use the default-view helper', () => {
@@ -92,9 +92,9 @@ describe('S4-T4 regression: role-aware defaults + /team collision cleanup', () =
     expect(protectedRoute).not.toMatch(/to="\/dashboard"/);
   });
 
-  it('personal sidebar no longer links /team; logo navigates to /home', () => {
+  it('personal sidebar no longer links /projects; logo navigates to /home', () => {
     const sidebar = readFileSync(resolve(process.cwd(), 'src/shared/components/layout/Sidebar.tsx'), 'utf8');
-    expect(sidebar).not.toMatch(/to: '\/team'/);
+    expect(sidebar).not.toMatch(/to: '\/projects'/);
     expect(sidebar).toContain("navigate('/home')");
   });
 });

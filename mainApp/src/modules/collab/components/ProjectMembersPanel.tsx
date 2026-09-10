@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Save, UserPlus, Trash2, Mail } from 'lucide-react';
+import { Save, UserPlus, Trash2, Mail, UserSearch } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import type { ProjectPatch, ProjectMemberRole, ProjectMember } from '@collab/types/collaboration';
 import { Button } from '@shared/components/ui/Button';
 import { Card, CardHeader, CardTitle, CardBody } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { api } from '@shared/utils/api';
+import { AddProjectMembersModal } from '@collab/components/projects/AddProjectMembersModal';
 
 const ROLE_OPTIONS: ProjectMemberRole[] = ['admin', 'nonadmin'];
 
@@ -19,6 +20,7 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
   const [selectedTeams, setSelectedTeams] = useState<string[]>([]);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<ProjectMemberRole>('nonadmin');
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -96,6 +98,7 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Project Members & Teams</CardTitle>
@@ -140,6 +143,19 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
             </div>
           )}
         </div>
+
+        {/* Add from Workspace */}
+        {canManage && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => setShowAddMembersModal(true)}
+            leftIcon={<UserSearch size={14} />}
+          >
+            Add from Workspace
+          </Button>
+        )}
 
         {/* Invite by Email */}
         {canManage && (
@@ -216,5 +232,12 @@ export function ProjectMembersPanel({ projectId, canManage = true }: { projectId
         </div>
       </CardBody>
     </Card>
+
+    <AddProjectMembersModal
+      open={showAddMembersModal}
+      onClose={() => setShowAddMembersModal(false)}
+      projectId={projectId}
+    />
+    </>
   );
 }

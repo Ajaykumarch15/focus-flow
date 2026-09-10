@@ -1,13 +1,14 @@
-import { NavLink, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
   History, Library, Map, BarChart3, Calendar, CalendarDays, Clock, Brain, Lightbulb,
-  FolderOpen, Bell, HelpCircle, ChevronRight, User,
+  FolderOpen, Bell, HelpCircle, ChevronRight, User, Video,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { useStore } from '@worklog/services/useStore';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
@@ -26,6 +27,13 @@ const PERSONAL_NAV: NavPanelDef[] = [
     ],
   },
   { to: '/personal/schedule', icon: Calendar, label: 'Schedule' },
+  {
+    to: '/meetings', icon: Video, label: 'Meetings',
+    children: [
+      { to: '/meetings', label: 'Dashboard' },
+      { to: '/meetings/members', label: 'Members' },
+    ],
+  },
   {
     to: '/personal/roadmaps', icon: Map, label: 'Roadmaps',
     children: [
@@ -47,6 +55,13 @@ const WORKLOG_NAV: NavPanelDef[] = [
   },
   { to: '/worklog/schedule', icon: Calendar, label: 'Schedule' },
   { to: '/worklog/calendar', icon: CalendarDays, label: 'Calendar' },
+  {
+    to: '/meetings', icon: Video, label: 'Meetings',
+    children: [
+      { to: '/meetings', label: 'Dashboard' },
+      { to: '/meetings/members', label: 'Members' },
+    ],
+  },
   { to: '/worklog/logs', icon: BookMarked, label: 'Work Logs' },
   { to: '/worklog/habits', icon: Activity, label: 'Habits' },
   { to: '/worklog/reports', icon: LineChart, label: 'Reports' },
@@ -56,11 +71,12 @@ const WORKLOG_NAV: NavPanelDef[] = [
 
 const getCollabNav = (workspaceId: string): NavPanelDef[] => [
   {
-    to: `/collab/${workspaceId}/team`, icon: FolderOpen, label: 'Projects',
+    to: `/collab/${workspaceId}/projects`, icon: FolderOpen, label: 'Projects',
     children: [
-      { to: `/collab/${workspaceId}/team`, label: 'All Projects' },
+      { to: `/collab/${workspaceId}/projects`, label: 'All Projects' },
     ],
   },
+  { to: `/collab/${workspaceId}/schedule`, icon: Calendar, label: 'Schedule' },
   { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
   { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },
 ];
@@ -90,7 +106,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
   const navigate = useNavigate();
   const workspace = useAuthStore((s) => s.workspace);
   const { activeTaskId, sessionKind } = useActiveTimer();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [hoveredTop, setHoveredTop] = useState(0);
@@ -284,7 +300,7 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           className="sidebar-rail-icon mx-auto"
           onMouseEnter={() => handleIconEnter('profile')}
           onMouseLeave={handleIconLeave}
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/profile')}
           ref={(el) => { if (el) iconRefs.current['profile'] = el; }}
           role="button"
           tabIndex={0}
@@ -298,10 +314,11 @@ export function Sidebar({ expanded = false }: SidebarProps) {
       <SidebarHoverPanel
         isOpen={hoveredItem === 'profile'}
         item={{
-          to: '/settings',
+          to: '/profile',
           icon: User,
           label: user?.name || 'Account',
           children: [
+            { to: '/profile', label: 'Profile' },
             { to: '/settings', label: 'Settings' },
           ],
         }}

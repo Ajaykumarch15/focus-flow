@@ -27,6 +27,7 @@ import type {
   RoadmapType,
 } from '@personal/types/roadmap';
 import type { FocusFlowBackup, BackupImportResult } from '@shared/types/backup';
+import type { PublicProfile, ProfileStats } from '@shared/types';
 
 const BASE = import.meta.env.VITE_API_URL;
 
@@ -269,6 +270,8 @@ export const api = {
   profile: {
     get: () => request<any>('/profile'),
     update: (body: any) => request<any>('/profile', { method: 'PATCH', body: JSON.stringify(body) }),
+    getPublic: (userId: string) => request<PublicProfile>(`/profile/${userId}`),
+    getStats: (userId: string) => request<ProfileStats>(`/profile/${userId}/stats`),
   },
 
   workLogs: {
@@ -674,8 +677,15 @@ export const api = {
   // ── Personal Roadmaps (isolated) ───────────────────────────────────────────
   personalRoadmaps: {
     list: () => request<RoadmapListItem[]>('/personal-roadmaps'),
-    analytics: (days?: number) => {
-      const q = days && days > 0 ? `?days=${days}` : '';
+    analytics: (days?: number, from?: string, to?: string) => {
+      const params = new URLSearchParams();
+      if (from && to) {
+        params.set('from', from);
+        params.set('to', to);
+      } else if (days && days > 0) {
+        params.set('days', String(days));
+      }
+      const q = params.toString() ? `?${params.toString()}` : '';
       return request<any>(`/personal-roadmaps/analytics${q}`);
     },
     get: (id: string) => request<RoadmapDetail>(`/personal-roadmaps/${id}`),
@@ -741,6 +751,31 @@ export const api = {
       if (params?.to) qs.set('to', params.to);
       const query = qs.toString() ? `?${qs.toString()}` : '';
       return request<import('../types').ScheduleItem[]>(`/schedules${query}`);
+    },
+    listWorkspace: (params: {
+      workspaceId: string;
+      projectId?: string;
+      date?: string;
+      from?: string;
+      to?: string;
+      userIds?: string[];
+    }) => {
+      const qs = new URLSearchParams();
+      qs.set('workspaceId', params.workspaceId);
+      if (params.projectId) qs.set('projectId', params.projectId);
+      if (params.date) qs.set('date', params.date);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      if (params.userIds?.length) qs.set('userIds', params.userIds.join(','));
+      return request<import('../types').ScheduleItem[]>(`/schedules?${qs.toString()}`);
+    },
+    listTeam: (params: { workspaceId: string; date?: string; from?: string; to?: string }) => {
+      const qs = new URLSearchParams();
+      qs.set('workspaceId', params.workspaceId);
+      if (params.date) qs.set('date', params.date);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      return request<import('../types').ScheduleItem[]>(`/schedules/team?${qs.toString()}`);
     },
     create: (payload: import('../types').ScheduleCreatePayload) =>
       request<{ schedule: import('../types').ScheduleItem; warning?: string }>('/schedules', {
@@ -830,6 +865,47 @@ export const api = {
       request<BackupImportResult>('/backup/import', {
         method: 'POST',
         body: JSON.stringify(payload),
+      }),
+  },
+
+  meetings: {
+    list: (params?: { from?: string; to?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.from) qs.set('from', params.from);
+      if (params?.to) qs.set('to', params.to);
+      if (params?.status) qs.set('status', params.status);
+      const query = qs.toString() ? `?${qs.toString()}` : '';
+      return request<import('../../modules/meetings/types/meeting').Meeting[]>(`/meetings${query}`);
+    },
+    today: () => request<import('../../modules/meetings/types/meeting').Meeting[]>('/meetings/today'),
+    get: (id: string) => request<import('../../modules/meetings/types/meeting').Meeting>(`/meetings/${id}`),
+    create: (body: import('../../modules/meetings/types/meeting').MeetingCreatePayload) =>
+      request<import('../../modules/meetings/types/meeting').Meeting>('/meetings', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: import('../../modules/meetings/types/meeting').MeetingUpdatePayload) =>
+      request<import('../../modules/meetings/types/meeting').Meeting>(`/meetings/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    updateStatus: (id: string, status: import('../../modules/meetings/types/meeting').MeetingStatus) =>
+      request<import('../../modules/meetings/types/meeting').Meeting>(`/meetings/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    addParticipant: (id: string, userId: string) =>
+      request<import('../../modules/meetings/types/meeting').Meeting>(`/meetings/${id}/participants`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
+    removeParticipant: (id: string, userId: string) =>
+      request<import('../../modules/meetings/types/meeting').Meeting>(`/meetings/${id}/participants/${userId}`, {
+        method: 'DELETE',
+      }),
+    delete: (id: string) =>
+      request<{ success: boolean; message: string }>(`/meetings/${id}`, {
+        method: 'DELETE',
       }),
   },
 };

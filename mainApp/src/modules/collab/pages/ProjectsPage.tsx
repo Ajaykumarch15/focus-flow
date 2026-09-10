@@ -2,9 +2,9 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
   Search, Plus, LayoutGrid, List, FolderOpen,
-  ChevronDown, ArrowLeft,
+  ChevronDown,
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
@@ -13,6 +13,8 @@ import { AddProjectModal } from '@collab/components/projects/AddProjectModal';
 import { SAMPLE_PROJECTS, type ProjectData, mapProjectToCardData } from '@collab/components/projects/types';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
+import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -55,7 +57,8 @@ function isWithinTimeline(dateStr: string, timeline: string): boolean {
 }
 export function ProjectsPage() {
   const navigate = useNavigate();
-  const { workspaceId: urlWorkspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
+  const wsPath = useWorkspacePath();
   const { projects: storeProjects, activeWorkspaceId, tasks, workspaces, setActiveWorkspace } = useCollaborationStore();
   const { user } = useAuthStore();
   const isAdmin = (user?.roleId?.level ?? 0) >= 60;
@@ -67,7 +70,6 @@ export function ProjectsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const workspaceId = urlWorkspaceId || activeWorkspaceId;
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId);
   const hasAttemptedLoad = useRef(false);
 
@@ -76,16 +78,24 @@ export function ProjectsPage() {
   }, [workspaceId]);
 
   useEffect(() => {
-    if (urlWorkspaceId && urlWorkspaceId !== activeWorkspaceId) {
-      setActiveWorkspace(urlWorkspaceId);
+    if (workspaceId && workspaceId !== activeWorkspaceId) {
+      setActiveWorkspace(workspaceId);
     }
-  }, [urlWorkspaceId, activeWorkspaceId, setActiveWorkspace]);
+  }, [workspaceId, activeWorkspaceId, setActiveWorkspace]);
 
   useEffect(() => {
     if (!workspaceId || hasAttemptedLoad.current) return;
     hasAttemptedLoad.current = true;
-    useCollaborationStore.getState().loadProjects(workspaceId);
-    useCollaborationStore.getState().loadTasks(workspaceId);
+    // Load workspaces first so the slug resolves to a real MongoDB ID,
+    // then load projects/tasks/members with the resolved ID.
+    useCollaborationStore.getState().loadWorkspaces().then(() => {
+      const { workspaces, activeWorkspaceId } = useCollaborationStore.getState();
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId || w.slug === activeWorkspaceId);
+      const resolvedId = ws?.id ?? workspaceId;
+      useCollaborationStore.getState().loadProjects(resolvedId);
+      useCollaborationStore.getState().loadTasks(resolvedId);
+      useCollaborationStore.getState().loadMembers(resolvedId);
+    });
   }, [workspaceId]);
 
   const projects = useMemo(() => {
@@ -128,7 +138,7 @@ export function ProjectsPage() {
   }, []);
 
   const handleViewDetails = useCallback((project: ProjectData) => {
-    navigate(`/collab/${workspaceId}/team/${project.id}`);
+    navigate(wsPath('projects', project.id));
   }, [navigate]);
 
   const handleCreateProject = useCallback(() => {
@@ -144,22 +154,14 @@ export function ProjectsPage() {
       {/* Sticky header bar */}
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/home')}
-              className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-            >
-              <ArrowLeft size={14} /> Home
-            </button>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
-                <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
-                <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover hidden dark:block" />
-              </div>
-              <div>
-                <h1 className="font-display font-bold text-sm leading-none text-surface-50">Projects</h1>
-                <p className="text-[10px] text-surface-400 font-medium mt-0.5">Manage all your projects</p>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover hidden dark:block" />
+            </div>
+            <div>
+              <h1 className="font-display font-bold text-sm leading-none text-surface-50">Projects</h1>
+              <p className="text-[10px] text-surface-400 font-medium mt-0.5">Manage all your projects</p>
             </div>
           </div>
 

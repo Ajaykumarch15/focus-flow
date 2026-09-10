@@ -82,7 +82,7 @@ export function CreateWorkspaceModal({ isOpen, onClose }: CreateWorkspaceModalPr
       const user = users.find((u) => u._id === userId);
       return {
         userId,
-        role: (user?.role === 'superadmin' ? 'superadmin' : user?.role === 'admin' ? 'admin' : 'nonadmin') as 'superadmin' | 'admin' | 'nonadmin',
+        role: (user?.role === 'superadmin' || user?.role === 'admin' ? 'admin' : 'nonadmin') as 'admin' | 'nonadmin',
         isProjectManager: false,
       };
     });

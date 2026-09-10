@@ -10,6 +10,13 @@ const userSchema = new mongoose.Schema(
     role:         { type: String, enum: ['nonadmin', 'admin', 'superadmin'], default: 'nonadmin' },
     roleId:       { type: mongoose.Schema.Types.ObjectId, ref: 'Role', default: null },
     avatar:       { type: String, default: '', maxlength: 2000 },
+    bio:          { type: String, default: '', maxlength: 500 },
+    socialLinks: {
+      website:  { type: String, default: '', maxlength: 200 },
+      github:   { type: String, default: '', maxlength: 200 },
+      twitter:  { type: String, default: '', maxlength: 200 },
+      linkedin: { type: String, default: '', maxlength: 200 },
+    },
     streak: {
       current:    { type: Number, default: 0, min: 0 },
       lastDate:   { type: String, default: '' }, // YYYY-MM-DD

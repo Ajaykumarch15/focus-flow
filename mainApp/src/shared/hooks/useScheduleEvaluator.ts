@@ -1,11 +1,26 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useScheduleStore } from '@worklog/services/useScheduleStore';
 import { useScheduleNotificationStore } from '@worklog/services/useScheduleNotificationStore';
 import { useStore } from '@worklog/services/useStore';
+import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { ScheduleItem, DerivedScheduleState, Task } from '@shared/types';
 import { timeToMinutes } from '@worklog/services/scheduleAnalytics';
 
 const POLL_INTERVAL = 30_000; // 30 seconds
+const AUTO_START_KEY = 'ff_auto_start_timer';
+
+export function getAutoStartPreference(): boolean {
+  try {
+    const raw = localStorage.getItem(AUTO_START_KEY);
+    return raw !== 'false'; // default to true
+  } catch {
+    return true;
+  }
+}
+
+export function setAutoStartPreference(enabled: boolean): void {
+  localStorage.setItem(AUTO_START_KEY, String(enabled));
+}
 
 /** Resolve the task object from a schedule item (populated or from store) */
 function resolveTask(schedule: ScheduleItem, tasks: any[]): Task | undefined {
@@ -77,31 +92,36 @@ export { getScheduleStartTimeMs, getScheduleEndTimeMs };
  * Hook that runs on an interval to:
  * 1. Derive schedule states for today's schedules
  * 2. Dispatch 5-minute and start-now notifications
+ * 3. Auto-start timer when a schedule becomes ongoing (if enabled)
  */
 export function useScheduleEvaluator() {
   const { schedules, fetchSchedules } = useScheduleStore();
   const tasks = useStore(s => s.tasks);
+  const startTaskTimer = useStore(s => s.startTimer);
   const { pushNotification } = useScheduleNotificationStore();
+  const { activeTaskId } = useActiveTimer();
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoStartedRef = useRef<Set<string>>(new Set());
 
-  const evaluate = () => {
+  const evaluate = useCallback(() => {
     const nowMs = Date.now();
     const todayStr = (() => {
       const d = new Date();
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     })();
 
-    // Evaluate today's schedules
     const todaySchedules = schedules.filter(s => s.date === todayStr && s.status !== 'cancelled');
+    const autoStartEnabled = getAutoStartPreference();
 
     for (const schedule of todaySchedules) {
       const taskObj = resolveTask(schedule, tasks);
       const derived = deriveScheduleState(schedule, taskObj, nowMs);
+      const taskId = typeof schedule.taskId === 'string' ? schedule.taskId : (schedule.taskId as Task).id;
 
       if (derived === 'starting-soon') {
         pushNotification({
           scheduleId: schedule._id,
-          taskId: typeof schedule.taskId === 'string' ? schedule.taskId : (schedule.taskId as Task).id,
+          taskId,
           taskTitle: taskObj?.title || 'Untitled Task',
           type: 'five-minute',
           scheduledStartTime: getScheduleStartTimeMs(schedule),
@@ -111,14 +131,20 @@ export function useScheduleEvaluator() {
       if (derived === 'ongoing' && getMinutesSinceStart(schedule, nowMs) <= 2) {
         pushNotification({
           scheduleId: schedule._id,
-          taskId: typeof schedule.taskId === 'string' ? schedule.taskId : (schedule.taskId as Task).id,
+          taskId,
           taskTitle: taskObj?.title || 'Untitled Task',
           type: 'start-now',
           scheduledStartTime: getScheduleStartTimeMs(schedule),
         });
+
+        // Auto-start timer if enabled and no timer is running
+        if (autoStartEnabled && !activeTaskId && !autoStartedRef.current.has(schedule._id)) {
+          autoStartedRef.current.add(schedule._id);
+          void startTaskTimer(taskId);
+        }
       }
     }
-  };
+  }, [schedules, tasks, pushNotification, activeTaskId, startTaskTimer]);
 
   useEffect(() => {
     // Initial fetch + evaluate

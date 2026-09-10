@@ -1,7 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Map, ChevronRight, ChevronUp, ChevronDown, CheckCircle2, Plus, MoreVertical, Pencil, Trash2, AlertTriangle, Calendar } from 'lucide-react';
+import { Map, ChevronRight, CheckCircle2, Plus, Pencil, Trash2, AlertTriangle, Calendar, GripVertical } from 'lucide-react';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { api } from '@shared/utils/api';
 import { Dialog } from '@shared/components/ui/Dialog';
@@ -24,6 +32,71 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
   'in-progress': 'brand',
   completed: 'success',
 };
+
+type MilestoneItem = RoadmapMilestoneDoc & { totalTasks: number; completedTasks: number };
+
+function SortableMilestoneItem({
+  milestone, idx, id, phaseId, navigate, openEditModal, setDeleteTarget,
+}: {
+  milestone: MilestoneItem;
+  idx: number;
+  id: string;
+  phaseId: string;
+  navigate: any;
+  openEditModal: (m: MilestoneItem) => void;
+  setDeleteTarget: (m: MilestoneItem) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: milestone._id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const mProgress = safeProgress(milestone.progress);
+  const isCompleted = milestone.status === 'completed';
+  const isActive = milestone.status === 'in-progress';
+
+  return (
+    <motion.div ref={setNodeRef} style={style} initial={{ opacity: 0, y: 12 }} animate={{ opacity: isDragging ? 0.5 : 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
+      <div className={`relative rounded-2xl border bg-surface-900/90 p-4 transition-all duration-200 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800 hover:border-surface-700 hover:bg-surface-800/50'}`}>
+        <div className="flex items-center gap-3">
+          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${milestone.title}`}>
+            <GripVertical size={14} />
+          </button>
+          <button onClick={() => navigate(`/personal/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
+              {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-surface-50 truncate">{milestone.title}</p>
+              {milestone.targetDate && (
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Calendar size={9} className="text-surface-500" />
+                  <span className="text-[10px] text-surface-500">{new Date(milestone.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 mt-1">
+                <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
+                  <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${mProgress}%` }} />
+                </div>
+                <span className="text-[11px] font-medium text-surface-300">{mProgress}%</span>
+                <span className="text-[11px] text-surface-500">{milestone.completedTasks}/{milestone.totalTasks} tasks</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
+              <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
+            </div>
+          </button>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <button onClick={(e) => { e.stopPropagation(); openEditModal(milestone); }} className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all" title="Edit milestone">
+              <Pencil size={13} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(milestone); }} className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete milestone">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export function PhaseDetailPage() {
   const { id, phaseId } = useParams<{ id: string; phaseId: string }>();
@@ -177,19 +250,22 @@ export function PhaseDetailPage() {
 
   const sortedMilestones = [...milestones].sort((a, b) => a.order - b.order);
 
-  const moveMilestone = async (idx: number, dir: -1 | 1) => {
-    const target = idx + dir;
-    if (!phaseId || target < 0 || target >= sortedMilestones.length) return;
-    const ids = sortedMilestones.map(m => m._id);
-    [ids[idx], ids[target]] = [ids[target], ids[idx]];
-    setMenuOpen(null);
+  // DnD
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !phaseId) return;
+    const oldIndex = sortedMilestones.findIndex(m => m._id === active.id);
+    const newIndex = sortedMilestones.findIndex(m => m._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(sortedMilestones.map(m => m._id), oldIndex, newIndex);
     try {
-      await reorderMilestones(phaseId, ids);
+      await reorderMilestones(phaseId, reordered);
     } catch {
       // Failure toast is surfaced by the store.
     }
     fetchMilestones();
-  };
+  }, [sortedMilestones, phaseId, reorderMilestones]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
@@ -253,87 +329,24 @@ export function PhaseDetailPage() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {sortedMilestones.map((milestone, idx) => {
-              const mProgress = safeProgress(milestone.progress);
-              const isCompleted = milestone.status === 'completed';
-              const isActive = milestone.status === 'in-progress';
-
-              return (
-                <motion.div key={milestone._id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
-                  <div className={`relative rounded-2xl border bg-surface-900/90 p-4 transition-all duration-200 group ${
-                    isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800 hover:border-surface-700 hover:bg-surface-800/50'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      {/* Clickable main area */}
-                      <button onClick={() => navigate(`/personal/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)}
-                        className="flex-1 min-w-0 flex items-center gap-3 text-left">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${
-                          isCompleted ? 'bg-emerald-500/20 text-emerald-400' :
-                          isActive ? 'bg-brand-500/20 text-brand-400' :
-                          'bg-surface-800 text-surface-400'
-                        }`}>
-                          {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold text-surface-50 truncate">{milestone.title}</p>
-                          {milestone.targetDate && (
-                            <div className="flex items-center gap-1 mt-0.5">
-                              <Calendar size={9} className="text-surface-500" />
-                              <span className="text-[10px] text-surface-500">
-                                {new Date(milestone.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
-                              <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${mProgress}%` }} />
-                            </div>
-                            <span className="text-[11px] font-medium text-surface-300">{mProgress}%</span>
-                            <span className="text-[11px] text-surface-500">{milestone.completedTasks}/{milestone.totalTasks} tasks</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
-                          <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
-                        </div>
-                      </button>
-
-                      {/* Menu button */}
-                      <div className="relative flex-shrink-0" ref={menuOpen === milestone._id ? menuRef : undefined}>
-                        <button onClick={(e) => { e.stopPropagation(); setMenuOpen(menuOpen === milestone._id ? null : milestone._id); }}
-                          className="p-1.5 rounded-lg text-surface-500 hover:text-surface-300 hover:bg-surface-800 transition-all">
-                          <MoreVertical size={14} />
-                        </button>
-                        {menuOpen === milestone._id && (
-                          <div className="absolute right-0 top-full mt-1 z-20 w-36 bg-surface-800 border border-surface-700 rounded-xl shadow-xl py-1">
-                            <button onClick={(e) => { e.stopPropagation(); moveMilestone(idx, -1); }}
-                              disabled={idx === 0}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
-                              <ChevronUp size={13} /> Move Up
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); moveMilestone(idx, 1); }}
-                              disabled={idx === sortedMilestones.length - 1}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:pointer-events-none">
-                              <ChevronDown size={13} /> Move Down
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); openEditModal(milestone); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-surface-300 hover:text-surface-50 hover:bg-surface-700 transition-colors">
-                              <Pencil size={13} /> Edit
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(milestone); setMenuOpen(null); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors">
-                              <Trash2 size={13} /> Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortedMilestones.map(m => m._id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {sortedMilestones.map((milestone, idx) => (
+                  <SortableMilestoneItem
+                    key={milestone._id}
+                    milestone={milestone}
+                    idx={idx}
+                    id={id!}
+                    phaseId={phaseId!}
+                    navigate={navigate}
+                    openEditModal={openEditModal}
+                    setDeleteTarget={setDeleteTarget}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </motion.div>
 

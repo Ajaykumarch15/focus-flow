@@ -114,7 +114,7 @@ function AutoInput({ logId, field, placeholder, value: initial, mono = false, ar
 // ── Timer Panel ───────────────────────────────────────────────────────────────
 function TimerPanel({ log }: { log: WorkLog }) {
   const { startTimer, pauseTimer, resumeTimer, stopTimer, tasks } = useStore();
-  const { syncTime } = useWorkLogStore();
+  const { syncTime, activeLogs, linkTask } = useWorkLogStore();
   const { activeTaskId, activeTimerState, display } = useActiveTimer();
   const linkedTaskId = log.taskRef?._id;
   const isThisActive = activeTaskId === linkedTaskId;
@@ -122,6 +122,7 @@ function TimerPanel({ log }: { log: WorkLog }) {
   const isPaused     = isThisActive && activeTimerState === 'paused';
   const liveTask = tasks.find(t => t.id === linkedTaskId);
   const liveSession = liveTask?.sessions[liveTask.sessions.length - 1];
+  const [switching, setSwitching] = useState(false);
 
   const handleStop = async () => {
     if (!linkedTaskId) return;
@@ -131,6 +132,20 @@ function TimerPanel({ log }: { log: WorkLog }) {
       toast.success('Time synced', 'Work log history was updated from the stopped timer.');
     } catch (err: any) {
       toast.error('Timer stopped, sync failed', err.message || 'Try syncing the work log again.');
+    }
+  };
+
+  const handleSwitchLog = async (newLogId: string) => {
+    if (!newLogId || newLogId === log._id || !linkedTaskId) return;
+    setSwitching(true);
+    try {
+      await linkTask(log._id, undefined);
+      await linkTask(newLogId, linkedTaskId);
+      toast.success('Work log switched', 'Task is now linked to the selected work log.');
+    } catch (err: any) {
+      toast.error('Switch failed', err.message || 'Could not switch work log.');
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -258,6 +273,23 @@ function TimerPanel({ log }: { log: WorkLog }) {
           <span className="flex items-center gap-1"><Timer size={11} /> Paused: {formatMs(liveSession.totalPauseDuration)}</span>
           <span className="ml-auto text-surface-500 italic">Auto-saves on stop</span>
         </motion.div>
+      )}
+
+      {/* Work log switcher */}
+      {linkedTaskId && activeLogs.length > 1 && (
+        <div className="mt-4 pt-3 border-t border-surface-700/50">
+          <label className="text-xs text-surface-400 font-semibold mb-1.5 block">Switch Work Log</label>
+          <Select
+            className="text-sm h-9 rounded-xl"
+            value={log._id}
+            onChange={e => handleSwitchLog(e.target.value)}
+            disabled={switching || isRunning}
+          >
+            {activeLogs.map(l => (
+              <option key={l._id} value={l._id}>{l.title}</option>
+            ))}
+          </Select>
+        </div>
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import axe from 'axe-core';
-import { HomePage } from '../WorkspaceHub';
+import { HomePage } from '../Home';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import type { Workspace } from '@collab/types/collaboration';
@@ -24,6 +24,7 @@ async function scan(container: HTMLElement) {
 const workspace = (id: string, overrides: Partial<Workspace> = {}): Workspace => ({
   id,
   name: `Workspace ${id}`,
+  slug: `workspace-${id}`,
   type: 'Startup',
   icon: '🏢',
   description: 'A shared engineering workspace.',

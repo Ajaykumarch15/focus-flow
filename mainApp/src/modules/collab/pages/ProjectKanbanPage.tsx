@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { KanbanToolbar } from '@worklog/components/kanban/KanbanToolbar';
 import { KanbanBoard } from '@worklog/components/kanban/KanbanBoard';
 import { KanbanFilters } from '@worklog/components/kanban/KanbanFilters';
@@ -11,13 +11,14 @@ import { AddTaskModal } from '@worklog/components/kanban/AddTaskModal';
 import { TaskDetailsPanel } from '@worklog/components/kanban/TaskDetailsPanel';
 import { useKanbanStore } from '@worklog/components/kanban/kanbanStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Button } from '@shared/components/ui/Button';
 import { api } from '@shared/utils/api';
 
 export function ProjectKanbanPage() {
-  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
+  const { projectId } = useParams<{ projectId: string }>();
+  const workspaceId = useWorkspaceId();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { activeView, openAddModal, showAddModal, closeAddModal, openDetailsPanel, setWorklogTaskIds, tasks } = useKanbanStore();
   const loadFromProject = useKanbanStore((s) => s.loadFromProject);
   const setContext = useKanbanStore((s) => s.setContext);
@@ -72,11 +73,16 @@ export function ProjectKanbanPage() {
 
   useEffect(() => {
     if (!workspaceId || !projectId) return;
-    const store = useCollaborationStore.getState();
-    store.loadProjects(workspaceId);
-    store.loadTasks(workspaceId, projectId);
-    store.loadMembers(workspaceId);
-    setContext(workspaceId, projectId, membersMap);
+    useCollaborationStore.getState().loadWorkspaces().then(() => {
+      const { workspaces, activeWorkspaceId } = useCollaborationStore.getState();
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId || w.slug === activeWorkspaceId);
+      const resolvedId = ws?.id ?? workspaceId;
+      const store = useCollaborationStore.getState();
+      store.loadProjects(resolvedId);
+      store.loadTasks(resolvedId, projectId);
+      store.loadMembers(resolvedId);
+      setContext(resolvedId, projectId, membersMap);
+    });
   }, [workspaceId, projectId, membersMap, setContext]);
 
   useEffect(() => {
@@ -100,12 +106,6 @@ export function ProjectKanbanPage() {
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6"
         >
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}`)}
-              className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-            >
-              <ArrowLeft size={14} /> Back
-            </button>
             <div>
               <h1 className="text-2xl font-display font-extrabold text-surface-50 tracking-tight">
                 {project?.name ?? 'Project'} — Kanban

@@ -111,7 +111,7 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
         const member = workspaceMembers.find(m => m.id === userId);
         return {
           userId,
-          role: member?.role === 'superadmin' ? 'superadmin' : member?.role === 'admin' ? 'admin' : 'nonadmin',
+          role: (member?.role === 'superadmin' || member?.role === 'admin' ? 'admin' : 'nonadmin') as 'admin' | 'nonadmin',
           isProjectManager: userId === selectedPM,
         };
       });

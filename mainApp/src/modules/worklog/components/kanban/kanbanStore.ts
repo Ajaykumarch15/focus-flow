@@ -13,7 +13,7 @@ interface KanbanState {
     status: KanbanStatus | 'all';
     priority: string;
     label: string;
-    assignee: string;
+    assignees: string[];
   };
   selectedTaskId: string | null;
   showAddModal: boolean;
@@ -29,6 +29,8 @@ interface KanbanState {
   setActiveView: (v: KanbanView) => void;
   setSortBy: (s: SortBy) => void;
   setFilter: (key: keyof KanbanState['filters'], value: string) => void;
+  toggleAssigneeFilter: (id: string) => void;
+  clearAssigneeFilter: () => void;
   clearFilters: () => void;
   selectTask: (id: string | null) => void;
   openAddModal: (status?: KanbanStatus) => void;
@@ -53,7 +55,7 @@ export const useKanbanStore = create<KanbanState>((set) => ({
   searchQuery: '',
   activeView: 'board',
   sortBy: 'default',
-  filters: { status: 'all', priority: '', label: '', assignee: '' },
+  filters: { status: 'all', priority: '', label: '', assignees: [] },
   selectedTaskId: null,
   showAddModal: false,
   addModalDefaultStatus: 'todo',
@@ -69,8 +71,22 @@ export const useKanbanStore = create<KanbanState>((set) => ({
   setSortBy: (s) => set({ sortBy: s }),
   setFilter: (key, value) =>
     set((state) => ({ filters: { ...state.filters, [key]: value } })),
+  toggleAssigneeFilter: (id) =>
+    set((state) => {
+      const exists = state.filters.assignees.includes(id);
+      return {
+        filters: {
+          ...state.filters,
+          assignees: exists
+            ? state.filters.assignees.filter((a) => a !== id)
+            : [...state.filters.assignees, id],
+        },
+      };
+    }),
+  clearAssigneeFilter: () =>
+    set((state) => ({ filters: { ...state.filters, assignees: [] } })),
   clearFilters: () =>
-    set({ filters: { status: 'all', priority: '', label: '', assignee: '' } }),
+    set({ filters: { status: 'all', priority: '', label: '', assignees: [] } }),
   selectTask: (id) => set({ selectedTaskId: id }),
   openAddModal: (status = 'todo') => set({ showAddModal: true, addModalDefaultStatus: status }),
   closeAddModal: () => set({ showAddModal: false }),

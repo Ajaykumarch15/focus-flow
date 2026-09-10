@@ -1,13 +1,21 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Map, Calendar, CheckCircle2,
-  ChevronRight, ChevronUp, ChevronDown, Zap, AlertCircle, Target,
+  ChevronRight, Zap, AlertCircle, Target,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award, Info,
-  Pencil, Trash2, Plus,
+  Pencil, Trash2, Plus, GripVertical,
 } from 'lucide-react';
+import {
+  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext, useSortable, verticalListSortingStrategy, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
@@ -36,6 +44,74 @@ const STATUS_COLORS: Record<string, BadgeTone> = {
   completed: 'success',
   paused: 'warning',
 };
+
+function SortablePhaseItem({
+  phase, idx, roadmapId, navigate, setPhaseFormTarget, setPhaseDeleteTarget,
+}: {
+  phase: RoadmapPhaseDoc & { progress?: number; milestoneTotal: number; milestoneCompleted: number };
+  idx: number;
+  roadmapId: string;
+  navigate: any;
+  setPhaseFormTarget: (t: 'create' | RoadmapPhaseDoc) => void;
+  setPhaseDeleteTarget: (p: RoadmapPhaseDoc) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: phase._id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const phaseProgress = safeProgress(phase.progress);
+  const isActive = phase.status === 'active';
+  const isCompleted = phase.status === 'completed';
+
+  return (
+    <motion.div ref={setNodeRef} style={style} initial={{ opacity: 0, y: 12 }} animate={{ opacity: isDragging ? 0.5 : 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
+      <div role="link" tabIndex={0}
+        aria-label={`${phase.title}, ${phaseProgress}% complete`}
+        onClick={() => navigate(`/personal/roadmaps/${roadmapId}/phases/${phase._id}`)}
+        onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/personal/roadmaps/${roadmapId}/phases/${phase._id}`); }}
+        className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'}`}
+      >
+        <div className="flex items-center gap-3">
+          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${phase.title}`}>
+            <GripVertical size={14} />
+          </button>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
+            {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-surface-50 truncate">{phase.title}</p>
+            {(phase.startDate || phase.targetDate) && (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Calendar size={10} className="text-surface-500" />
+                <span className="text-[10px] text-surface-500">
+                  {phase.startDate && phase.targetDate
+                    ? `${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(phase.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                    : phase.startDate ? `Start: ${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `Target: ${new Date(phase.targetDate!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                  }
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 mt-1">
+              <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
+                <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${phaseProgress}%` }} />
+              </div>
+              <span className="text-[11px] font-medium text-surface-300">{formatProgress(phase.progress, phase.milestoneTotal)}</span>
+              <span className="text-[11px] text-surface-500">{phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-0.5 flex-shrink-0">
+            <Badge tone={STATUS_COLORS[phase.status] || 'neutral'} className="text-[10px]">{phase.status}</Badge>
+            <button onClick={(e) => { e.stopPropagation(); setPhaseFormTarget(phase); }} className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all" title="Edit phase" aria-label={`Edit ${phase.title}`}>
+              <Pencil size={13} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setPhaseDeleteTarget(phase); }} className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete phase" aria-label={`Delete ${phase.title}`}>
+              <Trash2 size={13} />
+            </button>
+            <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export function RoadmapDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -141,13 +217,17 @@ export function RoadmapDetailPage() {
     }
   };
 
-  const movePhase = (idx: number, dir: -1 | 1) => {
-    const target = idx + dir;
-    if (target < 0 || target >= sortedPhases.length) return;
-    const ids = sortedPhases.map(p => p._id);
-    [ids[idx], ids[target]] = [ids[target], ids[idx]];
-    reorderPhases(roadmap._id, ids);
-  };
+  // DnD
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sortedPhases.findIndex(p => p._id === active.id);
+    const newIndex = sortedPhases.findIndex(p => p._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(sortedPhases.map(p => p._id), oldIndex, newIndex);
+    reorderPhases(roadmap._id, reordered);
+  }, [sortedPhases, roadmap?._id, reorderPhases]);
 
   const Icon = ICON_MAP[roadmap.icon] || Map;
   const statusTone: BadgeTone = (ROADMAP_STATUS_COLORS[roadmap.status] || 'neutral') as BadgeTone;
@@ -320,111 +400,23 @@ export function RoadmapDetailPage() {
             <p className="text-xs text-surface-500">Break your roadmap into phases to track progress.</p>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {sortedPhases.map((phase, idx) => {
-              const phaseProgress = safeProgress(phase.progress);
-              const isActive = phase.status === 'active';
-              const isCompleted = phase.status === 'completed';
-
-              return (
-                <motion.div
-                  key={phase._id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                >
-                  <div
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`${phase.title}, ${phaseProgress}% complete`}
-                    onClick={() => navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase._id}`)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/personal/roadmaps/${roadmap._id}/phases/${phase._id}`); }}
-                    className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${
-                      isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${
-                        isCompleted ? 'bg-emerald-500/20 text-emerald-400' :
-                        isActive ? 'bg-brand-500/20 text-brand-400' :
-                        'bg-surface-800 text-surface-400'
-                      }`}>
-                        {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-surface-50 truncate">{phase.title}</p>
-                        {(phase.startDate || phase.targetDate) && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <Calendar size={10} className="text-surface-500" />
-                            <span className="text-[10px] text-surface-500">
-                              {phase.startDate && phase.targetDate
-                                ? `${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(phase.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                                : phase.startDate
-                                  ? `Start: ${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                                  : `Target: ${new Date(phase.targetDate!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                              }
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
-                            <div
-                              className="h-full rounded-full bg-brand-500/70 transition-all duration-300"
-                              style={{ width: `${phaseProgress}%` }}
-                            />
-                          </div>
-                          <span className="text-[11px] font-medium text-surface-300">{formatProgress(phase.progress, phase.milestoneTotal)}</span>
-                          <span className="text-[11px] text-surface-500">{phase.milestoneCompleted}/{phase.milestoneTotal} milestones</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-0.5 flex-shrink-0">
-                        <Badge tone={STATUS_COLORS[phase.status] || 'neutral'} className="text-[10px]">
-                          {phase.status}
-                        </Badge>
-                        <div className="flex flex-col">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); movePhase(idx, -1); }}
-                            disabled={idx === 0}
-                            className="p-0.5 rounded text-surface-600 hover:text-surface-200 hover:bg-surface-800 transition-all disabled:opacity-30 disabled:pointer-events-none"
-                            title="Move up"
-                            aria-label={`Move ${phase.title} up`}
-                          >
-                            <ChevronUp size={12} />
-                          </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); movePhase(idx, 1); }}
-                            disabled={idx === sortedPhases.length - 1}
-                            className="p-0.5 rounded text-surface-600 hover:text-surface-200 hover:bg-surface-800 transition-all disabled:opacity-30 disabled:pointer-events-none"
-                            title="Move down"
-                            aria-label={`Move ${phase.title} down`}
-                          >
-                            <ChevronDown size={12} />
-                          </button>
-                        </div>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPhaseFormTarget(phase); }}
-                          className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all"
-                          title="Edit phase"
-                          aria-label={`Edit ${phase.title}`}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setPhaseDeleteTarget(phase); }}
-                          className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                          title="Delete phase"
-                          aria-label={`Delete ${phase.title}`}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                        <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortedPhases.map(p => p._id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {sortedPhases.map((phase, idx) => (
+                  <SortablePhaseItem
+                    key={phase._id}
+                    phase={phase}
+                    idx={idx}
+                    roadmapId={roadmap._id}
+                    navigate={navigate}
+                    setPhaseFormTarget={setPhaseFormTarget}
+                    setPhaseDeleteTarget={setPhaseDeleteTarget}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </motion.div>
 

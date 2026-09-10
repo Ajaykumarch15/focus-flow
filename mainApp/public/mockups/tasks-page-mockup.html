@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1400, initial-scale=1.0" />
+  <title>Tasks Page Mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Syne', 'sans-serif'],
+            body: ['DM Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            surface: {
+              50: '#f8fafc',
+              100: '#f1f5f9',
+              200: '#e2e8f0',
+              300: '#cbd5e1',
+              400: '#94a3b8',
+              500: '#64748b',
+              600: '#475569',
+              700: '#334155',
+              800: '#1e293b',
+              850: '#172033',
+              900: '#0f172a',
+              950: '#020617',
+            },
+            brand: {
+              400: '#60a5fa',
+              500: '#3b82f6',
+              600: '#2563eb',
+            },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #020617; color: #f8fafc; min-height: 100vh; }
+    .font-display { font-family: 'Syne', sans-serif; }
+    .card { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; }
+    .card-hover:hover { border-color: #334155; box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+    .stat-card { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(6,182,212,0.05)); border: 1px solid #1e293b; border-radius: 14px; }
+    .task-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 14px; transition: all 0.2s; }
+    .task-card:hover { border-color: #334155; transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; }
+    .filter-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 500; background: #0f172a; border: 1px solid #1e293b; color: #94a3b8; cursor: pointer; transition: all 0.15s; }
+    .filter-btn:hover { border-color: #334155; color: #e2e8f0; }
+    .filter-btn.active { border-color: #3b82f6; color: #60a5fa; background: rgba(59,130,246,0.1); }
+    .view-toggle { display: inline-flex; background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; overflow: hidden; }
+    .view-toggle button { padding: 6px 12px; font-size: 12px; font-weight: 500; color: #64748b; background: transparent; border: none; cursor: pointer; transition: all 0.15s; }
+    .view-toggle button.active { background: #3b82f6; color: white; }
+    .avatar { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; border: 2px solid #0f172a; }
+    .avatar-stack { display: flex; }
+    .avatar-stack .avatar { margin-left: -6px; }
+    .avatar-stack .avatar:first-child { margin-left: 0; }
+    .progress-bar { height: 4px; border-radius: 9999px; background: #1e293b; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 9999px; background: #3b82f6; }
+    .multi-select-dropdown { position: relative; }
+    .multi-select-menu { position: absolute; top: calc(100% + 6px); left: 0; min-width: 240px; background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 6px; z-index: 50; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 12px; color: #cbd5e1; transition: background 0.1s; }
+    .checkbox-item:hover { background: #1e293b; }
+    .checkbox { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid #334155; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .checkbox.checked { background: #3b82f6; border-color: #3b82f6; }
+    .checkbox.checked::after { content: '✓'; color: white; font-size: 10px; font-weight: 700; }
+    .label-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .priority-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .unassigned-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px dashed #334155; }
+  </style>
+</head>
+<body>
+  <div class="min-h-screen relative overflow-x-hidden overflow-y-auto" style="background: #020617;">
+    <!-- Background decorative gradients -->
+    <div style="position:absolute;top:-160px;left:-160px;width:384px;height:384px;background:rgba(59,130,246,0.05);border-radius:50%;filter:blur(80px);pointer-events:none;"></div>
+    <div style="position:absolute;bottom:0;right:-160px;width:384px;height:384px;background:rgba(6,182,212,0.05);border-radius:50%;filter:blur(80px);pointer-events:none;"></div>
+
+    <div style="max-width:1400px;margin:0 auto;padding:24px 32px;position:relative;z-index:10;">
+
+      <!-- Page Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+        <div>
+          <h1 style="font-family:'Syne',sans-serif;font-weight:800;font-size:24px;color:#f8fafc;letter-spacing:-0.02em;">
+            FocusFlow <span style="color:#64748b;font-weight:600;">— Tasks</span>
+          </h1>
+          <p style="font-size:13px;color:#64748b;margin-top:4px;">Manage and track all project tasks in one place.</p>
+        </div>
+      </div>
+
+      <!-- Stats Bar -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px;">
+        <div class="stat-card" style="padding:20px 24px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(59,130,246,0.12);display:flex;align-items:center;justify-content:center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            </div>
+            <span style="font-size:12px;color:#64748b;font-weight:500;">Total Tasks</span>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:#f8fafc;">12</div>
+        </div>
+        <div class="stat-card" style="padding:20px 24px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,0.12);display:flex;align-items:center;justify-content:center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span style="font-size:12px;color:#64748b;font-weight:500;">Assigned</span>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:#34d399;">8</div>
+        </div>
+        <div class="stat-card" style="padding:20px 24px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:rgba(251,191,36,0.12);display:flex;align-items:center;justify-content:center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <span style="font-size:12px;color:#64748b;font-weight:500;">Unassigned</span>
+          </div>
+          <div style="font-family:'Syne',sans-serif;font-size:32px;font-weight:800;color:#fbbf24;">4</div>
+        </div>
+      </div>
+
+      <!-- Toolbar: Search + Filters + View Toggle -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+        <!-- Search -->
+        <div style="position:relative;flex:1;min-width:200px;max-width:320px;">
+          <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#475569;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" placeholder="Search tasks..." style="width:100%;padding:8px 12px 8px 32px;border-radius:10px;font-size:12px;background:#0f172a;border:1px solid #1e293b;color:#e2e8f0;outline:none;" />
+        </div>
+
+        <!-- Filter buttons -->
+        <div class="filter-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Status: All
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div class="filter-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+          Priority: All
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <div class="filter-btn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          Labels: All
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+        <!-- Members multi-select (active/selected state) -->
+        <div class="multi-select-dropdown">
+          <div class="filter-btn active" style="position:relative;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Members
+            <span style="background:#3b82f6;color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:9999px;">2</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <!-- Dropdown open state -->
+          <div class="multi-select-menu" style="display:block;">
+            <div style="padding:6px 8px 4px;font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.05em;">Select members</div>
+            <div class="checkbox-item">
+              <div class="checkbox checked"></div>
+              <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;">AK</div>
+              <span>Ajay Kumar</span>
+            </div>
+            <div class="checkbox-item">
+              <div class="checkbox checked"></div>
+              <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#ec4899,#f97316);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;">SC</div>
+              <span>Sarah Chen</span>
+            </div>
+            <div class="checkbox-item">
+              <div class="checkbox"></div>
+              <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#10b981,#06b6d4);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;">MR</div>
+              <span>Mike Ross</span>
+            </div>
+            <div class="checkbox-item">
+              <div class="checkbox"></div>
+              <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#ef4444);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;">EW</div>
+              <span>Emma Wilson</span>
+            </div>
+            <div style="border-top:1px solid #1e293b;margin:4px 0;"></div>
+            <div class="checkbox-item" style="color:#64748b;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear all
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1;"></div>
+
+        <!-- View Toggle -->
+        <div class="view-toggle">
+          <button class="active" style="display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Grid
+          </button>
+          <button style="display:flex;align-items:center;gap:4px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            List
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid View -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+
+        <!-- Task Card 1 -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.2);"><span class="label-dot" style="background:#6366f1;"></span>Review</span>
+              <span class="badge" style="background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.2);"><span class="label-dot" style="background:#f97316;"></span>Testing</span>
+            </div>
+            <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);"><span class="priority-dot" style="background:#ef4444;"></span>Urgent</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">Dashboard analytics widget</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">Build analytics dashboard widget for real-time data visualization.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 22
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:0%;"></div></div>
+              <span style="font-size:10px;color:#475569;font-weight:600;">0%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>2</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>0</span>
+            </div>
+            <div class="avatar-stack">
+              <div class="avatar" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;">AK</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Card 2 -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.2);"><span class="label-dot" style="background:#8b5cf6;"></span>UI Design</span>
+            </div>
+            <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);"><span class="priority-dot" style="background:#ef4444;"></span>High</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">Notification system overhaul</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">Redesign notification system with better grouping and priority.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 25
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:50%;"></div></div>
+              <span style="font-size:10px;color:#475569;font-weight:600;">50%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>8</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>2</span>
+            </div>
+            <div class="avatar-stack">
+              <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;">EW</div>
+              <div class="avatar" style="background:linear-gradient(135deg,#ec4899,#f97316);color:white;">SC</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Card 3 (Unassigned) -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.2);"><span class="label-dot" style="background:#8b5cf6;"></span>UI Design</span>
+              <span class="badge" style="background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.2);"><span class="label-dot" style="background:#f97316;"></span>Testing</span>
+            </div>
+            <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);"><span class="priority-dot" style="background:#ef4444;"></span>Urgent</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">Testing Menu Dashboard</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">Reviewing dashboard menu for the mailly product.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 15
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:75%;"></div></div>
+              <span style="font-size:10px;color:#475569;font-weight:600;">75%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>12</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>1</span>
+            </div>
+            <span class="unassigned-pill">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Unassigned
+            </span>
+          </div>
+        </div>
+
+        <!-- Task Card 4 -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.2);"><span class="label-dot" style="background:#6366f1;"></span>Review</span>
+              <span class="badge" style="background:rgba(139,92,246,0.12);color:#a78bfa;border:1px solid rgba(139,92,246,0.2);"><span class="label-dot" style="background:#8b5cf6;"></span>UI Design</span>
+            </div>
+            <span class="badge" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);"><span class="priority-dot" style="background:#fbbf24;"></span>Low</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">FnQ list menu</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">This page showing FnQ list for this product.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(239,68,68,0.12);color:#f87171;border:1px solid rgba(239,68,68,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 12
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:80%;"></div></div>
+              <span style="font-size:10px;color:#475569;font-weight:600;">80%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>14</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>3</span>
+            </div>
+            <div class="avatar-stack">
+              <div class="avatar" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:white;">AK</div>
+              <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;">EW</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Card 5 -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.2);"><span class="label-dot" style="background:#10b981;"></span>Design system</span>
+            </div>
+            <span class="badge" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);"><span class="priority-dot" style="background:#fbbf24;"></span>Medium</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">Create fondation color</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">All about Fondation color for make the designer easy to work.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 8
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:100%;background:#10b981;"></div></div>
+              <span style="font-size:10px;color:#34d399;font-weight:600;">100%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>5</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>3</span>
+            </div>
+            <div class="avatar-stack">
+              <div class="avatar" style="background:linear-gradient(135deg,#ec4899,#f97316);color:white;">SC</div>
+              <div class="avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444);color:white;">EW</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Card 6 (Unassigned) -->
+        <div class="task-card" style="padding:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <span class="badge" style="background:rgba(99,102,241,0.12);color:#818cf8;border:1px solid rgba(99,102,241,0.2);"><span class="label-dot" style="background:#6366f1;"></span>Review</span>
+              <span class="badge" style="background:rgba(249,115,22,0.12);color:#fb923c;border:1px solid rgba(249,115,22,0.2);"><span class="label-dot" style="background:#f97316;"></span>Testing</span>
+            </div>
+            <span class="badge" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.2);"><span class="priority-dot" style="background:#fbbf24;"></span>Medium</span>
+          </div>
+          <h4 style="font-size:13px;font-weight:700;color:#f8fafc;margin-bottom:4px;line-height:1.4;">Testing report error mail page</h4>
+          <p style="font-size:11px;color:#64748b;line-height:1.5;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">Reviewing dashboard menu for the mailly product.</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span class="badge" style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.2);">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Sep 20
+            </span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div class="progress-bar" style="width:48px;"><div class="progress-fill" style="width:33%;"></div></div>
+              <span style="font-size:10px;color:#475569;font-weight:600;">33%</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid #1e293b;">
+            <div style="display:flex;align-items:center;gap:10px;color:#475569;">
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>4</span>
+              <span style="display:flex;align-items:center;gap:3px;font-size:11px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>2</span>
+            </div>
+            <span class="unassigned-pill">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Unassigned
+            </span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

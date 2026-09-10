@@ -34,6 +34,7 @@ export interface WorkspaceTeam {
 
 export interface Workspace {
   id: string;
+  slug: string;
   name: string;
   type: WorkspaceType;
   icon: string;

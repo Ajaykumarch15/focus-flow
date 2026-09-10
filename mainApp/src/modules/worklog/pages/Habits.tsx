@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X,
+  Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X, Flame, TrendingUp,
 } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from 'recharts';
 import { Habit, HabitFeeling, getTodayHabitEntry, useHabitStore } from '@worklog/services/useHabitStore';
 import { Skeleton, SkeletonStatCard } from '@shared/components/ui/Skeleton';
 import { PageHeader } from '@shared/components/ui/PageHeader';
@@ -13,6 +16,7 @@ import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
+const FEELING_SCORES: Record<HabitFeeling, number> = { rough: 1, okay: 2, good: 3, great: 4, energized: 5 };
 const FEELINGS: { value: HabitFeeling; label: string }[] = [
   { value: 'rough', label: 'Rough' },
   { value: 'okay', label: 'Okay' },
@@ -20,6 +24,130 @@ const FEELINGS: { value: HabitFeeling; label: string }[] = [
   { value: 'great', label: 'Great' },
   { value: 'energized', label: 'Energized' },
 ];
+
+function computeStreak(habit: Habit): number {
+  const sorted = [...habit.entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const entry = sorted.find(e => e.date?.slice(0, 10) === key);
+    if (entry && entry.completedItems.length > 0) {
+      streak++;
+    } else if (i > 0) {
+      break;
+    }
+  }
+  return streak;
+}
+
+function computeCompletionHistory(habit: Habit, days: number): { date: string; completed: number; total: number }[] {
+  const result: { date: string; completed: number; total: number }[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const total = habit.checklist.length || 1;
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const entry = habit.entries.find(e => e.date?.slice(0, 10) === key);
+    result.push({
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
+      completed: entry ? entry.completedItems.length : 0,
+      total,
+    });
+  }
+  return result;
+}
+
+function computeFeelingTrend(habit: Habit, days: number): { date: string; score: number }[] {
+  const result: { date: string; score: number }[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    const entry = habit.entries.find(e => e.date?.slice(0, 10) === key);
+    result.push({
+      date: `${d.getMonth() + 1}/${d.getDate()}`,
+      score: entry?.feeling ? FEELING_SCORES[entry.feeling] : 0,
+    });
+  }
+  return result;
+}
+
+function HabitAnalytics({ habit }: { habit: Habit }) {
+  const streak = computeStreak(habit);
+  const completionData = useMemo(() => computeCompletionHistory(habit, 30), [habit]);
+  const feelingData = useMemo(() => computeFeelingTrend(habit, 30), [habit]);
+  const totalEntries = habit.entries.filter(e => e.completedItems.length > 0).length;
+  const avgMinutes = habit.entries.length > 0 ? Math.round(habit.entries.reduce((s, e) => s + e.minutes, 0) / habit.entries.length) : 0;
+
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+      className="overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <div className="flex items-center gap-2 p-3 bg-surface-800/50 rounded-xl">
+          <Flame size={16} className="text-orange-400" />
+          <div>
+            <p className="text-lg font-bold text-surface-50">{streak}</p>
+            <p className="text-[10px] text-surface-400 uppercase tracking-wider">Day Streak</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 p-3 bg-surface-800/50 rounded-xl">
+          <TrendingUp size={16} className="text-emerald-400" />
+          <div>
+            <p className="text-lg font-bold text-surface-50">{totalEntries}</p>
+            <p className="text-[10px] text-surface-400 uppercase tracking-wider">Total Days Done</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 p-3 bg-surface-800/50 rounded-xl">
+          <Clock size={16} className="text-blue-400" />
+          <div>
+            <p className="text-lg font-bold text-surface-50">{avgMinutes}m</p>
+            <p className="text-[10px] text-surface-400 uppercase tracking-wider">Avg Daily Time</p>
+          </div>
+        </div>
+      </div>
+      {completionData.some(d => d.completed > 0) && (
+        <div className="bg-surface-800/50 rounded-xl p-3 mb-3">
+          <p className="text-[10px] text-surface-400 uppercase tracking-wider mb-2">30-Day Completion</p>
+          <div className="h-[80px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={completionData}>
+                <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#64748b' }} axisLine={false} tickLine={false} interval={4} />
+                <YAxis hide domain={[0, 'dataMax']} />
+                <Tooltip contentStyle={{ fontSize: 11, background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+                  labelStyle={{ color: '#94a3b8' }} />
+                <Bar dataKey="completed" fill={habit.color} radius={[3, 3, 0, 0]} maxBarSize={12} fillOpacity={0.8} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      {feelingData.some(d => d.score > 0) && (
+        <div className="bg-surface-800/50 rounded-xl p-3">
+          <p className="text-[10px] text-surface-400 uppercase tracking-wider mb-2">30-Day Feeling Trend</p>
+          <div className="h-[80px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={feelingData}>
+                <XAxis dataKey="date" tick={{ fontSize: 8, fill: '#64748b' }} axisLine={false} tickLine={false} interval={4} />
+                <YAxis hide domain={[0, 5]} />
+                <Tooltip contentStyle={{ fontSize: 11, background: '#1e293b', border: '1px solid #334155', borderRadius: 8 }}
+                  labelStyle={{ color: '#94a3b8' }} formatter={(v: number) => ['😐😊'[Math.min(4, Math.max(0, v - 1))] || '—', 'Feeling']} />
+                <Bar dataKey="score" fill="#a855f7" radius={[3, 3, 0, 0]} maxBarSize={12} fillOpacity={0.7} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
 
 function completionPercent(habit: Habit): number {
   if (habit.checklist.length === 0) return 0;
@@ -164,7 +292,9 @@ function HabitCard({ habit }: { habit: Habit }) {
   const entry = getTodayHabitEntry(habit);
   const [newItem, setNewItem] = useState('');
   const [note, setNote] = useState(entry.note);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [, forceTick] = useState(0);
+  const streak = useMemo(() => computeStreak(habit), [habit]);
 
   const isThisActive = activeHabitId === habit._id;
   const isRunning = isThisActive && habitTimerState === 'running';
@@ -264,8 +394,25 @@ function HabitCard({ habit }: { habit: Habit }) {
           >
             <Trash2 size={15} />
           </button>
+          <button
+            onClick={() => setShowAnalytics(!showAnalytics)}
+            className={`p-2 rounded-lg transition-all ${showAnalytics ? 'text-brand-400 bg-brand-500/10' : 'text-surface-500 hover:text-surface-300 hover:bg-surface-800'}`}
+            aria-label="Toggle analytics"
+            title="View analytics"
+          >
+            <TrendingUp size={15} />
+          </button>
+          {streak > 0 && (
+            <span className="flex items-center gap-1 text-xs font-bold text-orange-400">
+              <Flame size={12} /> {streak}
+            </span>
+          )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showAnalytics && <HabitAnalytics habit={habit} />}
+      </AnimatePresence>
 
       <div className={`rounded-xl border p-4 mb-5 ${
         isRunning

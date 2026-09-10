@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle2, Zap, FolderOpen, TrendingUp } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { getRoleDisplayName } from '@collab/utils/roleDisplay';
 
@@ -59,7 +60,7 @@ function CircularProgress({ value, size = 120, strokeWidth = 8 }: CircularProgre
 
 export function PeopleStatsSidebar() {
   const navigate = useNavigate();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
   const { user } = useAuthStore();
   const { members, projects, tasks } = useCollaborationStore();
 
@@ -160,7 +161,7 @@ export function PeopleStatsSidebar() {
               <button
                 key={project.id}
                 type="button"
-                onClick={() => navigate(`/collab/${workspaceId}/team`)}
+                onClick={() => navigate(`/collab/${workspaceId}/projects`)}
                 className="w-full text-left p-3 rounded-xl bg-surface-850 border border-surface-800 hover:border-surface-700 transition-colors group"
               >
                 <p className="text-xs font-bold text-surface-100 group-hover:text-brand-300 transition-colors truncate">
@@ -176,7 +177,7 @@ export function PeopleStatsSidebar() {
         {myProjects.length > 0 && (
           <button
             type="button"
-            onClick={() => navigate(`/collab/${workspaceId}/team`)}
+            onClick={() => navigate(`/collab/${workspaceId}/projects`)}
             className="w-full text-center text-xs font-semibold text-brand-400 hover:text-brand-300 transition-colors py-1.5"
           >
             View all

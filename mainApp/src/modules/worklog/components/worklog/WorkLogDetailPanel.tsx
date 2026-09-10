@@ -126,7 +126,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                     <Button
                       variant="ghost"
                       size="xs"
-                      onClick={() => navigate(`/collab/${kanbanWorkspaceId}/team/${kanbanProjectId}/kanban?select=${kanbanTaskId}`)}
+                      onClick={() => navigate(`/collab/${kanbanWorkspaceId}/projects/${kanbanProjectId}/kanban?select=${kanbanTaskId}`)}
                       className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10"
                       leftIcon={<ExternalLink size={11} />}
                       aria-label="View in Kanban"

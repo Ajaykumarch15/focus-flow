@@ -36,9 +36,8 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>${escapeHtml(meta.title)} — Engineering Documentation</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
@@ -151,7 +150,7 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
   }
 
   /* ── Content ─────────────────────────────────────────────────── */
-  .content { max-width: 760px; margin: 0 auto; padding: 48px 40px; }
+  .content { max-width: 760px; margin: 0 auto; padding: 48px 40px 80px; }
 
   .section {
     margin-bottom: 40px;
@@ -350,18 +349,36 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
   .prose th, .prose td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
   .prose th { background: var(--surface); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.3px; }
 
-  /* ── Footer ──────────────────────────────────────────────────── */
-  .doc-footer {
-    margin-top: 60px;
-    padding-top: 24px;
-    border-top: 2px solid var(--border);
-    text-align: center;
+  /* ── Header ──────────────────────────────────────────────────── */
+  .doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    margin-bottom: 32px;
+    border-bottom: 2px solid var(--border);
     font-size: 11px;
     color: var(--text-secondary);
     page-break-inside: avoid;
   }
-  .doc-footer-brand { font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 4px; }
-  .doc-footer p { margin: 2px 0; }
+  .doc-header-title { font-weight: 600; color: var(--text); font-size: 12px; }
+  .doc-header-brand { font-weight: 700; color: var(--brand); font-size: 12px; letter-spacing: 0.3px; }
+
+  /* ── Footer ──────────────────────────────────────────────────── */
+  .doc-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 48px;
+    padding: 16px 0;
+    border-top: 2px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    page-break-inside: avoid;
+  }
+  .doc-footer-brand { font-weight: 700; color: var(--text); font-size: 12px; }
+  .doc-footer-date { color: var(--text-secondary); }
+  .doc-footer-conf { font-style: italic; opacity: 0.6; }
 </style>
 </head>
 <body>
@@ -383,6 +400,12 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
 
 <!-- CONTENT -->
 <div class="content">
+
+  <!-- Header -->
+  <div class="doc-header">
+    <span class="doc-header-title">${escapeHtml(meta.title)}</span>
+    <span class="doc-header-brand">FocusFlow</span>
+  </div>
 
   <!-- Feature Information Table -->
   <table class="feature-table">
@@ -525,10 +548,9 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
 
   <!-- Footer -->
   <div class="doc-footer">
-    <div class="doc-footer-brand">FocusFlow</div>
-    <p>Engineering Documentation Generator</p>
-    <p>Generated ${escapeHtml(meta.generatedAt)}</p>
-    <p style="margin-top:8px;opacity:0.5;">Confidential — For Internal Use Only</p>
+    <span class="doc-footer-brand">FocusFlow · Engineering Documentation</span>
+    <span class="doc-footer-date">Generated ${escapeHtml(meta.generatedAt)}</span>
+    <span class="doc-footer-conf">Confidential — For Internal Use Only</span>
   </div>
 </div>
 </body>

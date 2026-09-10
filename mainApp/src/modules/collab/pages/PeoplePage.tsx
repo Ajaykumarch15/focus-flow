@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Search, Plus, Users, ChevronDown, ArrowLeft, UsersRound, ChevronRight, UserPlus,
+  Search, Plus, Users, ChevronDown, UsersRound, ChevronRight, UserPlus,
 } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
+import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { PersonCard } from '@collab/components/people/PersonCard';
@@ -34,7 +36,8 @@ const SORT_OPTIONS = [
 
 export function PeoplePage() {
   const navigate = useNavigate();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
+  const wsPath = useWorkspacePath();
   const { members, teams, projects, tasks } = useCollaborationStore();
   const { user } = useAuthStore();
   const isAdmin = (user?.roleId?.level ?? 0) >= 60;
@@ -49,11 +52,16 @@ export function PeoplePage() {
 
   useEffect(() => {
     if (!workspaceId) return;
-    const store = useCollaborationStore.getState();
-    store.loadMembers(workspaceId);
-    store.loadProjects(workspaceId);
-    store.loadTasks(workspaceId);
-    store.loadTeams();
+    useCollaborationStore.getState().loadWorkspaces().then(() => {
+      const { workspaces, activeWorkspaceId } = useCollaborationStore.getState();
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId || w.slug === activeWorkspaceId);
+      const resolvedId = ws?.id ?? workspaceId;
+      const store = useCollaborationStore.getState();
+      store.loadMembers(resolvedId);
+      store.loadProjects(resolvedId);
+      store.loadTasks(resolvedId);
+      store.loadTeams();
+    });
   }, [workspaceId]);
 
   // Compute per-member statistics
@@ -140,24 +148,14 @@ export function PeoplePage() {
       {/* Sticky header bar */}
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate(`/collab/${workspaceId}`)}
-              className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-            >
-              <ArrowLeft size={14} /> Workspace
-            </button>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
-                <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
-                <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover hidden dark:block" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-[10px] text-surface-400 font-medium">
-                  <span>People</span>
-                </div>
-                <h1 className="font-display font-bold text-sm leading-none text-surface-50">People</h1>
-              </div>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover hidden dark:block" />
+            </div>
+            <div>
+              <h1 className="font-display font-bold text-sm leading-none text-surface-50">People</h1>
+              <p className="text-[10px] text-surface-400 font-medium mt-0.5">Team members and roles</p>
             </div>
           </div>
 
@@ -292,8 +290,8 @@ export function PeoplePage() {
                   {teams.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => navigate(`/collab/${workspaceId}/teams/${t.id}`)}
-                      className="card card-hover p-4 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
+                      onClick={() => navigate(wsPath('teams', t.id))}
+                      className="card card-hover accent-border p-4 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500/50"
                     >
                       <div className="flex items-center gap-2.5 mb-2">
                         <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">

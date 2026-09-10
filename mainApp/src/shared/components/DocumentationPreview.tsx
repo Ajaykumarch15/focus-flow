@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, FileText, Download, FileCode2, Loader2, Check,
-  Maximize2, Minimize2,
+  Maximize2, Minimize2, Printer,
 } from 'lucide-react';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import { mapWorkLogToDocument, renderDeveloperDoc, exportToPdf, exportToDocx } from '@worklog/services/docEngine';
@@ -20,6 +20,7 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const doc = mapWorkLogToDocument(log);
+  const { meta } = doc;
   const html = renderDeveloperDoc(doc);
   const filename = log.title.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-').toLowerCase();
 
@@ -51,12 +52,15 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
     }
   }, [html, open]);
 
+  const handlePrint = () => {
+    iframeRef.current?.contentWindow?.print();
+  };
+
   const handleExportPdf = async () => {
     setExporting('pdf');
     setExported(null);
     try {
-      const iframeBody = iframeRef.current?.contentDocument?.body;
-      await exportToPdf(html, filename, iframeBody || undefined);
+      await exportToPdf(html, filename, { title: log.title, generatedAt: meta.generatedAt });
       setExported('pdf');
       setTimeout(() => setExported(null), 2500);
     } catch (e) {
@@ -119,7 +123,19 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
               </div>
 
               <div className="flex items-center gap-2">
-                {/* PDF Export */}
+                {/* Print / Save as PDF — Primary */}
+                <button
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={handlePrint}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all
+                    bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/30"
+                  title="Open print dialog — select 'Save as PDF' for perfect fidelity"
+                >
+                  <Printer size={12} />
+                  Print / PDF
+                </button>
+
+                {/* Quick PDF — Fallback */}
                 <button
                   onMouseDown={e => e.preventDefault()}
                   onClick={handleExportPdf}
@@ -127,6 +143,7 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all
                     bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 hover:border-red-500/30
                     disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Quick PDF download (may have minor rendering differences)"
                 >
                   {exporting === 'pdf' ? (
                     <Loader2 size={12} className="animate-spin" />
@@ -135,7 +152,7 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
                   ) : (
                     <Download size={12} />
                   )}
-                  PDF
+                  Quick PDF
                 </button>
 
                 {/* DOCX Export */}
@@ -186,7 +203,7 @@ export function DocumentationPreview({ log, open, onClose }: DocumentationPrevie
                 ref={iframeRef}
                 title="Documentation Preview"
                 className="w-full h-full border-0"
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-modals allow-scripts"
               />
             </div>
           </motion.div>

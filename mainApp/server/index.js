@@ -92,6 +92,7 @@ const scheduleRoutes = require('./routes/schedules');         // Schedule & Plan
 const personalTaskRoutes = require('./routes/personalTasks'); // Personal Tasks
 const personalSessionRoutes = require('./routes/personalSessions'); // Personal Sessions
 const backupRoutes = require('./routes/backup');                     // Backup & Restore
+const meetingRoutes = require('./routes/meetings');                  // Meetings
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
@@ -159,6 +160,7 @@ app.use('/api/schedules', scheduleRoutes);         // Schedule & Planner
 app.use('/api/personal-tasks', personalTaskRoutes); // Personal Tasks
 app.use('/api/personal-sessions', personalSessionRoutes); // Personal Sessions
 app.use('/api/backup', backupRoutes);                     // Backup & Restore
+app.use('/api/meetings', meetingRoutes);                  // Meetings
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());

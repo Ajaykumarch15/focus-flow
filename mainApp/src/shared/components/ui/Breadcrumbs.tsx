@@ -19,6 +19,7 @@ const ROUTE_MAP: Record<string, string> = {
   admin: 'Administration',
   overview: 'Overview',
   people: 'People',
+  projects: 'Projects',
   teams: 'Teams',
   activity: 'Activity',
   timeline: 'Timeline',
