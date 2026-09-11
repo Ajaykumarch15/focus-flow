@@ -214,6 +214,12 @@
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
   }
+  .accent-border {
+    border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-surface-800));
+  }
+  .accent-border:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-surface-700));
+  }
 
   .input {
     background-color: var(--color-surface-900);
@@ -470,18 +476,6 @@
     border-radius: 0 9999px 9999px 0;
     transition: all 0.2s ease;
   }
-
-  /* ── Sidebar Timer Pulse ───────────────────────────────────────────────── */
-  .sidebar-timer-pulse {
-    position: absolute;
-    inset: 0;
-    border-radius: 9999px;
-    animation: sidebar-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  @keyframes sidebar-pulse {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0; transform: scale(2); }
-  }
 }
 
 @layer utilities {
@@ -501,6 +495,19 @@
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
+}
+
+@keyframes ripple-expand {
+  0% { transform: scale(0); opacity: 0.35; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+.ripple-effect {
+  position: absolute;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+  pointer-events: none;
+  animation: ripple-expand 0.6s ease-out forwards;
 }
 
 /* ── Accessibility & Overflow Protection ─────────────────────────────────── */

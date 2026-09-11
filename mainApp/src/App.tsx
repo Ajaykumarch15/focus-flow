@@ -20,10 +20,11 @@ const Login           = lazy(() => import('@shared/pages/Login').then(module => 
 const Register        = lazy(() => import('@shared/pages/Register').then(module => ({ default: module.Register })));
 // TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
 const RteTestPage     = lazy(() => import('@shared/pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
-const HomePage         = lazy(() => import('@shared/pages/WorkspaceHub').then(module => ({ default: module.HomePage })));
+const HomePage         = lazy(() => import('@shared/pages/Home').then(module => ({ default: module.HomePage })));
 const ProjectsPage    = lazy(() => import('@collab/pages/ProjectsPage').then(module => ({ default: module.ProjectsPage })));
 const ProjectDetailPage = lazy(() => import('@collab/pages/ProjectDetailPage').then(module => ({ default: module.ProjectDetailPage })));
 const ProjectKanbanPage = lazy(() => import('@collab/pages/ProjectKanbanPage').then(module => ({ default: module.ProjectKanbanPage })));
+const ProjectTasksPage = lazy(() => import('@collab/pages/ProjectTasksPage').then(module => ({ default: module.ProjectTasksPage })));
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('@worklog/pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const NotFoundPage    = lazy(() => import('@shared/pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
@@ -69,6 +70,16 @@ const ActivitySettingsPage = lazy(() => import('@collab/pages/ActivitySettingsPa
 const OverviewSettingsPage = lazy(() => import('@collab/pages/OverviewSettingsPage').then(module => ({ default: module.OverviewSettingsPage })));
 const PersonalSettingsPage = lazy(() => import('@personal/pages/PersonalSettingsPage').then(module => ({ default: module.PersonalSettingsPage })));
 const WorklogSettingsPage = lazy(() => import('@worklog/pages/WorklogSettingsPage').then(module => ({ default: module.WorklogSettingsPage })));
+const ProfilePage         = lazy(() => import('@shared/pages/ProfilePage').then(module => ({ default: module.ProfilePage })));
+
+// Meeting pages
+const MeetingsDashboard = lazy(() => import('@meetings/pages/MeetingsDashboard').then(module => ({ default: module.MeetingsDashboard })));
+const MeetingDetailPage = lazy(() => import('@meetings/pages/MeetingDetailPage').then(module => ({ default: module.MeetingDetailPage })));
+const MeetingsMembersPage = lazy(() => import('@meetings/pages/MeetingsMembersPage').then(module => ({ default: module.MeetingsMembersPage })));
+
+// Workspace schedule pages
+const WorkspaceSchedulePage = lazy(() => import('@collab/pages/WorkspaceSchedulePage').then(module => ({ default: module.WorkspaceSchedulePage })));
+const ProjectSchedulePage = lazy(() => import('@collab/pages/ProjectSchedulePage').then(module => ({ default: module.ProjectSchedulePage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -185,6 +196,7 @@ export default function App() {
             {/* WorkLog Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/worklog" element={<Navigate to="/worklog/dashboard" replace />} />
                 <Route path="/worklog/dashboard" element={<TodayPage />} />
                 <Route path="/worklog/tasks" element={<Tasks />} />
                 <Route path="/worklog/tasks/:id" element={<TaskDetail />} />
@@ -222,26 +234,39 @@ export default function App() {
               </Route>
             </Route>
 
+            {/* Meetings */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/meetings" element={<MeetingsDashboard />} />
+                <Route path="/meetings/members" element={<MeetingsMembersPage />} />
+                <Route path="/meetings/:meetingId" element={<MeetingDetailPage />} />
+              </Route>
+            </Route>
+
             {/* Collab Workspace */}
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/collab" element={<Navigate to="/collab/workspaces" replace />} />
                 <Route path="/collab/workspaces" element={<WorkspaceListingPage />} />
-                <Route path="/collab/:workspaceId" element={<WorkspaceHubPage />} />
-                <Route path="/collab/:workspaceId/dashboard" element={<CollabDashboard />} />
-                <Route path="/collab/:workspaceId/team" element={<ProjectsPage />} />
-                <Route path="/collab/:workspaceId/team/:projectId" element={<ProjectDetailPage />} />
-                <Route path="/collab/:workspaceId/team/:projectId/kanban" element={<ProjectKanbanPage />} />
-                <Route path="/collab/:workspaceId/team/:projectId/people" element={<ProjectPeoplePage />} />
-                <Route path="/collab/:workspaceId/people" element={<PeoplePage />} />
-                <Route path="/collab/:workspaceId/teams/:teamId" element={<TeamDetailPage />} />
-                <Route path="/collab/:workspaceId/leaderboard" element={<Leaderboard />} />
-                <Route path="/collab/:workspaceId/activity" element={<ActivityFeedPage />} />
-                <Route path="/collab/:workspaceId/settings" element={<WorkspaceSettingsPage />} />
-                <Route path="/collab/:workspaceId/people/settings" element={<PeopleSettingsPage />} />
-                <Route path="/collab/:workspaceId/projects/settings" element={<ProjectsSettingsPage />} />
-                <Route path="/collab/:workspaceId/activity/settings" element={<ActivitySettingsPage />} />
-                <Route path="/collab/:workspaceId/overview/settings" element={<OverviewSettingsPage />} />
-                <Route path="/collab/:workspaceId/search" element={<SearchResultsPage />} />
+                <Route path="/collab/:workspaceSlug" element={<WorkspaceHubPage />} />
+                <Route path="/collab/:workspaceSlug/dashboard" element={<CollabDashboard />} />
+                <Route path="/collab/:workspaceSlug/projects" element={<ProjectsPage />} />
+                <Route path="/collab/:workspaceSlug/projects/:projectId" element={<ProjectDetailPage />} />
+                <Route path="/collab/:workspaceSlug/projects/:projectId/kanban" element={<ProjectKanbanPage />} />
+                <Route path="/collab/:workspaceSlug/projects/:projectId/tasks" element={<ProjectTasksPage />} />
+                <Route path="/collab/:workspaceSlug/projects/:projectId/people" element={<ProjectPeoplePage />} />
+                <Route path="/collab/:workspaceSlug/projects/:projectId/schedule" element={<ProjectSchedulePage />} />
+                <Route path="/collab/:workspaceSlug/people" element={<PeoplePage />} />
+                <Route path="/collab/:workspaceSlug/schedule" element={<WorkspaceSchedulePage />} />
+                <Route path="/collab/:workspaceSlug/teams/:teamId" element={<TeamDetailPage />} />
+                <Route path="/collab/:workspaceSlug/leaderboard" element={<Leaderboard />} />
+                <Route path="/collab/:workspaceSlug/activity" element={<ActivityFeedPage />} />
+                <Route path="/collab/:workspaceSlug/settings" element={<WorkspaceSettingsPage />} />
+                <Route path="/collab/:workspaceSlug/people/settings" element={<PeopleSettingsPage />} />
+                <Route path="/collab/:workspaceSlug/projects/settings" element={<ProjectsSettingsPage />} />
+                <Route path="/collab/:workspaceSlug/activity/settings" element={<ActivitySettingsPage />} />
+                <Route path="/collab/:workspaceSlug/overview/settings" element={<OverviewSettingsPage />} />
+                <Route path="/collab/:workspaceSlug/search" element={<SearchResultsPage />} />
               </Route>
             </Route>
 
@@ -254,6 +279,14 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/settings" element={<Settings />} />
+              </Route>
+            </Route>
+
+            {/* Profile */}
+            <Route element={<ProtectedRoute />}>
+              <Route element={<PersonalWorkspaceRouter />}>
+                <Route path="/profile" element={<ProfilePage />} />
+                <Route path="/profile/:userId" element={<ProfilePage />} />
               </Route>
             </Route>
 

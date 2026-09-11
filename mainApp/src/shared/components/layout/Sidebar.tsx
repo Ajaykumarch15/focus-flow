@@ -1,14 +1,13 @@
-import { NavLink, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
-  History, Library, Map, BarChart3, Calendar, CalendarDays, Clock, Brain, Lightbulb,
+  History, Library, Map, BarChart3, Calendar, Brain, Lightbulb,
   FolderOpen, Bell, HelpCircle, ChevronRight, User,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
-import { useActiveTimer } from '@shared/hooks/useActiveTimer';
-import { useStore } from '@worklog/services/useStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
 
@@ -26,6 +25,7 @@ const PERSONAL_NAV: NavPanelDef[] = [
     ],
   },
   { to: '/personal/schedule', icon: Calendar, label: 'Schedule' },
+
   {
     to: '/personal/roadmaps', icon: Map, label: 'Roadmaps',
     children: [
@@ -46,7 +46,6 @@ const WORKLOG_NAV: NavPanelDef[] = [
     ],
   },
   { to: '/worklog/schedule', icon: Calendar, label: 'Schedule' },
-  { to: '/worklog/calendar', icon: CalendarDays, label: 'Calendar' },
   { to: '/worklog/logs', icon: BookMarked, label: 'Work Logs' },
   { to: '/worklog/habits', icon: Activity, label: 'Habits' },
   { to: '/worklog/reports', icon: LineChart, label: 'Reports' },
@@ -56,11 +55,12 @@ const WORKLOG_NAV: NavPanelDef[] = [
 
 const getCollabNav = (workspaceId: string): NavPanelDef[] => [
   {
-    to: `/collab/${workspaceId}/team`, icon: FolderOpen, label: 'Projects',
+    to: `/collab/${workspaceId}/projects`, icon: FolderOpen, label: 'Projects',
     children: [
-      { to: `/collab/${workspaceId}/team`, label: 'All Projects' },
+      { to: `/collab/${workspaceId}/projects`, label: 'All Projects' },
     ],
   },
+  { to: `/collab/${workspaceId}/schedule`, icon: Calendar, label: 'Schedule' },
   { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
   { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },
 ];
@@ -89,17 +89,12 @@ export function Sidebar({ expanded = false }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const workspace = useAuthStore((s) => s.workspace);
-  const { activeTaskId, sessionKind } = useActiveTimer();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [hoveredTop, setHoveredTop] = useState(0);
   const iconRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const timerMatchesWorkspace =
-    (workspace === 'personal' && sessionKind === 'personal') ||
-    (workspace !== 'personal' && sessionKind !== 'personal');
 
   const collabNav = workspaceId ? getCollabNav(workspaceId) : [];
 
@@ -190,13 +185,6 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           ))}
         </nav>
 
-        {/* Timer */}
-        {activeTaskId && timerMatchesWorkspace && (
-          <div className="px-2.5 py-2 border-t border-surface-800">
-            <TimerIndicator compact />
-          </div>
-        )}
-
         {/* User */}
         <div className="p-3 border-t border-surface-800">
           <div className="flex items-center gap-3">
@@ -271,20 +259,13 @@ export function Sidebar({ expanded = false }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Timer Indicator — always visible */}
-      {activeTaskId && timerMatchesWorkspace && (
-        <div className="px-2 py-2 border-t border-surface-800">
-          <TimerIndicator compact={false} />
-        </div>
-      )}
-
       {/* Profile Avatar */}
       <div className="px-2 pb-3">
         <div
           className="sidebar-rail-icon mx-auto"
           onMouseEnter={() => handleIconEnter('profile')}
           onMouseLeave={handleIconLeave}
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/profile')}
           ref={(el) => { if (el) iconRefs.current['profile'] = el; }}
           role="button"
           tabIndex={0}
@@ -298,10 +279,11 @@ export function Sidebar({ expanded = false }: SidebarProps) {
       <SidebarHoverPanel
         isOpen={hoveredItem === 'profile'}
         item={{
-          to: '/settings',
+          to: '/profile',
           icon: User,
           label: user?.name || 'Account',
           children: [
+            { to: '/profile', label: 'Profile' },
             { to: '/settings', label: 'Settings' },
           ],
         }}
@@ -422,79 +404,5 @@ function ExpandedNavItem({ item }: { item: NavPanelDef }) {
         </>
       )}
     </NavLink>
-  );
-}
-
-// ── Timer Indicator ────────────────────────────────────────────────────────
-
-function TimerIndicator({ compact }: { compact: boolean }) {
-  const { activeTaskId, activeTimerState, display: activeDisplay, activeTask } = useActiveTimer();
-  const navigate = useNavigate();
-  const { theme } = useStore();
-  const isReducedMotion = theme?.reducedMotion;
-
-  if (!activeTaskId) return null;
-
-  const handleClick = () => {
-    const route = activeTaskId
-      ? `/personal/tasks/${activeTaskId}`
-      : '/personal/today';
-    navigate(route);
-  };
-
-  if (compact) {
-    return (
-      <button
-        onClick={handleClick}
-        title={activeTask ? `Active: ${activeTask.title} — ${activeDisplay}` : 'Active Timer'}
-        className={`w-full flex items-center justify-center p-2 rounded-xl border transition-all ${
-          activeTimerState === 'running'
-            ? 'bg-brand-500/10 border-brand-500/30 text-brand-400'
-            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-        }`}
-      >
-        <div className="relative">
-          <Clock size={16} />
-          {activeTimerState === 'running' && !isReducedMotion && (
-            <span className="sidebar-timer-pulse bg-brand-400/30" />
-          )}
-        </div>
-      </button>
-    );
-  }
-
-  return (
-    <button
-      onClick={handleClick}
-      title={activeTask ? `Active Task: ${activeTask.title}` : 'Active Timer'}
-      aria-label={`Active timer for ${activeTask?.title || 'task'}: ${activeDisplay}, status ${activeTimerState}`}
-      className={`w-full flex items-center gap-2.5 p-2 rounded-xl border transition-all text-left ${
-        activeTimerState === 'running'
-          ? 'bg-brand-500/10 border-brand-500/30 text-brand-300'
-          : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-      }`}
-    >
-      <div className="relative flex items-center justify-center flex-shrink-0">
-        <Clock size={16} className={activeTimerState === 'running' ? 'text-brand-400' : 'text-amber-400'} />
-        {activeTimerState === 'running' && !isReducedMotion && (
-          <span className="sidebar-timer-pulse bg-brand-400/30" />
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-1">
-          <span className="font-mono text-xs font-bold truncate">{activeDisplay}</span>
-          <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-            activeTimerState === 'running' ? 'bg-brand-500/20 text-brand-300' : 'bg-amber-500/20 text-amber-300'
-          }`}>
-            {activeTimerState}
-          </span>
-        </div>
-        {activeTask && (
-          <p className="text-[11px] text-surface-300 truncate mt-0.5">
-            {activeTask.title}
-          </p>
-        )}
-      </div>
-    </button>
   );
 }

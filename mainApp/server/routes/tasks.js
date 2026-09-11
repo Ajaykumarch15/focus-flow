@@ -94,7 +94,7 @@ const collabCreateFields = {
   projectId: objectId.optional(),
   sprintId: objectId.optional(),
   featureId: objectId.optional(),
-  assigneeId: objectId.optional(),
+  assigneeIds: z.array(objectId).optional(),
   reviewerId: objectId.optional(),
   followerIds: z.array(objectId).max(100, 'Too many followers').optional(),
   labels: z.array(z.string().trim().max(50, 'Label too long')).max(50, 'Too many labels').optional(),
@@ -122,7 +122,7 @@ const taskPatchSchema = z.object({
   // labels/dependencies/hours persist via this route. Refs (workspace/project/
   // sprint/feature) stay managed by the sprint/feature routes, not here.
   sprintStatus: z.enum(COLLAB_TASK_STATUS).optional(),
-  assigneeId: objectId.optional(),
+  assigneeIds: z.array(objectId).optional(),
   reviewerId: objectId.optional(),
   followerIds: z.array(objectId).max(100, 'Too many followers').optional(),
   labels: z.array(z.string().trim().max(50, 'Label too long')).max(50, 'Too many labels').optional(),
@@ -163,7 +163,7 @@ const TASK_PATCH_FIELDS = {
   tags: true,
   // IES-R1 (P5-T3): collab writable fields (see taskPatchSchema above).
   sprintStatus: true,
-  assigneeId: true,
+  assigneeIds: true,
   reviewerId: true,
   followerIds: true,
   labels: true,
@@ -257,7 +257,10 @@ async function canTask(user, permission, task) {
 
 // EEP2-P5.1.2 (DDS §4.9): scope rules for task mutations. Uses centralized authorization.
 async function loadTaskScoped(id, user, selectFields) {
-  const task = await Task.findOne({ _id: id }).select(selectFields || 'workspaceRef userId');
+  const select = selectFields
+    ? `${selectFields} projectRef teamRef`
+    : 'workspaceRef userId projectRef teamRef';
+  const task = await Task.findOne({ _id: id }).select(select);
   if (!task) return { error: true, status: 404, message: 'Task not found' };
 
   // Personal tasks: owner-only (even for platform admins)
@@ -268,11 +271,8 @@ async function loadTaskScoped(id, user, selectFields) {
     return { error: false, task };
   }
 
-  // Workspace tasks: load workspace context for authorization
-  const ws = await Workspace.findById(task.workspaceRef).select('members createdBy');
-  if (!ws) return { error: true, status: 404, message: 'Workspace not found' };
-
-  const context = { resource: task, workspace: ws };
+  // Workspace tasks: load full context (workspace, project, team) for authorization
+  const context = await loadTaskContext(task);
   const allowed = can(user, TASK.EDIT, context);
   if (!allowed) {
     return { error: true, status: 403, message: 'You do not have permission to modify this task' };
@@ -428,10 +428,10 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
     const {
       workspaceId, projectId, sprintId, featureId,
-      assigneeId, reviewerId, followerIds, labels, dependencies,
+      assigneeIds, reviewerId, followerIds, labels, dependencies,
       estimatedHours, actualHours, sprintStatus, gitContext,
       roadmapRef, phaseRef, milestoneRef,
-      workspaceContext,
+      workspaceContext, skipWorkLogCreation,
     } = req.body;
     const hasCollabScope = workspaceId || projectId || sprintId || featureId;
 
@@ -462,7 +462,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
 
       // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
       const memberChecks = [
-        { id: assigneeId, field: 'Assignee' },
+        ...(Array.isArray(assigneeIds) ? assigneeIds.map(id => ({ id, field: 'Assignee' })) : []),
         { id: reviewerId, field: 'Reviewer' },
       ].filter((c) => c.id !== undefined);
       for (const c of memberChecks) {
@@ -509,7 +509,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         phaseRef: phaseRef || undefined,
         milestoneRef: milestoneRef || undefined,
         workspaceContext: workspaceContext || 'personal',
-        assigneeId: assigneeId ?? undefined,
+        assigneeIds: assigneeIds || [],
         reviewerId: reviewerId ?? undefined,
         followerIds: followerIds || [],
         labels: labels || [],
@@ -532,6 +532,17 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
         workspaceRef: scope.workspaceRef,
         details: { taskTitle: task.title, taskId: task._id },
       }).catch(() => {});
+      if (!skipWorkLogCreation) {
+        WorkLog.create({
+          userId: req.user._id,
+          title: `Work on ${task.title}`,
+          taskRef: task._id,
+          isActive: true,
+          status: 'in-progress',
+          totalActiveMs: 0,
+          workEntries: [],
+        }).catch(() => {});
+      }
       return;
     }
 
@@ -560,6 +571,17 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       await cascadeTaskStatusChange(task).catch(() => {});
     }
     Activity.create({ userId: req.user._id, action: 'task.created', details: { taskTitle: task.title, taskId: task._id } }).catch(() => {});
+    if (!skipWorkLogCreation) {
+      WorkLog.create({
+        userId: req.user._id,
+        title: `Work on ${task.title}`,
+        taskRef: task._id,
+        isActive: true,
+        status: 'in-progress',
+        totalActiveMs: 0,
+        workEntries: [],
+      }).catch(() => {});
+    }
   } catch (err) {
     next(err);
   }
@@ -638,7 +660,7 @@ router.patch('/:id', validate(taskPatchSchema, { params: taskParamsSchema }), as
     // EEP2-P5.1.2 (DDS §4.9): assignee/reviewer must be workspace members.
     if (existing.workspaceRef) {
       const memberChecks = [
-        { id: patch.assigneeId, field: 'Assignee' },
+        ...(Array.isArray(patch.assigneeIds) ? patch.assigneeIds.map(id => ({ id, field: 'Assignee' })) : []),
         { id: patch.reviewerId, field: 'Reviewer' },
       ].filter((c) => c.id !== undefined);
       for (const c of memberChecks) {

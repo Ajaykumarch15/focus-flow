@@ -1,9 +1,11 @@
 import { useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Users, FolderOpen, CheckSquare, Map, ArrowRight, Clock, TrendingUp } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
+import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
@@ -14,16 +16,22 @@ const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 export function CollabDashboard() {
   const navigate = useNavigate();
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
+  const wsPath = useWorkspacePath();
   const { projects, tasks, members } = useCollaborationStore();
   const { roadmaps, loadRoadmaps } = useRoadmapStore();
 
   useEffect(() => {
     if (!workspaceId) return;
-    useCollaborationStore.getState().loadProjects(workspaceId);
-    useCollaborationStore.getState().loadTasks(workspaceId);
-    useCollaborationStore.getState().loadMembers(workspaceId);
-    loadRoadmaps();
+    useCollaborationStore.getState().loadWorkspaces().then(() => {
+      const { workspaces, activeWorkspaceId } = useCollaborationStore.getState();
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId || w.slug === activeWorkspaceId);
+      const resolvedId = ws?.id ?? workspaceId;
+      useCollaborationStore.getState().loadProjects(resolvedId);
+      useCollaborationStore.getState().loadTasks(resolvedId);
+      useCollaborationStore.getState().loadMembers(resolvedId);
+      loadRoadmaps();
+    });
   }, [workspaceId, loadRoadmaps]);
 
   const stats = useMemo(() => {
@@ -57,7 +65,7 @@ export function CollabDashboard() {
           <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">Collab Dashboard</h1>
           <p className="text-sm text-surface-400 mt-0.5">Work together, manage shared projects & coordinate team execution.</p>
         </div>
-        <Button onClick={() => navigate(`/collab/${workspaceId}/team`)} rightIcon={<ArrowRight size={14} />}>
+        <Button onClick={() => navigate(wsPath('projects'))} rightIcon={<ArrowRight size={14} />}>
           View Projects
         </Button>
       </motion.div>
@@ -127,7 +135,7 @@ export function CollabDashboard() {
         <motion.div variants={stagger} initial="hidden" animate="show">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display font-bold text-surface-50 text-base">Recent Projects</h2>
-            <Button variant="ghost" size="xs" onClick={() => navigate(`/collab/${workspaceId}/team`)}>
+            <Button variant="ghost" size="xs" onClick={() => navigate(wsPath('projects'))}>
               View All
             </Button>
           </div>
@@ -141,7 +149,7 @@ export function CollabDashboard() {
                 <motion.button
                   key={project.id}
                   variants={fadeUp}
-                  onClick={() => navigate(`/collab/${workspaceId}/team/${project.id}`)}
+                  onClick={() => navigate(wsPath('projects', project.id))}
                   className="card card-hover p-4 text-left group cursor-pointer"
                 >
                   <div className="flex items-start justify-between mb-2">
@@ -175,7 +183,7 @@ export function CollabDashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Button
               variant="secondary"
-              onClick={() => navigate(`/collab/${workspaceId}/team`)}
+              onClick={() => navigate(wsPath('projects'))}
               leftIcon={<FolderOpen size={14} />}
               className="justify-start"
             >
@@ -183,7 +191,7 @@ export function CollabDashboard() {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate(`/collab/${workspaceId}/people`)}
+              onClick={() => navigate(wsPath('people'))}
               leftIcon={<Users size={14} />}
               className="justify-start"
             >
@@ -199,7 +207,7 @@ export function CollabDashboard() {
             </Button>
             <Button
               variant="secondary"
-              onClick={() => navigate(`/collab/${workspaceId}/leaderboard`)}
+              onClick={() => navigate(wsPath('leaderboard'))}
               leftIcon={<TrendingUp size={14} />}
               className="justify-start"
             >

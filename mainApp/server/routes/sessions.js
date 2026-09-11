@@ -116,17 +116,6 @@ router.post('/', validate(sessionCreateSchema), async (req, res, next) => {
       return res.status(200).json(existingSameTaskSession);
     }
 
-    // Model 1: orphan closes are full finalizations now (points/streak/task
-    // total/worklog sync), identical to an explicit stop — a task switch is
-    // never a silent close that skips accounting.
-    const orphanedSessions = await Session.find({ userId: req.user._id, isActive: true });
-
-    for (const activeSession of orphanedSessions) {
-      finalizeSessionDoc(activeSession, now);
-      await activeSession.save();
-      await rewardAndSync({ user: req.user, session: activeSession });
-    }
-
     let session;
     try {
       session = await Session.create({

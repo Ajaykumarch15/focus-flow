@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Users, Crown, Mail } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
 import { getRoleDisplayName } from '@collab/utils/roleDisplay';
@@ -11,7 +12,8 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
 export function TeamDetailPage() {
-  const { workspaceId, teamId } = useParams<{ workspaceId: string; teamId: string }>();
+  const { teamId } = useParams<{ teamId: string }>();
+  const wsPath = useWorkspacePath();
   const navigate = useNavigate();
   const { teams, members, projects, tasks } = useCollaborationStore();
 
@@ -34,7 +36,7 @@ export function TeamDetailPage() {
 
   const teamStats = useMemo(() => {
     const memberIds = new Set(teamMembers.map((m) => m.id));
-    const teamTasks = tasks.filter((t) => t.assigneeId && memberIds.has(t.assigneeId));
+    const teamTasks = tasks.filter((t) => t.assigneeIds?.some((id) => memberIds.has(id)));
     const doneTasks = teamTasks.filter((t) => t.sprintStatus === 'done').length;
     const activeTasks = teamTasks.filter(
       (t) => t.sprintStatus === 'in_progress' || t.sprintStatus === 'review',
@@ -49,7 +51,7 @@ export function TeamDetailPage() {
           <Users size={40} className="mx-auto text-surface-500" />
           <h1 className="text-lg font-display font-bold text-surface-100">Team not found</h1>
           <p className="text-sm text-surface-400">This team does not exist.</p>
-          <Button onClick={() => navigate(`/collab/${workspaceId}/people`)} leftIcon={<ArrowLeft size={14} />}>
+          <Button onClick={() => navigate(wsPath('people'))} leftIcon={<ArrowLeft size={14} />}>
             Back to People
           </Button>
         </div>
@@ -65,21 +67,14 @@ export function TeamDetailPage() {
       {/* Header */}
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/collab/${workspaceId}/people`)}
-            className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-          >
-            <ArrowLeft size={14} /> People
-          </button>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center">
-              <Users size={16} className="text-purple-400" />
+            <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
+              <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover hidden dark:block" />
             </div>
             <div>
               <h1 className="font-display font-bold text-sm leading-none text-surface-50">{team.name}</h1>
-              {team.description && (
-                <p className="text-[10px] text-surface-400 font-medium mt-0.5">{team.description}</p>
-              )}
+              <p className="text-[10px] text-surface-400 font-medium mt-0.5">{teamMembers.length} members</p>
             </div>
           </div>
         </div>
@@ -170,7 +165,7 @@ export function TeamDetailPage() {
               {teamProjects.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => navigate(`/collab/${workspaceId}/team/${p.id}`)}
+                  onClick={() => navigate(wsPath('projects', p.id))}
                   className="w-full flex items-center gap-3 p-3 rounded-xl bg-surface-850 hover:bg-surface-800 transition-all text-left"
                 >
                   <div className="w-10 h-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-sm font-bold text-brand-400">

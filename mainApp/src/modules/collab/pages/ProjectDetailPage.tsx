@@ -3,10 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft, CheckSquare, Users,
-  CalendarDays, FolderOpen, ChevronRight, LayoutGrid, Trash2,
+  CalendarDays, FolderOpen, ChevronRight, LayoutGrid, Trash2, Video, Clock,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
+import { useMeetingStore } from '@meetings/services/useMeetingStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
+import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 import { SAMPLE_PROJECTS, type ProjectStatus, mapProjectToCardData } from '@collab/components/projects/types';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Progress } from '@shared/components/ui/Progress';
@@ -41,10 +44,13 @@ const ICON_BG: Record<string, string> = {
 };
 
 export function ProjectDetailPage() {
-  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>();
+  const { projectId } = useParams<{ projectId: string }>();
+  const workspaceId = useWorkspaceId();
+  const wsPath = useWorkspacePath();
   const navigate = useNavigate();
   const { members, tasks, projects: storeProjects, workspaces, deleteProject } = useCollaborationStore();
   const { events } = useCalendarStore();
+  const { meetings } = useMeetingStore();
   const hasAttemptedLoad = useRef(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -61,10 +67,16 @@ export function ProjectDetailPage() {
   useEffect(() => {
     if (!projectId || !workspaceId || hasAttemptedLoad.current) return;
     hasAttemptedLoad.current = true;
-    useCollaborationStore.getState().loadProjects(workspaceId);
-    useCollaborationStore.getState().loadTasks(workspaceId, projectId);
-    useCollaborationStore.getState().loadMembers(workspaceId);
-    useCollaborationStore.getState().loadTeams();
+    useCollaborationStore.getState().loadWorkspaces().then(() => {
+      const { workspaces, activeWorkspaceId } = useCollaborationStore.getState();
+      const ws = workspaces.find((w) => w.id === activeWorkspaceId || w.slug === activeWorkspaceId);
+      const resolvedId = ws?.id ?? workspaceId;
+      useCollaborationStore.getState().loadProjects(resolvedId);
+      useCollaborationStore.getState().loadTasks(resolvedId, projectId);
+      useCollaborationStore.getState().loadMembers(resolvedId);
+      useCollaborationStore.getState().loadTeams();
+      useMeetingStore.getState().fetchMeetings();
+    });
   }, [projectId, workspaceId]);
 
   const project = useMemo(() => {
@@ -75,7 +87,7 @@ export function ProjectDetailPage() {
 
   // Compute stats for the cards
   const stats = useMemo(() => {
-    if (!project) return { memberCount: 0, taskCount: 0, doneTasks: 0, activeTasks: 0, eventCount: 0, kanbanTotal: 0, kanbanTodo: 0, kanbanDoing: 0, kanbanReview: 0, kanbanDone: 0 };
+    if (!project) return { memberCount: 0, taskCount: 0, doneTasks: 0, activeTasks: 0, eventCount: 0, meetingCount: 0, scheduleCount: 0, kanbanTotal: 0, kanbanTodo: 0, kanbanDoing: 0, kanbanReview: 0, kanbanDone: 0 };
 
     // Members: if project has memberIds, filter; otherwise show total workspace members
     const memberCount = project.memberIds
@@ -94,6 +106,12 @@ export function ProjectDetailPage() {
       (e) => e.projectName?.toLowerCase() === project.name.toLowerCase(),
     );
 
+    // Meetings: filter by project name or participant overlap
+    const projectMeetings = meetings.filter(
+      (m) => m.location?.toLowerCase().includes(project.name.toLowerCase()) ||
+             m.title.toLowerCase().includes(project.name.toLowerCase()),
+    );
+
     // Kanban breakdown from project-scoped tasks
     const kanbanTodo = projectTasks.filter((t) => t.sprintStatus === 'backlog' || t.sprintStatus === 'ready').length;
     const kanbanDoing = projectTasks.filter((t) => t.sprintStatus === 'in_progress').length;
@@ -106,20 +124,22 @@ export function ProjectDetailPage() {
       doneTasks: projectTasks.length > 0 ? doneTasks : project.completedTasks,
       activeTasks: projectTasks.length > 0 ? activeTasks : project.totalTasks - project.completedTasks,
       eventCount: projectEvents.length,
+      meetingCount: projectMeetings.length,
+      scheduleCount: 0,
       kanbanTotal: projectTasks.length,
       kanbanTodo,
       kanbanDoing,
       kanbanReview,
       kanbanDone,
     };
-  }, [project, members, tasks, events]);
+  }, [project, members, tasks, events, meetings]);
 
   const handleDelete = async () => {
     if (!projectId || deleting) return;
     setDeleting(true);
     const ok = await deleteProject(projectId);
     setDeleting(false);
-    if (ok) navigate(`/collab/${workspaceId}/team`);
+    if (ok) navigate(wsPath('projects'));
   };
 
   if (!project) {
@@ -129,7 +149,7 @@ export function ProjectDetailPage() {
           <FolderOpen size={40} className="mx-auto text-surface-500" />
           <h1 className="text-lg font-display font-bold text-surface-100">Project not found</h1>
           <p className="text-sm text-surface-400">This project does not exist.</p>
-          <Button onClick={() => navigate(`/collab/${workspaceId}/team`)} leftIcon={<ArrowLeft size={14} />}>
+          <Button onClick={() => navigate(wsPath('projects'))} leftIcon={<ArrowLeft size={14} />}>
             Back to Projects
           </Button>
         </div>
@@ -151,12 +171,6 @@ export function ProjectDetailPage() {
       {/* Sticky header bar */}
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/collab/${workspaceId}/team`)}
-            className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-          >
-            <ArrowLeft size={14} /> Projects
-          </button>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl overflow-hidden shadow-md shadow-brand-500/10">
               <img src="/darkicon.png" alt="FocusFlow" className="w-full h-full object-cover dark:hidden" />
@@ -229,7 +243,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}/people`)}
+            onClick={() => navigate(wsPath('projects', projectId!, 'people'))}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-brand-500/10 flex items-center justify-center mb-4">
@@ -252,14 +266,14 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate(`/collab/${workspaceId}/team/${projectId}/kanban`)}
+            onClick={() => navigate(wsPath('projects', projectId!, 'tasks'))}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-4">
               <CheckSquare size={22} className="text-blue-400" />
             </div>
             <h3 className="font-display font-bold text-surface-50 text-base">Tasks</h3>
-            <p className="text-xs text-surface-400 mt-1">Kanban board and task management</p>
+            <p className="text-xs text-surface-400 mt-1">View and filter all project tasks</p>
             <div className="mt-4 flex items-baseline gap-2">
               <span className="text-2xl font-display font-extrabold text-surface-50">
                 {stats.taskCount}
@@ -271,7 +285,7 @@ export function ProjectDetailPage() {
               <span className="text-brand-400 font-semibold">{stats.activeTasks} active</span>
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-blue-400 group-hover:text-blue-300 transition-colors">
-              View Board <ChevronRight size={14} />
+              View Tasks <ChevronRight size={14} />
             </div>
           </motion.button>
 
@@ -302,7 +316,7 @@ export function ProjectDetailPage() {
           <motion.button
             variants={fadeUp}
             type="button"
-            onClick={() => navigate(`/collab/${workspaceId}/team/${project.id}/kanban`)}
+            onClick={() => navigate(wsPath('projects', project.id, 'kanban'))}
             className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
           >
             <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center mb-4">
@@ -324,6 +338,52 @@ export function ProjectDetailPage() {
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-orange-400 group-hover:text-orange-300 transition-colors">
               View Board <ChevronRight size={14} />
+            </div>
+          </motion.button>
+
+          {/* Meetings Card */}
+          <motion.button
+            variants={fadeUp}
+            type="button"
+            onClick={() => navigate('/meetings')}
+            className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 flex items-center justify-center mb-4">
+              <Video size={22} className="text-cyan-400" />
+            </div>
+            <h3 className="font-display font-bold text-surface-50 text-base">Meetings</h3>
+            <p className="text-xs text-surface-400 mt-1">Scheduled meetings and calls</p>
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-2xl font-display font-extrabold text-surface-50">
+                {stats.meetingCount}
+              </span>
+              <span className="text-xs text-surface-400">meetings</span>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-cyan-400 group-hover:text-cyan-300 transition-colors">
+              View Meetings <ChevronRight size={14} />
+            </div>
+          </motion.button>
+
+          {/* Schedule Card */}
+          <motion.button
+            variants={fadeUp}
+            type="button"
+            onClick={() => navigate(wsPath('projects', project.id, 'schedule'))}
+            className="card card-hover p-6 text-left group cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center mb-4">
+              <Clock size={22} className="text-emerald-400" />
+            </div>
+            <h3 className="font-display font-bold text-surface-50 text-base">Schedule</h3>
+            <p className="text-xs text-surface-400 mt-1">Team time blocks and task scheduling</p>
+            <div className="mt-4 flex items-baseline gap-2">
+              <span className="text-2xl font-display font-extrabold text-surface-50">
+                {stats.scheduleCount ?? 0}
+              </span>
+              <span className="text-xs text-surface-400">scheduled</span>
+            </div>
+            <div className="mt-4 flex items-center gap-1.5 text-xs font-semibold text-emerald-400 group-hover:text-emerald-300 transition-colors">
+              View Schedule <ChevronRight size={14} />
             </div>
           </motion.button>
         </motion.div>

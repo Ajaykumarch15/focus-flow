@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -15,22 +15,30 @@ import {
   Sparkles,
   Inbox,
   Wand2,
-  ArrowUpDown,
   X,
+  Settings,
+  Trash2,
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
 import { useStore } from '@worklog/services/useStore';
+import { useWorkHours } from '@shared/hooks/useWorkHours';
 import { ScheduleModal } from '@personal/components/schedule/ScheduleModal';
 import { ScheduleCard } from '@personal/components/schedule/ScheduleCard';
+import { SortableScheduleCard } from '@worklog/components/schedule/SortableScheduleCard';
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { calculateScheduleMetrics, formatMinutes, timeToMinutes } from '@worklog/services/scheduleAnalytics';
-import type { DerivedScheduleState, Task, ScheduleItem } from '@shared/types';
+import type { DerivedScheduleState, Task } from '@shared/types';
 import { deriveScheduleState as deriveState } from '@shared/hooks/useScheduleEvaluator';
 import { useScheduleNotificationStore } from '@worklog/services/useScheduleNotificationStore';
 import { mlApi } from '@worklog/services/mlApi';
+import { getAutoStartPreference, setAutoStartPreference } from '@shared/hooks/useScheduleEvaluator';
+import { RecoveryDrawer } from '@worklog/components/schedule/RecoveryDrawer';
+import { useScheduleTemplateStore } from '@worklog/services/useScheduleTemplateStore';
 
 // Helper to format date label (e.g. "Monday, August 17")
 function formatDateLabel(dateStr: string): string {
@@ -114,7 +122,14 @@ export function SchedulePage() {
     updateSchedule,
   } = useScheduleStore();
   const { requestBrowserPermission, browserPermission } = useScheduleNotificationStore();
+  const { workHours, setWorkHours, totalWorkingMinutes, startMinutes, endMinutes } = useWorkHours();
   const [now, setNow] = useState(Date.now());
+  const [showWorkHoursSettings, setShowWorkHoursSettings] = useState(false);
+  const [autoStartEnabled, setAutoStartEnabled] = useState(getAutoStartPreference);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const { templates, saveTemplate, deleteTemplate } = useScheduleTemplateStore();
 
   // Interactive modes
   const [showPlanMyDay, setShowPlanMyDay] = useState(false);
@@ -146,21 +161,20 @@ export function SchedulePage() {
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [schedules, selectedDate]);
 
-  // Available Capacity Calculation (Default day: 8:00 to 20:00 = 12h = 720 mins)
+  // Available Capacity Calculation
   const capacityMetrics = useMemo(() => {
-    const totalWorkingMins = 12 * 60; // 720 mins
     let scheduledMins = 0;
     for (const s of daySchedules) {
       const startMins = timeToMinutes(s.startTime);
       const endMins = timeToMinutes(s.endTime);
       if (endMins > startMins) scheduledMins += (endMins - startMins);
     }
-    const freeMins = Math.max(0, totalWorkingMins - scheduledMins);
-    const capacityPercent = Math.min(100, Math.round((scheduledMins / totalWorkingMins) * 100));
-    const isOverCapacity = scheduledMins > totalWorkingMins;
+    const freeMins = Math.max(0, totalWorkingMinutes - scheduledMins);
+    const capacityPercent = Math.min(100, Math.round((scheduledMins / totalWorkingMinutes) * 100));
+    const isOverCapacity = scheduledMins > totalWorkingMinutes;
 
-    return { totalWorkingMins, scheduledMins, freeMins, capacityPercent, isOverCapacity };
-  }, [daySchedules]);
+    return { totalWorkingMinutes, scheduledMins, freeMins, capacityPercent, isOverCapacity };
+  }, [daySchedules, totalWorkingMinutes]);
 
   // Available Slots calculation
   const availableSlots = useMemo(() => {
@@ -169,11 +183,9 @@ export function SchedulePage() {
       end: timeToMinutes(s.endTime),
     })).sort((a, b) => a.start - b.start);
 
-    const workStart = 8 * 60; // 08:00
-    const workEnd = 20 * 60;  // 20:00
     const slots: { start: number; end: number; startStr: string; endStr: string; durationMins: number }[] = [];
 
-    let current = workStart;
+    let current = startMinutes;
     for (const b of dayIntervals) {
       if (b.start > current && (b.start - current) >= 30) {
         slots.push({
@@ -186,17 +198,17 @@ export function SchedulePage() {
       }
       current = Math.max(current, b.end);
     }
-    if (workEnd > current && (workEnd - current) >= 30) {
+    if (endMinutes > current && (endMinutes - current) >= 30) {
       slots.push({
         start: current,
-        end: workEnd,
+        end: endMinutes,
         startStr: minutesToTimeStr(current),
-        endStr: minutesToTimeStr(workEnd),
-        durationMins: workEnd - current,
+        endStr: minutesToTimeStr(endMinutes),
+        durationMins: endMinutes - current,
       });
     }
     return slots;
-  }, [daySchedules]);
+  }, [daySchedules, startMinutes, endMinutes]);
 
   // Unscheduled tasks pool
   const unscheduledTasks = useMemo(() => {
@@ -266,16 +278,10 @@ export function SchedulePage() {
     setProposedPlan([]);
   };
 
-  // Schedule Swap Handler
-  const handleSwapSchedules = async (s1: ScheduleItem, s2: ScheduleItem) => {
-    const s1Start = s1.startTime;
-    const s1End = s1.endTime;
-    const s2Start = s2.startTime;
-    const s2End = s2.endTime;
-
-    await updateSchedule(s1._id, { startTime: s2Start, endTime: s2End });
-    await updateSchedule(s2._id, { startTime: s1Start, endTime: s1End });
-  };
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   // Derive states for all schedules
   const derivedMap = useMemo(() => {
@@ -302,6 +308,32 @@ export function SchedulePage() {
     }
     return groups;
   }, [daySchedules, derivedMap]);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const upcomingItems = categorized.upcoming;
+    const oldIndex = upcomingItems.findIndex((s) => s._id === active.id);
+    const newIndex = upcomingItems.findIndex((s) => s._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(upcomingItems, oldIndex, newIndex);
+
+    for (let i = 0; i < reordered.length; i++) {
+      const item = reordered[i];
+      const duration = timeToMinutes(item.endTime) - timeToMinutes(item.startTime);
+      const prevEnd = i > 0 ? timeToMinutes(reordered[i - 1].endTime) : timeToMinutes(item.startTime);
+      const newStart = prevEnd;
+      const newEnd = newStart + duration;
+      if (newStart !== timeToMinutes(item.startTime)) {
+        await updateSchedule(item._id, {
+          startTime: minutesToTimeStr(newStart),
+          endTime: minutesToTimeStr(newEnd),
+        });
+      }
+    }
+  }, [categorized.upcoming, updateSchedule]);
 
   // Week schedules for week view
   const weekSchedules = useMemo(() => {
@@ -340,9 +372,104 @@ export function SchedulePage() {
               <Bell size={14} /> Enable Notifications
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const newVal = !autoStartEnabled;
+              setAutoStartEnabled(newVal);
+              setAutoStartPreference(newVal);
+            }}
+            className={`gap-1.5 text-xs ${autoStartEnabled ? 'text-emerald-400' : 'text-surface-400'}`}
+            title={autoStartEnabled ? 'Auto-start timer enabled' : 'Auto-start timer disabled'}
+          >
+            <Timer size={14} /> Auto-Start {autoStartEnabled ? 'On' : 'Off'}
+          </Button>
           <Button variant="secondary" size="sm" onClick={handleGeneratePlanMyDay} className="gap-1.5 text-xs">
             <Wand2 size={14} className="text-brand-400" /> Plan My Day
           </Button>
+          <div className="relative">
+            <Button variant="secondary" size="sm" onClick={() => setShowTemplates(!showTemplates)} className="gap-1.5 text-xs">
+              <LayoutGrid size={14} /> Templates
+            </Button>
+            {showTemplates && (
+              <div className="absolute right-0 top-full mt-1 z-30 w-72 bg-surface-900 border border-surface-700 rounded-xl shadow-xl p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-surface-200">Schedule Templates</span>
+                  <button onClick={() => setShowTemplates(false)} className="text-surface-400 hover:text-surface-200">
+                    <X size={14} />
+                  </button>
+                </div>
+                {templates.length > 0 && (
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {templates.map((tpl) => (
+                      <div key={tpl.id} className="flex items-center justify-between p-2 bg-surface-950 rounded-lg border border-surface-800">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-surface-200 truncate">{tpl.name}</p>
+                          <p className="text-[10px] text-surface-500">{tpl.slots.length} tasks</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              for (const slot of tpl.slots) {
+                                createSchedule({
+                                  taskId: slot.taskId,
+                                  date: selectedDate,
+                                  startTime: slot.startTime,
+                                  endTime: slot.endTime,
+                                });
+                              }
+                              setShowTemplates(false);
+                            }}
+                            className="text-[10px] px-2 py-1 h-auto text-brand-400"
+                          >
+                            Apply
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteTemplate(tpl.id)}
+                            className="text-[10px] px-2 py-1 h-auto text-red-400"
+                          >
+                            <Trash2 size={10} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {daySchedules.length > 0 && (
+                  <div className="border-t border-surface-800 pt-2">
+                    <p className="text-[10px] text-surface-400 mb-1">Save current schedule as template:</p>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        placeholder="Template name..."
+                        className="flex-1 bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-xs text-surface-200 outline-none placeholder:text-surface-600"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (templateName.trim()) {
+                            saveTemplate(templateName.trim(), daySchedules, tasks);
+                            setTemplateName('');
+                          }
+                        }}
+                        disabled={!templateName.trim()}
+                        className="text-[10px] px-2 py-1 h-auto"
+                      >
+                        Save
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <Button onClick={() => openModal()} className="gap-2">
             <Plus size={16} /> Schedule
           </Button>
@@ -354,7 +481,7 @@ export function SchedulePage() {
         <div className="flex items-center gap-4">
           <div>
             <span className="text-[10px] uppercase font-bold text-surface-500 block">Available</span>
-            <span className="font-semibold text-surface-200">{formatMinutes(capacityMetrics.totalWorkingMins)}</span>
+            <span className="font-semibold text-surface-200">{formatMinutes(capacityMetrics.totalWorkingMinutes)}</span>
           </div>
           <div>
             <span className="text-[10px] uppercase font-bold text-surface-500 block">Scheduled</span>
@@ -367,6 +494,13 @@ export function SchedulePage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowWorkHoursSettings(!showWorkHoursSettings)}
+            className="text-surface-500 hover:text-surface-300 transition-colors"
+            title="Work hours settings"
+          >
+            <Settings size={14} />
+          </button>
           <div className="text-right">
             <span className="text-[10px] uppercase font-bold text-surface-400 block">Capacity</span>
             <span className={`font-bold ${capacityMetrics.isOverCapacity ? 'text-red-400' : 'text-surface-100'}`}>
@@ -382,14 +516,53 @@ export function SchedulePage() {
         </div>
       </div>
 
+      {/* Work Hours Settings Popover */}
+      {showWorkHoursSettings && (
+        <div className="p-3 bg-surface-900 border border-surface-800 rounded-xl text-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-surface-200">Work Hours</span>
+            <button onClick={() => setShowWorkHoursSettings(false)} className="text-surface-500 hover:text-surface-300">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-surface-400">From</span>
+              <select
+                value={workHours.startHour}
+                onChange={(e) => setWorkHours(Number(e.target.value), workHours.endHour)}
+                className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
+                ))}
+              </select>
+            </div>
+            <span className="text-surface-500">to</span>
+            <div className="flex items-center gap-2">
+              <select
+                value={workHours.endHour}
+                onChange={(e) => setWorkHours(workHours.startHour, Number(e.target.value))}
+                className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
+              >
+                {Array.from({ length: 24 }, (_, i) => (
+                  <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
+                ))}
+              </select>
+            </div>
+            <span className="text-surface-500 ml-2">({formatMinutes((workHours.endHour - workHours.startHour) * 60)})</span>
+          </div>
+        </div>
+      )}
+
       {/* Over Capacity Warning Alert */}
       {capacityMetrics.isOverCapacity && (
         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <AlertTriangle size={16} className="text-red-400 flex-shrink-0" />
-            <span>⚠️ OVER CAPACITY: You are scheduling more than {formatMinutes(capacityMetrics.totalWorkingMins)} of work for today.</span>
+            <span>⚠️ OVER CAPACITY: You are scheduling more than {formatMinutes(capacityMetrics.totalWorkingMinutes)} of work for today.</span>
           </div>
-          <Button size="sm" variant="ghost" className="text-xs text-red-200 hover:text-white">
+          <Button size="sm" variant="ghost" onClick={() => setShowRecovery(true)} className="text-xs text-red-200 hover:text-white">
             Recovery Mode
           </Button>
         </div>
@@ -552,23 +725,18 @@ export function SchedulePage() {
                 )}
 
                 {/* Upcoming */}
-                {categorized['upcoming'].length > 0 && (
+                {categorized.upcoming.length > 0 && (
                   <div key="group-upcoming">
-                    <SectionHeader icon={Clock} label="Upcoming" color="text-sky-400" count={categorized['upcoming'].length} />
-                    {categorized['upcoming'].map((s, idx, arr) => (
-                      <div key={s._id} className="relative group">
-                        <ScheduleCard schedule={s} derivedState="upcoming" />
-                        {idx < arr.length - 1 && (
-                          <button
-                            onClick={() => handleSwapSchedules(s, arr[idx + 1])}
-                            className="absolute right-2 -bottom-2.5 z-20 opacity-0 group-hover:opacity-100 bg-surface-800 hover:bg-surface-700 border border-surface-600 rounded-full p-1 text-[10px] text-surface-200 flex items-center gap-1 transition-all shadow"
-                            title="Swap with next task"
-                          >
-                            <ArrowUpDown size={12} /> Swap
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                    <SectionHeader icon={Clock} label="Upcoming" color="text-sky-400" count={categorized.upcoming.length} />
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                      <SortableContext items={categorized.upcoming.map((s) => s._id)} strategy={verticalListSortingStrategy}>
+                        {categorized.upcoming.map((s) => (
+                          <div key={s._id} className="relative">
+                            <SortableScheduleCard schedule={s} derivedState="upcoming" />
+                          </div>
+                        ))}
+                      </SortableContext>
+                    </DndContext>
                   </div>
                 )}
 
@@ -676,6 +844,44 @@ export function SchedulePage() {
       {/* Week View */}
       {viewMode === 'week' && (
         <div className="space-y-3">
+          {/* Week Overview Bar */}
+          {weekSchedules.length > 0 && (() => {
+            const weekDates = getWeekDates(selectedDate);
+            let weekTotalScheduled = 0;
+            let weekTotalCapacity = totalWorkingMinutes * 7;
+            for (const date of weekDates) {
+              const dayItems = weekSchedules.filter(s => s.date === date);
+              for (const s of dayItems) {
+                const mins = timeToMinutes(s.endTime) - timeToMinutes(s.startTime);
+                if (mins > 0) weekTotalScheduled += mins;
+              }
+            }
+            const weekPercent = Math.min(100, Math.round((weekTotalScheduled / weekTotalCapacity) * 100));
+            return (
+              <div className="p-3 bg-surface-900 border border-surface-800 rounded-xl flex items-center justify-between gap-4 text-xs">
+                <div className="flex items-center gap-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-surface-500 block">Week Planned</span>
+                    <span className="font-semibold text-surface-200">{formatMinutes(weekTotalScheduled)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-surface-500 block">Week Capacity</span>
+                    <span className="font-semibold text-surface-400">{formatMinutes(weekTotalCapacity)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`font-bold ${weekPercent > 100 ? 'text-red-400' : 'text-surface-100'}`}>{weekPercent}%</span>
+                  <div className="w-24 h-2 bg-surface-950 rounded-full overflow-hidden border border-surface-800">
+                    <div
+                      className={`h-full transition-all ${weekPercent > 100 ? 'bg-red-500' : 'bg-brand-500'}`}
+                      style={{ width: `${Math.min(100, weekPercent)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {weekSchedules.length === 0 ? (
             <EmptyState
               icon={<CalendarDays size={24} />}
@@ -684,7 +890,6 @@ export function SchedulePage() {
             />
           ) : (
             (() => {
-              // Group by date
               const byDate = new Map<string, typeof weekSchedules>();
               for (const s of weekSchedules) {
                 const arr = byDate.get(s.date) || [];
@@ -692,24 +897,64 @@ export function SchedulePage() {
                 byDate.set(s.date, arr);
               }
 
-              return [...byDate.entries()].map(([date, items]) => (
-                <Card key={date} className="p-4">
-                  <h3 className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">{formatDateLabel(date)}</h3>
-                  <div className="space-y-1">
-                    {items.map(s => {
-                      const taskObj = typeof s.taskId === 'object' ? s.taskId as any : tasks.find(t => t.id === s.taskId);
-                      const derived = deriveState(s, taskObj, now);
-                      return <ScheduleCard key={s._id} schedule={s} derivedState={derived} />;
-                    })}
-                  </div>
-                </Card>
-              ));
+              return [...byDate.entries()].map(([date, items]) => {
+                const dayScheduledMins = items.reduce((sum, s) => {
+                  const mins = timeToMinutes(s.endTime) - timeToMinutes(s.startTime);
+                  return sum + (mins > 0 ? mins : 0);
+                }, 0);
+                const dayPercent = Math.min(100, Math.round((dayScheduledMins / totalWorkingMinutes) * 100));
+                const isToday = date === getTodayDateString();
+
+                return (
+                  <Card key={date} className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <button
+                        onClick={() => { setSelectedDate(date); setViewMode('day'); }}
+                        className="text-xs font-bold text-surface-400 uppercase tracking-wider hover:text-surface-200 transition-colors text-left"
+                      >
+                        {formatDateLabel(date)}
+                        {isToday && <span className="ml-2 text-brand-400">(Today)</span>}
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-surface-500">{formatMinutes(dayScheduledMins)} scheduled</span>
+                        <div className="w-16 h-1.5 bg-surface-950 rounded-full overflow-hidden border border-surface-800">
+                          <div
+                            className={`h-full transition-all ${dayPercent > 100 ? 'bg-red-500' : 'bg-brand-500'}`}
+                            style={{ width: `${Math.min(100, dayPercent)}%` }}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openModal()}
+                          className="text-[10px] px-2 py-0.5 h-auto text-brand-400 hover:text-brand-300"
+                        >
+                          + Schedule
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {items.map(s => {
+                        const taskObj = typeof s.taskId === 'object' ? s.taskId as any : tasks.find(t => t.id === s.taskId);
+                        const derived = deriveState(s, taskObj, now);
+                        return <ScheduleCard key={s._id} schedule={s} derivedState={derived} />;
+                      })}
+                    </div>
+                  </Card>
+                );
+              });
             })()
           )}
         </div>
       )}
 
       <ScheduleModal isOpen={isModalOpen} onClose={closeModal} />
+      <RecoveryDrawer
+        isOpen={showRecovery}
+        onClose={() => setShowRecovery(false)}
+        scheduledMinutes={capacityMetrics.scheduledMins}
+        totalWorkingMinutes={capacityMetrics.totalWorkingMinutes}
+      />
     </div>
   );
 }

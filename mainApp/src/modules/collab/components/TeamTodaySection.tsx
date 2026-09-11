@@ -215,7 +215,7 @@ function TaskRow({ item, onOpen }: { item: TeamTodayItem; onOpen: () => void }) 
           {item.assignedToMe && <Badge tone="brand" className="text-[10px] font-bold uppercase">Yours</Badge>}
         </div>
         <p className="font-bold text-surface-100 truncate">{item.title}</p>
-        <p className="text-[10px] text-surface-400 truncate">{item.assigneeName ?? 'Unassigned'}</p>
+        <p className="text-[10px] text-surface-400 truncate">{item.assigneeIds.length > 0 ? `${item.assigneeIds.length} assignee(s)` : 'Unassigned'}</p>
       </div>
       {item.branch && (
         <Badge tone="neutral" icon={<GitBranch size={11} />} className="hidden sm:inline-flex font-mono">{item.branch}</Badge>

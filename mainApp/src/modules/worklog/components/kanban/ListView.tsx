@@ -32,7 +32,7 @@ export function ListView() {
       if (filters.status !== 'all' && t.status !== filters.status) return false;
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.label && !t.labels.some((l) => l.name === filters.label)) return false;
-      if (filters.assignee && !t.assignees.some((a) => a.id === filters.assignee)) return false;
+      if (filters.assignees.length > 0 && !t.assignees.some((a) => filters.assignees.includes(a.id))) return false;
       return true;
     });
   }, [tasks, searchQuery, filters]);

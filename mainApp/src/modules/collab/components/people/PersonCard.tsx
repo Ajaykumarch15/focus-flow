@@ -41,7 +41,7 @@ export function PersonCard({ stats, onClick }: PersonCardProps) {
       variants={fadeUp}
       onClick={onClick}
       type="button"
-      className="card card-hover w-full text-left p-6 flex flex-col items-center gap-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
+      className="card card-hover accent-border w-full text-left p-6 flex flex-col items-center gap-4 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50"
     >
       {/* Avatar */}
       <Avatar src={member.avatar} name={member.name} size="lg" />

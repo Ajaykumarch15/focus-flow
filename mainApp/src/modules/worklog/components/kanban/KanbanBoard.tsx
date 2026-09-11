@@ -2,6 +2,7 @@ import { useMemo, useCallback } from 'react';
 import { DragDropContext, type DropResult } from '@hello-pangea/dnd';
 import { KanbanColumn } from './KanbanColumn';
 import { useKanbanStore } from './kanbanStore';
+import { canEditTask } from './taskPermissions';
 import { KANBAN_COLUMNS } from './types';
 import type { KanbanStatus } from './types';
 
@@ -21,7 +22,7 @@ export function KanbanBoard() {
       if (filters.status !== 'all' && t.status !== filters.status) return false;
       if (filters.priority && t.priority !== filters.priority) return false;
       if (filters.label && !t.labels.some((l) => l.name === filters.label)) return false;
-      if (filters.assignee && !t.assignees.some((a) => a.id === filters.assignee)) return false;
+      if (filters.assignees.length > 0 && !t.assignees.some((a) => filters.assignees.includes(a.id))) return false;
       return true;
     });
   }, [tasks, searchQuery, filters]);
@@ -58,6 +59,14 @@ export function KanbanBoard() {
     return grouped;
   }, [filteredTasks, sortBy]);
 
+  const taskPermissions = useMemo(() => {
+    const perms: Record<string, boolean> = {};
+    for (const task of filteredTasks) {
+      perms[task.id] = canEditTask(task);
+    }
+    return perms;
+  }, [filteredTasks]);
+
   const handleDragEnd = useCallback(
     (result: DropResult) => {
       const { source, destination, draggableId } = result;
@@ -84,6 +93,7 @@ export function KanbanBoard() {
             key={col.id}
             column={col}
             tasks={tasksByColumn[col.id]}
+            taskPermissions={taskPermissions}
           />
         ))}
       </div>

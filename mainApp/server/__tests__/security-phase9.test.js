@@ -155,8 +155,8 @@ describe('Phase 9.8 · Horizontal Escalation — Cross-Team', () => {
 describe('Phase 9.8 · Horizontal Escalation — Cross-Task', () => {
   it('Task A Assignee cannot access Task B as Assignee', () => {
     const user = makeUser('assignee1');
-    const taskA = makeTask('creator', 'ws1', { assigneeId: 'assignee1' });
-    const taskB = makeTask('creator', 'ws1', { assigneeId: 'assignee2' });
+    const taskA = makeTask('creator', 'ws1', { assigneeIds: ['assignee1'] });
+    const taskB = makeTask('creator', 'ws1', { assigneeIds: ['assignee2'] });
 
     expect(isTaskAssignee(user, taskA)).toBe(true);
     expect(isTaskAssignee(user, taskB)).toBe(false);
@@ -222,7 +222,7 @@ describe('Phase 9.8 · Vertical Escalation — Role Hierarchy', () => {
   it('Task Assignee cannot perform Admin/PM-only task operations', () => {
     const user = makeUser('assignee1');
     const ws = makeWorkspace('owner', [{ userId: 'assignee1', role: 'Member' }]);
-    const task = makeTask('creator', 'ws1', { assigneeId: 'assignee1' });
+    const task = makeTask('creator', 'ws1', { assigneeIds: ['assignee1'] });
 
     expect(can(user, TASK.DELETE, { workspace: ws, resource: task })).toBe(false);
     expect(can(user, TASK.ASSIGN, { workspace: ws, resource: task })).toBe(false);

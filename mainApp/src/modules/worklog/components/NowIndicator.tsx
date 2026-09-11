@@ -45,7 +45,7 @@ export function NowIndicator() {
 
   const goToTask = () => {
     if (!hasActive) return;
-    navigate(now.state === 'collab' && now.workspaceId ? `/collab/${now.workspaceId}/team` : `/worklog/tasks/${now.taskId}`);
+    navigate(now.state === 'collab' && now.workspaceId ? `/collab/${now.workspaceId}/projects` : `/worklog/tasks/${now.taskId}`);
   };
 
   if (hasActive) {

@@ -46,7 +46,7 @@ function mkCollabTask(id: string, overrides: Partial<CollaborativeTask> = {}): C
 }
 
 const workspace: Workspace = {
-  id: 'ws-1', name: 'FocusFlow', type: 'Startup', icon: '⚡', description: '',
+  id: 'ws-1', name: 'FocusFlow', slug: 'focusflow', type: 'Startup', icon: '⚡', description: '',
   membersCount: 4, projectsCount: 1, createdAt: '2026-01-01',
   settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
 };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Square, Trash2, Edit3, ExternalLink, Clock, CheckCircle2, AlertTriangle, Rocket, Timer, FastForward } from 'lucide-react';
+import { Play, Pause, Square, Trash2, Edit3, ExternalLink, Clock, CheckCircle2, AlertTriangle, Rocket, Timer, FastForward, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ScheduleItem, Task, DerivedScheduleState } from '@shared/types';
 import { useStore } from '@worklog/services/useStore';
@@ -203,6 +203,14 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
           <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${priority.color} ${priority.bg}`}>
             {priority.label}
           </span>
+
+          {/* Recurrence badge */}
+          {schedule.recurrence && schedule.recurrence !== 'none' && (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+              <Repeat size={10} />
+              {schedule.recurrence === 'daily' ? 'Daily' : schedule.recurrence === 'weekly' ? 'Weekly' : 'Custom'}
+            </span>
+          )}
 
           {/* Countdown */}
           <span className="text-[10px] text-surface-400">{countdownLabel}</span>

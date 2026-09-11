@@ -55,7 +55,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
   const recentTasks = useMemo(() => {
     if (!stats) return [];
     return tasks
-      .filter((t) => t.assigneeId === stats.member.id)
+      .filter((t) => t.assigneeIds?.includes(stats.member.id))
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5);
   }, [stats, tasks]);

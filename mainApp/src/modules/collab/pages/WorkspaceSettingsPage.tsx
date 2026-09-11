@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Save, Trash2, Settings } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
@@ -17,7 +18,7 @@ const WS_ICONS: Record<string, string> = {
 const WS_TYPES = ['Startup', 'Personal', 'College Project', 'Open Source', 'Internship', 'Enterprise'] as const;
 
 export function WorkspaceSettingsPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
   const navigate = useNavigate();
   const { workspaces, updateWorkspace, deleteWorkspace } = useCollaborationStore();
 
@@ -80,12 +81,6 @@ export function WorkspaceSettingsPage() {
 
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
-          <button
-            onClick={() => navigate(`/collab/${workspaceId}`)}
-            className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800"
-          >
-            <ArrowLeft size={14} /> Back
-          </button>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-base">
               {WS_ICONS[workspace.type] || '📁'}

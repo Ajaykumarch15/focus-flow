@@ -24,6 +24,7 @@ async function scan(container: HTMLElement) {
 const workspace = (id: string, overrides: Partial<Workspace> = {}): Workspace => ({
   id,
   name: `Workspace ${id}`,
+  slug: `workspace-${id}`,
   type: 'Startup',
   icon: '🏢',
   description: 'A shared engineering workspace.',

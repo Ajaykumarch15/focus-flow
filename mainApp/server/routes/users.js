@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', protect, async (req, res, next) => {
   try {
     const users = await User.find({ deletedAt: null })
-      .select('name email avatar')
+      .select('name email avatar role')
       .sort({ name: 1 })
       .limit(500);
     res.json(users);

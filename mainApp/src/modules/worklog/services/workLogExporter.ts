@@ -23,9 +23,27 @@ export function exportWorkLogToMarkdown(log: WorkLog): string {
   if (log.taskRef?.title) {
     md += `**Linked Task:** ${log.taskRef.title}  \n`;
   }
+  if (log.tags?.length) {
+    md += `**Tags:** ${log.tags.join(', ')}  \n`;
+  }
   md += `\n---\n\n`;
 
-  // 1. Timeline
+  // 1. Current Work
+  if (log.currentWork) {
+    md += `## ⚡ Current Work\n\n${log.currentWork}\n\n`;
+  }
+
+  // 2. Implementation Plan
+  if (log.plan) {
+    md += `## 📋 Implementation Plan\n\n${log.plan}\n\n`;
+  }
+
+  // 3. Architecture & Design
+  if (log.designNotes) {
+    md += `## 🏗️ Architecture & Design\n\n${log.designNotes}\n\n`;
+  }
+
+  // 4. Timeline
   md += `## 🕒 Daily Chronological Timeline\n\n`;
   if (log.timelineEntries?.length) {
     log.timelineEntries.forEach(entry => {
@@ -108,6 +126,17 @@ export function exportWorkLogToMarkdown(log: WorkLog): string {
     if (log.reflection.slowedDown) md += `**What slowed me down:** ${log.reflection.slowedDown}\n\n`;
     if (log.reflection.learned) md += `**Key learning:** ${log.reflection.learned}\n\n`;
     if (log.reflection.improvement) md += `**One improvement for tomorrow:** ${log.reflection.improvement}\n\n`;
+  }
+
+  // 8. Attachments
+  if (log.attachments?.length) {
+    md += `## 📎 Attachments\n\n`;
+    log.attachments.forEach(a => {
+      md += `- **${a.name}** (${a.type})`;
+      if (a.description) md += ` — ${a.description}`;
+      md += `\n  ${a.url}\n`;
+    });
+    md += `\n`;
   }
 
   return md;

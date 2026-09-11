@@ -86,9 +86,26 @@ function workspaceIconFor(type: string): string {
   }
 }
 
-function toWorkspace(raw: any): Workspace {
+function toSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function toWorkspace(raw: any, _index?: number, existingSlugs?: Set<string>): Workspace {
+  const baseSlug = toSlug(raw.name ?? 'untitled-workspace');
+  let slug = baseSlug;
+  if (existingSlugs) {
+    let counter = 1;
+    while (existingSlugs.has(slug)) {
+      slug = `${baseSlug}-${counter++}`;
+    }
+    existingSlugs.add(slug);
+  }
   return {
     id: String(raw.id ?? raw._id ?? ''),
+    slug,
     name: raw.name ?? 'Untitled Workspace',
     type: raw.type ?? 'Startup',
     icon: raw.icon ?? '🚀',
@@ -285,7 +302,7 @@ function toCollabTask(raw: any): CollaborativeTask {
     sprintStatus: raw.sprintStatus ?? 'backlog',
     priority: raw.priority ?? 'medium',
     ownerId: String(raw.ownerId ?? raw.userId ?? ''),
-    assigneeId: raw.assigneeId ? String(raw.assigneeId) : undefined,
+    assigneeIds: (raw.assigneeIds?.length ? raw.assigneeIds : raw.assigneeId ? [raw.assigneeId] : []).map(String),
     reviewerId: raw.reviewerId ? String(raw.reviewerId) : undefined,
     followerIds: (raw.followerIds ?? []).map(String),
     labels: (raw.labels ?? []).map(String),
@@ -391,7 +408,7 @@ interface CollaborationStore {
   updateTaskStatus: (taskId: string, sprintStatus: SprintStatus) => Promise<void>;
   // EEP2-P5.1.2: assignee changes persist via PATCH /tasks/:id (the server
   // enforces the DDS §4.9 "assignee must be a workspace member" rule).
-  assignTask: (taskId: string, assigneeId: string) => Promise<void>;
+  assignTask: (taskId: string, assigneeIds: string[]) => Promise<void>;
   // EEP2-P5.1.3: subtask CRUD + toggle (DDS §4.10). Optimistic with rollback.
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
@@ -487,7 +504,9 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     set({ workspacesLoading: true });
     try {
       const rawList = await api.workspaces.list();
-      const workspaces = (Array.isArray(rawList) ? rawList : []).map(toWorkspace);
+      const arr = Array.isArray(rawList) ? rawList : [];
+      const existingSlugs = new Set<string>();
+      const workspaces = arr.map((raw, i) => toWorkspace(raw, i, existingSlugs));
       set((state) => {
         const stillValid = workspaces.some((w) => w.id === state.activeWorkspaceId);
         return {
@@ -703,6 +722,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     const memberCount = 1 + (members?.length || 0);
     const temp: Workspace = {
       id: tempId,
+      slug: toSlug(name),
       name,
       type,
       icon: workspaceIconFor(type),
@@ -1100,7 +1120,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
       sprintStatus: data.sprintStatus || 'backlog',
       priority: data.priority || 'medium',
       ownerId,
-      assigneeId: data.assigneeId || ownerId,
+      assigneeIds: data.assigneeIds || (ownerId ? [ownerId] : []),
       reviewerId: data.reviewerId,
       followerIds: ownerId ? [ownerId] : [],
       labels: data.labels || ['General'],
@@ -1130,7 +1150,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         projectId: tempTask.projectId || undefined,
         sprintId: tempTask.sprintId || undefined,
         featureId: tempTask.featureId || undefined,
-        assigneeId: tempTask.assigneeId || undefined,
+        assigneeIds: tempTask.assigneeIds || [],
         reviewerId: tempTask.reviewerId || undefined,
         followerIds: tempTask.followerIds,
         labels: tempTask.labels,
@@ -1173,29 +1193,29 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     toast.info('Status updated', `Task moved to ${sprintStatus.replace('_', ' ').toUpperCase()}`);
   },
 
-  assignTask: async (taskId, assigneeId) => {
+  assignTask: async (taskId, assigneeIds) => {
     const prevTask = get().tasks.find((t) => t.id === taskId);
     await runMutation(
       () => {
         set((state) => ({
           tasks: state.tasks.map((t) =>
-            t.id === taskId ? { ...t, assigneeId, updatedAt: new Date().toISOString() } : t
+            t.id === taskId ? { ...t, assigneeIds, updatedAt: new Date().toISOString() } : t
           ),
         }));
         return () => {
           set((state) => ({
             tasks: state.tasks.map((t) =>
               t.id === taskId && prevTask
-                ? { ...t, assigneeId: prevTask.assigneeId, updatedAt: prevTask.updatedAt }
+                ? { ...t, assigneeIds: prevTask.assigneeIds, updatedAt: prevTask.updatedAt }
                 : t
             ),
           }));
         };
       },
-      () => api.tasks.update(taskId, { assigneeId }),
+      () => api.tasks.update(taskId, { assigneeIds }),
       { errorTitle: 'Assignee update failed' },
     );
-    toast.info('Assignee updated', assigneeId ? 'Task assignment changed' : 'Task unassigned');
+    toast.info('Assignees updated', assigneeIds.length > 0 ? 'Task assignment changed' : 'Task unassigned');
   },
 
   // EEP2-P5.1.3: subtask actions — optimistic with rollback, mirroring the

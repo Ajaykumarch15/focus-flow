@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { FolderPlus, Crown, Check } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { FolderPlus, Crown, Check, ShieldCheck } from 'lucide-react';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
@@ -51,6 +51,16 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
     return members.filter(m => m.status !== 'offline');
   }, [members]);
 
+  const isAdminMember = (m: { role?: string }) => m.role === 'admin' || m.role === 'superadmin';
+
+  useEffect(() => {
+    if (workspaceMembers.length > 0) {
+      setSelectedMembers(new Set(
+        workspaceMembers.filter(isAdminMember).map(m => m.id)
+      ));
+    }
+  }, [workspaceMembers]);
+
   const resetForm = () => {
     setName('');
     setClient('');
@@ -63,7 +73,7 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
     setTags('');
     setTint('blue');
     setSelectedPM('');
-    setSelectedMembers(new Set());
+    setSelectedMembers(new Set(workspaceMembers.filter(isAdminMember).map(m => m.id)));
     setErrors({});
   };
 
@@ -73,6 +83,8 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
   };
 
   const toggleMember = (userId: string) => {
+    const member = workspaceMembers.find(m => m.id === userId);
+    if (member && isAdminMember(member)) return; // admins can't be toggled
     setSelectedMembers(prev => {
       const next = new Set(prev);
       if (next.has(userId)) {
@@ -95,11 +107,14 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
     setIsSubmitting(true);
     try {
       // Build members array — PM is always included with isProjectManager: true
-      const membersList: Array<{ userId: string; role: MemberRole; isProjectManager: boolean }> = Array.from(selectedMembers).map(userId => ({
-        userId,
-        role: 'nonadmin',
-        isProjectManager: userId === selectedPM,
-      }));
+      const membersList: Array<{ userId: string; role: MemberRole; isProjectManager: boolean }> = Array.from(selectedMembers).map(userId => {
+        const member = workspaceMembers.find(m => m.id === userId);
+        return {
+          userId,
+          role: (member?.role === 'superadmin' || member?.role === 'admin' ? 'admin' : 'nonadmin') as 'admin' | 'nonadmin',
+          isProjectManager: userId === selectedPM,
+        };
+      });
 
       // Ensure PM is in the list
       if (!selectedMembers.has(selectedPM)) {
@@ -206,15 +221,19 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
               workspaceMembers.map((m) => {
                 const isSelected = selectedMembers.has(m.id);
                 const isPM = m.id === selectedPM;
+                const locked = isAdminMember(m);
                 return (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => toggleMember(m.id)}
+                    disabled={locked}
                     className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
-                      isSelected || isPM
-                        ? 'bg-brand-500/10 border border-brand-500/30'
-                        : 'hover:bg-surface-850 border border-transparent'
+                      locked
+                        ? 'opacity-70 cursor-not-allowed bg-brand-500/5 border border-brand-500/20'
+                        : isSelected || isPM
+                          ? 'bg-brand-500/10 border border-brand-500/30'
+                          : 'hover:bg-surface-850 border border-transparent'
                     }`}
                   >
                     <Avatar name={m.name || m.email} size="sm" />
@@ -227,7 +246,11 @@ export function AddProjectModal({ open, onClose, onCreate }: AddProjectModalProp
                         <Crown size={10} /> PM
                       </span>
                     )}
-                    {(isSelected || isPM) && <Check size={12} className="text-brand-400" />}
+                    {locked ? (
+                      <ShieldCheck size={12} className="text-brand-400 shrink-0" />
+                    ) : (isSelected || isPM) ? (
+                      <Check size={12} className="text-brand-400" />
+                    ) : null}
                   </button>
                 );
               })

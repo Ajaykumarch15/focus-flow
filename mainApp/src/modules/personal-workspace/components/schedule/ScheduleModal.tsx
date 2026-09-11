@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, AlertTriangle, Sparkles, CheckCircle } from 'lucide-react';
+import { X, Calendar, AlertTriangle, Sparkles, CheckCircle, Repeat } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
+import { useWorkHours } from '@shared/hooks/useWorkHours';
 import { toast } from '@shared/services/useToastStore';
-import { Priority, ScheduleItem } from '@shared/types';
+import { Priority, ScheduleItem, type ScheduleRecurrence } from '@shared/types';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
@@ -42,6 +43,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
     createSchedule,
     updateSchedule,
   } = useScheduleStore();
+  const { startMinutes: workStartMinutes, endMinutes: workEndMinutes } = useWorkHours();
 
   const [mode, setMode] = useState<'existing' | 'new'>('existing');
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
@@ -53,6 +55,8 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
   const [conflictData, setConflictData] = useState<{ conflicting: ScheduleItem; warning: string } | null>(null);
   const [deadlineWarning, setDeadlineWarning] = useState<string | null>(null);
   const [mlPrediction, setMlPrediction] = useState<DurationPrediction | null>(null);
+  const [recurrence, setRecurrence] = useState<ScheduleRecurrence>('none');
+  const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
 
   // Form state for New Task mode
   const [newTitle, setNewTitle] = useState('');
@@ -118,12 +122,9 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
       end: timeToMinutes(s.endTime),
     })).sort((a, b) => a.start - b.start);
 
-    // Default working day range: 8:00 (480) to 20:00 (1200)
-    const workStart = 8 * 60;
-    const workEnd = 20 * 60;
     const slots: { start: string; end: string; durationMins: number }[] = [];
 
-    let current = workStart;
+    let current = workStartMinutes;
     for (const b of busyIntervals) {
       if (b.start > current && (b.start - current) >= 30) {
         slots.push({
@@ -135,16 +136,16 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
       current = Math.max(current, b.end);
     }
 
-    if (workEnd > current && (workEnd - current) >= 30) {
+    if (workEndMinutes > current && (workEndMinutes - current) >= 30) {
       slots.push({
         start: minutesToTime(current),
-        end: minutesToTime(workEnd),
-        durationMins: workEnd - current,
+        end: minutesToTime(workEndMinutes),
+        durationMins: workEndMinutes - current,
       });
     }
 
     return slots.slice(0, 3);
-  }, [isOpen, date, schedules, editingSchedule]);
+  }, [isOpen, date, schedules, editingSchedule, workStartMinutes, workEndMinutes]);
 
   // Real-time conflict detection & Deadline checking
   useEffect(() => {
@@ -278,6 +279,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
           startTime,
           endTime,
           notes,
+          recurrence,
         });
       } else {
         result = await createSchedule({
@@ -286,6 +288,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
           startTime,
           endTime,
           notes,
+          recurrence,
         });
       }
 
@@ -574,6 +577,63 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
                 placeholder="Specific target for this focus session..."
                 rows={2}
               />
+            </div>
+
+            {/* Recurrence */}
+            <div>
+              <label className="block text-xs font-medium text-surface-300 mb-1">
+                <Repeat size={12} className="inline mr-1" />
+                Repeat
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {([
+                  { value: 'none', label: 'None' },
+                  { value: 'daily', label: 'Daily' },
+                  { value: 'weekly', label: 'Weekly' },
+                  { value: 'custom', label: 'Custom' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setRecurrence(opt.value);
+                      if (opt.value === 'weekly') {
+                        const dayOfWeek = new Date(date + 'T00:00:00').getDay();
+                        setRecurrenceDays([dayOfWeek]);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-colors ${
+                      recurrence === opt.value
+                        ? 'bg-brand-500/15 border-brand-500/30 text-brand-300'
+                        : 'bg-surface-950 border-surface-700 text-surface-400 hover:text-surface-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {recurrence === 'weekly' && (
+                <div className="flex items-center gap-1 mt-2">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setRecurrenceDays((prev) =>
+                          prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]
+                        );
+                      }}
+                      className={`w-7 h-7 rounded-lg text-[10px] font-semibold border transition-colors ${
+                        recurrenceDays.includes(idx)
+                          ? 'bg-brand-500/15 border-brand-500/30 text-brand-300'
+                          : 'bg-surface-950 border-surface-700 text-surface-500 hover:text-surface-300'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Deadline Warning Callout */}

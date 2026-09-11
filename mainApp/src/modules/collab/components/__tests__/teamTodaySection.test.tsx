@@ -34,11 +34,11 @@ const populatedView: TeamTodayView = {
   inProgress: [
     {
       taskId: 't-1', title: 'Build the dashboard', priority: 'urgent',
-      assigneeId: 'm-1', assigneeName: 'Ada', assignedToMe: true, branch: 'feat/dashboard', updatedAt: 1,
+      assigneeIds: ['m-1'], assignedToMe: true, branch: 'feat/dashboard', updatedAt: 1,
     },
     {
       taskId: 't-2', title: 'Refactor timer engine', priority: 'medium',
-      assigneeId: null, assigneeName: null, assignedToMe: false, branch: null, updatedAt: 2,
+      assigneeIds: [], assignedToMe: false, branch: null, updatedAt: 2,
     },
   ],
 };

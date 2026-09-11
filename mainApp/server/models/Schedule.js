@@ -13,16 +13,21 @@ const scheduleSchema = new mongoose.Schema(
       default: 'scheduled',
     },
     notes: { type: String, default: '' },
-    // Req 17: Recurring scheduling architecture preparation
     recurrence: {
       type: String,
       enum: ['none', 'daily', 'weekly', 'custom'],
       default: 'none',
     },
+    // Workspace scheduling fields
+    workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', default: null, index: true },
+    projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null, index: true },
+    assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );
 
 scheduleSchema.index({ userId: 1, date: 1 });
+scheduleSchema.index({ workspaceId: 1, date: 1 });
+scheduleSchema.index({ projectId: 1, date: 1 });
 
 module.exports = mongoose.model('Schedule', scheduleSchema);

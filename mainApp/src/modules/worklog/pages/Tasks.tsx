@@ -5,7 +5,6 @@ import {
   Target, X, ArrowUpDown,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { cn } from '@shared/utils/cn';
 import { TaskCard } from '@worklog/components/tasks/TaskCard';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
@@ -17,6 +16,7 @@ import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { FilterDropdown } from '@shared/components/ui/FilterDropdown';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -69,24 +69,6 @@ export function Tasks() {
   }, [filtered, sortBy]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
-
-  // ── Filter metadata (counts, active state, clear) ──────────────────────────
-  const statusCounts = useMemo(() => {
-    const counts: Record<TaskStatus | 'all', number> = { all: 0, todo: 0, active: 0, paused: 0, completed: 0 };
-    for (const t of tasks) {
-      if (filterPriority !== 'all' && t.priority !== filterPriority) continue;
-      if (filterCategory !== 'all' && t.category !== filterCategory) continue;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) continue;
-      }
-      if (showOverdueOnly && (t.status === 'completed' || !isOverdue(t.deadline))) continue;
-      counts.all++;
-      counts[t.status]++;
-    }
-    if (!showCompleted && filterStatus !== 'completed') counts.all -= counts.completed;
-    return counts;
-  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly, showCompleted, filterStatus]);
 
   const overdueCount = useMemo(
     () => tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length,
@@ -238,10 +220,9 @@ export function Tasks() {
       />
 
       {/* Filters */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-        {/* Row 1 — search + secondary filters */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative w-[200px]">
             <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
             <Input
               placeholder="Search tasks..."
@@ -263,28 +244,53 @@ export function Tasks() {
             )}
           </div>
 
-          <select
-            value={filterPriority}
-            onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
-            aria-label="Filter by priority"
-            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-          >
-            <option value="all">All Priority</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            aria-label="Filter by category"
-            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-          >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <FilterDropdown
+            groups={[
+              {
+                label: 'Status',
+                options: [
+                  { value: 'all', label: 'All' },
+                  { value: 'todo', label: 'To Do' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'paused', label: 'Paused' },
+                  { value: 'completed', label: 'Done' },
+                ],
+              },
+              {
+                label: 'Priority',
+                options: [
+                  { value: 'urgent', label: 'Urgent' },
+                  { value: 'high', label: 'High' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'low', label: 'Low' },
+                ],
+              },
+              {
+                label: 'Category',
+                options: CATEGORIES.map(c => ({ value: c, label: c })),
+              },
+            ]}
+            selectedValues={[
+              ...(filterStatus !== 'all' ? [filterStatus] : []),
+              ...(filterPriority !== 'all' ? [filterPriority] : []),
+              ...(filterCategory !== 'all' ? [filterCategory] : []),
+            ]}
+            onToggle={(value) => {
+              if (['all', 'todo', 'active', 'paused', 'completed'].includes(value)) {
+                handleStatusFilter(value as TaskStatus | 'all');
+              } else if (['urgent', 'high', 'medium', 'low'].includes(value)) {
+                setFilterPriority(filterPriority === value ? 'all' : value as Priority);
+              } else {
+                setFilterCategory(filterCategory === value ? 'all' : value);
+              }
+            }}
+            onClear={() => {
+              setFilterStatus('all');
+              setFilterPriority('all');
+              setFilterCategory('all');
+              setShowCompleted(false);
+            }}
+          />
 
           <div className="relative">
             <ArrowUpDown size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
@@ -319,45 +325,6 @@ export function Tasks() {
               </span>
             )}
           </Button>
-        </div>
-
-        {/* Row 2 — status pills */}
-        <div role="group" aria-label="Filter by status" className="flex flex-wrap items-center gap-1.5">
-          {([
-            ['all', 'All'],
-            ['todo', 'To Do'],
-            ['active', 'Active'],
-            ['paused', 'Paused'],
-            ['completed', 'Done'],
-          ] as const).map(([value, label]) => {
-            const active = filterStatus === value;
-            const count = statusCounts[value];
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => handleStatusFilter(value)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border text-xs font-bold transition-all',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
-                  active
-                    ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
-                    : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                )}
-              >
-                {label}
-                <span
-                  className={cn(
-                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
-                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </motion.div>
 

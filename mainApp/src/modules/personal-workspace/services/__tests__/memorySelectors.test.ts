@@ -79,7 +79,7 @@ function mkBlocker(id: string, taskId: string, severity: CentralBlocker['severit
 
 function mkWorkspace(id = 'ws-1'): Workspace {
   return {
-    id, name: 'Acme', type: 'Startup', icon: '🚀', description: '', membersCount: 0, projectsCount: 0,
+    id, name: 'Acme', slug: 'acme', type: 'Startup', icon: '🚀', description: '', membersCount: 0, projectsCount: 0,
     createdAt: '2026-01-01T00:00:00.000Z', settings: {} as Workspace['settings'],
   };
 }

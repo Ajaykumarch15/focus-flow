@@ -38,6 +38,51 @@ export interface DocLink {
   url: string;
 }
 
+export interface DocTimelineEntry {
+  timestamp: string;
+  title: string;
+  description: string;
+  type: string;
+}
+
+export interface DocDecision {
+  title: string;
+  context: string;
+  decision: string;
+  rationale: string;
+  alternatives: string;
+}
+
+export interface DocBlocker {
+  title: string;
+  severity: string;
+  status: string;
+  notes: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export interface DocTomorrowPlan {
+  topPriority: string;
+  unfinishedItems: string[];
+  attentionRequired: string;
+}
+
+export interface DocReflection {
+  wentWell: string;
+  slowedDown: string;
+  learned: string;
+  improvement: string;
+  rating: number;
+}
+
+export interface DocAttachment {
+  name: string;
+  url: string;
+  type: string;
+  description: string;
+}
+
 export interface DocStats {
   sectionsWritten: number;
   totalSections: number;
@@ -47,6 +92,8 @@ export interface DocStats {
   totalTimeMs: number;
   blockersPresent: boolean;
   completionPercent: number;
+  decisionCount: number;
+  openBlockerCount: number;
 }
 
 export interface DocumentModel {
@@ -56,6 +103,14 @@ export interface DocumentModel {
   workEntries: DocWorkEntry[];
   links: DocLink[];
   stats: DocStats;
+  timeline: DocTimelineEntry[];
+  decisions: DocDecision[];
+  blockerList: DocBlocker[];
+  tomorrowPlan: DocTomorrowPlan | null;
+  reflection: DocReflection | null;
+  attachments: DocAttachment[];
+  mood: number;
+  tags: string[];
 }
 
 export type TemplateType = 'developer' | 'client';

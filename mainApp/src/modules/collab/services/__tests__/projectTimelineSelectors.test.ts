@@ -69,7 +69,7 @@ const task = (overrides: Partial<CollaborativeTask> = {}): CollaborativeTask => 
   sprintStatus: 'in_progress',
   priority: 'high',
   ownerId: 'm-1',
-  assigneeId: 'm-1',
+  assigneeIds: ['m-1'],
   followerIds: [],
   labels: [],
   dependencies: [],

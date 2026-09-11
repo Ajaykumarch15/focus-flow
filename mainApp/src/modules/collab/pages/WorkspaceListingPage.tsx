@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Building2, Users, FolderOpen, Search, X } from 'lucide-react';
+import { Plus, Search, X, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { CreateWorkspaceModal } from '@collab/components/CreateWorkspaceModal';
@@ -9,21 +9,13 @@ import { Button } from '@shared/components/ui/Button';
 import { SkeletonCard } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { ErrorBoundary } from '@shared/components/ui/ErrorBoundary';
-import { Badge } from '@shared/components/ui/Badge';
+import { WorkspaceCardNew } from '@shared/components/WorkspaceCardNew';
+import { cn } from '@shared/utils/cn';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 
-const WS_ICONS: Record<string, string> = {
-  Startup: '⚡',
-  Personal: '🚀',
-  'College Project': '🎓',
-  'Open Source': '🌐',
-  Internship: '💼',
-  Enterprise: '🏢',
-};
-
-const WS_TYPES = ['All', 'Startup', 'Personal', 'College Project', 'Open Source', 'Internship', 'Enterprise'] as const;
+const WS_TYPES = ['Startup', 'Personal', 'College Project', 'Open Source', 'Internship', 'Enterprise'] as const;
 
 export function WorkspaceListingPage() {
   const navigate = useNavigate();
@@ -31,8 +23,25 @@ export function WorkspaceListingPage() {
   const { user } = useAuthStore();
   const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [showCreate, setShowCreate] = React.useState(false);
-  const [search, setSearch] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState<string>('All');
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const toggleType = (type: string) => {
+    setTypeFilters((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
+  };
+
+  const clearFilters = () => setTypeFilters([]);
 
   React.useEffect(() => {
     if (workspaces.length === 0 && !workspacesLoading) {
@@ -42,24 +51,15 @@ export function WorkspaceListingPage() {
 
   const filtered = useMemo(() => {
     let result = workspaces;
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (ws) =>
-          ws.name.toLowerCase().includes(q) ||
-          ws.type.toLowerCase().includes(q) ||
-          ws.description?.toLowerCase().includes(q),
-      );
-    }
-    if (typeFilter !== 'All') {
-      result = result.filter((ws) => ws.type === typeFilter);
+    if (typeFilters.length > 0) {
+      result = result.filter((ws) => typeFilters.includes(ws.type));
     }
     return result;
-  }, [workspaces, search, typeFilter]);
+  }, [workspaces, typeFilters]);
 
   const handleOpen = (ws: typeof workspaces[0]) => {
     setActiveWorkspace(ws.id);
-    navigate(`/collab/${ws.id}`);
+    navigate(`/collab/${ws.slug}`);
   };
 
   return (
@@ -81,59 +81,93 @@ export function WorkspaceListingPage() {
           )}
         </motion.div>
 
-        {/* Search & Filters */}
+        {/* Filters */}
         {workspaces.length > 0 && (
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 max-w-md">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-              <input
-                type="text"
-                placeholder="Search workspaces..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-8 rounded-xl bg-surface-900 border border-surface-800 text-sm text-surface-200 placeholder:text-surface-500 outline-none focus:border-brand-500/50 transition-colors"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300"
-                >
-                  <X size={13} />
-                </button>
+          <div ref={filterRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer',
+                typeFilters.length > 0
+                  ? 'border-brand-500/40 text-brand-400 bg-brand-500/10 hover:bg-brand-500/15'
+                  : 'border-surface-800 text-surface-400 bg-surface-900 hover:border-surface-700 hover:text-surface-300',
               )}
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {WS_TYPES.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTypeFilter(t)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    typeFilter === t
-                      ? 'bg-brand-500/15 text-brand-400 border border-brand-500/30'
-                      : 'bg-surface-900 border border-surface-800 text-surface-400 hover:text-surface-200 hover:border-surface-700'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+            >
+              <SlidersHorizontal size={12} />
+              Filter
+              {typeFilters.length > 0 && (
+                <span className="ml-0.5 bg-brand-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                  {typeFilters.length}
+                </span>
+              )}
+              <ChevronDown size={10} className={cn('transition-transform', filterOpen && 'rotate-180')} />
+            </button>
+
+            {filterOpen && (
+              <div className="absolute top-full left-0 mt-1.5 min-w-[200px] bg-surface-900 border border-surface-800 rounded-xl p-1.5 z-50 shadow-xl shadow-black/40">
+                <div className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">
+                  Workspace type
+                </div>
+                {WS_TYPES.map((type) => {
+                  const checked = typeFilters.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => toggleType(type)}
+                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-surface-800 transition-colors cursor-pointer text-left"
+                    >
+                      <span
+                        className={cn(
+                          'w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors',
+                          checked
+                            ? 'bg-brand-500 border-brand-500'
+                            : 'border-surface-600',
+                        )}
+                      >
+                        {checked && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="text-xs text-surface-300 font-medium">{type}</span>
+                    </button>
+                  );
+                })}
+                {typeFilters.length > 0 && (
+                  <>
+                    <div className="border-t border-surface-800 my-1" />
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-800 transition-colors cursor-pointer text-left"
+                    >
+                      <X size={12} className="text-surface-500" />
+                      <span className="text-xs text-surface-400 font-medium">Clear all</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
         {workspacesLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <SkeletonCard key={i} lines={1} className="h-[180px]" />
+              <SkeletonCard key={i} lines={1} className="h-[140px]" />
             ))}
           </div>
         ) : filtered.length === 0 && workspaces.length > 0 ? (
           <EmptyState
             icon={<Search size={28} />}
             title="No workspaces found"
-            description={search || typeFilter !== 'All' ? 'Try a different search or filter.' : 'No workspaces match your criteria.'}
+            description={typeFilters.length > 0 ? 'Try a different filter.' : 'No workspaces match your criteria.'}
             action={
-              (search || typeFilter !== 'All') ? (
-                <Button variant="secondary" onClick={() => { setSearch(''); setTypeFilter('All'); }}>
+              typeFilters.length > 0 ? (
+                <Button variant="secondary" onClick={clearFilters}>
                   Clear Filters
                 </Button>
               ) : undefined
@@ -141,7 +175,7 @@ export function WorkspaceListingPage() {
           />
         ) : workspaces.length === 0 ? (
           <EmptyState
-            icon={<Building2 size={28} />}
+            icon={<Plus size={28} />}
             title="No workspaces yet"
             description={isAdmin ? "Create your first engineering workspace to start collaborating with your team." : "No workspaces have been created yet. Ask an admin to create one."}
             action={
@@ -161,49 +195,18 @@ export function WorkspaceListingPage() {
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             {filtered.map((ws) => (
-              <motion.div key={ws.id} variants={fadeUp}>
-                <button
-                  type="button"
-                  onClick={() => handleOpen(ws)}
-                  className="w-full text-left group"
-                >
-                  <div className="rounded-2xl border border-surface-800 bg-surface-900/50 p-6 hover:border-brand-500/50 hover:bg-surface-900 transition-all duration-200">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                        {WS_ICONS[ws.type] || '📁'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-display font-bold text-surface-50 truncate group-hover:text-brand-400 transition-colors">
-                          {ws.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-xs text-surface-500">{ws.type}</p>
-                          {ws.role && (
-                            <Badge tone={ws.role === 'superadmin' ? 'brand' : ws.role === 'admin' ? 'info' : 'neutral'} className="text-[9px]">
-                              {ws.role === 'superadmin' ? 'Superadmin' : ws.role === 'admin' ? 'Admin' : 'Nonadmin'}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {ws.description && (
-                      <p className="text-sm text-surface-400 mt-3 line-clamp-2">{ws.description}</p>
-                    )}
-
-                    <div className="flex items-center gap-4 mt-4 pt-4 border-t border-surface-800">
-                      <span className="flex items-center gap-1.5 text-xs text-surface-400">
-                        <Users size={13} className="text-surface-500" />
-                        {ws.membersCount ?? 0} member{(ws.membersCount ?? 0) !== 1 ? 's' : ''}
-                      </span>
-                      <span className="flex items-center gap-1.5 text-xs text-surface-400">
-                        <FolderOpen size={13} className="text-surface-500" />
-                        {ws.projectsCount ?? 0} project{(ws.projectsCount ?? 0) !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              </motion.div>
+              <WorkspaceCardNew
+                key={ws.id}
+                variants={fadeUp}
+                name={ws.name}
+                category={ws.type}
+                description={ws.description || ''}
+                activeTasks={0}
+                completionPercent={0}
+                membersCount={ws.membersCount ?? 0}
+                projectsCount={ws.projectsCount ?? 0}
+                onOpen={() => handleOpen(ws)}
+              />
             ))}
           </motion.div>
         )}

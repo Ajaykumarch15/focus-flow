@@ -17,6 +17,7 @@ import {
   rebuildDayCache,
 } from '@worklog/services/timerPersist';
 import { timerEngine } from '@worklog/services/timerEngine';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { offlineQueue, createOpId } from '@shared/utils/offlineQueue';
 import { startTimerHeartbeat, stopTimerHeartbeat } from '@worklog/services/timerHeartbeat';
 import type {
@@ -208,6 +209,10 @@ interface StoreState {
   dataError: string | null;
   mobileSidebarOpen: boolean;
 
+  // Parallel timer support
+  parallelTimers: Record<string, TimerState>;  // taskId -> timer state
+  activeTaskIds: string[];                      // all running task IDs
+
   setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
@@ -235,6 +240,12 @@ interface StoreState {
   resumeTimer: (taskId: string) => void;
   stopTimer: (taskId: string) => Promise<void>;
 
+  // Parallel timer methods
+  startParallelTimer: (taskId: string, baseMs?: number) => Promise<void>;
+  pauseParallelTimer: (taskId: string) => void;
+  resumeParallelTimer: (taskId: string) => void;
+  stopParallelTimer: (taskId: string) => Promise<void>;
+
   addSubtask: (taskId: string, title: string) => Promise<void>;
   toggleSubtask: (taskId: string, subtaskId: string, completed: boolean) => Promise<void>;
   deleteSubtask: (taskId: string, subtaskId: string) => Promise<void>;
@@ -259,7 +270,18 @@ export const useStore = create<StoreState>((set, get) => {
 
   const snapshot = timerEngine.getSnapshot();
 
-  // Listen to timerEngine updates and update store state in sync
+  // Initialize parallel timers state from engine
+  const initParallelTimers: Record<string, TimerState> = {};
+  const initActiveTaskIds: string[] = [];
+  const allSnapshots = parallelTimerEngine.getAllSnapshots();
+  allSnapshots.forEach((s, taskId) => {
+    if (s.timerState !== 'idle') {
+      initParallelTimers[taskId] = s.timerState as TimerState;
+      initActiveTaskIds.push(taskId);
+    }
+  });
+
+  // Listen to timerEngine updates and update store state in sync (legacy)
   timerEngine.subscribe((newSnapshot) => {
     set({
       activeTaskId: newSnapshot.taskId,
@@ -267,6 +289,22 @@ export const useStore = create<StoreState>((set, get) => {
       activeTimerState: newSnapshot.timerState as TimerState,
       currentSessionStart: newSnapshot.sessionStartTime || undefined,
       currentPauseStart: newSnapshot.pauseStart,
+    });
+  });
+
+  // Listen to parallelTimerEngine updates
+  parallelTimerEngine.subscribe((_taskId, _snapshot, allTimers) => {
+    const newParallelTimers: Record<string, TimerState> = {};
+    const newActiveTaskIds: string[] = [];
+    allTimers.forEach((s, id) => {
+      if (s.timerState !== 'idle') {
+        newParallelTimers[id] = s.timerState as TimerState;
+        newActiveTaskIds.push(id);
+      }
+    });
+    set({
+      parallelTimers: newParallelTimers,
+      activeTaskIds: newActiveTaskIds,
     });
   });
 
@@ -285,6 +323,8 @@ export const useStore = create<StoreState>((set, get) => {
     activeTimerState: snapshot.timerState as TimerState,
     currentSessionStart: snapshot.sessionStartTime || undefined,
     currentPauseStart: snapshot.pauseStart,
+    parallelTimers: initParallelTimers,
+    activeTaskIds: initActiveTaskIds,
 
     // ── Boot ────────────────────────────────────────────────────────────────
     loadAll: async () => {
@@ -317,11 +357,15 @@ export const useStore = create<StoreState>((set, get) => {
         const belongsToUser = (doc: any): boolean => {
           if (!currentUserId) return true;
           const norm = (v: any) => (v ? String(v._id ?? v) : null);
-          const assignee = norm(doc.assigneeId);
+          const assigneeIds: string[] = Array.isArray(doc.assigneeIds)
+            ? doc.assigneeIds.map((id: any) => norm(id))
+            : doc.assigneeId
+              ? [norm(doc.assigneeId)]
+              : [];
           const owner = norm(doc.userId);
           const reviewer = norm(doc.reviewerId);
           return (
-            assignee === currentUserId ||
+            assigneeIds.includes(currentUserId) ||
             owner === currentUserId ||
             reviewer === currentUserId
           );
@@ -687,6 +731,11 @@ export const useStore = create<StoreState>((set, get) => {
       const now = Date.now();
       const opId = createOpId();
 
+      // Stop heartbeat immediately to prevent stale pings during API call
+      if (sessionId) {
+        stopTimerHeartbeat();
+      }
+
       const res = await timerEngine.stop(taskId, now);
       if (!res.success && res.error !== 'Timer is already idle') {
         if (res.error) toast.error('Timer Error', res.error);
@@ -700,10 +749,118 @@ export const useStore = create<StoreState>((set, get) => {
       if (sessionId) {
         try {
           await api.sessions.stop(sessionId, now, opId);
-          stopTimerHeartbeat();
           await get().fetchTasks();
           get().fetchProfile();
           // Auto-sync WorkLog store
+          useWorkLogStore.getState().loadToday().catch(() => {});
+        } catch {
+          console.warn('Network issue on session stop. Enqueuing offline op.');
+          offlineQueue.enqueue('STOP_SESSION', taskId, sessionId, { endTime: now }, opId, 'work');
+        }
+      }
+    },
+
+    // ── Parallel Timer Operations ─────────────────────────────────────────────
+    // These methods use parallelTimerEngine to support multiple concurrent timers.
+
+    startParallelTimer: async (taskId, baseMs) => {
+      const now = Date.now();
+      const opId = createOpId();
+
+      // Resuming a task continues from its accumulated time (display continuity).
+      const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
+
+      const res = await parallelTimerEngine.start(taskId, undefined, now, resumeFromMs, 'work');
+      if (!res.success) {
+        if (res.error) toast.error('Timer Error', res.error);
+        return;
+      }
+
+      set(s => ({
+        tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'active' } : t),
+      }));
+
+      try {
+        const sessionDoc = await api.sessions.start(taskId, now, opId);
+        parallelTimerEngine.setSessionId(taskId, sessionDoc._id);
+        startTimerHeartbeat(() => {
+          // On heartbeat failure, stop this specific timer
+          parallelTimerEngine.stop(taskId);
+        });
+        get().fetchProfile();
+      } catch (err) {
+        console.warn('Network issue on session start. Enqueuing offline op.');
+        offlineQueue.enqueue('START_SESSION', taskId, undefined, { startTime: now }, opId, 'work');
+      }
+    },
+
+    pauseParallelTimer: (taskId) => {
+      const snapshot = parallelTimerEngine.getSnapshot(taskId);
+      const sessionId = snapshot?.sessionId ?? null;
+      const now = Date.now();
+      const opId = createOpId();
+
+      const res = parallelTimerEngine.pause(taskId, now);
+      if (!res.success) {
+        if (res.error) toast.error('Timer Error', res.error);
+        return;
+      }
+
+      set(s => ({
+        tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'paused' } : t),
+      }));
+
+      if (sessionId) {
+        api.sessions.pause(sessionId, now, opId).catch(() => {
+          offlineQueue.enqueue('PAUSE_SESSION', taskId, sessionId, { pauseTime: now }, opId, 'work');
+        });
+      }
+    },
+
+    resumeParallelTimer: (taskId) => {
+      const snapshot = parallelTimerEngine.getSnapshot(taskId);
+      const sessionId = snapshot?.sessionId ?? null;
+      const now = Date.now();
+      const opId = createOpId();
+
+      const res = parallelTimerEngine.resume(taskId, now);
+      if (!res.success) {
+        if (res.error) toast.error('Timer Error', res.error);
+        return;
+      }
+
+      set(s => ({
+        tasks: s.tasks.map(t => t.id === taskId ? { ...t, status: 'active' } : t),
+      }));
+
+      if (sessionId) {
+        api.sessions.resume(sessionId, now, opId).catch(() => {
+          offlineQueue.enqueue('RESUME_SESSION', taskId, sessionId, { resumeTime: now }, opId, 'work');
+        });
+      }
+    },
+
+    stopParallelTimer: async (taskId) => {
+      const snapshot = parallelTimerEngine.getSnapshot(taskId);
+      const sessionId = snapshot?.sessionId ?? null;
+      const now = Date.now();
+      const opId = createOpId();
+
+      const res = await parallelTimerEngine.stop(taskId, now);
+      if (!res.success && res.error !== 'Timer is already idle') {
+        if (res.error) toast.error('Timer Error', res.error);
+        return;
+      }
+
+      set(s => ({
+        tasks: s.tasks.map(t => t.id === taskId ? { ...t } : t),
+      }));
+
+      if (sessionId) {
+        try {
+          await api.sessions.stop(sessionId, now, opId);
+          await get().fetchTasks();
+          get().fetchProfile();
           useWorkLogStore.getState().loadToday().catch(() => {});
         } catch {
           console.warn('Network issue on session stop. Enqueuing offline op.');
@@ -802,14 +959,22 @@ export const useStore = create<StoreState>((set, get) => {
 
     getTodayTime: () => {
       const completedMs = loadTodayMs();
-      const liveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
-      return completedMs + liveMs;
+      // Legacy single-timer elapsed
+      const legacyLiveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
+      // Parallel multi-timer elapsed: sum all running timers
+      const parallelLiveMs = parallelTimerEngine.getRunningTimers()
+        .reduce((sum, t) => sum + parallelTimerEngine.getElapsedMs(t.taskId), 0);
+      return completedMs + legacyLiveMs + parallelLiveMs;
     },
 
     getWeekTime: () => {
       const completedMs = loadWeekMs();
-      const liveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
-      return completedMs + liveMs;
+      // Legacy single-timer elapsed
+      const legacyLiveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
+      // Parallel multi-timer elapsed: sum all running timers
+      const parallelLiveMs = parallelTimerEngine.getRunningTimers()
+        .reduce((sum, t) => sum + parallelTimerEngine.getElapsedMs(t.taskId), 0);
+      return completedMs + legacyLiveMs + parallelLiveMs;
     },
   };
 });

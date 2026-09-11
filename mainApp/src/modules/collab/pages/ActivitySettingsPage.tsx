@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Activity, Check, Mail, Trash2 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Button } from '@shared/components/ui/Button';
 import { Select } from '@shared/components/ui/Select';
 
@@ -34,7 +35,7 @@ const DIGEST_OPTIONS = [
 ];
 
 export function ActivitySettingsPage() {
-  const { workspaceId } = useParams<{ workspaceId: string }>();
+  const workspaceId = useWorkspaceId();
   const navigate = useNavigate();
   const { workspaces } = useCollaborationStore();
   const workspace = workspaces.find((w) => w.id === workspaceId);
@@ -69,15 +70,7 @@ export function ActivitySettingsPage() {
 
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate(`/collab/${workspaceId}/activity`)}
-              className="flex items-center gap-1.5 text-xs font-bold text-surface-400 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-2 rounded-xl border border-surface-800">
-              <ArrowLeft size={14} /> Back
-            </button>
-            <div>
-              <h1 className="font-display font-bold text-sm leading-none text-surface-50">Activity Settings</h1>
-            </div>
-          </div>
+          <h1 className="font-display font-bold text-sm text-surface-50">Activity Settings</h1>
           <AnimatePresence>
             {saved && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}

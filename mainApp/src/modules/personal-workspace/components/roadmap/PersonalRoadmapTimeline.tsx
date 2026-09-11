@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import { CalendarRange, Layers, Minus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CalendarRange, Layers, Minus, BarChart3, Waypoints, ZoomIn, ZoomOut } from 'lucide-react';
 import {
   milestoneAxisX,
+  parseUtc,
   selectTimelineSpan,
   selectTimelineTicks,
   sortMilestonesChronologically,
@@ -29,7 +30,6 @@ interface PersonalRoadmapTimelineProps {
   targetDate?: string | null;
   status?: string | null;
   progress?: number;
-  /** UTC YYYY-MM-DD key for the Today marker; defaults to today. */
   todayKey?: string;
   onOpen: (milestone: RoadmapMilestoneDoc) => void;
 }
@@ -43,8 +43,10 @@ export function PersonalRoadmapTimeline({
   todayKey,
   onOpen,
 }: PersonalRoadmapTimelineProps) {
+  const [viewMode, setViewMode] = useState<'dots' | 'gantt'>('gantt');
+  const [zoomLevel, setZoomLevel] = useState(1);
   const span = useMemo(() => selectTimelineSpan(milestones), [milestones]);
-  const ticks = useMemo(() => (span ? selectTimelineTicks(span) : []), [span]);
+  const ticks = useMemo(() => (span ? selectTimelineTicks(span, Math.round(5 * zoomLevel)) : []), [span, zoomLevel]);
   const { dated, undated } = useMemo(() => splitDatedUndated(milestones), [milestones]);
   const ordered = useMemo(() => sortMilestonesChronologically(milestones), [milestones]);
 
@@ -53,6 +55,27 @@ export function PersonalRoadmapTimeline({
   const health = status !== undefined
     ? getDetailHealth({ status, progress: progress ?? 0, startDate, targetDate })
     : null;
+
+  // Gantt bar calculations
+  const spanStart = span?.min ?? 0;
+  const spanRange = (span?.max ?? 0) - spanStart || 1;
+
+  const getBarPositions = (milestone: RoadmapMilestoneDoc) => {
+    if (!span || !milestone.targetDate) return null;
+    const targetMs = parseUtc(milestone.targetDate);
+    const idx = dated.findIndex(m => m._id === milestone._id);
+    let startMs: number;
+    if (startDate) {
+      startMs = parseUtc(startDate);
+    } else if (idx > 0 && dated[idx - 1].targetDate) {
+      startMs = parseUtc(dated[idx - 1].targetDate!);
+    } else {
+      startMs = spanStart;
+    }
+    const startX = ((startMs - spanStart) / spanRange) * 100;
+    const endX = ((targetMs - spanStart) / spanRange) * 100;
+    return { startX: Math.max(0, startX), endX: Math.min(100, endX) };
+  };
 
   if (milestones.length === 0) {
     return (
@@ -72,6 +95,7 @@ export function PersonalRoadmapTimeline({
 
   const renderRow = (milestone: RoadmapMilestoneDoc) => {
     const x = span ? milestoneAxisX(milestone, span) : null;
+    const bar = getBarPositions(milestone);
     const overdue =
       !!milestone.targetDate &&
       milestone.status !== 'completed' &&
@@ -88,28 +112,42 @@ export function PersonalRoadmapTimeline({
             <span className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[milestone.status] ?? 'bg-surface-600'}`} />
             <span className="truncate text-xs font-bold text-surface-100">{milestone.title}</span>
           </button>
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-surface-500">
+          <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-surface-500">
             {milestone.status}
           </p>
         </div>
 
-        {/* Track: progress fill + date marker */}
-        <div className="relative h-7 flex items-center">
+        {/* Track: Gantt bar or dot */}
+        <div className="relative h-8 flex items-center">
           {todayX !== null && (
             <div
               data-testid="today-marker"
-              className="absolute -top-1 -bottom-1 w-px bg-brand-400/70"
+              className="absolute -top-1 -bottom-1 w-px bg-brand-400/70 z-10"
               style={{ left: `${todayX}%` }}
               title="Today"
             />
           )}
-          <div className="absolute inset-x-0 h-2.5 rounded-full bg-surface-800 overflow-hidden">
-            <div
-              className={`h-full rounded-full ${milestone.progress === 100 ? 'bg-success-500' : 'bg-brand-500'} transition-all duration-500`}
-              style={{ width: `${milestone.progress}%` }}
-            />
-          </div>
-          {x !== null ? (
+          {viewMode === 'gantt' && bar ? (
+            // Gantt bar
+            <div className="absolute inset-y-0 flex items-center" style={{ left: `${bar.startX}%`, width: `${bar.endX - bar.startX}%` }}>
+              <div className={`w-full h-5 rounded-md relative overflow-hidden ${
+                milestone.status === 'completed' ? 'bg-emerald-500/25 border border-emerald-500/40' :
+                overdue ? 'bg-red-500/20 border border-red-500/40' :
+                'bg-brand-500/20 border border-brand-500/30'
+              }`}>
+                <div
+                  className={`absolute inset-y-0 left-0 rounded-l-md transition-all duration-500 ${
+                    milestone.status === 'completed' ? 'bg-emerald-500/60' : 'bg-brand-500/60'
+                  }`}
+                  style={{ width: `${milestone.progress}%` }}
+                />
+                <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-surface-200 z-10">
+                  {milestone.progress}%
+                </span>
+              </div>
+            </div>
+          ) : x !== null ? (
+            // Dot marker
             <div
               className={`absolute top-1 bottom-1 w-0.5 rounded ${overdue ? 'bg-red-400' : 'bg-surface-300'}`}
               style={{ left: `${x}%`, transform: 'translateX(-50%)' }}
@@ -143,23 +181,41 @@ export function PersonalRoadmapTimeline({
   return (
     <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 overflow-x-auto">
       <div className="min-w-[720px] space-y-4">
-        {/* Roadmap range + health */}
+        {/* Roadmap range + health + controls */}
         {(rangeLabel || health) && (
           <div className="flex items-center justify-between gap-3">
             {rangeLabel && (
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-surface-500">
                 <CalendarRange size={13} />
                 Roadmap range · {rangeLabel}
               </div>
             )}
-            {health && (
-              <span
-                title={health.description}
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${health.className} ${health.color}`}
-              >
-                {health.label}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {health && (
+                <span
+                  title={health.description}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${health.className} ${health.color}`}
+                >
+                  {health.label}
+                </span>
+              )}
+              <div className="flex items-center gap-0.5 bg-surface-800 rounded-lg p-0.5">
+                <button onClick={() => setViewMode('gantt')} className={`p-1.5 rounded-md text-xs transition-colors ${viewMode === 'gantt' ? 'bg-brand-500/20 text-brand-400' : 'text-surface-500 hover:text-surface-300'}`} title="Gantt view">
+                  <BarChart3 size={13} />
+                </button>
+                <button onClick={() => setViewMode('dots')} className={`p-1.5 rounded-md text-xs transition-colors ${viewMode === 'dots' ? 'bg-brand-500/20 text-brand-400' : 'text-surface-500 hover:text-surface-300'}`} title="Dot view">
+                  <Waypoints size={13} />
+                </button>
+              </div>
+              <div className="flex items-center gap-0.5 bg-surface-800 rounded-lg p-0.5">
+                <button onClick={() => setZoomLevel(z => Math.max(0.5, z - 0.25))} className="p-1.5 rounded-md text-surface-500 hover:text-surface-300 transition-colors" title="Zoom out">
+                  <ZoomOut size={13} />
+                </button>
+                <button onClick={() => setZoomLevel(z => Math.min(3, z + 0.25))} className="p-1.5 rounded-md text-surface-500 hover:text-surface-300 transition-colors" title="Zoom in">
+                  <ZoomIn size={13} />
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -240,7 +240,7 @@ function requireWorklogPermission(permission) {
       // Resolve task (if taskRef is set)
       let task = null;
       if (log.taskRef) {
-        task = await Task.findById(log.taskRef).select('workspaceRef projectRef userId assigneeId');
+        task = await Task.findById(log.taskRef).select('workspaceRef projectRef userId assigneeIds');
         if (task) {
           req.task = task;
         }

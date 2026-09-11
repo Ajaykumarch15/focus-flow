@@ -320,13 +320,13 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'Acme', slug: 'acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],
     });
     mocks.wsUpdate.mockResolvedValue({
-      id: 'ws-1', name: 'Acme AI', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
+      id: 'ws-1', name: 'Acme AI', slug: 'acme-ai', type: 'Enterprise', icon: '🚀', description: 'new desc', membersCount: 1, projectsCount: 0,
       createdAt: '2026-01-01T00:00:00.000Z',
       settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
     } as any);
@@ -345,7 +345,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'Acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'Acme', slug: 'acme', type: 'Startup', icon: '⚡', description: 'old', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],
@@ -362,8 +362,8 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [
-        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
-        { id: 'ws-2', name: 'B', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-2', name: 'B', slug: 'b', type: 'Startup', icon: '🏢', description: '', membersCount: 2, projectsCount: 1, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
       ],
     });
     mocks.wsRemove.mockResolvedValue({ message: 'Workspace deleted' } as any);
@@ -380,7 +380,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [
-        { id: 'ws-1', name: 'A', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
+        { id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '🏢', description: '', membersCount: 1, projectsCount: 0, createdAt: '2026-01-01T00:00:00.000Z', settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' } },
       ],
     });
     mocks.wsRemove.mockRejectedValue(new Error('boom'));
@@ -488,7 +488,7 @@ describe('useCollaborationStore optimistic mutations (IES-P2-07)', () => {
     useCollaborationStore.setState({
       activeWorkspaceId: 'ws-1',
       workspaces: [{
-        id: 'ws-1', name: 'A', type: 'Startup', icon: '⚡', description: '', membersCount: 1, projectsCount: 0,
+        id: 'ws-1', name: 'A', slug: 'a', type: 'Startup', icon: '⚡', description: '', membersCount: 1, projectsCount: 0,
         createdAt: '2026-01-01T00:00:00.000Z',
         settings: { allowMemberInvites: true, requireReviewForDone: false, autoSyncTimerWorkLogs: true, defaultVisibility: 'Workspace' },
       }],
@@ -545,7 +545,7 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     const optimistic = useCollaborationStore.getState().tasks.find((t) => t.id.startsWith('ct-'));
     expect(optimistic).toBeDefined();
     expect(optimistic?.ownerId).toBe('u-1');
-    expect(optimistic?.assigneeId).toBe('u-1');
+    expect(optimistic?.assigneeIds).toContain('u-1');
     expect(optimistic?.followerIds).toEqual(['u-1']);
 
     const created = await promise;
@@ -625,32 +625,32 @@ describe('useCollaborationStore optimistic collab actions (IES-R1)', () => {
     useCollaborationStore.setState({
       tasks: [{
         id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
-        priority: 'medium', ownerId: 'u-1', assigneeId: 'm-1', followerIds: [], labels: [], dependencies: [],
+        priority: 'medium', ownerId: 'u-1', assigneeIds: ['m-1'], followerIds: [], labels: [], dependencies: [],
         estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
       }],
     });
     mocks.taskUpdate.mockResolvedValue({} as any);
 
-    const promise = useCollaborationStore.getState().assignTask('t1', 'm-2');
-    expect(useCollaborationStore.getState().tasks[0].assigneeId).toBe('m-2');
+    const promise = useCollaborationStore.getState().assignTask('t1', ['m-2']);
+    expect(useCollaborationStore.getState().tasks[0].assigneeIds).toEqual(['m-2']);
 
     await promise;
-    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { assigneeId: 'm-2' });
+    expect(mocks.taskUpdate).toHaveBeenCalledWith('t1', { assigneeIds: ['m-2'] });
   });
 
   it('assignTask rolls back the assignee on failure', async () => {
     useCollaborationStore.setState({
       tasks: [{
         id: 't1', workspaceId: 'ws-1', projectId: 'p1', title: 'T', description: '', sprintStatus: 'backlog',
-        priority: 'medium', ownerId: 'u-1', assigneeId: 'm-1', followerIds: [], labels: [], dependencies: [],
+        priority: 'medium', ownerId: 'u-1', assigneeIds: ['m-1'], followerIds: [], labels: [], dependencies: [],
         estimatedHours: 8, actualHours: 0, subtasks: [], createdAt: '2026-01-01', updatedAt: '2026-01-01',
       }],
     });
     mocks.taskUpdate.mockRejectedValue(new Error('boom'));
 
-    await useCollaborationStore.getState().assignTask('t1', 'm-2');
+    await useCollaborationStore.getState().assignTask('t1', ['m-2']);
 
-    expect(useCollaborationStore.getState().tasks[0].assigneeId).toBe('m-1');
+    expect(useCollaborationStore.getState().tasks[0].assigneeIds).toEqual(['m-1']);
   });
 
   // EEP2-P5.1.3 · subtask CRUD + toggle (DDS §4.10).

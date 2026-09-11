@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Plus, Bell } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
+import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { Priority } from '@shared/types';
 import { TASK_COLORS, CATEGORIES } from '@shared/utils/colors';
 import { Button } from '@shared/components/ui/Button';
@@ -17,6 +18,8 @@ interface CreateTaskModalProps {
 export function CreateTaskModal({ onClose, onAddTask }: CreateTaskModalProps) {
   const storeAddTask = useStore((s) => s.addTask);
   const addTask = onAddTask ?? storeAddTask;
+  const activeLogs = useWorkLogStore((s) => s.activeLogs);
+  const linkTask = useWorkLogStore((s) => s.linkTask);
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -27,12 +30,13 @@ export function CreateTaskModal({ onClose, onAddTask }: CreateTaskModalProps) {
     reminderMinutesBefore: 0,
     color: TASK_COLORS[0],
     tags: '',
+    worklogId: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    addTask({
+    const newTaskId = await addTask({
       title: form.title,
       description: form.description,
       priority: form.priority,
@@ -44,7 +48,11 @@ export function CreateTaskModal({ onClose, onAddTask }: CreateTaskModalProps) {
       color: form.color,
       tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
       subtasks: [],
-    });
+      skipWorkLogCreation: !!form.worklogId,
+    } as any);
+    if (form.worklogId && newTaskId) {
+      await linkTask(form.worklogId, newTaskId);
+    }
     onClose();
   };
 
@@ -182,6 +190,23 @@ export function CreateTaskModal({ onClose, onAddTask }: CreateTaskModalProps) {
               onChange={e => setForm(p => ({ ...p, tags: e.target.value }))}
             />
           </div>
+
+          {activeLogs.length > 0 && (
+            <div>
+              <label className="block text-sm font-semibold text-surface-200 mb-1.5">Link to Work Log</label>
+              <Select
+                className="h-12 rounded-[14px]"
+                value={form.worklogId}
+                onChange={e => setForm(p => ({ ...p, worklogId: e.target.value }))}
+              >
+                <option value="">None (auto-create new)</option>
+                {activeLogs.map(log => (
+                  <option key={log._id} value={log._id}>{log.title}</option>
+                ))}
+              </Select>
+              <p className="text-[10px] text-surface-500 mt-1">Optionally link this task to an existing work log.</p>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <Button type="button" variant="secondary" onClick={onClose} className="flex-1">

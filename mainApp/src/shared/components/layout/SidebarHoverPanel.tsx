@@ -79,7 +79,7 @@ export function SidebarHoverPanel({
           onMouseEnter={onMouseEnter}
           onMouseLeave={onMouseLeave}
           className="fixed z-50 w-[220px] bg-surface-900 border border-surface-800 rounded-xl shadow-lg overflow-hidden"
-          style={{ left: 60, top: Math.max(8, topOffset) }}
+          style={{ left: 60, top: Math.min(Math.max(8, topOffset), window.innerHeight - 200) }}
         >
           {/* Header: Main nav item */}
           <NavLink

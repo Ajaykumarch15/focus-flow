@@ -169,11 +169,26 @@ router.delete('/unlink-task/:taskId', async (req, res, next) => {
 
 // ── ANALYTICS ────────────────────────────────────────────────────────────────
 
-// GET /api/personal-roadmaps/analytics?days=30
+// GET /api/personal-roadmaps/analytics?days=30&from=2026-01-01&to=2026-01-31
 router.get('/analytics', async (req, res, next) => {
   try {
     const days = parseInt(req.query.days, 10) || 0;
-    const sinceDate = days > 0 ? new Date(Date.now() - days * 86400000) : null;
+    const fromDate = req.query.from ? new Date(req.query.from) : null;
+    const toDate = req.query.to ? new Date(req.query.to) : null;
+
+    let sinceDate;
+    let beforeDate;
+    if (fromDate && toDate) {
+      sinceDate = fromDate;
+      beforeDate = new Date(toDate.getTime() + 86400000);
+    } else if (days > 0) {
+      sinceDate = new Date(Date.now() - days * 86400000);
+      beforeDate = null;
+    } else {
+      sinceDate = null;
+      beforeDate = null;
+    }
+
     const userId = req.user._id;
 
     const roadmaps = await PersonalRoadmap.find({ userId }).sort({ createdAt: -1 });
@@ -193,6 +208,11 @@ router.get('/analytics', async (req, res, next) => {
     const idIn = { $in: roadmapIds };
     const startOfToday = new Date(new Date().setHours(0, 0, 0, 0));
 
+    // Build date filter for windowed queries
+    const dateFilter = {};
+    if (sinceDate) dateFilter.$gte = sinceDate;
+    if (beforeDate) dateFilter.$lt = beforeDate;
+
     const [
       phases,
       msByRoadmap,
@@ -204,6 +224,8 @@ router.get('/analytics', async (req, res, next) => {
       todayTasks,
       todayMilestones,
       windowedMilestones,
+      categoryBreakdown,
+      topTasksByTime,
     ] = await Promise.all([
       PersonalRoadmapPhase.find({ userId, roadmapId: idIn }),
       PersonalRoadmapMilestone.aggregate([
@@ -228,7 +250,7 @@ router.get('/analytics', async (req, res, next) => {
           userId,
           personalRoadmapRef: idIn,
           status: 'completed',
-          updatedAt: { $ne: null, ...(sinceDate ? { $gte: sinceDate } : {}) },
+          updatedAt: { $ne: null, ...(Object.keys(dateFilter).length ? dateFilter : {}) },
         } },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' } }, count: { $sum: 1 } } },
       ]),
@@ -249,9 +271,27 @@ router.get('/analytics', async (req, res, next) => {
           userId,
           roadmapId: idIn,
           status: 'completed',
-          ...(sinceDate ? { updatedAt: { $gte: sinceDate } } : {}),
+          ...(Object.keys(dateFilter).length ? { updatedAt: dateFilter } : {}),
         } },
         { $group: { _id: null, count: { $sum: 1 } } },
+      ]),
+      // Category breakdown: group tasks by category
+      PersonalTask.aggregate([
+        { $match: { userId, personalRoadmapRef: idIn } },
+        { $group: {
+          _id: { $ifNull: ['$category', 'Uncategorized'] },
+          totalTasks: { $sum: 1 },
+          completedTasks: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
+          focusedTimeMs: { $sum: { $ifNull: ['$totalTime', 0] } },
+        } },
+        { $sort: { focusedTimeMs: -1 } },
+      ]),
+      // Top tasks by focused time
+      PersonalTask.aggregate([
+        { $match: { userId, personalRoadmapRef: idIn, totalTime: { $gt: 0 } } },
+        { $sort: { totalTime: -1 } },
+        { $limit: 10 },
+        { $project: { title: 1, totalTime: 1, status: 1, category: 1, priority: 1 } },
       ]),
     ]);
 
@@ -358,6 +398,20 @@ router.get('/analytics', async (req, res, next) => {
           : completedTasks,
       },
       recentActivity,
+      categoryBreakdown: categoryBreakdown.map(c => ({
+        category: c._id,
+        totalTasks: c.totalTasks,
+        completedTasks: c.completedTasks,
+        focusedTimeMs: c.focusedTimeMs,
+      })),
+      topTasksByTime: topTasksByTime.map(t => ({
+        _id: t._id,
+        title: t.title,
+        totalTime: t.totalTime,
+        status: t.status,
+        category: t.category,
+        priority: t.priority,
+      })),
     });
   } catch (err) {
     next(err);

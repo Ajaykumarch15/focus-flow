@@ -109,11 +109,12 @@ function can(user, permission, context) {
     }
 
     // ── EDIT ─────────────────────────────────────────────────────────────
-    // Owner/Admin, PM, Assignee (execution fields), Reviewer (review fields).
+    // Owner/Admin, PM, Project Member, Assignee (execution fields), Reviewer (review fields).
     // Team Leader can edit tasks in their team.
     case TASK.EDIT: {
       if (isWsAdmin) return true;
       if (isProjectMgr) return true;
+      if (isProjectMbr) return true;
       if (assignee) return true;
       if (reviewer) return true;
       if (context.team && isTeamLeader(user, context.team)) return true;

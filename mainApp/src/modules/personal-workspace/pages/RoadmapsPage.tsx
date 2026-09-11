@@ -1,20 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Map, Plus, Calendar, Target, Clock, ArrowRight, Zap,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award,
-  AlertCircle,
+  AlertCircle, Search, X,
 } from 'lucide-react';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
+import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { formatMs } from '@shared/utils/time';
 import {
   ROADMAP_TYPE_LABELS,
+  ROADMAP_STATUS_LABELS,
 } from '../types/roadmap';
 import { CreateRoadmapModal } from '@personal/components/roadmap/CreateRoadmapModal';
 import { safeProgress, getListHealth } from '@personal/services/roadmapProgress';
@@ -51,11 +53,13 @@ export function RoadmapsPage() {
   const navigate = useNavigate();
   const { roadmaps, loading, error, loadRoadmaps } = useRoadmapStore();
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'progress' | 'target'>('newest');
 
   useEffect(() => { loadRoadmaps(); }, [loadRoadmaps]);
 
-  // Refresh list when user returns to this page (e.g. after completing tasks in
-  // a roadmap detail) so progress bars and health badges are always current.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') loadRoadmaps();
@@ -63,6 +67,20 @@ export function RoadmapsPage() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [loadRoadmaps]);
+
+  const filteredRoadmaps = useMemo(() => {
+    let result = [...roadmaps];
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(r => r.title.toLowerCase().includes(q) || r.description?.toLowerCase().includes(q));
+    }
+    if (typeFilter !== 'all') result = result.filter(r => r.type === typeFilter);
+    if (statusFilter !== 'all') result = result.filter(r => r.status === statusFilter);
+    if (sortBy === 'progress') result.sort((a, b) => (b.progress || 0) - (a.progress || 0));
+    else if (sortBy === 'target') result.sort((a, b) => (a.targetDate || '9999').localeCompare(b.targetDate || '9999'));
+    else result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return result;
+  }, [roadmaps, search, typeFilter, statusFilter, sortBy]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-6">
@@ -115,11 +133,53 @@ export function RoadmapsPage() {
         />
       )}
 
-      {/* Roadmap Grid */}
+      {/* Search + Filters */}
       {!loading && !error && roadmaps.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+          className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 max-w-xs">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search roadmaps..."
+                className="pl-9 h-9 text-xs"
+              />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+              <option value="all">All Types</option>
+              {Object.entries(ROADMAP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+              <option value="all">All Status</option>
+              {Object.entries(ROADMAP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+              <option value="newest">Newest</option>
+              <option value="progress">Progress</option>
+              <option value="target">Target Date</option>
+            </select>
+          </div>
+          {filteredRoadmaps.length !== roadmaps.length && (
+            <p className="text-[11px] text-surface-500">{filteredRoadmaps.length} of {roadmaps.length} roadmaps</p>
+          )}
+        </motion.div>
+      )}
+
+      {/* Roadmap Grid */}
+      {!loading && !error && filteredRoadmaps.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           <AnimatePresence mode="popLayout">
-            {roadmaps.map((roadmap, i) => {
+            {filteredRoadmaps.map((roadmap, i) => {
               const Icon = ICON_MAP[roadmap.icon] || Map;
               const health = getListHealth(roadmap);
               const progress = safeProgress(roadmap.progress);
@@ -226,6 +286,18 @@ export function RoadmapsPage() {
             })}
           </AnimatePresence>
         </div>
+      )}
+
+      {/* Filtered empty state */}
+      {!loading && !error && roadmaps.length > 0 && filteredRoadmaps.length === 0 && (
+        <Card className="p-8 text-center">
+          <Search className="mx-auto mb-3 text-surface-600" size={28} />
+          <p className="text-sm text-surface-300 font-medium mb-1">No roadmaps match your filters</p>
+          <p className="text-xs text-surface-500 mb-3">Try adjusting your search or filter criteria.</p>
+          <Button variant="secondary" size="sm" onClick={() => { setSearch(''); setTypeFilter('all'); setStatusFilter('all'); }}>
+            Clear Filters
+          </Button>
+        </Card>
       )}
 
       {showCreate && <CreateRoadmapModal onClose={() => setShowCreate(false)} />}

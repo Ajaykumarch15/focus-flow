@@ -34,6 +34,7 @@ export interface WorkspaceTeam {
 
 export interface Workspace {
   id: string;
+  slug: string;
   name: string;
   type: WorkspaceType;
   icon: string;
@@ -240,7 +241,7 @@ export interface CollaborativeTask {
   sprintStatus: SprintStatus;
   priority: 'low' | 'medium' | 'high' | 'urgent';
   ownerId: string;
-  assigneeId?: string;
+  assigneeIds?: string[];
   reviewerId?: string;
   followerIds: string[];
   labels: string[];

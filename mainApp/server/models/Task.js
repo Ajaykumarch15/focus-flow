@@ -29,7 +29,7 @@ const taskSchema = new mongoose.Schema(
     projectRef:   { type: mongoose.Schema.Types.ObjectId, ref: 'Project',   default: null },
     sprintRef:    { type: mongoose.Schema.Types.ObjectId, ref: 'Sprint',    default: null },
     featureRef:   { type: mongoose.Schema.Types.ObjectId, ref: 'Feature',   default: null },
-    assigneeId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User',      default: null },
+    assigneeIds:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }],
     reviewerId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User',      default: null },
     followerIds:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     labels:       [{ type: String }],
@@ -69,6 +69,7 @@ taskSchema.index({ userId: 1, createdAt: 1 });
 taskSchema.index({ workspaceRef: 1, sprintRef: 1 });
 taskSchema.index({ featureRef: 1 });
 taskSchema.index({ projectRef: 1 });
+taskSchema.index({ assigneeIds: 1 });
 
 // Personal roadmap integration indexes.
 taskSchema.index({ roadmapRef: 1 });

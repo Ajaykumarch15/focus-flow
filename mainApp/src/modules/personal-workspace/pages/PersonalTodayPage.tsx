@@ -10,7 +10,6 @@ import { useAuthStore } from '@shared/services/useAuthStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
-import { cn } from '@shared/utils/cn';
 import {
   getTodayTasks, getMissedTasks, getUpcomingTasks,
   formatScheduledDate, scheduledStateColor,
@@ -263,20 +262,14 @@ const startTask = (task: Task) => {
 
       {/* KEY METRICS */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat icon={<Clock size={18} className="text-amber-700 dark:text-amber-500" />} label="Today's Focus Time"
-          value={formatHours(todayMs)} sub={`Target: ${profile.personalDailyGoal}h`}
-          gradient="linear-gradient(135deg, #FDE8D0, #F9D4B0)" iconBg="#F5C89A"
-          darkBg="#3A2B1C" darkBorder="#5A4025"
+        <Stat icon={<Clock size={18} style={{ color: '#f59e0b' }} />} label="Today's Focus Time"
+          value={formatHours(todayMs)} sub={`Target: ${profile.personalDailyGoal}h`} color="#f59e0b"
           onExpand={() => navigate('/personal/analytics')} />
-        <Stat icon={<CheckCircle size={18} className="text-blue-700 dark:text-blue-500" />} label="Completed Today"
-          value={String(completedToday)} sub="Tasks done"
-          gradient="linear-gradient(135deg, #D4E8FD, #B0D4F9)" iconBg="#9AC4F5"
-          darkBg="#1D3045" darkBorder="#294765"
+        <Stat icon={<CheckCircle size={18} style={{ color: '#3b82f6' }} />} label="Completed Today"
+          value={String(completedToday)} sub="Tasks done" color="#3b82f6"
           onExpand={() => navigate('/personal/analytics')} />
-        <Stat icon={<ListTodo size={18} className="text-purple-700 dark:text-purple-500" />} label="Scheduled Today"
-          value={String(todayTasks.length)} sub="Tasks planned"
-          gradient="linear-gradient(135deg, #E8D4FD, #D4B0F9)" iconBg="#C49AF5"
-          darkBg="#30213D" darkBorder="#49305D"
+        <Stat icon={<ListTodo size={18} style={{ color: '#a855f7' }} />} label="Scheduled Today"
+          value={String(todayTasks.length)} sub="Tasks planned" color="#a855f7"
           onExpand={() => navigate('/personal/analytics')} />
       </motion.div>
 
@@ -494,9 +487,8 @@ const startTask = (task: Task) => {
 // Sub-components
 // ══════════════════════════════════════════════════════════════════════════════
 
-function Stat({ icon, label, value, sub, gradient, iconBg, darkBg, darkBorder, onExpand }: {
-  icon: ReactNode; label: string; value: string; sub?: string;
-  gradient: string; iconBg: string; darkBg: string; darkBorder: string; onExpand?: () => void;
+function Stat({ icon, label, value, sub, color, onExpand }: {
+  icon: ReactNode; label: string; value: string; sub?: string; color: string; onExpand?: () => void;
 }) {
   const numMatch = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
   const numPart = numMatch ? parseFloat(numMatch[1]) : null;
@@ -504,30 +496,32 @@ function Stat({ icon, label, value, sub, gradient, iconBg, darkBg, darkBorder, o
 
   return (
     <motion.div variants={fadeUp}
-      className={cn(
-        'rounded-[20px] border border-transparent p-5 relative overflow-hidden cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-transform',
-        `dark:bg-[${darkBg}] dark:border-[${darkBorder}]`,
-      )}
-      style={{ background: gradient }}
+      className="rounded-2xl p-5 relative overflow-hidden transition-all hover:scale-[1.02] cursor-pointer"
+      style={{
+        background: `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`,
+        border: `1px solid ${color}40`,
+      }}
       onClick={onExpand}>
+      <div className="absolute top-0 right-0 w-32 h-32 opacity-20 pointer-events-none rounded-bl-full"
+        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
       <div className="flex items-center justify-between mb-4">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: iconBg }}>
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}25` }}>
           {icon}
         </div>
         <button
-          className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center text-black/30 dark:text-white/30 hover:text-black/50 dark:hover:text-white/50 hover:bg-black/10 dark:hover:bg-white/15 transition-colors"
+          className="opacity-30 hover:opacity-60 transition-opacity"
           onClick={(e) => { e.stopPropagation(); onExpand?.(); }}
           aria-label={`View ${label} details`}>
-          <ArrowUpRight size={14} />
+          <ArrowUpRight size={16} style={{ color }} />
         </button>
       </div>
-      <p className="text-sm font-semibold text-black/50 dark:text-[#AAB4C0] mb-1">{label}</p>
-      <p className="text-3xl lg:text-4xl font-display font-extrabold text-black/80 dark:text-white leading-none">
+      <p className="text-[13px] font-semibold mb-1" style={{ color: `${color}cc` }}>{label}</p>
+      <p className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 mb-0.5 leading-none">
         {numPart !== null
           ? <KpiCounter value={numPart} suffix={suffix} duration={700} />
           : value}
       </p>
-      {sub && <p className="text-xs text-black/40 dark:text-[#8793A3] mt-2">{sub}</p>}
+      {sub && <p className="text-xs text-surface-400 mt-2">{sub}</p>}
     </motion.div>
   );
 }

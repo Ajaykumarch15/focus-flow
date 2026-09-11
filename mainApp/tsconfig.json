@@ -20,6 +20,7 @@
       "@personal/*": ["src/modules/personal-workspace/*"],
       "@worklog/*": ["src/modules/worklog/*"],
       "@collab/*": ["src/modules/collab/*"],
+      "@meetings/*": ["src/modules/meetings/*"],
       "@shared/*": ["src/shared/*"],
       "@/*": ["src/*"]
     }

@@ -64,9 +64,18 @@ export interface ThemeSettings {
   reducedMotion: boolean;
 }
 
+export interface SocialLinks {
+  website?: string;
+  github?: string;
+  twitter?: string;
+  linkedin?: string;
+}
+
 export interface UserProfile {
   name: string;
   avatar?: string;
+  bio?: string;
+  socialLinks?: SocialLinks;
   dailyGoal: number;
   personalDailyGoal: number;
   timezone: string;
@@ -79,15 +88,47 @@ export interface UserProfile {
   leaderboardOptIn: boolean;
 }
 
+export interface PublicProfile {
+  _id: string;
+  name: string;
+  avatar?: string;
+  bio?: string;
+  socialLinks?: SocialLinks;
+  joinedAt: string;
+  streak: { current: number; best: number };
+  totalPoints: number;
+  leaderboardOptIn: boolean;
+}
+
+export interface ProfileActivityItem {
+  type: 'task_completed' | 'session_logged';
+  title: string;
+  date: string;
+  durationMs?: number;
+}
+
+export interface ProfileStats {
+  totalFocusMs: number;
+  tasksCompleted: number;
+  sessionsCount: number;
+  dailyHours: Record<string, number>;
+  recentActivity: ProfileActivityItem[];
+  rank?: number | null;
+}
+
 export interface AppState {
   tasks: Task[];
   journals: JournalEntry[];
   theme: ThemeSettings;
   profile: UserProfile;
-  activeTaskId: string | null;
-  activeTimerState: TimerState;
+  activeTaskId: string | null;  // Legacy: single active task
+  activeTimerState: TimerState; // Legacy: single timer state
   currentSessionStart?: number;
   currentPauseStart?: number;
+
+  // Parallel timer support
+  activeTimers: Record<string, TimerState>;  // taskId -> timer state
+  activeTaskIds: string[];                    // list of all running task IDs
 }
 
 export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'missed' | 'cancelled';
@@ -109,7 +150,7 @@ export interface ScheduleNotification {
 
 export interface ScheduleItem {
   _id: string;
-  userId: string;
+  userId: string | { _id: string; name: string; email: string; avatar?: string };
   taskId: Task | string;
   date: string; // "YYYY-MM-DD"
   startTime: string; // "HH:mm"
@@ -118,22 +159,29 @@ export interface ScheduleItem {
   notes?: string;
   recurrence?: ScheduleRecurrence;
   actualTimeMs?: number;
+  workspaceId?: string | null;
+  projectId?: string | null;
+  assignedBy?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
 
 export interface ScheduleCreatePayload {
   taskId: string;
+  userId?: string;
   date: string;
   startTime: string;
   endTime: string;
   notes?: string;
   status?: ScheduleStatus;
   recurrence?: ScheduleRecurrence;
+  workspaceId?: string | null;
+  projectId?: string | null;
 }
 
 export interface ScheduleUpdatePayload {
   taskId?: string;
+  userId?: string;
   date?: string;
   startTime?: string;
   endTime?: string;
