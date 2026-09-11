@@ -103,7 +103,7 @@ export function ProfileHeatmap({ dailyHours }: ProfileHeatmapProps) {
       </div>
 
       {/* Month labels */}
-      <div className="flex gap-[3px] ml-6 mb-1">
+      <div className="flex gap-[3px] ml-6 mb-1 overflow-x-auto">
         {monthLabels.map((m, i) => (
           <span
             key={`${m.label}-${i}`}
@@ -126,7 +126,7 @@ export function ProfileHeatmap({ dailyHours }: ProfileHeatmapProps) {
         </div>
 
         {/* Grid */}
-        <div className="flex gap-[3px]">
+        <div className="flex gap-[3px] overflow-x-auto">
           {weeks.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-[3px]">
               {week.map((day, di) => (

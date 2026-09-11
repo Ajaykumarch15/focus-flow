@@ -26,8 +26,39 @@ const STATUS_COLORS: Record<string, string> = {
   'done': '#22c55e',
 };
 
+const SEVERITY_COLORS: Record<string, { bg: string; text: string }> = {
+  low: { bg: '#f0fdf4', text: '#22c55e' },
+  medium: { bg: '#fffbeb', text: '#f59e0b' },
+  high: { bg: '#fff7ed', text: '#f97316' },
+  critical: { bg: '#fef2f2', text: '#ef4444' },
+};
+
+const BLOCKER_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  open: { bg: '#fef2f2', text: '#ef4444' },
+  investigating: { bg: '#fffbeb', text: '#f59e0b' },
+  blocked: { bg: '#fef2f2', text: '#ef4444' },
+  resolved: { bg: '#f0fdf4', text: '#22c55e' },
+};
+
+const TIMELINE_TYPE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  work: { bg: '#e0f2fe', text: '#0ea5e9', label: 'Work' },
+  blocker: { bg: '#fef2f2', text: '#ef4444', label: 'Blocker' },
+  decision: { bg: '#eef2ff', text: '#6366f1', label: 'Decision' },
+  milestone: { bg: '#f0fdf4', text: '#22c55e', label: 'Milestone' },
+};
+
+const MOOD_EMOJIS = ['', '😫', '😕', '😐', '🙂', '🤩'];
+
+const TYPE_ICONS: Record<string, string> = {
+  file: '📄',
+  image: '🖼️',
+  link: '🔗',
+  video: '🎬',
+  other: '📎',
+};
+
 export function renderDeveloperDoc(doc: DocumentModel): string {
-  const { meta, sections, milestones, workEntries, links, stats } = doc;
+  const { meta, sections, milestones, workEntries, links, stats, timeline, decisions, blockerList, tomorrowPlan, reflection, attachments, tags } = doc;
   const statusColor = STATUS_COLORS[meta.status] || '#0ea5e9';
 
   return `<!DOCTYPE html>
@@ -58,6 +89,8 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     --yellow-light: #fffbeb;
     --purple: #a855f7;
     --purple-light: #faf5ff;
+    --orange: #f97316;
+    --orange-light: #fff7ed;
     --code-bg: #f1f5f9;
     --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     --mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -140,6 +173,24 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     color: var(--text-secondary);
   }
   .cover-meta strong { color: var(--text); }
+  .cover-tags {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 16px;
+  }
+  .cover-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+  }
   .cover-footer {
     position: absolute;
     bottom: 40px;
@@ -222,7 +273,7 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
   /* ── Stats Grid ──────────────────────────────────────────────── */
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
     margin-bottom: 40px;
   }
@@ -331,6 +382,255 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
   }
   .link-item:hover { background: var(--brand-light); }
 
+  /* ── Decisions ───────────────────────────────────────────────── */
+  .decision-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: var(--surface);
+  }
+  .decision-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .decision-field {
+    margin-bottom: 6px;
+  }
+  .decision-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+  }
+  .decision-value {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ── Blocker Table ───────────────────────────────────────────── */
+  .blocker-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .blocker-table th {
+    padding: 10px 12px;
+    background: var(--surface);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-secondary);
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+  }
+  .blocker-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .severity-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .blocker-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ── Activity Timeline ───────────────────────────────────────── */
+  .activity-entry {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .activity-entry:last-child { border-bottom: none; }
+  .activity-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .activity-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .activity-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .activity-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  .activity-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ── Reflection ──────────────────────────────────────────────── */
+  .reflection-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .reflection-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    background: var(--surface);
+  }
+  .reflection-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .reflection-text {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 12px;
+  }
+
+  /* ── Attachments ─────────────────────────────────────────────── */
+  .attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .attachment-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    background: var(--accent-light);
+  }
+  .attachment-info { flex: 1; min-width: 0; }
+  .attachment-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attachment-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attachment-type {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    background: var(--accent-light);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  /* ── Tomorrow Plan ───────────────────────────────────────────── */
+  .tomorrow-card {
+    border: 2px solid var(--brand);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .tomorrow-header {
+    background: var(--brand-light);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tomorrow-header-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--brand);
+  }
+  .tomorrow-body { padding: 16px; }
+  .tomorrow-priority {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: var(--brand-light);
+    border-radius: 8px;
+    border-left: 3px solid var(--brand);
+  }
+  .tomorrow-items {
+    margin-bottom: 12px;
+  }
+  .tomorrow-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .tomorrow-check {
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    border: 1.5px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tomorrow-attention {
+    font-size: 12px;
+    color: var(--yellow);
+    padding: 8px 12px;
+    background: var(--yellow-light);
+    border-radius: 6px;
+    border-left: 3px solid var(--yellow);
+  }
+
   /* ── Prose ────────────────────────────────────────────────────── */
   .prose h1 { font-size: 20px; font-weight: 700; margin: 24px 0 12px; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
   .prose h2 { font-size: 17px; font-weight: 700; margin: 20px 0 10px; color: var(--text); }
@@ -395,6 +695,10 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     <span><strong>Last Updated:</strong> ${escapeHtml(meta.updatedAt)}</span>
     <span><strong>Generated:</strong> ${escapeHtml(meta.generatedAt)}</span>
   </div>
+  ${tags.length > 0 ? `
+  <div class="cover-tags">
+    ${tags.map(t => `<span class="cover-tag">${escapeHtml(t)}</span>`).join('')}
+  </div>` : ''}
   <div class="cover-footer">Generated by FocusFlow · Engineering Documentation Generator</div>
 </div>
 
@@ -425,7 +729,8 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     </div>
     <div class="section-body prose">
       <p>This document describes the implementation of <strong>${escapeHtml(meta.featureName)}</strong> for <strong>${escapeHtml(meta.projectName)}</strong>. The work log captures the engineering process from problem definition through implementation, including architecture decisions, progress tracking, and completion status.</p>
-      ${stats.blockersPresent ? '<p><strong>Note:</strong> There are active blockers that may impact delivery timeline.</p>' : ''}
+      ${stats.blockersPresent ? `<p><strong>Note:</strong> There are ${stats.openBlockerCount} active blocker(s) that may impact delivery timeline.</p>` : ''}
+      ${stats.decisionCount > 0 ? `<p><strong>${stats.decisionCount}</strong> technical decision(s) have been recorded.</p>` : ''}
     </div>
   </div>
 
@@ -453,10 +758,14 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
         <div class="stat-label">Total Time</div>
       </div>
       <div class="stat-card">
+        <div class="stat-value" style="color:var(--accent);">${stats.decisionCount}</div>
+        <div class="stat-label">Decisions</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-value" style="color:${stats.blockersPresent ? 'var(--red)' : 'var(--green)'};">
-          ${stats.blockersPresent ? 'Yes' : 'None'}
+          ${stats.openBlockerCount > 0 ? stats.openBlockerCount : 'None'}
         </div>
-        <div class="stat-label">Blockers</div>
+        <div class="stat-label">Open Blockers</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color:var(--accent);">${stats.completionPercent}%</div>
@@ -465,7 +774,7 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     </div>
   </div>
 
-  ${sections.filter(s => !s.hidden && s.id !== 'blockers').map(section => `
+  ${sections.filter(s => !s.hidden).map(section => `
   <div class="section">
     <div class="section-header">
       <div class="section-icon" style="background:var(--surface);">${section.icon}</div>
@@ -496,15 +805,148 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
   </div>
   ` : ''}
 
-  <!-- Blockers (only if present) -->
-  ${sections.find(s => s.id === 'blockers' && !s.hidden) ? `
+  <!-- Technical Decisions -->
+  ${decisions.length > 0 ? `
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--accent-light);color:var(--accent);">💡</div>
+      <h2 class="section-title">Technical Decisions</h2>
+    </div>
+    <div class="section-body">
+      ${decisions.map(d => `
+      <div class="decision-card">
+        <div class="decision-title">${escapeHtml(d.title)}</div>
+        ${d.context ? `<div class="decision-field"><div class="decision-label">Context</div><div class="decision-value prose">${renderMd(d.context)}</div></div>` : ''}
+        ${d.decision ? `<div class="decision-field"><div class="decision-label">Decision</div><div class="decision-value prose">${renderMd(d.decision)}</div></div>` : ''}
+        ${d.rationale ? `<div class="decision-field"><div class="decision-label">Rationale</div><div class="decision-value prose">${renderMd(d.rationale)}</div></div>` : ''}
+        ${d.alternatives ? `<div class="decision-field"><div class="decision-label">Alternatives Considered</div><div class="decision-value prose">${renderMd(d.alternatives)}</div></div>` : ''}
+      </div>
+      `).join('')}
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Structured Blockers -->
+  ${blockerList.length > 0 ? `
   <div class="section">
     <div class="section-header">
       <div class="section-icon" style="background:var(--red-light);color:var(--red);">🚧</div>
-      <h2 class="section-title">Current Blockers</h2>
+      <h2 class="section-title">Blockers & Impediments</h2>
     </div>
-    <div class="section-body prose">
-      ${renderMd(sections.find(s => s.id === 'blockers')!.content)}
+    <div class="section-body">
+      <table class="blocker-table">
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Severity</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${blockerList.map(b => {
+            const sev = SEVERITY_COLORS[b.severity] || SEVERITY_COLORS.medium;
+            const st = BLOCKER_STATUS_COLORS[b.status] || BLOCKER_STATUS_COLORS.open;
+            return `<tr>
+              <td><strong>${escapeHtml(b.title)}</strong></td>
+              <td><span class="severity-badge" style="background:${sev.bg};color:${sev.text};">${escapeHtml(b.severity)}</span></td>
+              <td><span class="blocker-status-badge" style="background:${st.bg};color:${st.text};">${escapeHtml(b.status)}</span></td>
+              <td style="color:var(--text-secondary);font-size:12px;">${escapeHtml(b.notes)}</td>
+              <td style="font-size:12px;color:var(--text-secondary);">${escapeHtml(b.createdAt)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Activity Timeline -->
+  ${timeline.length > 0 ? `
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--brand-light);color:var(--brand);">🕒</div>
+      <h2 class="section-title">Activity Timeline</h2>
+    </div>
+    <div class="section-body">
+      ${timeline.map(entry => {
+        const tc = TIMELINE_TYPE_COLORS[entry.type] || TIMELINE_TYPE_COLORS.work;
+        return `<div class="activity-entry">
+          <div class="activity-dot" style="background:${tc.text};"></div>
+          <div>
+            <div class="activity-header">
+              <span class="activity-title">${escapeHtml(entry.title)}</span>
+              <span class="severity-badge" style="background:${tc.bg};color:${tc.text};">${tc.label}</span>
+              <span class="activity-time">${escapeHtml(entry.timestamp)}</span>
+            </div>
+            ${entry.description ? `<div class="activity-desc">${escapeHtml(entry.description)}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Tomorrow's Plan -->
+  ${tomorrowPlan ? `
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--brand-light);color:var(--brand);">🎯</div>
+      <h2 class="section-title">Tomorrow's Plan</h2>
+    </div>
+    <div class="section-body">
+      <div class="tomorrow-card">
+        <div class="tomorrow-header">
+          <span style="font-size:18px;">🗓️</span>
+          <span class="tomorrow-header-title">Plan for Tomorrow</span>
+        </div>
+        <div class="tomorrow-body">
+          ${tomorrowPlan.topPriority ? `<div class="tomorrow-priority"><strong>Top Priority:</strong> ${escapeHtml(tomorrowPlan.topPriority)}</div>` : ''}
+          ${tomorrowPlan.unfinishedItems.length > 0 ? `
+          <div class="tomorrow-items">
+            <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px;">Unfinished Items</div>
+            ${tomorrowPlan.unfinishedItems.map(item => `
+            <div class="tomorrow-item">
+              <div class="tomorrow-check"></div>
+              <span>${escapeHtml(item)}</span>
+            </div>
+            `).join('')}
+          </div>` : ''}
+          ${tomorrowPlan.attentionRequired ? `<div class="tomorrow-attention"><strong>⚠️ Attention:</strong> ${escapeHtml(tomorrowPlan.attentionRequired)}</div>` : ''}
+        </div>
+      </div>
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Daily Reflection -->
+  ${reflection ? `
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--yellow-light);color:var(--yellow);">🌟</div>
+      <h2 class="section-title">Daily Reflection</h2>
+    </div>
+    <div class="section-body">
+      <div class="reflection-grid">
+        ${reflection.wentWell ? `<div class="reflection-card">
+          <div class="reflection-label" style="color:var(--green);">✅ What Went Well</div>
+          <div class="reflection-text">${escapeHtml(reflection.wentWell)}</div>
+        </div>` : ''}
+        ${reflection.slowedDown ? `<div class="reflection-card">
+          <div class="reflection-label" style="color:var(--yellow);">⏳ What Slowed Me Down</div>
+          <div class="reflection-text">${escapeHtml(reflection.slowedDown)}</div>
+        </div>` : ''}
+        ${reflection.learned ? `<div class="reflection-card">
+          <div class="reflection-label" style="color:var(--brand);">💡 Key Learning</div>
+          <div class="reflection-text">${escapeHtml(reflection.learned)}</div>
+        </div>` : ''}
+        ${reflection.improvement ? `<div class="reflection-card">
+          <div class="reflection-label" style="color:var(--accent);">🚀 One Improvement for Tomorrow</div>
+          <div class="reflection-text">${escapeHtml(reflection.improvement)}</div>
+        </div>` : ''}
+      </div>
+      ${reflection.rating > 0 ? `<div class="rating-badge">Day Rating: ${MOOD_EMOJIS[reflection.rating] || ''} ${reflection.rating}/5</div>` : ''}
     </div>
   </div>
   ` : ''}
@@ -542,6 +984,28 @@ export function renderDeveloperDoc(doc: DocumentModel): string {
     </div>
     <div class="section-body">
       ${links.map(l => `<a href="${escapeHtml(l.url)}" class="link-item" target="_blank">🔗 ${escapeHtml(l.label)} — ${escapeHtml(l.url)}</a>`).join('')}
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Attachments -->
+  ${attachments.length > 0 ? `
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:var(--purple-light);color:var(--purple);">📎</div>
+      <h2 class="section-title">Attachments</h2>
+    </div>
+    <div class="section-body">
+      ${attachments.map(a => `
+      <div class="attachment-item">
+        <div class="attachment-icon">${TYPE_ICONS[a.type] || TYPE_ICONS.other}</div>
+        <div class="attachment-info">
+          <div class="attachment-name">${escapeHtml(a.name)}</div>
+          ${a.description ? `<div class="attachment-desc">${escapeHtml(a.description)}</div>` : ''}
+        </div>
+        <span class="attachment-type">${escapeHtml(a.type)}</span>
+      </div>
+      `).join('')}
     </div>
   </div>
   ` : ''}

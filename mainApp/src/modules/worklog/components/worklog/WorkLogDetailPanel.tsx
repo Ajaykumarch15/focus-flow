@@ -1,12 +1,12 @@
 import { useState, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle,
-  ExternalLink, Link2, BookMarked, Timer, FolderOpen,
+  ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle, AlertCircle,
+  ExternalLink, BookMarked, Timer, FolderOpen,
   Flame, TrendingUp, Calendar, Zap,
-  FileText, Download,
-  LayoutList, Lightbulb, AlertOctagon, Target, HeartPulse,
-  Paperclip, Eye, Bug, MapPin,
+  FileText, Download, Plus, X,
+  LayoutList, Lightbulb, AlertOctagon,
+  Paperclip, Eye, MapPin, Play, Pause, Square,
 } from 'lucide-react';
 
 const DocumentationPreview = lazy(() => import('@shared/components/DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
@@ -15,10 +15,13 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Markdown } from '@shared/utils/MarkdownView';
 import { Button } from '@shared/components/ui/Button';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
-import { EmptyState } from '@shared/components/ui/EmptyState';
+import { Input } from '@shared/components/ui/Input';
+import { AutoProEditor } from '@shared/components/ui/proEditor';
+import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
+import { useStore } from '@worklog/services/useStore';
+import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { TimelineView } from './TimelineView';
-import { ProblemFlowEditor } from './ProblemFlowEditor';
 import { TechnicalDecisionsView } from './TechnicalDecisionsView';
 import { StructuredBlockersView } from './StructuredBlockersView';
 import { TomorrowPlanView } from './TomorrowPlanView';
@@ -26,16 +29,10 @@ import { ReflectionView } from './ReflectionView';
 import { AttachmentsView } from './AttachmentsView';
 import { ReadingModeView } from './ReadingModeView';
 import { WorkLogExporterModal } from './WorkLogExporterModal';
+import { CompletionPromptPanel } from '@worklog/components/focus/CompletionPromptPanel';
 import { calculateWorkLogMetrics } from '@worklog/services/workLogMetrics';
 import { STATUS_MAP, MOOD_EMOJIS } from '@worklog/services/config';
 import { selectMemory } from '@personal/services/memorySelectors';
-
-// ── WorkLogDetailPanel (S3-T1) ────────────────────────────────────────────────
-// The single-surface detail view of a work log, extracted from the retired
-// standalone WorkLogDetail page (IA §8.7-4). Renders hero → stats → "Where I
-// stopped" (highlighted last node, via selectMemory) → tabs. Pure on the
-// `workLog` prop, so the Work Log page can embed it inline for the
-// master/detail merge without re-fetching.
 
 const fadeUp = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
@@ -49,15 +46,14 @@ function formatMs(ms: number): string {
 }
 
 const DETAIL_TABS = [
-  { id: 'overview',   label: 'Overview',   icon: LayoutList,   color: 'text-brand-400' },
-  { id: 'timeline',   label: 'Timeline',   icon: Clock,        color: 'text-sky-400' },
-  { id: 'problem',    label: 'Debugging',  icon: Bug,          color: 'text-red-400' },
-  { id: 'decisions',  label: 'Decisions',  icon: Lightbulb,    color: 'text-amber-400' },
-  { id: 'blockers',   label: 'Blockers',   icon: AlertOctagon, color: 'text-red-400' },
-  { id: 'tomorrow',   label: 'Tomorrow',   icon: Target,       color: 'text-sky-400' },
-  { id: 'reflection', label: 'Reflection', icon: HeartPulse,   color: 'text-purple-400' },
-  { id: 'resources',  label: 'Resources',  icon: Paperclip,    color: 'text-purple-400' },
-  { id: 'reading',    label: 'Read Mode',  icon: Eye,          color: 'text-emerald-400' },
+  { id: 'overview',  label: 'Overview',  icon: LayoutList,   color: 'text-brand-400' },
+  { id: 'context',   label: 'Context',   icon: AlertCircle,  color: 'text-red-400' },
+  { id: 'planning',  label: 'Planning',  icon: Lightbulb,    color: 'text-amber-400' },
+  { id: 'progress',  label: 'Progress',  icon: CheckCircle2, color: 'text-emerald-400' },
+  { id: 'blockers',  label: 'Blockers',  icon: AlertOctagon, color: 'text-red-400' },
+  { id: 'timeline',  label: 'Timeline',  icon: Clock,        color: 'text-sky-400' },
+  { id: 'resources', label: 'Resources', icon: Paperclip,    color: 'text-purple-400' },
+  { id: 'reading',   label: 'Read Mode', icon: Eye,          color: 'text-emerald-400' },
 ];
 
 const STATUS_TONE: Record<string, BadgeTone> = {
@@ -68,11 +64,155 @@ const STATUS_TONE: Record<string, BadgeTone> = {
   done: 'success',
 };
 
+// ── Sticky Toolbar ──────────────────────────────────────────────────────────
+function WorkLogToolbar({ log, onBack, onComplete }: { log: WorkLog; onBack: () => void; onComplete: () => void }) {
+  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask } = useStore();
+  const { closeLog } = useWorkLogStore();
+  const { activeTaskId, activeTimerState, display } = useActiveTimer();
+  const [completing, setCompleting] = useState(false);
+
+  const taskId = log.taskRef?._id;
+  const hasTask = !!taskId;
+  const isThisActive = activeTaskId === taskId && !!taskId;
+  const isRunning = isThisActive && activeTimerState === 'running';
+  const isPaused = isThisActive && activeTimerState === 'paused';
+  const isIdle = !isThisActive;
+  const isDone = log.status === 'done';
+
+  const handleStart = () => {
+    if (!taskId) return;
+    startTimer(taskId);
+  };
+
+  const handlePause = () => {
+    if (!taskId) return;
+    if (isRunning) pauseTimer(taskId);
+  };
+
+  const handleResume = () => {
+    if (!taskId) return;
+    if (isPaused) resumeTimer(taskId);
+  };
+
+  const handleStop = () => {
+    if (!taskId) return;
+    stopTimer(taskId);
+  };
+
+  const handleComplete = async () => {
+    if (!taskId || completing) return;
+    setCompleting(true);
+    try {
+      if (isRunning || isPaused) {
+        await stopTimer(taskId);
+      }
+      await completeTask(taskId);
+      await closeLog(log._id);
+      onComplete();
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800 px-4 lg:px-6 py-3"
+    >
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: Back button + title */}
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <button
+            onClick={onBack}
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-all flex-shrink-0"
+            aria-label="Back to Work Logs"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-surface-200 truncate">{log.title}</h2>
+            {log.taskRef && (
+              <p className="text-[11px] text-surface-500 truncate">Task: {log.taskRef.title}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Right: Timer controls */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isDone ? (
+            <Badge tone="success" icon={<CheckCircle2 size={12} />}>Completed</Badge>
+          ) : !hasTask ? (
+            <span className="text-xs text-surface-500 hidden sm:block">Link a task to enable timer</span>
+          ) : (
+            <>
+              {/* Timer display */}
+              {(isRunning || isPaused) && (
+                <span className="font-mono text-sm text-brand-400 mr-1 hidden sm:block">{display}</span>
+              )}
+
+              {/* Start / Resume */}
+              {(isIdle || isPaused) && (
+                <Button
+                  size="sm"
+                  onClick={isPaused ? handleResume : handleStart}
+                  leftIcon={<Play size={14} />}
+                  className={isPaused ? '' : ''}
+                >
+                  {isPaused ? 'Resume' : 'Start'}
+                </Button>
+              )}
+
+              {/* Pause */}
+              {isRunning && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handlePause}
+                  leftIcon={<Pause size={14} />}
+                >
+                  Pause
+                </Button>
+              )}
+
+              {/* Stop */}
+              {(isRunning || isPaused) && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={handleStop}
+                  leftIcon={<Square size={14} />}
+                >
+                  Stop
+                </Button>
+              )}
+
+              {/* Complete */}
+              <Button
+                size="sm"
+                variant="success"
+                onClick={handleComplete}
+                loading={completing}
+                leftIcon={completing ? undefined : <CheckCircle2 size={14} />}
+              >
+                Complete
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog; onBack?: () => void }) {
   const navigate = useNavigate();
+  const { updateField, addCompleted, deleteCompleted } = useWorkLogStore();
   const [showDocPreview, setShowDocPreview] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  const [newItem, setNewItem] = useState('');
+  const [showCompletionPrompt, setShowCompletionPrompt] = useState(false);
 
   const memory = selectMemory(log);
   const status = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
@@ -88,16 +228,25 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
   const kanbanTaskId = log.taskRef?._id;
   const canOpenKanban = !!kanbanWorkspaceId && !!kanbanProjectId && !!kanbanTaskId;
 
+  // Check if task was just completed (for showing CompletionPromptPanel)
+  const { tasks } = useStore();
+  const linkedTask = kanbanTaskId ? tasks.find(t => t.id === kanbanTaskId) : null;
+  const isTaskCompleted = linkedTask?.status === 'completed';
+
   return (
     <div className="space-y-6">
-      {/* Back button */}
-      <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-        onClick={handleBack}
-        className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors">
-        <ArrowLeft size={16} /> Back to Work Logs
-      </motion.button>
+      {/* Sticky Toolbar */}
+      <WorkLogToolbar log={log} onBack={handleBack} onComplete={() => setShowCompletionPrompt(true)} />
 
-      {/* Hero Card */}
+      {/* Completion Prompt (shows after task is completed) */}
+      {showCompletionPrompt && kanbanTaskId && (
+        <CompletionPromptPanel
+          completed={isTaskCompleted}
+          taskId={kanbanTaskId}
+          workLogTitle={log.title}
+        />
+      )}
+
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl border border-surface-800 bg-surface-900 p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -148,7 +297,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               </p>
             </div>
           </div>
-          {/* Export button */}
           <Button variant="outline" size="sm" onClick={() => setShowExport(true)}
             className="bg-brand-500/10 hover:bg-brand-500/20 text-brand-400 border-brand-500/20 flex-shrink-0"
             leftIcon={<Download size={14} />}>
@@ -157,7 +305,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         </div>
       </motion.div>
 
-      {/* Stats Row */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { icon: Clock, label: 'Total Time', value: formatMs(log.totalActiveMs), color: 'text-brand-400', bg: 'bg-brand-500/10' },
@@ -176,7 +323,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         ))}
       </motion.div>
 
-      {/* Where I stopped (S3-T1 highlighted last node) */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
         className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-surface-900 p-5">
         <div className="flex items-center gap-2 mb-1.5">
@@ -209,7 +355,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         )}
       </motion.div>
 
-      {/* Tab Navigation */}
       <div className="overflow-x-auto scrollbar-none">
         <div role="tablist" aria-label="Work log sections" className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 min-w-max">
           {DETAIL_TABS.map(tab => {
@@ -235,16 +380,20 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         </div>
       </div>
 
-      {/* Tab Content */}
       <AnimatePresence mode="wait">
-        {/* ── Overview (original 2-col layout) ── */}
+        {/* ── Overview ── */}
         {activeTab === 'overview' && (
           <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Left — Context */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-3 space-y-4">
+              {!log.problem && !log.currentWork && !log.plan && !log.designNotes && (
+                <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden p-8 text-center">
+                  <BookMarked size={28} className="text-surface-600 mx-auto mb-2" />
+                  <p className="text-sm text-surface-400">No context fields filled in yet. Use the Context and Planning tabs to add details.</p>
+                </div>
+              )}
               {log.problem && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+                <motion.div variants={fadeUp} className="rounded-2xl border border-red-500/15 bg-red-500/5 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center">
                       <AlertTriangle size={13} className="text-red-400" />
@@ -254,33 +403,19 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                   <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.problem} /></div>
                 </motion.div>
               )}
-
               {log.currentWork && (
                 <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-7 h-7 rounded-lg bg-brand-500/10 flex items-center justify-center">
                       <Zap size={13} className="text-brand-400" />
                     </div>
-                    <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I Did</span>
+                    <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I'm Working On</span>
                   </div>
                   <div className="prose-editor text-sm text-surface-200 leading-relaxed"><Markdown source={log.currentWork} /></div>
                 </motion.div>
               )}
-
-              {log.blockers && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-yellow-400/15 bg-yellow-400/5 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center">
-                      <AlertTriangle size={13} className="text-yellow-400" />
-                    </div>
-                    <span className="text-[11px] text-yellow-400 font-semibold uppercase tracking-wider">Blockers</span>
-                  </div>
-                  <div className="prose-editor text-sm text-surface-200"><Markdown source={log.blockers} /></div>
-                </motion.div>
-              )}
-
               {log.plan && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+                <motion.div variants={fadeUp} className="rounded-2xl border border-amber-500/15 bg-amber-500/5 p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
                       <BookMarked size={13} className="text-amber-400" />
@@ -290,33 +425,9 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                   <div className="prose-editor text-sm text-surface-300"><Markdown source={log.plan} /></div>
                 </motion.div>
               )}
-
-              {log.designNotes && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                      <Flame size={13} className="text-purple-400" />
-                    </div>
-                    <span className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">Design & Architecture</span>
-                  </div>
-                  <div className="prose-editor text-sm text-surface-300"><Markdown source={log.designNotes} /></div>
-                </motion.div>
-              )}
-
-              {!log.problem && !log.currentWork && !log.blockers && !log.plan && !log.designNotes && (
-                <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
-                  <EmptyState
-                    icon={<BookMarked size={28} className="text-surface-600" />}
-                    title="No context fields filled in yet"
-                    description=""
-                  />
-                </div>
-              )}
             </motion.div>
 
-            {/* Right — Sessions, Checklist, Links, Export */}
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-4">
-              {/* Export Documentation */}
               <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <FileText size={14} className="text-brand-400" />
@@ -334,44 +445,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                 </div>
               </motion.div>
 
-              {/* Completed Items */}
-              {log.completedItems.length > 0 && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <CheckCircle2 size={14} className="text-emerald-400" />
-                    <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Completed</span>
-                    <span className="text-[10px] text-surface-500 font-medium">{log.completedItems.filter(i => i.done).length}/{log.completedItems.length}</span>
-                  </div>
-                  <div className="space-y-2">
-                    {log.completedItems.map(item => (
-                      <div key={item._id} className="flex items-start gap-2 text-sm">
-                        <CheckCircle2 size={13} className={`flex-shrink-0 mt-0.5 ${item.done ? 'text-emerald-400' : 'text-surface-600'}`} />
-                        <span className={item.done ? 'text-surface-200' : 'text-surface-400'}>{item.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Links */}
-              {log.links.length > 0 && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Link2 size={14} className="text-cyan-400" />
-                    <span className="text-[11px] text-cyan-400 font-semibold uppercase tracking-wider">Links</span>
-                  </div>
-                  <div className="space-y-2">
-                    {log.links.map(link => (
-                      <a key={link._id} href={link.url} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors">
-                        <ExternalLink size={12} /> {link.label}
-                      </a>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Work History Timeline */}
               <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar size={14} className="text-brand-400" />
@@ -414,31 +487,135 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
           </motion.div>
         )}
 
-        {/* ── Timeline Tab ── */}
-        {activeTab === 'timeline' && (
-          <motion.div key="timeline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-            <TimelineView workLog={log} />
+        {/* ── Context (Problem/CurrentWork) ── */}
+        {activeTab === 'context' && (
+          <motion.div key="context" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="space-y-4">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <AlertTriangle size={13} className="text-red-400" />
+                </div>
+                <span className="text-[11px] text-red-400 font-semibold uppercase tracking-wider">Problem I'm Solving</span>
+              </div>
+              <AutoProEditor
+                logId={log._id} field="problem" value={log.problem}
+                placeholder="What ticket/feature/bug? What user pain?" minRows={3}
+                updateFn={(id, field, val) => updateField(id, field, val)} />
+            </motion.div>
+
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                  <Zap size={13} className="text-brand-400" />
+                </div>
+                <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I'm Working On</span>
+              </div>
+              <AutoProEditor
+                logId={log._id} field="currentWork" value={log.currentWork}
+                placeholder="Specific function, component, API..." minRows={3}
+                updateFn={(id, field, val) => updateField(id, field, val)} />
+            </motion.div>
           </motion.div>
         )}
 
-        {/* ── Problem Flow Tab ── */}
-        {activeTab === 'problem' && (
-          <motion.div key="problem" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-            <ProblemFlowEditor workLog={log} />
+        {/* ── Planning (Plan/Design/GitBranch + TomorrowPlan) ── */}
+        {activeTab === 'planning' && (
+          <motion.div key="planning" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="space-y-4">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                  <BookMarked size={13} className="text-amber-400" />
+                </div>
+                <span className="text-[11px] text-amber-400 font-semibold uppercase tracking-wider">Plan</span>
+              </div>
+              <AutoProEditor
+                logId={log._id} field="plan" value={log.plan}
+                placeholder={"1. First...\n2. Then..."} minRows={4}
+                updateFn={(id, field, val) => updateField(id, field, val)} />
+            </motion.div>
+
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Flame size={13} className="text-purple-400" />
+                </div>
+                <span className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">Design & Architecture</span>
+              </div>
+              <AutoProEditor
+                logId={log._id} field="designNotes" value={log.designNotes}
+                placeholder="Schema, components, tradeoffs..." minRows={3}
+                updateFn={(id, field, val) => updateField(id, field, val)} />
+            </motion.div>
+
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                  <GitBranch size={13} className="text-emerald-400" />
+                </div>
+                <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Git Branch</span>
+              </div>
+              <AutoProEditor
+                logId={log._id} field="gitBranch" value={log.gitBranch}
+                placeholder="feature/branch-name" minRows={1}
+                updateFn={(id, field, val) => updateField(id, field, val)} />
+            </motion.div>
+
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              <TomorrowPlanView workLog={log} />
+            </motion.div>
           </motion.div>
         )}
 
-        {/* ── Decisions Tab ── */}
-        {activeTab === 'decisions' && (
-          <motion.div key="decisions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-            <TechnicalDecisionsView workLog={log} />
+        {/* ── Progress (Completed + Decisions) ── */}
+        {activeTab === 'progress' && (
+          <motion.div key="progress" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="space-y-4">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle2 size={14} className="text-emerald-400" />
+                <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Completed</span>
+                <span className="text-[10px] text-surface-500 font-medium">{log.completedItems.length}</span>
+              </div>
+              <div className="space-y-1 mb-3">
+                {log.completedItems.length === 0 && (
+                  <p className="text-xs text-surface-600 italic py-1">Add things as you finish them...</p>
+                )}
+                {log.completedItems.map(item => (
+                  <div key={item._id}
+                    className="flex items-start gap-2 group p-2 rounded-lg hover:bg-surface-850 border border-transparent hover:border-surface-800 transition-all">
+                    <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span className="flex-1 text-xs text-surface-200">{item.text}</span>
+                    <button onClick={() => deleteCompleted(log._id, item._id)}
+                      className="opacity-0 group-hover:opacity-100 text-surface-600 hover:text-red-400 transition-all" aria-label="Remove completed item">
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newItem.trim()) return;
+                await addCompleted(log._id, newItem.trim());
+                setNewItem('');
+              }} className="flex gap-2">
+                <Input className="flex-1 text-xs py-2 rounded-xl" placeholder="I just completed..." aria-label="New completed item"
+                  value={newItem} onChange={e => setNewItem(e.target.value)} />
+                <Button type="submit" disabled={!newItem.trim()}
+                  size="sm" className="rounded-xl px-3" aria-label="Add completed item" leftIcon={<Plus size={13} />} />
+              </form>
+            </motion.div>
+
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              <TechnicalDecisionsView workLog={log} />
+            </motion.div>
           </motion.div>
         )}
 
-        {/* ── Blockers Tab ── */}
+        {/* ── Blockers (kept as-is) ── */}
         {activeTab === 'blockers' && (
           <motion.div key="blockers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -446,23 +623,22 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
           </motion.div>
         )}
 
-        {/* ── Tomorrow Plan Tab ── */}
-        {activeTab === 'tomorrow' && (
-          <motion.div key="tomorrow" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-            <TomorrowPlanView workLog={log} />
+        {/* ── Timeline (TimelineView + ReflectionView) ── */}
+        {activeTab === 'timeline' && (
+          <motion.div key="timeline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            className="space-y-4">
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              <TimelineView workLog={log} />
+            </motion.div>
+            <motion.div variants={fadeUp} initial="hidden" animate="show"
+              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              <ReflectionView workLog={log} />
+            </motion.div>
           </motion.div>
         )}
 
-        {/* ── Reflection Tab ── */}
-        {activeTab === 'reflection' && (
-          <motion.div key="reflection" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-            <ReflectionView workLog={log} />
-          </motion.div>
-        )}
-
-        {/* ── Attachments & Links Tab ── */}
+        {/* ── Resources ── */}
         {activeTab === 'resources' && (
           <motion.div key="resources" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
@@ -470,7 +646,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
           </motion.div>
         )}
 
-        {/* ── Reading Mode Tab ── */}
+        {/* ── Read Mode ── */}
         {activeTab === 'reading' && (
           <motion.div key="reading" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
             <ReadingModeView workLog={log} />
@@ -478,7 +654,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         )}
       </AnimatePresence>
 
-      {/* Documentation Preview Modal */}
       <Suspense fallback={null}>
         <DocumentationPreview
           log={log}
@@ -487,7 +662,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         />
       </Suspense>
 
-      {/* Export modal */}
       <WorkLogExporterModal
         workLog={log}
         isOpen={showExport}

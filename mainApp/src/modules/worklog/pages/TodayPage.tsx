@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, BellRing, ArrowRight,
+  Target, ListTodo, BellRing, ArrowRight, ArrowUpRight,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -310,9 +310,9 @@ export function TodayPage() {
         <Stat icon={<Clock size={18} style={{ color: accent }} />} label="Today's Focus Time" value={formatHours(todayMs)}
           sub={`Target: ${profile.dailyGoal}h`} color={accent} />
         <Stat icon={<CheckCircle size={18} className="text-emerald-400" />} label="Completed Today"
-          value={String(view.stats.completedToday)} sub="Tasks done" color="#22c55e" />
-        <Stat icon={<ListTodo size={18} className="text-violet-400" />} label="Active Tasks"
-          value={String(view.stats.activeCount)} sub="In progress" color="#8b5cf6" />
+          value={String(view.stats.completedToday)} sub="Tasks done" color="#3b82f6" />
+        <Stat icon={<ListTodo size={18} className="text-violet-400" />} label="Scheduled Today"
+          value={String(view.stats.activeCount)} sub="Tasks planned" color="#a855f7" />
       </motion.div>
 
       {/* ═══════════════ MAIN GRID ═══════════════ */}
@@ -477,27 +477,34 @@ export function TodayPage() {
 function Stat({ icon, label, value, sub, color }: {
   icon: ReactNode; label: string; value: string; sub?: string; color: string;
 }) {
-  // Extract leading numeric portion for animated counting
   const numMatch = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
   const numPart = numMatch ? parseFloat(numMatch[1]) : null;
   const suffix = numMatch ? numMatch[2] : '';
 
+  const gradientBorder = `${color}40`;
+
   return (
     <motion.div variants={fadeUp}
-      className="rounded-2xl border border-surface-800/60 bg-surface-900 shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] dark:border-surface-700/50 p-5 relative overflow-hidden hover:border-surface-700 transition-colors">
-      <div className="absolute top-0 right-0 w-24 h-24 opacity-[0.12] dark:opacity-[0.06] pointer-events-none rounded-bl-full" style={{ backgroundColor: color }} />
-      <div className="flex items-center justify-between mb-3">
-        <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}10` }}>
+      className="rounded-2xl p-5 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
+      style={{
+        background: `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`,
+        border: `1px solid ${gradientBorder}`,
+      }}>
+      <div className="absolute top-0 right-0 w-32 h-32 opacity-20 pointer-events-none rounded-bl-full"
+        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
+      <div className="flex items-center justify-between mb-4">
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}25` }}>
           {icon}
         </div>
+        <ArrowUpRight size={16} className="opacity-30" style={{ color }} />
       </div>
-      <p className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 mb-0.5">
+      <p className="text-[13px] font-semibold mb-1" style={{ color: `${color}cc` }}>{label}</p>
+      <p className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 mb-0.5">
         {numPart !== null
           ? <KpiCounter value={numPart} suffix={suffix} duration={700} />
           : value}
       </p>
-      <p className="text-xs text-surface-400 font-medium">{label}</p>
-      {sub && <p className="text-[10px] text-surface-500 mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-surface-400 mt-1">{sub}</p>}
     </motion.div>
   );
 }

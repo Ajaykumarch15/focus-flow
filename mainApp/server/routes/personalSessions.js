@@ -93,13 +93,6 @@ router.post('/', validate(sessionCreateSchema), async (req, res, next) => {
       return res.status(200).json(existingSameTaskSession);
     }
 
-    const orphanedSessions = await PersonalSession.find({ userId: req.user._id, isActive: true });
-    for (const activeSession of orphanedSessions) {
-      finalizeSessionDoc(activeSession, now);
-      await activeSession.save();
-      await recomputeTaskTotalTime(activeSession.personalTaskId);
-    }
-
     let session;
     try {
       session = await PersonalSession.create({
