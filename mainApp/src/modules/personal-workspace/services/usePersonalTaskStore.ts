@@ -11,7 +11,7 @@ import { api } from '@shared/utils/api';
 import { timerEngine } from '@worklog/services/timerEngine';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { offlineQueue, createOpId } from '@shared/utils/offlineQueue';
-import { startTimerHeartbeat, stopTimerHeartbeat } from '@worklog/services/timerHeartbeat';
+import { startTimerHeartbeat, stopTimerHeartbeat, startSessionHeartbeat, stopSessionHeartbeat } from '@worklog/services/timerHeartbeat';
 import type { Task, Priority, Subtask, JournalEntry, TimerState } from '@shared/types';
 import { useStore } from '@worklog/services/useStore';
 import { useRoadmapStore } from './useRoadmapStore';
@@ -436,6 +436,18 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     const now = Date.now();
     const opId = createOpId();
 
+    // If this task already has a paused timer in the parallel engine, resume it
+    // instead of creating a new one (preserves elapsed time).
+    const existingState = parallelTimerEngine.getState(taskId);
+    if (existingState === 'paused') {
+      get().resumeParallelTimer(taskId);
+      return;
+    }
+    // If already running, no-op.
+    if (existingState === 'running') {
+      return;
+    }
+
     // Resuming a task continues from its accumulated time (display continuity).
     const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
 
@@ -452,8 +464,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     try {
       const sessionDoc = await api.personalSessions.start(taskId, now, opId);
       parallelTimerEngine.setSessionId(taskId, sessionDoc._id);
-      startTimerHeartbeat(() => {
-        // On heartbeat failure, stop this specific timer
+      startSessionHeartbeat(sessionDoc._id, 'personal', () => {
         parallelTimerEngine.stop(taskId);
       });
     } catch (err) {
@@ -513,6 +524,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     const sessionId = snapshot?.sessionId ?? null;
     const now = Date.now();
     const opId = createOpId();
+
+    // Stop heartbeat immediately to prevent stale pings during API call
+    if (sessionId) {
+      stopSessionHeartbeat(sessionId);
+    }
 
     const res = await parallelTimerEngine.stop(taskId, now);
     if (!res.success && res.error !== 'Timer is already idle') {

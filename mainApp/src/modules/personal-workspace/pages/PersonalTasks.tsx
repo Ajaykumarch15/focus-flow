@@ -2,16 +2,17 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
-  X, ArrowUpDown, ListTodo, Clock, CheckCircle, Flame,
+  X, ListTodo, Clock, CheckCircle, Flame,
+  ArrowUp, ArrowDown, Eye, EyeOff,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { cn } from '@shared/utils/cn';
-import { TaskCard } from '@worklog/components/tasks/TaskCard';
+import { PersonalTaskCard } from '@personal/components/tasks/PersonalTaskCard';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { Priority, TaskStatus } from '@shared/types';
+import { TaskStatus } from '@shared/types';
 import { CATEGORIES } from '@shared/utils/colors';
 import { isOverdue } from '@shared/utils/time';
 import { getScheduledState, type ScheduledState } from '@personal/services/personalTaskSchedule';
@@ -19,6 +20,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { Card } from '@shared/components/ui/Card';
+import { Pagination } from '@shared/components/ui/Pagination';
 import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
@@ -29,52 +31,74 @@ const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
 export function PersonalTasks() {
   const {
     tasks,
-    selectedTaskIds, toggleTaskSelection, selectAllTasks, clearTaskSelection,
-    bulkCompleteTasks, bulkDeleteTasks, persistTaskOrder, reorderTasks,
+    selectedTaskIds, selectAllTasks, clearTaskSelection,
+    bulkCompleteTasks, bulkDeleteTasks,
     fetchTasks, addTask,
-    startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, deleteTask,
   } = usePersonalTaskStore();
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
-  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterCombined, setFilterCombined] = useState<string>('all');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [filterSchedule, setFilterSchedule] = useState<ScheduledState | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'default' | 'deadline'>('default');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const filtered = useMemo(() => tasks.filter(task => {
-    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
-    if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
-    if (filterCategory !== 'all' && task.category !== filterCategory) return false;
-    if (filterSchedule !== 'all' && getScheduledState(task) !== filterSchedule) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
-    }
-    if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
-    return true;
-  }), [tasks, filterStatus, filterPriority, filterCategory, filterSchedule, search, showOverdueOnly]);
+  const filtered = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
+    return tasks.filter(task => {
+      if (!showCompleted && task.status === 'completed') return false;
+      if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && task.priority !== filterCombined) return false;
+        if (categories.includes(filterCombined) && task.category?.toLowerCase() !== filterCombined) return false;
+      }
+      if (filterSchedule !== 'all' && getScheduledState(task) !== filterSchedule) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
+      }
+      if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
+      return true;
+    });
+  }, [tasks, filterStatus, filterCombined, filterSchedule, search, showOverdueOnly, showCompleted]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
-    if (sortBy === 'deadline') arr.sort((a, b) => (a.deadline || Infinity) - (b.deadline || Infinity));
-    else arr.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    arr.sort((a, b) => {
+      const cmp = (a.deadline || Infinity) - (b.deadline || Infinity);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
     return arr;
-  }, [filtered, sortBy]);
+  }, [filtered, sortDir]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
 
+  // Pagination
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCombined, filterSchedule, showOverdueOnly, sortDir, showCompleted]);
+
   const statusCounts = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
     const counts: Record<TaskStatus | 'all', number> = { all: 0, todo: 0, active: 0, paused: 0, completed: 0 };
     for (const t of tasks) {
-      if (filterPriority !== 'all' && t.priority !== filterPriority) continue;
-      if (filterCategory !== 'all' && t.category !== filterCategory) continue;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && t.priority !== filterCombined) continue;
+        if (categories.includes(filterCombined) && t.category?.toLowerCase() !== filterCombined) continue;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) continue;
@@ -84,7 +108,7 @@ export function PersonalTasks() {
       counts[t.status]++;
     }
     return counts;
-  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly]);
+  }, [tasks, search, filterCombined, showOverdueOnly]);
 
   const overdueCount = useMemo(
     () => tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length,
@@ -107,19 +131,19 @@ export function PersonalTasks() {
 
   const completionPct = tasks.length > 0 ? Math.round((kpiCounts.completed / tasks.length) * 100) : 0;
 
-  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterPriority !== 'all'
-    || filterCategory !== 'all' || filterSchedule !== 'all' || showOverdueOnly;
+  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterCombined !== 'all'
+    || filterSchedule !== 'all' || showOverdueOnly || showCompleted;
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setFilterStatus('all');
-    setFilterPriority('all');
-    setFilterCategory('all');
+    setFilterCombined('all');
     setFilterSchedule('all');
     setShowOverdueOnly(false);
+    setShowCompleted(false);
   }, []);
 
-  const isUnfiltered = !hasActiveFilters && filterCategory === 'all' && filterSchedule === 'all';
+  const isUnfiltered = !hasActiveFilters && filterCombined === 'all' && filterSchedule === 'all' && !showCompleted;
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -150,53 +174,6 @@ export function PersonalTasks() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [hasSelection, filteredIds, clearTaskSelection, selectAllTasks]);
-
-  const dragIdRef = useRef<string | null>(null);
-
-  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
-    dragIdRef.current = id;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id);
-    const el = e.currentTarget as HTMLElement;
-    requestAnimationFrame(() => { el.style.opacity = '0.4'; });
-  }, []);
-
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    const el = e.currentTarget as HTMLElement;
-    el.style.opacity = '1';
-    dragIdRef.current = null;
-    setDragOverId(null);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragIdRef.current && dragIdRef.current !== id) {
-      setDragOverId(id);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const sourceId = dragIdRef.current;
-    if (!sourceId || sourceId === targetId) { setDragOverId(null); return; }
-
-    const currentTasks = usePersonalTaskStore.getState().tasks;
-    const sourceIdx = currentTasks.findIndex(t => t.id === sourceId);
-    const targetIdx = currentTasks.findIndex(t => t.id === targetId);
-    if (sourceIdx === -1 || targetIdx === -1) { setDragOverId(null); return; }
-
-    const reordered = [...currentTasks];
-    const [moved] = reordered.splice(sourceIdx, 1);
-    reordered.splice(targetIdx, 0, moved);
-
-    const orderedIds = reordered.map(t => t.id);
-    reorderTasks(reordered.map((t, i) => ({ ...t, order: i })));
-    persistTaskOrder(orderedIds);
-    setDragOverId(null);
-  }, [reorderTasks, persistTaskOrder]);
-
-  const handleDragLeave = useCallback(() => { setDragOverId(null); }, []);
 
   const handleBulkComplete = () => {
     if (selectedArray.length === 0) return;
@@ -249,7 +226,7 @@ export function PersonalTasks() {
 
         {/* ── LEFT: Filters + Task List ── */}
         <div className="space-y-4 min-w-0">
-          {/* Filters Row 1: Search + Dropdowns */}
+          {/* Filters Row 1: Search + Merged Filter + Sort Toggle */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
             className="flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px]">
@@ -269,30 +246,28 @@ export function PersonalTasks() {
                 </button>
               )}
             </div>
-            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
-              aria-label="Filter by priority"
+            <select value={filterCombined} onChange={e => setFilterCombined(e.target.value)}
+              aria-label="Filter by priority or category"
               className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-              <option value="all">All Priority</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+              <option value="all">All</option>
+              <optgroup label="Priority">
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </optgroup>
+              <optgroup label="Category">
+                {CATEGORIES.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+              </optgroup>
             </select>
-            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-              aria-label="Filter by category"
-              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-              <option value="all">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <div className="relative">
-              <ArrowUpDown size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                aria-label="Sort tasks"
-                className="h-10 pl-9 pr-8 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 appearance-none">
-                <option value="default">Default Order</option>
-                <option value="deadline">Deadline</option>
-              </select>
-            </div>
+            <button
+              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+              className="h-10 w-10 flex items-center justify-center rounded-xl bg-surface-800 border border-surface-700 text-surface-200 hover:bg-surface-700 transition-all"
+              title={sortDir === 'asc' ? 'Ascending (earliest first)' : 'Descending (latest first)'}
+              aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
+            >
+              {sortDir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+            </button>
           </motion.div>
 
           {/* Filters Row 2: Status + Schedule tabs */}
@@ -360,6 +335,20 @@ export function PersonalTasks() {
                 </span>
               )}
             </Button>
+            <Button
+              variant={showCompleted ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowCompleted(!showCompleted)}
+              aria-pressed={showCompleted}
+              className="gap-1.5 h-9">
+              {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showCompleted ? 'Hide Completed' : 'Show Completed'}
+              {kpiCounts.completed > 0 && (
+                <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showCompleted ? 'bg-white/25 text-white' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                  {kpiCounts.completed}
+                </span>
+              )}
+            </Button>
           </motion.div>
 
           {/* Active filters summary */}
@@ -382,39 +371,29 @@ export function PersonalTasks() {
 
           {/* Task List */}
           {sorted.length > 0 ? (
-            <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
-              <AnimatePresence mode="popLayout">
-                {sorted.map(task => (
-                  <motion.div
-                    key={task.id}
-                    variants={fadeUp}
-                    layout
-                    onDragOver={(e) => handleDragOver(e as any, task.id)}
-                    onDrop={(e) => handleDrop(e as any, task.id)}
-                    onDragLeave={handleDragLeave}
-                    className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
-                  >
-                    <TaskCard
-                      task={task}
-                      selected={selectedTaskIds.has(task.id)}
-                      onToggleSelect={toggleTaskSelection}
-                      detailPath={`/personal/tasks/${task.id}`}
-                      onStartTimer={startTimer}
-                      onPauseTimer={pauseTimer}
-                      onResumeTimer={resumeTimer}
-                      onStopTimer={stopTimer}
-                      onCompleteTask={completeTask}
-                      onDeleteTask={deleteTask}
-                      dragHandleProps={{
-                        draggable: true,
-                        onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
-                        onDragEnd: handleDragEnd,
-                      }}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+            <>
+              <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+                <AnimatePresence mode="popLayout">
+                  {paginatedTasks.map(task => (
+                    <motion.div
+                      key={task.id}
+                      variants={fadeUp}
+                      layout
+                    >
+                      <PersonalTaskCard task={task} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={sorted.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setCurrentPage}
+              />
+            </>
           ) : (
             <EmptyState
               illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}

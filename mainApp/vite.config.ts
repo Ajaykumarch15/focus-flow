@@ -58,6 +58,7 @@ export default defineConfig({
       '@worklog': path.resolve(__dirname, 'src/modules/worklog'),
       '@collab': path.resolve(__dirname, 'src/modules/collab'),
       '@meetings': path.resolve(__dirname, 'src/modules/meetings'),
+      '@timers': path.resolve(__dirname, 'src/modules/timers'),
       '@shared': path.resolve(__dirname, 'src/shared'),
       '@': path.resolve(__dirname, 'src'),
     },

@@ -19,7 +19,7 @@ import {
 import { timerEngine } from '@worklog/services/timerEngine';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { offlineQueue, createOpId } from '@shared/utils/offlineQueue';
-import { startTimerHeartbeat, stopTimerHeartbeat } from '@worklog/services/timerHeartbeat';
+import { startTimerHeartbeat, stopTimerHeartbeat, startSessionHeartbeat, stopSessionHeartbeat } from '@worklog/services/timerHeartbeat';
 import type {
   Task, JournalEntry, TimerState, Priority,
   Subtask, ThemeSettings, UserProfile,
@@ -282,7 +282,9 @@ export const useStore = create<StoreState>((set, get) => {
   });
 
   // Listen to timerEngine updates and update store state in sync (legacy)
+  // Skip personal sessions — they belong to usePersonalTaskStore
   timerEngine.subscribe((newSnapshot) => {
+    if (newSnapshot.sessionKind === 'personal') return;
     set({
       activeTaskId: newSnapshot.taskId,
       activeSessionId: newSnapshot.sessionId,
@@ -399,13 +401,17 @@ export const useStore = create<StoreState>((set, get) => {
 
         // Rehydrate TimerEngine with active session from backend
         try {
-          const allSessions = await api.sessions.list();
+          const [allSessions, personalSessions] = await Promise.all([
+            api.sessions.list().catch(() => []),
+            api.personalSessions.list().catch(() => []),
+          ]);
           const match = allSessions.find((s: any) => s.isActive);
           const localTimer = loadTimer();
 
           // Keep the offline day/week cache authoritative from the backend, so a
           // refresh or re-login never resets today's progress to zero.
-          rebuildDayCache(allSessions);
+          // Include personal sessions for accurate daily/weekly totals.
+          rebuildDayCache([...allSessions, ...personalSessions]);
 
           if (match && localTimer?.sessionKind !== 'personal') {
             const pauseStart = getOpenPauseStart(match);
@@ -767,6 +773,18 @@ export const useStore = create<StoreState>((set, get) => {
       const now = Date.now();
       const opId = createOpId();
 
+      // If this task already has a paused timer in the parallel engine, resume it
+      // instead of creating a new one (preserves elapsed time).
+      const existingState = parallelTimerEngine.getState(taskId);
+      if (existingState === 'paused') {
+        get().resumeParallelTimer(taskId);
+        return;
+      }
+      // If already running, no-op.
+      if (existingState === 'running') {
+        return;
+      }
+
       // Resuming a task continues from its accumulated time (display continuity).
       const resumeFromMs = baseMs ?? (get().tasks.find(t => t.id === taskId)?.totalTime ?? 0);
 
@@ -783,8 +801,7 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         const sessionDoc = await api.sessions.start(taskId, now, opId);
         parallelTimerEngine.setSessionId(taskId, sessionDoc._id);
-        startTimerHeartbeat(() => {
-          // On heartbeat failure, stop this specific timer
+        startSessionHeartbeat(sessionDoc._id, 'work', () => {
           parallelTimerEngine.stop(taskId);
         });
         get().fetchProfile();
@@ -845,6 +862,11 @@ export const useStore = create<StoreState>((set, get) => {
       const sessionId = snapshot?.sessionId ?? null;
       const now = Date.now();
       const opId = createOpId();
+
+      // Stop heartbeat immediately to prevent stale pings during API call
+      if (sessionId) {
+        stopSessionHeartbeat(sessionId);
+      }
 
       const res = await parallelTimerEngine.stop(taskId, now);
       if (!res.success && res.error !== 'Timer is already idle') {

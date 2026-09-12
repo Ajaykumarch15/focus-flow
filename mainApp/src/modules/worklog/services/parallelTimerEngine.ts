@@ -48,6 +48,7 @@ class ParallelTimerEngine {
   private lastTickMs: number = 0;
   private listeners: Set<TimerChangeListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
+  private senderId: string = Math.random().toString(36).substring(2);
 
   constructor() {
     this.initBroadcastChannel();
@@ -349,6 +350,11 @@ class ParallelTimerEngine {
       // Remove from map
       this.timers.delete(taskId);
 
+      // Stop ticker if no running timers remain (paused timers don't need ticking)
+      if (this.getRunningTimers().length === 0) {
+        this.stopTicker();
+      }
+
       this.persist();
       this.broadcast('STOP', { taskId, activeTime, stopTime: now, sessionId: stoppedSessionId });
       this.notifyListeners(taskId, null);
@@ -490,6 +496,7 @@ class ParallelTimerEngine {
         if (e.key === 'ff_parallel_timer_sync_event' && e.newValue) {
           try {
             const data = JSON.parse(e.newValue);
+            if (data.senderId === this.senderId) return; // skip self
             this.handleRemoteMessage(data);
           } catch {
             /* ignore */
@@ -503,7 +510,7 @@ class ParallelTimerEngine {
     const msg = {
       type,
       payload,
-      senderId: Math.random().toString(36).substring(2),
+      senderId: this.senderId,
     };
     if (this.broadcastChannel) {
       try {

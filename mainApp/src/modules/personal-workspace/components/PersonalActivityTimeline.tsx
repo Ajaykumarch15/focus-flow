@@ -65,7 +65,7 @@ const RANGE_OPTIONS: { value: TimelineRange; label: string }[] = [
 ];
 
 export function PersonalActivityTimeline() {
-  const { tasks, journals, dataLoading, dataError, loadAll, startTimer } = useStore();
+  const { tasks, journals, dataLoading, dataError, loadAll, startParallelTimer } = useStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
   const { blockers, features } = useCollaborationStore();
   const currentUserId = useAuthStore((s) => s.user?._id);
@@ -92,7 +92,7 @@ export function PersonalActivityTimeline() {
 
   const resumeTask = (event: TimelineEvent) => {
     if (!event.taskId) return;
-    void startTimer(event.taskId);
+    void startParallelTimer(event.taskId);
     navigate(`/personal/tasks/${event.taskId}`);
   };
 

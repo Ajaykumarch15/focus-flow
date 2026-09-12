@@ -115,7 +115,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json());
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '2mb';
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(require('cookie-parser')()); // IES-P0-12: read the httpOnly session cookie
 // IES-P0-09: lenient per-IP safety net on every /api route (reports, admin, …).
 // Auth routes add their own stricter limiter on top.

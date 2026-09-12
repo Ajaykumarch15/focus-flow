@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
   X, ArrowUpDown, ListTodo, Clock, CheckCircle, Flame,
+  Eye, EyeOff,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useStore } from '@worklog/services/useStore';
@@ -18,6 +19,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { Card } from '@shared/components/ui/Card';
+import { Pagination } from '@shared/components/ui/Pagination';
 import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
@@ -38,6 +40,8 @@ export function Tasks() {
   const [filterCategory, setFilterCategory] = useState('all');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'default' | 'deadline' | 'priority'>('default');
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +49,7 @@ export function Tasks() {
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 
   const filtered = useMemo(() => tasks.filter(task => {
+    if (!showCompleted && task.status === 'completed') return false;
     if (filterStatus !== 'all' && task.status !== filterStatus) return false;
     if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
     if (filterCategory !== 'all' && task.category !== filterCategory) return false;
@@ -54,7 +59,7 @@ export function Tasks() {
     }
     if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
     return true;
-  }), [tasks, filterStatus, filterPriority, filterCategory, search, showOverdueOnly]);
+  }), [tasks, filterStatus, filterPriority, filterCategory, search, showOverdueOnly, showCompleted]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -63,6 +68,15 @@ export function Tasks() {
     else arr.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return arr;
   }, [filtered, sortBy]);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+
+  useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterPriority, filterCategory, showOverdueOnly, sortBy, showCompleted]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
 
@@ -104,7 +118,7 @@ export function Tasks() {
   }, [tasks, search, filterPriority, filterCategory, showOverdueOnly]);
 
   const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterPriority !== 'all'
-    || filterCategory !== 'all' || showOverdueOnly;
+    || filterCategory !== 'all' || showOverdueOnly || showCompleted;
 
   const clearFilters = useCallback(() => {
     setSearch('');
@@ -112,9 +126,10 @@ export function Tasks() {
     setFilterPriority('all');
     setFilterCategory('all');
     setShowOverdueOnly(false);
+    setShowCompleted(false);
   }, []);
 
-  const isUnfiltered = !hasActiveFilters && filterCategory === 'all';
+  const isUnfiltered = !hasActiveFilters && filterCategory === 'all' && !showCompleted;
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -335,6 +350,20 @@ export function Tasks() {
                 </span>
               )}
             </Button>
+            <Button
+              variant={showCompleted ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowCompleted(!showCompleted)}
+              aria-pressed={showCompleted}
+              className="gap-1.5 h-9">
+              {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showCompleted ? 'Hide Completed' : 'Show Completed'}
+              {kpiCounts.completed > 0 && (
+                <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showCompleted ? 'bg-white/25 text-white' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                  {kpiCounts.completed}
+                </span>
+              )}
+            </Button>
           </motion.div>
 
           {/* Active filters summary */}
@@ -357,32 +386,42 @@ export function Tasks() {
 
           {/* Task List */}
           {sorted.length > 0 ? (
-            <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
-              <AnimatePresence mode="popLayout">
-                {sorted.map(task => (
-                  <motion.div
-                    key={task.id}
-                    variants={fadeUp}
-                    layout
-                    onDragOver={(e) => handleDragOver(e as any, task.id)}
-                    onDrop={(e) => handleDrop(e as any, task.id)}
-                    onDragLeave={handleDragLeave}
-                    className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
-                  >
-                    <TaskCard
-                      task={task}
-                      selected={selectedTaskIds.has(task.id)}
-                      onToggleSelect={toggleTaskSelection}
-                      dragHandleProps={{
-                        draggable: true,
-                        onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
-                        onDragEnd: handleDragEnd,
-                      }}
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+            <>
+              <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+                <AnimatePresence mode="popLayout">
+                  {paginatedTasks.map(task => (
+                    <motion.div
+                      key={task.id}
+                      variants={fadeUp}
+                      layout
+                      onDragOver={(e) => handleDragOver(e as any, task.id)}
+                      onDrop={(e) => handleDrop(e as any, task.id)}
+                      onDragLeave={handleDragLeave}
+                      className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
+                    >
+                      <TaskCard
+                        task={task}
+                        selected={selectedTaskIds.has(task.id)}
+                        onToggleSelect={toggleTaskSelection}
+                        dragHandleProps={{
+                          draggable: true,
+                          onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
+                          onDragEnd: handleDragEnd,
+                        }}
+                      />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={sorted.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setCurrentPage}
+              />
+            </>
           ) : (
             <EmptyState
               illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}

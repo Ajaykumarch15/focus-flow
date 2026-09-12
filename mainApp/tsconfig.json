@@ -21,6 +21,7 @@
       "@worklog/*": ["src/modules/worklog/*"],
       "@collab/*": ["src/modules/collab/*"],
       "@meetings/*": ["src/modules/meetings/*"],
+      "@timers/*": ["src/modules/timers/*"],
       "@shared/*": ["src/shared/*"],
       "@/*": ["src/*"]
     }

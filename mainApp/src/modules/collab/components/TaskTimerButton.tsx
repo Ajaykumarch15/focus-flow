@@ -19,7 +19,7 @@ export function TaskTimerButton({ taskId, title, baseMs = 0 }: {
   title: string;
   baseMs?: number;
 }) {
-  const { startTimer, pauseTimer, resumeTimer, stopTimer, tasks } = useStore();
+  const { tasks } = useStore();
   const { activeTaskId, activeTimerState, display } = useActiveTimer();
 
   // Parallel timer state
@@ -66,19 +66,22 @@ export function TaskTimerButton({ taskId, title, baseMs = 0 }: {
       setPendingTaskTitle(title);
       setShowConfirmDialog(true);
     } else {
-      // No other timer running, start directly
-      startTimer(taskId, baseMs);
+      // No other timer running, start directly via parallel engine
+      const { startParallelTimer } = useStore.getState();
+      startParallelTimer(taskId, baseMs);
     }
-  }, [taskId, title, baseMs, startTimer, getRunningTaskInfo]);
+  }, [taskId, title, baseMs, getRunningTaskInfo]);
 
   const handleSwitchAndPause = useCallback(() => {
     if (pendingTaskId) {
-      startTimer(pendingTaskId, baseMs);
+      // Start new task via parallel engine (stops the other running timer automatically)
+      const { startParallelTimer } = useStore.getState();
+      startParallelTimer(pendingTaskId, baseMs);
     }
     setShowConfirmDialog(false);
     setPendingTaskId(null);
     setPendingTaskTitle('');
-  }, [pendingTaskId, baseMs, startTimer]);
+  }, [pendingTaskId, baseMs]);
 
   const handleRunParallel = useCallback(() => {
     if (pendingTaskId) {
@@ -99,31 +102,19 @@ export function TaskTimerButton({ taskId, title, baseMs = 0 }: {
 
   // Determine which timer controls to show
   const handlePause = useCallback(() => {
-    if (isParallelRunning) {
-      const { pauseParallelTimer } = useStore.getState();
-      pauseParallelTimer(taskId);
-    } else {
-      pauseTimer(taskId);
-    }
-  }, [taskId, isParallelRunning, pauseTimer]);
+    const { pauseParallelTimer } = useStore.getState();
+    pauseParallelTimer(taskId);
+  }, [taskId]);
 
   const handleResume = useCallback(() => {
-    if (isParallelPaused) {
-      const { resumeParallelTimer } = useStore.getState();
-      resumeParallelTimer(taskId);
-    } else {
-      resumeTimer(taskId);
-    }
-  }, [taskId, isParallelPaused, resumeTimer]);
+    const { resumeParallelTimer } = useStore.getState();
+    resumeParallelTimer(taskId);
+  }, [taskId]);
 
   const handleStop = useCallback(() => {
-    if (isParallelRunning || isParallelPaused) {
-      const { stopParallelTimer } = useStore.getState();
-      stopParallelTimer(taskId);
-    } else {
-      stopTimer(taskId);
-    }
-  }, [taskId, isParallelRunning, isParallelPaused, stopTimer]);
+    const { stopParallelTimer } = useStore.getState();
+    stopParallelTimer(taskId);
+  }, [taskId]);
 
   // Get display time for this task's timer
   const getDisplayTime = () => {

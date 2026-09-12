@@ -8,6 +8,9 @@ import type {
   RoadmapType,
   RoadmapPhaseStatus,
   RoadmapMilestoneStatus,
+  InputJson,
+  GeneratedPlan,
+  GeneratorWarning,
 } from '../types/roadmap';
 
 interface RoadmapState {
@@ -17,8 +20,12 @@ interface RoadmapState {
   detailLoading: boolean;
   error: string | null;
 
+  generatedPlan: GeneratedPlan | null;
+  generateLoading: boolean;
+  importLoading: boolean;
+
   loadRoadmaps: () => Promise<void>;
-  getRoadmap: (id: string) => Promise<void>;
+  getRoadmap: (id: string) => Promise<RoadmapDetail | null>;
   createRoadmap: (data: {
     title: string;
     description?: string;
@@ -59,6 +66,11 @@ interface RoadmapState {
   refreshIfLinked: (roadmapId?: string | null) => Promise<void>;
   linkTask: (data: { taskId: string; roadmapId: string; phaseId: string; milestoneId: string }) => Promise<void>;
   unlinkTask: (taskId: string) => Promise<void>;
+
+  generatePlan: (input: InputJson) => Promise<{ plan: GeneratedPlan; warnings: GeneratorWarning[] }>;
+  importRoadmap: (plan: GeneratedPlan) => Promise<{ roadmapId: string; title: string }>;
+  clearGeneratedPlan: () => void;
+  updateGeneratedPlan: (plan: GeneratedPlan) => void;
 }
 
 export const useRoadmapStore = create<RoadmapState>((set, get) => ({
@@ -67,6 +79,10 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
   loading: false,
   detailLoading: false,
   error: null,
+
+  generatedPlan: null,
+  generateLoading: false,
+  importLoading: false,
 
   loadRoadmaps: async () => {
     set({ loading: true, error: null });
@@ -78,7 +94,7 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
     }
   },
 
-  getRoadmap: async (id: string) => {
+  getRoadmap: async (id: string): Promise<RoadmapDetail | null> => {
     // Only show the full skeleton on a cold load (no active roadmap or different roadmap).
     // Background refreshes (same roadmap already loaded) must NOT set detailLoading so the
     // page doesn't blank out while progress bars silently update.
@@ -87,8 +103,10 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
     try {
       const roadmap = await api.personalRoadmaps.get(id);
       set({ activeRoadmap: roadmap, detailLoading: false });
+      return roadmap;
     } catch (err: any) {
       set({ error: err.message || 'Failed to load roadmap', detailLoading: false });
+      return null;
     }
   },
 
@@ -270,4 +288,42 @@ export const useRoadmapStore = create<RoadmapState>((set, get) => ({
       throw err;
     }
   },
+
+  generatePlan: async (input) => {
+    set({ generateLoading: true, error: null });
+    try {
+      const result = await api.personalRoadmaps.generate(input);
+      set({ generatedPlan: result.plan, generateLoading: false });
+      return result;
+    } catch (err: any) {
+      set({ generateLoading: false, error: err.message || 'Failed to generate plan' });
+      throw err;
+    }
+  },
+
+  importRoadmap: async (plan) => {
+    const MAX_ROADMAP_IMPORT_SIZE = 1.5 * 1024 * 1024; // 1.5 MB
+    const payloadSize = new Blob([JSON.stringify({ plan })]).size;
+    if (payloadSize > MAX_ROADMAP_IMPORT_SIZE) {
+      toast.error('Roadmap is too large to import. Try splitting it into smaller roadmaps.');
+      throw new Error('Roadmap import payload exceeds client limit');
+    }
+
+    set({ importLoading: true, error: null });
+    try {
+      const result = await api.personalRoadmaps.importPlan({ plan });
+      set({ importLoading: false, generatedPlan: null });
+      await get().loadRoadmaps();
+      toast.success('Roadmap imported successfully');
+      return result;
+    } catch (err: any) {
+      set({ importLoading: false, error: err.message || 'Failed to import roadmap' });
+      toast.error('Failed to import roadmap', err.message);
+      throw err;
+    }
+  },
+
+  clearGeneratedPlan: () => set({ generatedPlan: null }),
+
+  updateGeneratedPlan: (plan) => set({ generatedPlan: plan }),
 }));

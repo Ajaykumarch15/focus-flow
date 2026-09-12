@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useStore } from '@worklog/services/useStore';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '@shared/utils/time';
 import { getScheduledState, formatScheduledDate } from '@personal/services/personalTaskSchedule';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '@shared/utils/colors';
@@ -29,15 +29,36 @@ export function PersonalTaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
+    getTask, startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer,
     addSubtask, toggleSubtask, deleteSubtask,
-    updateTask, deleteTask, tasks: personalTasks,
+    updateTask, deleteTask,
   } = usePersonalTaskStore();
   const theme = useStore(s => s.theme);
   const isReducedMotion = theme?.reducedMotion;
-  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer(personalTasks);
 
   const task = getTask(id!);
+
+  // Check parallel timer engine directly for this specific task's state
+  const [parallelState, setParallelState] = useState(() =>
+    task ? parallelTimerEngine.getState(task.id) : 'idle'
+  );
+  const [activeDisplay, setActiveDisplay] = useState(() =>
+    task ? parallelTimerEngine.getFormattedDisplay(task.id) : ''
+  );
+
+  useEffect(() => {
+    if (!task?.id) return;
+    setParallelState(parallelTimerEngine.getState(task.id));
+    setActiveDisplay(parallelTimerEngine.getFormattedDisplay(task.id));
+
+    const unsubscribe = parallelTimerEngine.subscribe((changedTaskId) => {
+      if (changedTaskId === task.id || changedTaskId === '') {
+        setParallelState(parallelTimerEngine.getState(task.id));
+        setActiveDisplay(parallelTimerEngine.getFormattedDisplay(task.id));
+      }
+    });
+    return unsubscribe;
+  }, [task?.id]);
   const [newSubtask, setNewSubtask] = useState('');
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
@@ -57,9 +78,9 @@ export function PersonalTaskDetail() {
     );
   }
 
-  const isActive = activeTaskId === task.id;
-  const isRunning = isActive && activeTimerState === 'running';
-  const isPaused = isActive && activeTimerState === 'paused';
+  const isActive = parallelState !== 'idle';
+  const isRunning = parallelState === 'running';
+  const isPaused = parallelState === 'paused';
   const priority = PRIORITY_CONFIG[task.priority];
   const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
   const isTaskOverdue = deadlineInfo?.status === 'overdue';
@@ -255,7 +276,7 @@ export function PersonalTaskDetail() {
                   type="button"
                   whileHover={isReducedMotion ? {} : { scale: 1.02 }}
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => startTimer(task.id)}
+                  onClick={() => startParallelTimer(task.id)}
                   aria-label={task.totalTime > 0 ? `Resume timer for ${task.title}` : `Start timer for ${task.title}`}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                   <Play size={15} fill="white" aria-hidden="true" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
@@ -265,7 +286,7 @@ export function PersonalTaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => pauseTimer(task.id)}
+                  onClick={() => pauseParallelTimer(task.id)}
                   aria-label={`Pause timer for ${task.title}`}
                   className="btn-secondary rounded-xl flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                   <Pause size={15} aria-hidden="true" /> Pause
@@ -275,7 +296,7 @@ export function PersonalTaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => resumeTimer(task.id)}
+                  onClick={() => resumeParallelTimer(task.id)}
                   aria-label={`Resume timer for ${task.title}`}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                   <Play size={15} fill="white" aria-hidden="true" /> Resume
@@ -285,7 +306,7 @@ export function PersonalTaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => stopTimer(task.id)}
+                  onClick={() => stopParallelTimer(task.id)}
                   aria-label={`Stop timer for ${task.title}`}
                   className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                   <Square size={14} fill="currentColor" aria-hidden="true" /> Stop
