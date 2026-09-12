@@ -12,6 +12,7 @@ import {
 import { useWorkLogStore, WorkLog, WorkLogStatus } from '@worklog/services/useWorkLogStore';
 import { WorkLogMasterDetail } from '@worklog/components/worklog/WorkLogMasterDetail';
 import { useStore } from '@worklog/services/useStore';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useProjectStore } from '@worklog/services/useProjectStore';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -53,14 +54,34 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 
 // ── Compact grid card ────────────────────────────────────────────────────────
 function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }) {
-  const { activeTaskId, activeTimerState } = useStore();
+  const { activeTaskId, activeTimerState, parallelTimers } = useStore();
   const linkedTaskId = log.taskRef?._id;
-  const isThisActive = activeTaskId === linkedTaskId && !!linkedTaskId;
-  const isRunning = isThisActive && activeTimerState === 'running';
+
+  // Check both legacy and parallel timer engines for this task
+  const isLegacyActive = activeTaskId === linkedTaskId && !!linkedTaskId;
+
+  // For running state, check the specific timer state from parallelTimers map
+  const parallelState = linkedTaskId ? parallelTimers[linkedTaskId] : undefined;
+  const isRunning = (isLegacyActive && activeTimerState === 'running')
+    || parallelState === 'running';
+
   const statusInfo = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
 
   const commentCount = log.completedItems.length;
   const linkCount = log.links.length;
+
+  // Live elapsed time for running logs
+  const [elapsed, setElapsed] = useState(() =>
+    linkedTaskId ? parallelTimerEngine.getFormattedDisplay(linkedTaskId) : ''
+  );
+
+  useEffect(() => {
+    if (!isRunning || !linkedTaskId) return;
+    const interval = setInterval(() => {
+      setElapsed(parallelTimerEngine.getFormattedDisplay(linkedTaskId));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, linkedTaskId]);
 
   const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }> = {
     'planning':    { label: 'low',    color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
@@ -75,16 +96,34 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
     <motion.button
       variants={fadeUp}
       onClick={onClick}
-      className={`relative text-left rounded-2xl border p-4 transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer ${
+      animate={isRunning ? {
+        borderColor: ['rgba(245,158,11,0.4)', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.4)'],
+        transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+      } : {
+        borderColor: undefined,
+      }}
+      className={`relative text-left rounded-2xl border p-4 transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer overflow-hidden ${
         isRunning
-          ? 'border-amber-500/40 bg-amber-500/5 shadow-lg shadow-amber-500/10'
+          ? 'bg-amber-500/5 shadow-lg shadow-amber-500/10'
           : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
       }`}
     >
-      {/* Top row: category + priority */}
-      <div className="flex items-center justify-between mb-3">
+      {/* Running glow overlay */}
+      {isRunning && (
+        <motion.div
+          className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 pointer-events-none rounded-2xl"
+          animate={{ opacity: [0.3, 0.6, 0.3] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      )}
+
+      {/* Top row: running dot + category + priority */}
+      <div className="flex items-center justify-between mb-3 relative">
         <div className="flex items-center gap-2">
-          <span className={`w-2 h-2 rounded-full flex-shrink-0`} style={{ backgroundColor: log.taskRef?.color || '#6366f1' }} />
+          {isRunning && (
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+          )}
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: log.taskRef?.color || '#6366f1' }} />
           <span className="text-xs font-medium text-surface-400 truncate">{statusInfo.label}</span>
         </div>
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${priority.color} ${priority.bg}`}>
@@ -93,11 +132,16 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
       </div>
 
       {/* Title */}
-      <h3 className="text-sm font-semibold text-surface-50 truncate mb-2 leading-snug">{log.title}</h3>
+      <h3 className="text-sm font-semibold text-surface-50 truncate mb-2 leading-snug relative">{log.title}</h3>
 
       {/* Bottom row: meta + avatar */}
-      <div className="flex items-center justify-between mt-auto pt-3 border-t border-surface-800/50">
+      <div className="flex items-center justify-between mt-auto pt-3 border-t border-surface-800/50 relative">
         <div className="flex items-center gap-3">
+          {isRunning && elapsed && (
+            <span className="flex items-center gap-1 text-[11px] text-amber-400 font-mono font-bold tabular-nums">
+              <Clock size={10} /> {elapsed}
+            </span>
+          )}
           {commentCount > 0 && (
             <span className="flex items-center gap-1 text-[11px] text-surface-500">
               <MessageSquare size={11} />

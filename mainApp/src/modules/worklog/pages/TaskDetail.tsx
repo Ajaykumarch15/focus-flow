@@ -35,7 +35,7 @@ export function TaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    getTask, startTimer, pauseTimer, resumeTimer, stopTimer,
+    getTask, startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer,
     addSubtask, toggleSubtask, deleteSubtask, addJournal,
     journals, updateTask, deleteTask, theme,
   } = useStore();
@@ -275,7 +275,7 @@ export function TaskDetail() {
                   type="button"
                   whileHover={isReducedMotion ? {} : { scale: 1.02 }}
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => startTimer(task.id)}
+                  onClick={() => startParallelTimer(task.id)}
                   aria-label={task.totalTime > 0 ? `Resume timer for ${task.title}` : `Start timer for ${task.title}`}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                   <Play size={15} fill="white" aria-hidden="true" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
@@ -285,7 +285,7 @@ export function TaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => pauseTimer(task.id)}
+                  onClick={() => pauseParallelTimer(task.id)}
                   aria-label={`Pause timer for ${task.title}`}
                   className="btn-secondary rounded-xl flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                   <Pause size={15} aria-hidden="true" /> Pause
@@ -295,7 +295,7 @@ export function TaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => resumeTimer(task.id)}
+                  onClick={() => resumeParallelTimer(task.id)}
                   aria-label={`Resume timer for ${task.title}`}
                   className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                   <Play size={15} fill="white" aria-hidden="true" /> Resume
@@ -305,7 +305,7 @@ export function TaskDetail() {
                 <motion.button
                   type="button"
                   whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => stopTimer(task.id)}
+                  onClick={() => stopParallelTimer(task.id)}
                   aria-label={`Stop timer for ${task.title}`}
                   className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                   <Square size={14} fill="currentColor" aria-hidden="true" /> Stop

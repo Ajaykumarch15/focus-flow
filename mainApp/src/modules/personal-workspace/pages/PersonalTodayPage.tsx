@@ -9,6 +9,7 @@ import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
+import { fetchMilestonesDueToday, type TodayMilestone } from '@personal/services/milestoneSchedule';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import {
   getTodayTasks, getMissedTasks, getUpcomingTasks,
@@ -66,6 +67,12 @@ export function PersonalTodayPage() {
 
   useEffect(() => { fetchPersonalTasks(); }, [fetchPersonalTasks]);
   useEffect(() => { loadRoadmaps(); }, [loadRoadmaps]);
+
+  const [todayMilestones, setTodayMilestones] = useState<TodayMilestone[]>([]);
+
+  useEffect(() => {
+    fetchMilestonesDueToday().then(setTodayMilestones);
+  }, [roadmaps]);
 
   const todayTasks = useMemo(() => getTodayTasks(personalTasks), [personalTasks]);
   const missedTasks = useMemo(() => getMissedTasks(personalTasks), [personalTasks]);
@@ -211,7 +218,7 @@ const startTask = (task: Task) => {
           </div>
           <div className="relative mx-auto shrink-0">
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-16 h-40 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
-            <motion.img variants={fadeUp} src="/personal_workspace_hub_light.jpg" alt="" aria-hidden="true" loading="eager" draggable={false}
+            <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
               className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none" />
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-24 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
           </div>
@@ -327,7 +334,7 @@ const startTask = (task: Task) => {
           {doNowTasks.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<Target size={26} className="text-brand-400" />}
+                illustration="/SVG/task-priority.png"
                 title="All clear for today"
                 description="No missed or scheduled tasks. Create something new."
                 action={
@@ -366,7 +373,7 @@ const startTask = (task: Task) => {
           {continueTasks.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<ListTodo size={26} className="text-brand-400" />}
+                illustration="/SVG/today-goal.png"
                 title="Nothing to resume"
                 description="All your tasks are completed or not yet started."
               />
@@ -389,15 +396,20 @@ const startTask = (task: Task) => {
                   <Clock size={14} />
                 </span>
                 Today's Schedule
-                {todayTasks.length > 0 && <Badge tone="info">{todayTasks.length}</Badge>}
+                {(todayTasks.length + todayMilestones.length) > 0 && (
+                  <Badge tone="info">{todayTasks.length + todayMilestones.length}</Badge>
+                )}
               </h2>
             </div>
-            {todayTasks.length === 0 ? (
+            {todayTasks.length === 0 && todayMilestones.length === 0 ? (
               <Card>
                 <EmptyState icon={<Clock size={26} className="text-cyan-400" />} title="No tasks scheduled" description="Set a scheduled date on your tasks to see them here." />
               </Card>
             ) : (
               <div className="space-y-2">
+                {todayMilestones.map(ms => (
+                  <MilestoneRow key={ms._id} milestone={ms} onOpen={() => navigate(`/personal/roadmaps/${ms.roadmapId}`)} />
+                ))}
                 {todayTasks.map(task => (
                   <ScheduledRow key={task.id} task={task} onOpen={() => navigate(`/personal/tasks/${task.id}`)} />
                 ))}
@@ -594,6 +606,32 @@ function ScheduledRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
             </span>
           )}
           {task.category && <span className="text-[10px] text-surface-500">{task.category}</span>}
+        </div>
+      </button>
+    </motion.div>
+  );
+}
+
+function MilestoneRow({ milestone, onOpen }: { milestone: TodayMilestone; onOpen: () => void }) {
+  return (
+    <motion.div variants={fadeUp}
+      className="p-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 hover:border-sky-500/50 transition-colors">
+      <button onClick={onOpen} className="w-full text-left">
+        <div className="flex items-center gap-2 mb-1">
+          <Badge tone="info">Milestone</Badge>
+          <Badge tone="warning">Due today</Badge>
+        </div>
+        <p className="font-medium text-surface-50 truncate">{milestone.title}</p>
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-[10px] font-medium" style={{ color: milestone.roadmapColor }}>
+            {milestone.roadmapTitle}
+          </span>
+          <span className="text-[10px] text-surface-500">
+            {milestone.completedTasks}/{milestone.totalTasks} tasks
+          </span>
+          {milestone.progress > 0 && (
+            <span className="text-[10px] text-surface-400">{milestone.progress}%</span>
+          )}
         </div>
       </button>
     </motion.div>

@@ -1,14 +1,16 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, BellRing, ArrowRight, ArrowUpRight,
+  Target, ListTodo, BellRing, ArrowRight, ArrowUpRight, Map,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
+import { useRoadmapStore } from '@personal/services/useRoadmapStore';
+import { fetchMilestonesDueToday, type TodayMilestone } from '@personal/services/milestoneSchedule';
 import { selectToday } from '@worklog/services/todaySelectors';
 import type {
   TodayView, ContinueItem, DoNowItem, AttentionItem, AttentionKind, AttentionDeadline,
@@ -62,14 +64,21 @@ function reasonTone(item: DoNowItem): BadgeTone {
 export function TodayPage() {
   const {
     tasks, profile, theme, activeTaskId, activeSessionId, activeTimerState,
-    dataLoading, dataError, getTodayTime, getWeekTime, loadAll, startTimer,
+    dataLoading, dataError, getTodayTime, getWeekTime, loadAll, startParallelTimer,
   } = useStore();
   const { user } = useAuthStore();
   const { activeLogs } = useWorkLogStore();
   const { blockers, tasks: collabTasks, sprints, projects } = useCollaborationStore();
+  const { roadmaps, loadRoadmaps } = useRoadmapStore();
   const { display } = useActiveTimer();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [todayMilestones, setTodayMilestones] = useState<TodayMilestone[]>([]);
+
+  useEffect(() => { loadRoadmaps(); }, [loadRoadmaps]);
+  useEffect(() => {
+    fetchMilestonesDueToday().then(setTodayMilestones);
+  }, [roadmaps]);
 
   const accent = theme?.accentColor || '#0ea5e9';
   const todayMs = getTodayTime();
@@ -125,7 +134,7 @@ export function TodayPage() {
   const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
   const startTask = (task: Task) => {
-    void startTimer(task.id);
+    void startParallelTimer(task.id);
     navigate(`/worklog/tasks/${task.id}`);
   };
 
@@ -243,7 +252,7 @@ export function TodayPage() {
                          dark:via-brand-400/[0.04] blur-2xl" />
             <motion.img
               variants={fadeUp}
-              src={theme?.mode === 'dark' ? '/personal_workspace_hub_light.jpg' : '/personal_workspace_hub_light.jpg'}
+              src="/SVG/deep-focus.png"
               alt=""
               aria-hidden="true"
               loading="eager"
@@ -338,7 +347,7 @@ export function TodayPage() {
           {view.continue.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<ListTodo size={26} className="text-brand-400" />}
+                illustration="/SVG/today-goal.png"
                 title="Nothing to resume"
                 description="Resume where you left off, or start something new."
                 action={
@@ -403,7 +412,7 @@ export function TodayPage() {
           {view.doNow.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<Target size={26} className="text-amber-400" />}
+                illustration="/SVG/task-priority.png"
                 title="No tasks yet"
                 description="Create your first task to start tracking focus time."
                 action={
@@ -458,6 +467,24 @@ export function TodayPage() {
             )}
           </motion.section>
         </div>
+
+        {/* ─── Roadmap Milestones Due Today ─── */}
+        {todayMilestones.length > 0 && (
+          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-milestones" className="space-y-3">
+            <h2 id="today-milestones" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
+              <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-sky-400">
+                <Map size={14} />
+              </span>
+              Roadmap Milestones
+              <Badge tone="info">{todayMilestones.length}</Badge>
+            </h2>
+            <div className="space-y-2.5">
+              {todayMilestones.map(ms => (
+                <WorklogMilestoneRow key={ms._id} milestone={ms} onOpen={() => navigate(`/personal/roadmaps/${ms.roadmapId}`)} />
+              ))}
+            </div>
+          </motion.section>
+        )}
 
 
 
@@ -594,6 +621,33 @@ function AttentionRow({ item, onOpen }: { item: AttentionItem; onOpen: () => voi
     <motion.div variants={fadeUp} className="p-4 rounded-2xl border border-surface-800 bg-surface-900">
       <div className="min-w-0">{content}</div>
     </motion.div>
+  );
+}
+
+function WorklogMilestoneRow({ milestone, onOpen }: { milestone: TodayMilestone; onOpen: () => void }) {
+  return (
+    <motion.button variants={fadeUp} onClick={onOpen}
+      className="w-full text-left p-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 hover:border-sky-500/50 transition-all group flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <Badge tone="info">Milestone</Badge>
+          <Badge tone="warning">Due today</Badge>
+        </div>
+        <p className="font-medium text-surface-50 truncate">{milestone.title}</p>
+        <div className="flex items-center gap-3 mt-1">
+          <span className="text-[10px] font-medium" style={{ color: milestone.roadmapColor }}>
+            {milestone.roadmapTitle}
+          </span>
+          <span className="text-[10px] text-surface-500">
+            {milestone.completedTasks}/{milestone.totalTasks} tasks
+          </span>
+          {milestone.progress > 0 && (
+            <span className="text-[10px] text-surface-400">{milestone.progress}%</span>
+          )}
+        </div>
+      </div>
+      <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors flex-shrink-0" />
+    </motion.button>
   );
 }
 

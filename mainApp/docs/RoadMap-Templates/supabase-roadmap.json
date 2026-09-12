@@ -1,0 +1,498 @@
+{
+  "project": {
+    "name": "Supabase",
+    "description": "Learn Supabase from fundamentals to advanced usage, including PostgreSQL, authentication, database design, Row Level Security, Storage, APIs, Edge Functions, Realtime, and production deployment.",
+    "startDate": "2026-09-14",
+    "deadline": "2026-10-31"
+  },
+  "schedule": {
+    "workingDays": [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday"
+    ],
+    "hoursPerDay": 3,
+    "bufferDays": 2
+  },
+  "rules": {
+    "includeRevision": true,
+    "includePractice": true,
+    "includeProjects": true,
+    "includeQuiz": true,
+    "includeSubtasks": true,
+    "defaultSubtaskCount": 2,
+    "defaultTaskHours": 1.5,
+    "milestoneGroupSize": 4
+  },
+  "phases": [
+    {
+      "name": "Supabase Fundamentals",
+      "description": "Understand Supabase architecture, PostgreSQL basics, projects, dashboards, and the Supabase development workflow.",
+      "topics": [
+        {
+          "title": "Introduction to Supabase",
+          "estimatedHours": 2,
+          "priority": "high",
+          "subtopics": [
+            "What is Supabase",
+            "Supabase architecture",
+            "Supabase services",
+            "Supabase vs traditional backend"
+          ]
+        },
+        {
+          "title": "Creating and Managing Supabase Projects",
+          "estimatedHours": 2,
+          "priority": "high",
+          "subtopics": [
+            "Create a Supabase project",
+            "Understand project dashboard",
+            "Project URL and API keys",
+            "Environment variables"
+          ]
+        },
+        {
+          "title": "PostgreSQL Fundamentals",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Databases and schemas",
+            "Tables",
+            "Rows and columns",
+            "Primary keys",
+            "Foreign keys",
+            "Constraints"
+          ]
+        },
+        {
+          "title": "Supabase Table Editor",
+          "estimatedHours": 2,
+          "priority": "medium",
+          "subtopics": [
+            "Create tables",
+            "Modify columns",
+            "Insert records",
+            "Update records",
+            "Delete records"
+          ]
+        },
+        {
+          "title": "SQL with Supabase",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "SELECT",
+            "INSERT",
+            "UPDATE",
+            "DELETE",
+            "WHERE",
+            "ORDER BY",
+            "JOIN"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Database Design and Row Level Security",
+      "description": "Learn how to design secure PostgreSQL databases and control access using Row Level Security.",
+      "topics": [
+        {
+          "title": "Relational Database Design",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Relationships",
+            "One-to-one relationships",
+            "One-to-many relationships",
+            "Many-to-many relationships",
+            "Normalization"
+          ]
+        },
+        {
+          "title": "Foreign Keys and Relationships in Supabase",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Define foreign keys",
+            "Create related tables",
+            "Query related data",
+            "Nested relational queries"
+          ]
+        },
+        {
+          "title": "Row Level Security Fundamentals",
+          "estimatedHours": 4,
+          "priority": "urgent",
+          "subtopics": [
+            "What is Row Level Security",
+            "Enable RLS",
+            "RLS policies",
+            "USING expressions",
+            "WITH CHECK expressions"
+          ]
+        },
+        {
+          "title": "Writing Secure RLS Policies",
+          "estimatedHours": 4,
+          "priority": "urgent",
+          "subtopics": [
+            "User-based policies",
+            "auth.uid()",
+            "Read policies",
+            "Insert policies",
+            "Update policies",
+            "Delete policies"
+          ]
+        },
+        {
+          "title": "Database Functions and Triggers",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "PostgreSQL functions",
+            "Database triggers",
+            "Automatic updates",
+            "Using functions with Supabase"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Supabase Authentication",
+      "description": "Build authentication and authorization flows using Supabase Auth.",
+      "topics": [
+        {
+          "title": "Supabase Auth Fundamentals",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Supabase Auth architecture",
+            "Users",
+            "Sessions",
+            "Access tokens",
+            "Refresh tokens"
+          ]
+        },
+        {
+          "title": "Email and Password Authentication",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "User signup",
+            "User login",
+            "Logout",
+            "Session handling",
+            "Password reset"
+          ]
+        },
+        {
+          "title": "OAuth Authentication",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "OAuth providers",
+            "Google authentication",
+            "OAuth callback",
+            "Session persistence"
+          ]
+        },
+        {
+          "title": "Authentication with React",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Install Supabase client",
+            "Create Supabase client",
+            "Auth context",
+            "Protected routes",
+            "Authenticated UI"
+          ]
+        },
+        {
+          "title": "Authorization and User Profiles",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "User profile table",
+            "Link auth users with profiles",
+            "Role-based access",
+            "Combine profiles with RLS"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Supabase APIs and Client Integration",
+      "description": "Learn how frontend applications communicate with Supabase through its client libraries and generated APIs.",
+      "topics": [
+        {
+          "title": "Supabase JavaScript Client",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Install Supabase client",
+            "Create client instance",
+            "Environment configuration",
+            "Client-side queries"
+          ]
+        },
+        {
+          "title": "CRUD Operations with Supabase",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Select data",
+            "Insert data",
+            "Update data",
+            "Delete data",
+            "Filtering"
+          ]
+        },
+        {
+          "title": "Advanced Queries",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Filtering",
+            "Pagination",
+            "Ordering",
+            "Joins",
+            "Nested queries"
+          ]
+        },
+        {
+          "title": "Supabase API and REST Concepts",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Auto-generated APIs",
+            "REST endpoints",
+            "API requests",
+            "Authentication headers",
+            "Error handling"
+          ]
+        },
+        {
+          "title": "Supabase with React Applications",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Connect React to Supabase",
+            "Fetch data",
+            "Loading states",
+            "Error states",
+            "Mutations"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Supabase Storage and Realtime",
+      "description": "Learn file storage and real-time database functionality.",
+      "topics": [
+        {
+          "title": "Supabase Storage Fundamentals",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Storage architecture",
+            "Buckets",
+            "Objects",
+            "Public buckets",
+            "Private buckets"
+          ]
+        },
+        {
+          "title": "File Upload and Management",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Upload files",
+            "Download files",
+            "Delete files",
+            "Generate file URLs"
+          ]
+        },
+        {
+          "title": "Storage Security",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Storage policies",
+            "Authenticated file access",
+            "User-specific folders",
+            "Private file access"
+          ]
+        },
+        {
+          "title": "Supabase Realtime",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Realtime architecture",
+            "Database changes",
+            "Subscribe to changes",
+            "Insert events",
+            "Update events",
+            "Delete events"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Edge Functions and Advanced Supabase",
+      "description": "Learn server-side logic, Edge Functions, database migrations, and production-oriented Supabase development.",
+      "topics": [
+        {
+          "title": "Supabase Edge Functions",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "What are Edge Functions",
+            "Create an Edge Function",
+            "Request handling",
+            "Environment variables",
+            "Deploy functions"
+          ]
+        },
+        {
+          "title": "Calling Edge Functions from React",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Invoke functions",
+            "Pass request data",
+            "Handle responses",
+            "Handle errors"
+          ]
+        },
+        {
+          "title": "Database Migrations",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Migration concepts",
+            "Create migrations",
+            "Apply migrations",
+            "Version database changes"
+          ]
+        },
+        {
+          "title": "Supabase CLI",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Install CLI",
+            "Login",
+            "Initialize project",
+            "Local development",
+            "Database commands"
+          ]
+        },
+        {
+          "title": "Production Deployment and Security",
+          "estimatedHours": 4,
+          "priority": "urgent",
+          "subtopics": [
+            "Environment variables",
+            "API key security",
+            "RLS verification",
+            "Production configuration",
+            "Database backups",
+            "Monitoring"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Supabase Full-Stack Project",
+      "description": "Build a complete production-style application using Supabase as the backend.",
+      "topics": [
+        {
+          "title": "Project Architecture",
+          "estimatedHours": 3,
+          "priority": "high",
+          "subtopics": [
+            "Define application requirements",
+            "Design database schema",
+            "Plan authentication",
+            "Plan RLS policies"
+          ]
+        },
+        {
+          "title": "Authentication Implementation",
+          "estimatedHours": 4,
+          "priority": "high",
+          "subtopics": [
+            "Signup",
+            "Login",
+            "Logout",
+            "Protected routes",
+            "User profiles"
+          ]
+        },
+        {
+          "title": "Database Implementation",
+          "estimatedHours": 5,
+          "priority": "urgent",
+          "subtopics": [
+            "Create tables",
+            "Create relationships",
+            "Add constraints",
+            "Create RLS policies",
+            "Test database access"
+          ]
+        },
+        {
+          "title": "Application CRUD Features",
+          "estimatedHours": 5,
+          "priority": "high",
+          "subtopics": [
+            "Create records",
+            "Read records",
+            "Update records",
+            "Delete records",
+            "Filtering and pagination"
+          ]
+        },
+        {
+          "title": "File Upload Feature",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Create storage bucket",
+            "Upload files",
+            "Display files",
+            "Secure file access"
+          ]
+        },
+        {
+          "title": "Realtime Feature",
+          "estimatedHours": 3,
+          "priority": "medium",
+          "subtopics": [
+            "Configure realtime",
+            "Subscribe to changes",
+            "Update UI automatically"
+          ]
+        },
+        {
+          "title": "Production Deployment",
+          "estimatedHours": 4,
+          "priority": "urgent",
+          "subtopics": [
+            "Configure environment",
+            "Deploy frontend",
+            "Configure Supabase project",
+            "Test authentication",
+            "Test RLS",
+            "Production verification"
+          ]
+        }
+      ]
+    }
+  ]
+}

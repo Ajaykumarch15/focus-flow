@@ -33,7 +33,7 @@ function minutesToTime(mins: number): string {
 
 export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCardProps) {
   const navigate = useNavigate();
-  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, tasks } = useStore();
+  const { startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer, completeTask, tasks } = useStore();
   const { openModal, deleteSchedule, updateSchedule } = useScheduleStore();
   const { activeTaskId, activeTimerState } = useActiveTimer();
   const [now, setNow] = useState(Date.now());
@@ -93,15 +93,15 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
   // Handlers
   const handleTimerAction = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isRunning) { await pauseTimer(taskId); }
-    else if (isPaused) { await resumeTimer(taskId); }
-    else { await startTimer(taskId); }
+    if (isRunning) { await pauseParallelTimer(taskId); }
+    else if (isPaused) { await resumeParallelTimer(taskId); }
+    else { await startParallelTimer(taskId); }
   };
 
   const handleStopTimer = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm(`Stop working on "${taskTitle}"? Worked time will be preserved.`)) {
-      await stopTimer(taskId);
+      await stopParallelTimer(taskId);
     }
   };
 

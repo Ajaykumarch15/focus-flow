@@ -20,6 +20,7 @@ const {
   roadmapProgress,
   serializeProgress,
 } = require('../utils/roadmapProgress');
+const roadmapGenerator = require('../utils/roadmapGenerator');
 
 const router = express.Router();
 router.use(protect);
@@ -833,6 +834,150 @@ router.delete('/milestones/:id', async (req, res, next) => {
     ]);
 
     res.json({ message: 'Milestone deleted' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── ROADMAP GENERATOR ───────────────────────────────────────────────────────
+
+const importPlanSchema = z.object({
+  plan: z.object({
+    roadmap: z.object({
+      title: z.string(),
+      description: z.string(),
+      startDate: z.string(),
+      targetDate: z.string(),
+      status: z.string(),
+      icon: z.string(),
+      color: z.string(),
+      type: z.string(),
+    }),
+    phases: z.array(z.any()),
+  }),
+}).passthrough();
+
+// POST /api/personal-roadmaps/generate
+router.post('/generate', async (req, res, next) => {
+  try {
+    const { plan, warnings } = roadmapGenerator.generate(req.body);
+    res.json({ plan, warnings });
+  } catch (err) {
+    if (err.status === 400) {
+      return res.status(400).json({ message: err.message, code: err.code });
+    }
+    next(err);
+  }
+});
+
+// POST /api/personal-roadmaps/import
+router.post('/import', validate(importPlanSchema), async (req, res, next) => {
+  try {
+    const { plan } = req.body;
+    const userId = req.user._id;
+
+    const roadmap = await PersonalRoadmap.create({
+      userId,
+      title: plan.roadmap.title,
+      description: plan.roadmap.description,
+      type: plan.roadmap.type,
+      startDate: plan.roadmap.startDate,
+      targetDate: plan.roadmap.targetDate,
+      status: 'planning',
+      icon: plan.roadmap.icon,
+      color: plan.roadmap.color,
+    });
+
+    const phaseDocs = [];
+    for (const phase of plan.phases) {
+      const doc = await PersonalRoadmapPhase.create({
+        userId,
+        roadmapId: roadmap._id,
+        title: phase.title,
+        description: phase.description,
+        order: phase.order,
+        startDate: phase.startDate,
+        targetDate: phase.targetDate,
+        status: 'upcoming',
+      });
+      phaseDocs.push({ inputId: phase.id, doc });
+    }
+
+    const milestoneDocs = [];
+    for (const phase of plan.phases) {
+      const phaseDoc = phaseDocs.find((p) => p.inputId === phase.id).doc;
+      for (const milestone of phase.milestones) {
+        const doc = await PersonalRoadmapMilestone.create({
+          userId,
+          roadmapId: roadmap._id,
+          phaseId: phaseDoc._id,
+          title: milestone.title,
+          description: milestone.description,
+          order: milestone.order,
+          targetDate: milestone.targetDate,
+          status: 'todo',
+        });
+        milestoneDocs.push({ inputId: milestone.id, doc, phaseInputId: phase.id });
+      }
+    }
+
+    for (const phase of plan.phases) {
+      const phaseDocId = phaseDocs.find((p) => p.inputId === phase.id).doc._id;
+
+      for (const milestone of phase.milestones) {
+        const milestoneDocId = milestoneDocs.find((m) => m.inputId === milestone.id).doc._id;
+        const taskIdMap = {};
+
+        for (const task of milestone.tasks) {
+          const doc = await PersonalTask.create({
+            userId,
+            title: task.title,
+            description: task.description,
+            category: task.category,
+            estimatedHours: task.estimatedHours,
+            priority: task.priority,
+            status: 'todo',
+            order: task.order,
+            tags: task.tags,
+            deadline: task.deadline,
+            scheduledDate: task.scheduledDate,
+            personalRoadmapRef: roadmap._id,
+            personalPhaseRef: phaseDocId,
+            personalMilestoneRef: milestoneDocId,
+            subtasks: task.subtasks || [],
+            workspaceContext: 'personal',
+          });
+          taskIdMap[task.id] = doc._id;
+        }
+
+        for (const task of milestone.tasks) {
+          if (task.dependencies && task.dependencies.length > 0) {
+            const resolvedDeps = task.dependencies
+              .map((depId) => taskIdMap[depId])
+              .filter(Boolean);
+            if (resolvedDeps.length > 0) {
+              await PersonalTask.findByIdAndUpdate(taskIdMap[task.id], {
+                dependencies: resolvedDeps,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    const milestoneCount = plan.phases.reduce((sum, p) => sum + p.milestones.length, 0);
+    const taskCount = plan.phases.reduce(
+      (sum, p) => sum + p.milestones.reduce((s, m) => s + m.tasks.length, 0),
+      0
+    );
+
+    res.status(201).json({
+      roadmapId: roadmap._id,
+      title: roadmap.title,
+      phaseCount: plan.phases.length,
+      milestoneCount,
+      taskCount,
+    });
   } catch (err) {
     next(err);
   }

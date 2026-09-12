@@ -49,6 +49,7 @@ class TimerEngine {
   private lastTickMs: number = 0;
   private listeners: Set<TimerChangeListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
+  private senderId: string = Math.random().toString(36).substring(2);
 
   constructor() {
     this.initBroadcastChannel();
@@ -442,6 +443,7 @@ class TimerEngine {
         if (e.key === 'ff_active_timer_sync_event' && e.newValue) {
           try {
             const data = JSON.parse(e.newValue);
+            if (data.senderId === this.senderId) return; // skip self
             this.handleRemoteMessage(data);
           } catch { /* ignore */ }
         }
@@ -450,7 +452,7 @@ class TimerEngine {
   }
 
   private broadcast(type: string, payload: any): void {
-    const msg = { type, payload, senderId: Math.random().toString(36).substring(2) };
+    const msg = { type, payload, senderId: this.senderId };
     if (this.broadcastChannel) {
       try { this.broadcastChannel.postMessage(msg); } catch { /* ignore */ }
     } else {

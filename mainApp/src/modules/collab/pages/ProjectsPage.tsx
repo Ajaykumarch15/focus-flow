@@ -306,7 +306,16 @@ export function ProjectsPage() {
             className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
           >
             <EmptyState
-              icon={<FolderOpen size={40} className="text-surface-500" />}
+              illustration={
+                searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || timelineFilter !== 'all'
+                  ? undefined
+                  : '/SVG/empty-projects.png'
+              }
+              icon={
+                searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || timelineFilter !== 'all'
+                  ? <FolderOpen size={40} className="text-surface-500" />
+                  : undefined
+              }
               title={searchQuery || statusFilter !== 'all' || clientFilter !== 'all' || timelineFilter !== 'all'
                 ? 'No matching projects'
                 : 'No projects yet'}

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Pause, Square, Trash2, CheckCircle, ChevronRight, Clock, Calendar, GripVertical } from 'lucide-react';
 import { Task } from '@shared/types';
 import { useStore } from '@worklog/services/useStore';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { formatHours, getDeadlineStatus } from '@shared/utils/time';
 import { getScheduledState, formatScheduledDate } from '@personal/services/personalTaskSchedule';
@@ -26,23 +27,66 @@ interface TaskCardProps {
   onClickCard?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, selected = false, onToggleSelect, dragHandleProps, detailPath, onStartTimer, onPauseTimer, onResumeTimer, onStopTimer, onCompleteTask, onDeleteTask, onClickCard }: TaskCardProps) {
+export function TaskCard({ task, selected = false, onToggleSelect, dragHandleProps, detailPath, onClickCard }: TaskCardProps) {
   const store = useStore();
-  const _startTimer   = onStartTimer   ?? store.startTimer;
-  const _pauseTimer   = onPauseTimer   ?? store.pauseTimer;
-  const _resumeTimer  = onResumeTimer  ?? store.resumeTimer;
-  const _stopTimer    = onStopTimer    ?? store.stopTimer;
-  const _completeTask = onCompleteTask ?? store.completeTask;
-  const _deleteTask   = onDeleteTask   ?? store.deleteTask;
   const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
   const navigate = useNavigate();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
-  const isActive = activeTaskId === task.id;
-  const isPaused = isActive && activeTimerState === 'paused';
-  const isRunning = isActive && activeTimerState === 'running';
+  // Check parallel timer engine directly for this task's state (supports multiple concurrent timers)
+  const [parallelState, setParallelState] = useState(() => parallelTimerEngine.getState(task.id));
+  const [parallelDisplay, setParallelDisplay] = useState(() => parallelTimerEngine.getFormattedDisplay(task.id));
 
-  const displayTime = isActive ? activeDisplay : formatHours(task.totalTime);
+  useEffect(() => {
+    const unsubscribe = parallelTimerEngine.subscribe((changedTaskId) => {
+      if (changedTaskId === task.id || changedTaskId === '') {
+        setParallelState(parallelTimerEngine.getState(task.id));
+        setParallelDisplay(parallelTimerEngine.getFormattedDisplay(task.id));
+      }
+    });
+    return unsubscribe;
+  }, [task.id]);
+
+  // Also check legacy single-timer for this task
+  const isLegacyActive = activeTaskId === task.id;
+  const isLegacyRunning = isLegacyActive && activeTimerState === 'running';
+  const isLegacyPaused = isLegacyActive && activeTimerState === 'paused';
+
+  // Parallel timer state for this task takes priority
+  const isParallelRunning = parallelState === 'running';
+  const isParallelPaused = parallelState === 'paused';
+
+  const isRunning = isParallelRunning || isLegacyRunning;
+  const isPaused = isParallelPaused || isLegacyPaused;
+
+  // Use parallel display if available, otherwise legacy
+  const displayTime = isParallelRunning || isParallelPaused
+    ? parallelDisplay
+    : isLegacyActive ? activeDisplay : formatHours(task.totalTime);
+
+  // Wire timer methods: prefer parallel engine, fall back to legacy
+  const handleTimerAction = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isRunning) {
+      if (isParallelRunning) store.pauseParallelTimer(task.id);
+      else store.pauseTimer(task.id);
+    } else if (isPaused) {
+      if (isParallelPaused) store.resumeParallelTimer(task.id);
+      else store.resumeTimer(task.id);
+    } else {
+      const baseMs = task.totalTime || 0;
+      await store.startParallelTimer(task.id, baseMs);
+    }
+  };
+
+  const handleStopTimer = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isParallelRunning || isParallelPaused) {
+      await store.stopParallelTimer(task.id);
+    } else {
+      await store.stopTimer(task.id);
+    }
+  };
 
   const subtasksDone = task.subtasks.filter(s => s.completed).length;
   const subtasksTotal = task.subtasks.length;
@@ -58,30 +102,22 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
     low: 'bg-emerald-400',
   };
 
+  const PRIORITY_TAG: Record<string, { bg: string; text: string; label: string }> = {
+    urgent: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'Urgent' },
+    high: { bg: 'bg-pink-500/15', text: 'text-pink-400', label: 'High' },
+    medium: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'Medium' },
+    low: { bg: 'bg-sky-500/15', text: 'text-sky-400', label: 'Low' },
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [data-no-nav]')) return;
     if (onClickCard) onClickCard(task.id);
     else navigate(detailPath ?? `/worklog/tasks/${task.id}`);
   };
 
-  const handleTimerAction = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isRunning) await _pauseTimer(task.id);
-    else if (isPaused) await _resumeTimer(task.id);
-    else {
-      const baseMs = task.totalTime || 0;
-      await _startTimer(task.id, baseMs);
-    }
-  };
-
-  const handleStopTimer = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    await _stopTimer(task.id);
-  };
-
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (task.status !== 'completed') await _completeTask(task.id);
+    if (task.status !== 'completed') await store.completeTask(task.id);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -90,7 +126,7 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
   };
 
   const confirmDelete = async () => {
-    await _deleteTask(task.id);
+    await store.deleteTask(task.id);
     setShowConfirmDelete(false);
   };
 
@@ -224,6 +260,12 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
 
           {/* Actions */}
           <div className="flex flex-col items-end gap-1.5 flex-shrink-0" data-no-nav>
+            {/* Priority Tag */}
+            {task.status !== 'completed' && PRIORITY_TAG[task.priority] && (
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${PRIORITY_TAG[task.priority].bg} ${PRIORITY_TAG[task.priority].text}`}>
+                {PRIORITY_TAG[task.priority].label}
+              </span>
+            )}
             <div className="flex items-center gap-1">
               {task.status !== 'completed' && (
                 <>

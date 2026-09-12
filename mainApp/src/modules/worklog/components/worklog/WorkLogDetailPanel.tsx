@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle, AlertCircle,
@@ -20,7 +20,7 @@ import { AutoProEditor } from '@shared/components/ui/proEditor';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import { useStore } from '@worklog/services/useStore';
-import { useActiveTimer } from '@shared/hooks/useActiveTimer';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { TimelineView } from './TimelineView';
 import { TechnicalDecisionsView } from './TechnicalDecisionsView';
 import { StructuredBlockersView } from './StructuredBlockersView';
@@ -66,37 +66,58 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 
 // ── Sticky Toolbar ──────────────────────────────────────────────────────────
 function WorkLogToolbar({ log, onBack, onComplete }: { log: WorkLog; onBack: () => void; onComplete: () => void }) {
-  const { startTimer, pauseTimer, resumeTimer, stopTimer, completeTask } = useStore();
+  const { startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer, completeTask } = useStore();
   const { closeLog } = useWorkLogStore();
-  const { activeTaskId, activeTimerState, display } = useActiveTimer();
   const [completing, setCompleting] = useState(false);
 
   const taskId = log.taskRef?._id;
   const hasTask = !!taskId;
-  const isThisActive = activeTaskId === taskId && !!taskId;
-  const isRunning = isThisActive && activeTimerState === 'running';
-  const isPaused = isThisActive && activeTimerState === 'paused';
-  const isIdle = !isThisActive;
+
+  // Check parallel timer engine directly for this specific task's state
+  const [parallelState, setParallelState] = useState(() =>
+    taskId ? parallelTimerEngine.getState(taskId) : 'idle'
+  );
+  const [display, setDisplay] = useState(() =>
+    taskId ? parallelTimerEngine.getFormattedDisplay(taskId) : ''
+  );
+
+  useEffect(() => {
+    if (!taskId) return;
+    setParallelState(parallelTimerEngine.getState(taskId));
+    setDisplay(parallelTimerEngine.getFormattedDisplay(taskId));
+
+    const unsubscribe = parallelTimerEngine.subscribe((changedTaskId) => {
+      if (changedTaskId === taskId || changedTaskId === '') {
+        setParallelState(parallelTimerEngine.getState(taskId));
+        setDisplay(parallelTimerEngine.getFormattedDisplay(taskId));
+      }
+    });
+    return unsubscribe;
+  }, [taskId]);
+
+  const isRunning = parallelState === 'running';
+  const isPaused = parallelState === 'paused';
+  const isIdle = parallelState === 'idle';
   const isDone = log.status === 'done';
 
   const handleStart = () => {
     if (!taskId) return;
-    startTimer(taskId);
+    startParallelTimer(taskId);
   };
 
   const handlePause = () => {
     if (!taskId) return;
-    if (isRunning) pauseTimer(taskId);
+    if (isRunning) pauseParallelTimer(taskId);
   };
 
   const handleResume = () => {
     if (!taskId) return;
-    if (isPaused) resumeTimer(taskId);
+    if (isPaused) resumeParallelTimer(taskId);
   };
 
   const handleStop = () => {
     if (!taskId) return;
-    stopTimer(taskId);
+    stopParallelTimer(taskId);
   };
 
   const handleComplete = async () => {
@@ -104,7 +125,7 @@ function WorkLogToolbar({ log, onBack, onComplete }: { log: WorkLog; onBack: () 
     setCompleting(true);
     try {
       if (isRunning || isPaused) {
-        await stopTimer(taskId);
+        await stopParallelTimer(taskId);
       }
       await completeTask(taskId);
       await closeLog(log._id);

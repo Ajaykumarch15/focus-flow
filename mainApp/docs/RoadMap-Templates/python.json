@@ -1,0 +1,1528 @@
+{
+    "project": {
+        "name": "Python Scratch to Advanced Mastery",
+        "description": "A structured Python roadmap from absolute fundamentals to advanced language features, DSA, backend development, automation, data processing, concurrency, internals, production engineering, projects, and interview preparation.",
+        "startDate": "2026-09-12",
+        "deadline": "2027-03-31"
+    },
+    "schedule": {
+        "workingDays": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday"
+        ],
+        "hoursPerDay": 2.5,
+        "bufferDays": 7
+    },
+    "rules": {
+        "includeRevision": true,
+        "includePractice": true,
+        "includeProjects": true,
+        "includeQuiz": true,
+        "includeSubtasks": true,
+        "defaultSubtaskCount": 2,
+        "defaultTaskHours": 1.5,
+        "milestoneGroupSize": 4
+    },
+    "phases": [
+        {
+            "name": "Python Fundamentals",
+            "description": "Learn Python from scratch and build a strong programming foundation.",
+            "topics": [
+                {
+                    "title": "Python Installation and Environment",
+                    "estimatedHours": 3,
+                    "priority": "high",
+                    "subtopics": [
+                        "Python installation",
+                        "Python versions",
+                        "PATH configuration",
+                        "Python interpreter",
+                        "VS Code setup",
+                        "Running Python programs"
+                    ]
+                },
+                {
+                    "title": "Python Syntax and Variables",
+                    "estimatedHours": 5,
+                    "priority": "high",
+                    "subtopics": [
+                        "Python syntax",
+                        "Comments",
+                        "Variables",
+                        "Naming conventions",
+                        "Dynamic typing",
+                        "Input and output"
+                    ]
+                },
+                {
+                    "title": "Python Data Types",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Integers",
+                        "Floats",
+                        "Booleans",
+                        "Strings",
+                        "None",
+                        "Type conversion",
+                        "Type checking"
+                    ]
+                },
+                {
+                    "title": "Operators and Expressions",
+                    "estimatedHours": 5,
+                    "priority": "high",
+                    "subtopics": [
+                        "Arithmetic operators",
+                        "Comparison operators",
+                        "Logical operators",
+                        "Assignment operators",
+                        "Membership operators",
+                        "Identity operators"
+                    ]
+                },
+                {
+                    "title": "Conditional Statements",
+                    "estimatedHours": 5,
+                    "priority": "high",
+                    "subtopics": [
+                        "if statements",
+                        "elif",
+                        "else",
+                        "Nested conditions",
+                        "Conditional expressions",
+                        "Practical problems"
+                    ]
+                },
+                {
+                    "title": "Loops and Iteration",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "for loops",
+                        "while loops",
+                        "range",
+                        "break",
+                        "continue",
+                        "pass",
+                        "Nested loops"
+                    ]
+                },
+                {
+                    "title": "Fundamental Python Practice",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Number problems",
+                        "Pattern problems",
+                        "Condition problems",
+                        "Loop problems",
+                        "Basic coding exercises",
+                        "Revision and quiz"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Core Python Data Structures",
+            "description": "Master Python's built-in collection types and their practical usage.",
+            "topics": [
+                {
+                    "title": "Strings",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "String indexing",
+                        "String slicing",
+                        "String methods",
+                        "Formatting",
+                        "f-strings",
+                        "String searching"
+                    ]
+                },
+                {
+                    "title": "Lists",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "List creation",
+                        "Indexing",
+                        "Slicing",
+                        "List methods",
+                        "Nested lists",
+                        "List copying"
+                    ]
+                },
+                {
+                    "title": "Tuples and Sets",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "Tuple operations",
+                        "Tuple unpacking",
+                        "Set creation",
+                        "Set operations",
+                        "Set methods",
+                        "Use cases"
+                    ]
+                },
+                {
+                    "title": "Dictionaries",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Dictionary creation",
+                        "Keys and values",
+                        "Dictionary methods",
+                        "Nested dictionaries",
+                        "Dictionary iteration",
+                        "Practical use cases"
+                    ]
+                },
+                {
+                    "title": "Comprehensions",
+                    "estimatedHours": 6,
+                    "priority": "medium",
+                    "subtopics": [
+                        "List comprehensions",
+                        "Set comprehensions",
+                        "Dictionary comprehensions",
+                        "Conditional comprehensions",
+                        "Nested comprehensions"
+                    ]
+                },
+                {
+                    "title": "Collections Practice",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "String problems",
+                        "List problems",
+                        "Dictionary problems",
+                        "Set problems",
+                        "Nested collection problems",
+                        "Revision quiz"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Functions and Modular Programming",
+            "description": "Learn how to write reusable, maintainable Python code.",
+            "topics": [
+                {
+                    "title": "Functions Fundamentals",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "Function definition",
+                        "Parameters",
+                        "Arguments",
+                        "Return values",
+                        "Scope",
+                        "Function documentation"
+                    ]
+                },
+                {
+                    "title": "Advanced Function Arguments",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Default arguments",
+                        "Keyword arguments",
+                        "Positional arguments",
+                        "*args",
+                        "**kwargs",
+                        "Argument unpacking"
+                    ]
+                },
+                {
+                    "title": "Lambda and Functional Programming",
+                    "estimatedHours": 7,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Lambda functions",
+                        "map",
+                        "filter",
+                        "reduce",
+                        "sorted",
+                        "Key functions"
+                    ]
+                },
+                {
+                    "title": "Recursion",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Recursive functions",
+                        "Base cases",
+                        "Recursive thinking",
+                        "Call stack",
+                        "Factorial",
+                        "Fibonacci"
+                    ]
+                },
+                {
+                    "title": "Modules and Packages",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Import statements",
+                        "Module creation",
+                        "Packages",
+                        "__init__.py",
+                        "Import aliases",
+                        "__name__"
+                    ]
+                },
+                {
+                    "title": "Functions Practice and Project",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Function exercises",
+                        "Recursion exercises",
+                        "Modular application",
+                        "Code organization",
+                        "Mini project",
+                        "Revision"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Object-Oriented Python",
+            "description": "Build strong object-oriented programming skills using Python.",
+            "topics": [
+                {
+                    "title": "Classes and Objects",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Classes",
+                        "Objects",
+                        "Attributes",
+                        "Methods",
+                        "self",
+                        "Constructors"
+                    ]
+                },
+                {
+                    "title": "Encapsulation and Properties",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "Public attributes",
+                        "Private conventions",
+                        "Name mangling",
+                        "Properties",
+                        "Getters",
+                        "Setters"
+                    ]
+                },
+                {
+                    "title": "Inheritance",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Base classes",
+                        "Derived classes",
+                        "Method overriding",
+                        "super",
+                        "Multiple inheritance",
+                        "MRO"
+                    ]
+                },
+                {
+                    "title": "Polymorphism and Abstraction",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Polymorphism",
+                        "Duck typing",
+                        "Abstract classes",
+                        "ABC module",
+                        "Abstract methods"
+                    ]
+                },
+                {
+                    "title": "Special Methods",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "__str__",
+                        "__repr__",
+                        "__len__",
+                        "__eq__",
+                        "__lt__",
+                        "Operator overloading"
+                    ]
+                },
+                {
+                    "title": "OOP Project",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Class design",
+                        "Inheritance",
+                        "Composition",
+                        "Encapsulation",
+                        "Error handling",
+                        "Project implementation"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Advanced Python Language Features",
+            "description": "Move beyond basic Python into powerful language features.",
+            "topics": [
+                {
+                    "title": "Iterators and Iterables",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Iterable protocol",
+                        "Iterator protocol",
+                        "__iter__",
+                        "__next__",
+                        "Custom iterators"
+                    ]
+                },
+                {
+                    "title": "Generators",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "yield",
+                        "Generator functions",
+                        "Generator expressions",
+                        "Lazy evaluation",
+                        "Memory efficiency"
+                    ]
+                },
+                {
+                    "title": "Decorators",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Functions as objects",
+                        "Closures",
+                        "Decorator syntax",
+                        "Parameterized decorators",
+                        "Practical decorators"
+                    ]
+                },
+                {
+                    "title": "Closures and Scope",
+                    "estimatedHours": 6,
+                    "priority": "medium",
+                    "subtopics": [
+                        "LEGB rule",
+                        "Nested functions",
+                        "Closures",
+                        "nonlocal",
+                        "Variable binding"
+                    ]
+                },
+                {
+                    "title": "Context Managers",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "with statement",
+                        "__enter__",
+                        "__exit__",
+                        "contextlib",
+                        "Custom context managers"
+                    ]
+                },
+                {
+                    "title": "Advanced Language Practice",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Generator problems",
+                        "Decorator problems",
+                        "Iterator problems",
+                        "Context manager problems",
+                        "Mini project",
+                        "Revision"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Error Handling, Files and Data Processing",
+            "description": "Learn robust error handling and file/data processing techniques.",
+            "topics": [
+                {
+                    "title": "Exception Handling",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "try",
+                        "except",
+                        "else",
+                        "finally",
+                        "Exception hierarchy"
+                    ]
+                },
+                {
+                    "title": "Custom Exceptions",
+                    "estimatedHours": 5,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Custom exception classes",
+                        "raise",
+                        "Exception messages",
+                        "Validation errors"
+                    ]
+                },
+                {
+                    "title": "File Handling",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Opening files",
+                        "Reading files",
+                        "Writing files",
+                        "Appending",
+                        "File modes",
+                        "with statement"
+                    ]
+                },
+                {
+                    "title": "CSV and JSON Processing",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "CSV module",
+                        "JSON module",
+                        "Serialization",
+                        "Deserialization",
+                        "Nested JSON",
+                        "Data transformation"
+                    ]
+                },
+                {
+                    "title": "Regular Expressions",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Regex syntax",
+                        "Patterns",
+                        "Groups",
+                        "Search",
+                        "Match",
+                        "Replace"
+                    ]
+                },
+                {
+                    "title": "Data Processing Project",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Read raw files",
+                        "Validate data",
+                        "Transform data",
+                        "Generate JSON",
+                        "Generate reports",
+                        "Error handling"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python Standard Library",
+            "description": "Become productive with Python's most useful standard-library modules.",
+            "topics": [
+                {
+                    "title": "os and pathlib",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "File paths",
+                        "Directories",
+                        "Environment variables",
+                        "Path operations",
+                        "File discovery"
+                    ]
+                },
+                {
+                    "title": "datetime and time",
+                    "estimatedHours": 5,
+                    "priority": "high",
+                    "subtopics": [
+                        "Dates",
+                        "Times",
+                        "Timedelta",
+                        "Formatting",
+                        "Parsing dates",
+                        "Time zones"
+                    ]
+                },
+                {
+                    "title": "collections Module",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "Counter",
+                        "defaultdict",
+                        "deque",
+                        "namedtuple",
+                        "ChainMap"
+                    ]
+                },
+                {
+                    "title": "itertools and functools",
+                    "estimatedHours": 7,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Combinations",
+                        "Permutations",
+                        "Product",
+                        "Partial",
+                        "Caching",
+                        "Higher-order functions"
+                    ]
+                },
+                {
+                    "title": "math statistics random",
+                    "estimatedHours": 5,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Math functions",
+                        "Statistics",
+                        "Random numbers",
+                        "Distributions",
+                        "Practical calculations"
+                    ]
+                },
+                {
+                    "title": "Standard Library Practice",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Module exercises",
+                        "File automation",
+                        "Date processing",
+                        "Collection problems",
+                        "Utility scripts"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python Problem Solving and DSA",
+            "description": "Develop algorithmic thinking and solve DSA problems using Python.",
+            "topics": [
+                {
+                    "title": "Complexity Analysis",
+                    "estimatedHours": 7,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Time complexity",
+                        "Space complexity",
+                        "Big O",
+                        "Big Theta",
+                        "Big Omega",
+                        "Complexity comparison"
+                    ]
+                },
+                {
+                    "title": "Arrays and Strings",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Traversal",
+                        "Searching",
+                        "Two pointers",
+                        "Sliding window",
+                        "Prefix sums",
+                        "String algorithms"
+                    ]
+                },
+                {
+                    "title": "Hashing",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Hash tables",
+                        "Frequency counting",
+                        "Hash maps",
+                        "Hash sets",
+                        "Two sum",
+                        "Duplicate detection"
+                    ]
+                },
+                {
+                    "title": "Linked Lists",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Singly linked lists",
+                        "Doubly linked lists",
+                        "Insertion",
+                        "Deletion",
+                        "Reversal",
+                        "Cycle detection"
+                    ]
+                },
+                {
+                    "title": "Stacks and Queues",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Stack",
+                        "Queue",
+                        "Deque",
+                        "Monotonic stack",
+                        "Expression problems",
+                        "BFS foundations"
+                    ]
+                },
+                {
+                    "title": "Recursion and Backtracking",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Recursive search",
+                        "Backtracking",
+                        "Subsets",
+                        "Permutations",
+                        "Combinations",
+                        "Constraint problems"
+                    ]
+                },
+                {
+                    "title": "Trees and Binary Search Trees",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Binary trees",
+                        "Tree traversal",
+                        "DFS",
+                        "BFS",
+                        "BST",
+                        "Tree recursion"
+                    ]
+                },
+                {
+                    "title": "Heaps and Priority Queues",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Min heap",
+                        "Max heap",
+                        "heapq",
+                        "Top K problems",
+                        "Priority queues"
+                    ]
+                },
+                {
+                    "title": "Graphs",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Graph representation",
+                        "BFS",
+                        "DFS",
+                        "Connected components",
+                        "Shortest path",
+                        "Topological sorting"
+                    ]
+                },
+                {
+                    "title": "Dynamic Programming",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Memoization",
+                        "Tabulation",
+                        "State definition",
+                        "Knapsack",
+                        "Subsequence problems",
+                        "Grid DP"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python Environment, Packages and Professional Development",
+            "description": "Learn how professional Python projects are structured and managed.",
+            "topics": [
+                {
+                    "title": "Virtual Environments",
+                    "estimatedHours": 5,
+                    "priority": "high",
+                    "subtopics": [
+                        "venv",
+                        "Environment activation",
+                        "Dependency isolation",
+                        "Requirements files"
+                    ]
+                },
+                {
+                    "title": "pip and Package Management",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "pip",
+                        "Installing packages",
+                        "Uninstalling packages",
+                        "requirements.txt",
+                        "Dependency versions"
+                    ]
+                },
+                {
+                    "title": "Project Structure",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Package structure",
+                        "src layout",
+                        "Configuration",
+                        "Environment files",
+                        "Entry points"
+                    ]
+                },
+                {
+                    "title": "Git for Python Projects",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Git basics",
+                        "Branches",
+                        "Commits",
+                        "Merge conflicts",
+                        "GitHub",
+                        ".gitignore"
+                    ]
+                },
+                {
+                    "title": "Code Quality",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "PEP 8",
+                        "Naming",
+                        "Docstrings",
+                        "Type hints",
+                        "Linting",
+                        "Formatting"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Testing and Debugging",
+            "description": "Build reliable Python applications through testing and systematic debugging.",
+            "topics": [
+                {
+                    "title": "Debugging Fundamentals",
+                    "estimatedHours": 6,
+                    "priority": "high",
+                    "subtopics": [
+                        "Reading tracebacks",
+                        "Breakpoints",
+                        "Debugging workflow",
+                        "Logging",
+                        "Common Python errors"
+                    ]
+                },
+                {
+                    "title": "Unit Testing",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "unittest",
+                        "Test cases",
+                        "Assertions",
+                        "Test setup",
+                        "Test teardown"
+                    ]
+                },
+                {
+                    "title": "pytest",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "pytest installation",
+                        "Test discovery",
+                        "Fixtures",
+                        "Parametrization",
+                        "Markers",
+                        "Assertions"
+                    ]
+                },
+                {
+                    "title": "Mocking and Integration Testing",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Mocks",
+                        "Patching",
+                        "External dependencies",
+                        "Integration tests",
+                        "API testing"
+                    ]
+                },
+                {
+                    "title": "Testing Project",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Write test suite",
+                        "Unit tests",
+                        "Integration tests",
+                        "Mock external service",
+                        "Coverage",
+                        "Debug failures"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Concurrency, Parallelism and Async Python",
+            "description": "Understand threads, processes and asynchronous programming in Python.",
+            "topics": [
+                {
+                    "title": "Threading",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Threads",
+                        "Thread lifecycle",
+                        "Thread pools",
+                        "Synchronization",
+                        "Race conditions"
+                    ]
+                },
+                {
+                    "title": "Multiprocessing",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Processes",
+                        "Process pools",
+                        "CPU-bound tasks",
+                        "Inter-process communication"
+                    ]
+                },
+                {
+                    "title": "Asyncio Fundamentals",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Event loop",
+                        "Coroutines",
+                        "async",
+                        "await",
+                        "Tasks",
+                        "Futures"
+                    ]
+                },
+                {
+                    "title": "Async APIs and Concurrency",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Concurrent requests",
+                        "Async HTTP",
+                        "Timeouts",
+                        "Semaphores",
+                        "Task groups"
+                    ]
+                },
+                {
+                    "title": "Concurrency Project",
+                    "estimatedHours": 10,
+                    "priority": "high",
+                    "subtopics": [
+                        "Concurrent processing",
+                        "Async requests",
+                        "Error handling",
+                        "Performance comparison",
+                        "Benchmarking"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python Backend Development",
+            "description": "Use Python to build production-style backend applications and APIs.",
+            "topics": [
+                {
+                    "title": "HTTP and REST Fundamentals",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "HTTP",
+                        "Requests",
+                        "Responses",
+                        "Methods",
+                        "Status codes",
+                        "REST principles"
+                    ]
+                },
+                {
+                    "title": "Flask Fundamentals",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Flask application",
+                        "Routes",
+                        "Requests",
+                        "Responses",
+                        "Templates",
+                        "JSON APIs"
+                    ]
+                },
+                {
+                    "title": "FastAPI Fundamentals",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "FastAPI application",
+                        "Routes",
+                        "Path parameters",
+                        "Query parameters",
+                        "Request bodies",
+                        "Responses"
+                    ]
+                },
+                {
+                    "title": "Pydantic and Validation",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Pydantic models",
+                        "Validation",
+                        "Nested models",
+                        "Optional fields",
+                        "Serialization",
+                        "Response models"
+                    ]
+                },
+                {
+                    "title": "Authentication and Authorization",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Authentication",
+                        "JWT",
+                        "Password hashing",
+                        "Authorization",
+                        "Role-based access"
+                    ]
+                },
+                {
+                    "title": "Databases with Python",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "SQL databases",
+                        "PostgreSQL",
+                        "SQLAlchemy",
+                        "ORM concepts",
+                        "CRUD",
+                        "Transactions"
+                    ]
+                },
+                {
+                    "title": "Backend Project",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "API architecture",
+                        "Authentication",
+                        "Database",
+                        "CRUD APIs",
+                        "Validation",
+                        "Testing"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python Automation and Web Interaction",
+            "description": "Automate repetitive tasks and interact with websites programmatically.",
+            "topics": [
+                {
+                    "title": "Automation Fundamentals",
+                    "estimatedHours": 6,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Automation concepts",
+                        "File automation",
+                        "Folder automation",
+                        "Command execution"
+                    ]
+                },
+                {
+                    "title": "Web Requests",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "requests",
+                        "GET",
+                        "POST",
+                        "Headers",
+                        "Cookies",
+                        "Sessions"
+                    ]
+                },
+                {
+                    "title": "Web Scraping",
+                    "estimatedHours": 10,
+                    "priority": "high",
+                    "subtopics": [
+                        "BeautifulSoup",
+                        "HTML parsing",
+                        "CSS selectors",
+                        "Pagination",
+                        "Data extraction"
+                    ]
+                },
+                {
+                    "title": "Browser Automation",
+                    "estimatedHours": 10,
+                    "priority": "high",
+                    "subtopics": [
+                        "Selenium",
+                        "Playwright",
+                        "Browser control",
+                        "Form automation",
+                        "Dynamic websites"
+                    ]
+                },
+                {
+                    "title": "Automation Project",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Website interaction",
+                        "Data collection",
+                        "Data cleaning",
+                        "Storage",
+                        "Scheduling",
+                        "Error handling"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Python for Data and APIs",
+            "description": "Learn Python's ecosystem for data processing, analysis and API consumption.",
+            "topics": [
+                {
+                    "title": "NumPy",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Arrays",
+                        "Shapes",
+                        "Indexing",
+                        "Broadcasting",
+                        "Vectorization",
+                        "Numerical operations"
+                    ]
+                },
+                {
+                    "title": "Pandas Fundamentals",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Series",
+                        "DataFrame",
+                        "Indexing",
+                        "Filtering",
+                        "Sorting",
+                        "Missing values"
+                    ]
+                },
+                {
+                    "title": "Pandas Data Processing",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "GroupBy",
+                        "Aggregation",
+                        "Merge",
+                        "Join",
+                        "Pivot",
+                        "Data cleaning"
+                    ]
+                },
+                {
+                    "title": "API Consumption",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "REST APIs",
+                        "JSON responses",
+                        "Authentication",
+                        "Pagination",
+                        "Rate limits"
+                    ]
+                },
+                {
+                    "title": "Data Processing Project",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "API extraction",
+                        "Data cleaning",
+                        "Pandas analysis",
+                        "Transformation",
+                        "Report generation"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Advanced Python Internals",
+            "description": "Understand how Python works internally and write more efficient code.",
+            "topics": [
+                {
+                    "title": "Python Memory Model",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Objects",
+                        "References",
+                        "Identity",
+                        "Mutability",
+                        "Memory allocation"
+                    ]
+                },
+                {
+                    "title": "Garbage Collection",
+                    "estimatedHours": 7,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Reference counting",
+                        "Garbage collector",
+                        "Cycles",
+                        "Weak references",
+                        "Memory cleanup"
+                    ]
+                },
+                {
+                    "title": "Descriptors",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "__get__",
+                        "__set__",
+                        "__delete__",
+                        "Descriptor protocol",
+                        "Properties",
+                        "Practical use"
+                    ]
+                },
+                {
+                    "title": "Metaclasses",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Class creation",
+                        "type",
+                        "Metaclass basics",
+                        "__new__",
+                        "__init__"
+                    ]
+                },
+                {
+                    "title": "Bytecode and Execution",
+                    "estimatedHours": 8,
+                    "priority": "medium",
+                    "subtopics": [
+                        "Python bytecode",
+                        "dis module",
+                        "Compilation",
+                        "Execution model",
+                        "Interpreter concepts"
+                    ]
+                },
+                {
+                    "title": "Performance Optimization",
+                    "estimatedHours": 10,
+                    "priority": "high",
+                    "subtopics": [
+                        "Profiling",
+                        "Benchmarking",
+                        "Caching",
+                        "Algorithm optimization",
+                        "Memory optimization"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Production Python and Software Engineering",
+            "description": "Learn how to design, maintain, secure and deploy production-quality Python systems.",
+            "topics": [
+                {
+                    "title": "Clean Code",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Readable code",
+                        "Single responsibility",
+                        "Naming",
+                        "Refactoring",
+                        "Code smells"
+                    ]
+                },
+                {
+                    "title": "Design Patterns",
+                    "estimatedHours": 10,
+                    "priority": "high",
+                    "subtopics": [
+                        "Factory",
+                        "Strategy",
+                        "Observer",
+                        "Singleton",
+                        "Repository",
+                        "Dependency injection"
+                    ]
+                },
+                {
+                    "title": "Application Architecture",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Layered architecture",
+                        "Service layer",
+                        "Repository layer",
+                        "Configuration",
+                        "Dependency management"
+                    ]
+                },
+                {
+                    "title": "Logging and Monitoring",
+                    "estimatedHours": 7,
+                    "priority": "high",
+                    "subtopics": [
+                        "Python logging",
+                        "Log levels",
+                        "Structured logging",
+                        "Error monitoring",
+                        "Application metrics"
+                    ]
+                },
+                {
+                    "title": "Security Fundamentals",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Input validation",
+                        "Authentication security",
+                        "Secrets management",
+                        "SQL injection",
+                        "API security"
+                    ]
+                },
+                {
+                    "title": "Docker for Python",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "Docker basics",
+                        "Dockerfile",
+                        "Images",
+                        "Containers",
+                        "Environment variables",
+                        "Docker Compose"
+                    ]
+                },
+                {
+                    "title": "CI/CD for Python",
+                    "estimatedHours": 8,
+                    "priority": "high",
+                    "subtopics": [
+                        "CI concepts",
+                        "Automated tests",
+                        "GitHub Actions",
+                        "Build pipelines",
+                        "Deployment workflows"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Advanced Python Projects",
+            "description": "Apply advanced Python knowledge by building realistic production-style projects.",
+            "topics": [
+                {
+                    "title": "Production Application Architecture",
+                    "estimatedHours": 7,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Application architecture",
+                        "Authentication",
+                        "Database",
+                        "API structure",
+                        "Error handling",
+                        "Configuration"
+                    ]
+                },
+                {
+                    "title": "Production Deployment and Operations",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Testing",
+                        "Logging",
+                        "Docker",
+                        "Environment configuration",
+                        "CI/CD",
+                        "Deployment preparation"
+                    ]
+                },
+                {
+                    "title": "Automation and Scraping Project",
+                    "estimatedHours": 12,
+                    "priority": "high",
+                    "subtopics": [
+                        "Web automation",
+                        "Scraping",
+                        "Data processing",
+                        "Persistence",
+                        "Scheduling",
+                        "Error recovery"
+                    ]
+                },
+                {
+                    "title": "Async API Project",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "FastAPI",
+                        "Asyncio",
+                        "Database",
+                        "Authentication",
+                        "API testing",
+                        "Performance"
+                    ]
+                },
+                {
+                    "title": "Data Processing Application",
+                    "estimatedHours": 12,
+                    "priority": "high",
+                    "subtopics": [
+                        "Data ingestion",
+                        "Pandas",
+                        "Validation",
+                        "Transformation",
+                        "Reporting",
+                        "Automation"
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Final Python Mastery and Interview Preparation",
+            "description": "Consolidate Python knowledge and prepare for technical interviews and real-world development.",
+            "topics": [
+                {
+                    "title": "Python Core Revision",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Syntax",
+                        "Data types",
+                        "Functions",
+                        "OOP",
+                        "Exceptions",
+                        "Modules"
+                    ]
+                },
+                {
+                    "title": "Advanced Python Revision",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Decorators",
+                        "Generators",
+                        "Context managers",
+                        "Asyncio",
+                        "Concurrency",
+                        "Internals"
+                    ]
+                },
+                {
+                    "title": "Python DSA Revision",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Arrays",
+                        "Hashing",
+                        "Linked lists",
+                        "Trees",
+                        "Graphs",
+                        "Dynamic programming"
+                    ]
+                },
+                {
+                    "title": "Python Interview Questions",
+                    "estimatedHours": 10,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Python fundamentals",
+                        "OOP questions",
+                        "Advanced Python",
+                        "Output questions",
+                        "Debugging questions",
+                        "Scenario questions"
+                    ]
+                },
+                {
+                    "title": "Coding Interview Practice",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Easy problems",
+                        "Medium problems",
+                        "DSA patterns",
+                        "Timed coding",
+                        "Problem explanation",
+                        "Optimization"
+                    ]
+                },
+                {
+                    "title": "Final Python Capstone",
+                    "estimatedHours": 12,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Project planning",
+                        "Architecture",
+                        "Implementation",
+                        "Testing",
+                        "Documentation",
+                        "Deployment"
+                    ]
+                },
+                {
+                    "title": "Final Assessment and Revision",
+                    "estimatedHours": 8,
+                    "priority": "urgent",
+                    "subtopics": [
+                        "Full Python quiz",
+                        "DSA assessment",
+                        "Debugging assessment",
+                        "Project review",
+                        "Weak-topic revision",
+                        "Final evaluation"
+                    ]
+                }
+            ]
+        }
+    ]
+}

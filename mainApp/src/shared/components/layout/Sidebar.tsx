@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
   History, Library, Map, BarChart3, Calendar, Brain, Lightbulb,
-  FolderOpen, Bell, HelpCircle, ChevronRight, User,
+  FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
@@ -66,6 +66,7 @@ const getCollabNav = (workspaceId: string): NavPanelDef[] => [
 ];
 
 const BOTTOM_NAV: NavPanelDef[] = [
+  { to: '/active-timers', icon: Timer, label: 'Active Timers' },
   {
     to: '#notifications', icon: Bell, label: 'Notifications',
     children: [

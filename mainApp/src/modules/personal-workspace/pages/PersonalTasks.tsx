@@ -2,75 +2,103 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
-  Target, X, ArrowUpDown,
+  X, ListTodo, Clock, CheckCircle, Flame,
+  ArrowUp, ArrowDown, Eye, EyeOff,
 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { cn } from '@shared/utils/cn';
-import { TaskCard } from '@worklog/components/tasks/TaskCard';
+import { PersonalTaskCard } from '@personal/components/tasks/PersonalTaskCard';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { Priority, TaskStatus } from '@shared/types';
+import { TaskStatus } from '@shared/types';
 import { CATEGORIES } from '@shared/utils/colors';
 import { isOverdue } from '@shared/utils/time';
 import { getScheduledState, type ScheduledState } from '@personal/services/personalTaskSchedule';
-import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { Card } from '@shared/components/ui/Card';
+import { Pagination } from '@shared/components/ui/Pagination';
+import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
+const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
+
 export function PersonalTasks() {
   const {
     tasks,
-    selectedTaskIds, toggleTaskSelection, selectAllTasks, clearTaskSelection,
-    bulkCompleteTasks, bulkDeleteTasks, persistTaskOrder, reorderTasks,
+    selectedTaskIds, selectAllTasks, clearTaskSelection,
+    bulkCompleteTasks, bulkDeleteTasks,
     fetchTasks, addTask,
-    startTimer, pauseTimer, resumeTimer, stopTimer, completeTask, deleteTask,
   } = usePersonalTaskStore();
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
-  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterCombined, setFilterCombined] = useState<string>('all');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [filterSchedule, setFilterSchedule] = useState<ScheduledState | 'all'>('all');
-  const [sortBy, setSortBy] = useState<'default' | 'deadline'>('default');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [showCompleted, setShowCompleted] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  const filtered = useMemo(() => tasks.filter(task => {
-    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
-    if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
-    if (filterCategory !== 'all' && task.category !== filterCategory) return false;
-    if (filterSchedule !== 'all' && getScheduledState(task) !== filterSchedule) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
-    }
-    if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
-    return true;
-  }), [tasks, filterStatus, filterPriority, filterCategory, filterSchedule, search, showOverdueOnly]);
+  const filtered = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
+    return tasks.filter(task => {
+      if (!showCompleted && task.status === 'completed') return false;
+      if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && task.priority !== filterCombined) return false;
+        if (categories.includes(filterCombined) && task.category?.toLowerCase() !== filterCombined) return false;
+      }
+      if (filterSchedule !== 'all' && getScheduledState(task) !== filterSchedule) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
+      }
+      if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
+      return true;
+    });
+  }, [tasks, filterStatus, filterCombined, filterSchedule, search, showOverdueOnly, showCompleted]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
-    if (sortBy === 'deadline') arr.sort((a, b) => (a.deadline || Infinity) - (b.deadline || Infinity));
-    else arr.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    arr.sort((a, b) => {
+      const cmp = (a.deadline || Infinity) - (b.deadline || Infinity);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
     return arr;
-  }, [filtered, sortBy]);
+  }, [filtered, sortDir]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
 
+  // Pagination
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [sorted, currentPage]);
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCombined, filterSchedule, showOverdueOnly, sortDir, showCompleted]);
+
   const statusCounts = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
     const counts: Record<TaskStatus | 'all', number> = { all: 0, todo: 0, active: 0, paused: 0, completed: 0 };
     for (const t of tasks) {
-      if (filterPriority !== 'all' && t.priority !== filterPriority) continue;
-      if (filterCategory !== 'all' && t.category !== filterCategory) continue;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && t.priority !== filterCombined) continue;
+        if (categories.includes(filterCombined) && t.category?.toLowerCase() !== filterCombined) continue;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) continue;
@@ -80,26 +108,42 @@ export function PersonalTasks() {
       counts[t.status]++;
     }
     return counts;
-  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly]);
+  }, [tasks, search, filterCombined, showOverdueOnly]);
 
   const overdueCount = useMemo(
     () => tasks.filter(t => t.status !== 'completed' && isOverdue(t.deadline)).length,
     [tasks],
   );
 
-  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterPriority !== 'all'
-    || filterCategory !== 'all' || filterSchedule !== 'all' || showOverdueOnly;
+  const kpiCounts = useMemo(() => ({
+    todo: tasks.filter(t => t.status === 'todo').length,
+    inProgress: tasks.filter(t => t.status === 'active' || t.status === 'paused').length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    overdue: overdueCount,
+  }), [tasks, overdueCount]);
+
+  const donutData = useMemo(() => [
+    { name: 'Completed', value: kpiCounts.completed },
+    { name: 'In Progress', value: kpiCounts.inProgress },
+    { name: 'To Do', value: kpiCounts.todo },
+    { name: 'Overdue', value: kpiCounts.overdue },
+  ], [kpiCounts]);
+
+  const completionPct = tasks.length > 0 ? Math.round((kpiCounts.completed / tasks.length) * 100) : 0;
+
+  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterCombined !== 'all'
+    || filterSchedule !== 'all' || showOverdueOnly || showCompleted;
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setFilterStatus('all');
-    setFilterPriority('all');
-    setFilterCategory('all');
+    setFilterCombined('all');
     setFilterSchedule('all');
     setShowOverdueOnly(false);
+    setShowCompleted(false);
   }, []);
 
-  const isUnfiltered = !hasActiveFilters && filterCategory === 'all' && filterSchedule === 'all';
+  const isUnfiltered = !hasActiveFilters && filterCombined === 'all' && filterSchedule === 'all' && !showCompleted;
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -131,53 +175,6 @@ export function PersonalTasks() {
     return () => window.removeEventListener('keydown', handler);
   }, [hasSelection, filteredIds, clearTaskSelection, selectAllTasks]);
 
-  const dragIdRef = useRef<string | null>(null);
-
-  const handleDragStart = useCallback((e: React.DragEvent, id: string) => {
-    dragIdRef.current = id;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', id);
-    const el = e.currentTarget as HTMLElement;
-    requestAnimationFrame(() => { el.style.opacity = '0.4'; });
-  }, []);
-
-  const handleDragEnd = useCallback((e: React.DragEvent) => {
-    const el = e.currentTarget as HTMLElement;
-    el.style.opacity = '1';
-    dragIdRef.current = null;
-    setDragOverId(null);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent, id: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragIdRef.current && dragIdRef.current !== id) {
-      setDragOverId(id);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent, targetId: string) => {
-    e.preventDefault();
-    const sourceId = dragIdRef.current;
-    if (!sourceId || sourceId === targetId) { setDragOverId(null); return; }
-
-    const currentTasks = usePersonalTaskStore.getState().tasks;
-    const sourceIdx = currentTasks.findIndex(t => t.id === sourceId);
-    const targetIdx = currentTasks.findIndex(t => t.id === targetId);
-    if (sourceIdx === -1 || targetIdx === -1) { setDragOverId(null); return; }
-
-    const reordered = [...currentTasks];
-    const [moved] = reordered.splice(sourceIdx, 1);
-    reordered.splice(targetIdx, 0, moved);
-
-    const orderedIds = reordered.map(t => t.id);
-    reorderTasks(reordered.map((t, i) => ({ ...t, order: i })));
-    persistTaskOrder(orderedIds);
-    setDragOverId(null);
-  }, [reorderTasks, persistTaskOrder]);
-
-  const handleDragLeave = useCallback(() => { setDragOverId(null); }, []);
-
   const handleBulkComplete = () => {
     if (selectedArray.length === 0) return;
     bulkCompleteTasks(selectedArray);
@@ -195,242 +192,287 @@ export function PersonalTasks() {
   };
 
   return (
-    <div className="relative px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 max-w-[1400px] space-y-6" ref={containerRef}>
+    <div className="relative px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 max-w-[1600px] space-y-6" ref={containerRef}>
       {/* ── Decorative spots ── */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full
-          bg-brand-400/[0.12] dark:bg-brand-400/[0.06] blur-3xl" />
-        <div className="absolute top-[15%] -right-12 w-40 h-40 rounded-full
-          bg-info-400/[0.10] dark:bg-info-300/[0.05] blur-3xl" />
-        <div className="absolute top-[40%] left-[5%] w-36 h-36 rounded-[1.5rem] rotate-12
-          bg-success-400/[0.08] dark:bg-success-300/[0.04] blur-2xl" />
-        <div className="absolute top-[60%] right-[8%] w-44 h-44 rounded-full
-          bg-brand-300/[0.08] dark:bg-brand-400/[0.04] blur-3xl" />
-        <div className="absolute top-[80%] left-[20%] w-32 h-32 rounded-full
-          bg-info-300/[0.08] dark:bg-info-400/[0.04] blur-2xl" />
-        <div className="absolute top-[90%] right-[30%] w-40 h-28 rounded-full
-          bg-brand-400/[0.07] dark:bg-brand-500/[0.04] blur-3xl" />
+        <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full bg-brand-400/[0.12] dark:bg-brand-400/[0.06] blur-3xl" />
+        <div className="absolute top-[15%] -right-12 w-40 h-40 rounded-full bg-info-400/[0.10] dark:bg-info-300/[0.05] blur-3xl" />
+        <div className="absolute top-[40%] left-[5%] w-36 h-36 rounded-[1.5rem] rotate-12 bg-success-400/[0.08] dark:bg-success-300/[0.04] blur-2xl" />
+        <div className="absolute top-[60%] right-[8%] w-44 h-44 rounded-full bg-brand-300/[0.08] dark:bg-brand-400/[0.04] blur-3xl" />
       </div>
 
-      <PageHeader
-        title="My Tasks"
-        description="Your personal tasks and focus sessions."
-        actions={
-          <Button onClick={() => setShowCreate(true)} className="gap-2">
-            <Plus size={16} /> Add Task
-          </Button>
-        }
-      />
-
-      {/* Filters */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
-        <div className="flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
-            <Input
-              placeholder="Search tasks..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
-              aria-label="Search tasks"
-              className="h-10 pl-10 pr-9"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                aria-label="Clear search"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-colors"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <select
-            value={filterPriority}
-            onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
-            aria-label="Filter by priority"
-            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-          >
-            <option value="all">All Priority</option>
-            <option value="urgent">Urgent</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-          </select>
-
-          <select
-            value={filterCategory}
-            onChange={e => setFilterCategory(e.target.value)}
-            aria-label="Filter by category"
-            className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40"
-          >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-
-          <div className="relative">
-            <ArrowUpDown size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as typeof sortBy)}
-              aria-label="Sort tasks"
-              className="h-10 pl-9 pr-8 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 appearance-none"
-            >
-              <option value="default">Default Order</option>
-              <option value="deadline">Deadline</option>
-            </select>
-          </div>
-
-          <Button
-            variant={showOverdueOnly ? 'primary' : 'ghost'}
-            size="sm"
-            onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-            aria-pressed={showOverdueOnly}
-            className="gap-1.5 h-10"
-          >
-            <AlertTriangle size={14} />
-            Overdue
-            {overdueCount > 0 && (
-              <span
-                className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${
-                  showOverdueOnly ? 'bg-white/25 text-white' : 'bg-red-500/15 text-red-400'
-                }`}
-              >
-                {overdueCount}
-              </span>
-            )}
-          </Button>
+      {/* ═══════════════ HEADER ═══════════════ */}
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 z-10 relative">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">My Tasks</h1>
+          <p className="text-sm text-surface-400 mt-0.5">Break it down. Do it. Grow everyday.</p>
         </div>
-
-        <div role="group" aria-label="Filter by status" className="flex flex-wrap items-center gap-1.5">
-          {([
-            ['all', 'All'],
-            ['todo', 'To Do'],
-            ['active', 'Active'],
-            ['paused', 'Paused'],
-            ['completed', 'Done'],
-          ] as const).map(([value, label]) => {
-            const active = filterStatus === value;
-            const count = statusCounts[value];
-            return (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => setFilterStatus(value)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border text-xs font-bold transition-all',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
-                  active
-                    ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
-                    : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                )}
-              >
-                {label}
-                <span
-                  className={cn(
-                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
-                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div role="group" aria-label="Filter by schedule" className="flex flex-wrap items-center gap-1.5">
-          {([
-            ['all', 'All Dates'],
-            ['today', 'Today'],
-            ['missed', 'Missed'],
-            ['upcoming', 'Upcoming'],
-            ['unscheduled', 'No Date'],
-          ] as const).map(([value, label]) => {
-            const active = filterSchedule === value;
-            return (
-              <button
-                key={value}
-                onClick={() => setFilterSchedule(value)}
-                className={cn(
-                  'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all',
-                  active
-                    ? 'bg-info-500/15 border-info-500/40 text-info-300'
-                    : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                )}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
+          Add Task
+        </Button>
       </motion.div>
 
-      {hasActiveFilters && (
-        <div className="flex items-center justify-between text-xs text-surface-500">
-          <p>
-            Showing <span className="font-bold text-surface-300">{sorted.length}</span> of {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-          </p>
-          <button onClick={clearFilters} className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:text-brand-300 transition-colors">
-            <X size={12} /> Clear filters
-          </button>
-        </div>
-      )}
+      {/* ═══════════════ KPI CARDS ═══════════════ */}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
+        <KpiCard icon={<ListTodo size={18} />} label="To Do" value={kpiCounts.todo} color="#3b82f6" />
+        <KpiCard icon={<Clock size={18} />} label="In Progress" value={kpiCounts.inProgress} color="#f59e0b" />
+        <KpiCard icon={<CheckCircle size={18} />} label="Completed" value={kpiCounts.completed} color="#22c55e" />
+        <KpiCard icon={<Flame size={18} />} label="Overdue" value={kpiCounts.overdue} color="#ef4444" />
+      </motion.div>
 
-      {hasSelection && (
-        <div className="flex items-center gap-2 text-xs text-surface-400">
-          <span>{selectedArray.length} task{selectedArray.length > 1 ? 's' : ''} selected</span>
-          <button onClick={clearTaskSelection} className="text-brand-400 hover:text-brand-300 underline">Clear</button>
-        </div>
-      )}
+      {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 z-10 relative">
 
-      {sorted.length > 0 ? (
-        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
-          <AnimatePresence mode="popLayout">
-            {sorted.map(task => (
-              <motion.div
-                key={task.id}
-                variants={fadeUp}
-                layout
-                onDragOver={(e) => handleDragOver(e as any, task.id)}
-                onDrop={(e) => handleDrop(e as any, task.id)}
-                onDragLeave={handleDragLeave}
-                className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
-              >
-                <TaskCard
-                  task={task}
-                  selected={selectedTaskIds.has(task.id)}
-                  onToggleSelect={toggleTaskSelection}
-                  detailPath={`/personal/tasks/${task.id}`}
-                  onStartTimer={startTimer}
-                  onPauseTimer={pauseTimer}
-                  onResumeTimer={resumeTimer}
-                  onStopTimer={stopTimer}
-                  onCompleteTask={completeTask}
-                  onDeleteTask={deleteTask}
-                  dragHandleProps={{
-                    draggable: true,
-                    onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
-                    onDragEnd: handleDragEnd,
-                  }}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </motion.div>
-      ) : (
-        <EmptyState
-          icon={isUnfiltered ? <Target size={24} /> : <Search size={24} />}
-          title={isUnfiltered ? 'No tasks yet' : 'No matching tasks'}
-          description={isUnfiltered ? 'Create your first task to get started with focused work.' : 'Try adjusting your filters or search query.'}
-          action={isUnfiltered ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : (
-            <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
+        {/* ── LEFT: Filters + Task List ── */}
+        <div className="space-y-4 min-w-0">
+          {/* Filters Row 1: Search + Merged Filter + Sort Toggle */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            className="flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
+              <Input
+                placeholder="Search tasks..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
+                aria-label="Search tasks"
+                className="h-10 pl-10 pr-9"
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-colors">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <select value={filterCombined} onChange={e => setFilterCombined(e.target.value)}
+              aria-label="Filter by priority or category"
+              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              <option value="all">All</option>
+              <optgroup label="Priority">
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </optgroup>
+              <optgroup label="Category">
+                {CATEGORIES.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+              </optgroup>
+            </select>
+            <button
+              onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+              className="h-10 w-10 flex items-center justify-center rounded-xl bg-surface-800 border border-surface-700 text-surface-200 hover:bg-surface-700 transition-all"
+              title={sortDir === 'asc' ? 'Ascending (earliest first)' : 'Descending (latest first)'}
+              aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
+            >
+              {sortDir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
+            </button>
+          </motion.div>
+
+          {/* Filters Row 2: Status + Schedule tabs */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
+            className="flex flex-wrap items-center gap-1.5">
+            {([
+              ['all', 'All'],
+              ['todo', 'To Do'],
+              ['active', 'In Progress'],
+              ['paused', 'Paused'],
+              ['completed', 'Completed'],
+            ] as const).map(([value, label]) => {
+              const active = filterStatus === value;
+              const count = statusCounts[value];
+              return (
+                <button key={value} type="button" aria-pressed={active}
+                  onClick={() => setFilterStatus(value)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-bold transition-all',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
+                    active
+                      ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
+                      : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
+                  )}>
+                  {label}
+                  <span className={cn(
+                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
+                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
+                  )}>{count}</span>
+                </button>
+              );
+            })}
+            <span className="w-px h-5 bg-surface-700 mx-1" aria-hidden="true" />
+            {([
+              ['all', 'All Dates'],
+              ['today', 'Today'],
+              ['missed', 'Missed'],
+              ['upcoming', 'Upcoming'],
+              ['unscheduled', 'No Date'],
+            ] as const).map(([value, label]) => {
+              const active = filterSchedule === value;
+              return (
+                <button key={value} onClick={() => setFilterSchedule(value)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all',
+                    active
+                      ? 'bg-info-500/15 border-info-500/40 text-info-300'
+                      : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
+                  )}>
+                  {label}
+                </button>
+              );
+            })}
+            <Button
+              variant={showOverdueOnly ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+              aria-pressed={showOverdueOnly}
+              className="gap-1.5 h-9 ml-auto">
+              <AlertTriangle size={14} />
+              Overdue
+              {overdueCount > 0 && (
+                <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showOverdueOnly ? 'bg-white/25 text-white' : 'bg-red-500/15 text-red-400'}`}>
+                  {overdueCount}
+                </span>
+              )}
+            </Button>
+            <Button
+              variant={showCompleted ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setShowCompleted(!showCompleted)}
+              aria-pressed={showCompleted}
+              className="gap-1.5 h-9">
+              {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showCompleted ? 'Hide Completed' : 'Show Completed'}
+              {kpiCounts.completed > 0 && (
+                <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showCompleted ? 'bg-white/25 text-white' : 'bg-emerald-500/15 text-emerald-400'}`}>
+                  {kpiCounts.completed}
+                </span>
+              )}
+            </Button>
+          </motion.div>
+
+          {/* Active filters summary */}
+          {hasActiveFilters && (
+            <div className="flex items-center justify-between text-xs text-surface-500">
+              <p>Showing <span className="font-bold text-surface-300">{sorted.length}</span> of {tasks.length} task{tasks.length !== 1 ? 's' : ''}</p>
+              <button onClick={clearFilters} className="inline-flex items-center gap-1 font-semibold text-brand-400 hover:text-brand-300 transition-colors">
+                <X size={12} /> Clear filters
+              </button>
+            </div>
           )}
-        />
-      )}
+
+          {/* Selection info */}
+          {hasSelection && (
+            <div className="flex items-center gap-2 text-xs text-surface-400">
+              <span>{selectedArray.length} task{selectedArray.length > 1 ? 's' : ''} selected</span>
+              <button onClick={clearTaskSelection} className="text-brand-400 hover:text-brand-300 underline">Clear</button>
+            </div>
+          )}
+
+          {/* Task List */}
+          {sorted.length > 0 ? (
+            <>
+              <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+                <AnimatePresence mode="popLayout">
+                  {paginatedTasks.map(task => (
+                    <motion.div
+                      key={task.id}
+                      variants={fadeUp}
+                      layout
+                    >
+                      <PersonalTaskCard task={task} />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={sorted.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setCurrentPage}
+              />
+            </>
+          ) : (
+            <EmptyState
+              illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}
+              title={isUnfiltered ? 'No tasks yet' : 'No matching tasks'}
+              description={isUnfiltered ? 'Create your first task to get started with focused work.' : 'Try adjusting your filters or search query.'}
+              action={isUnfiltered ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : (
+                <Button variant="secondary" onClick={clearFilters}>Clear filters</Button>
+              )}
+            />
+          )}
+        </div>
+
+        {/* ── RIGHT SIDEBAR ── */}
+        <div className="space-y-5 hidden lg:block">
+          {/* Illustration */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+            <Card className="p-5 overflow-hidden relative">
+              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
+              <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="lazy" draggable={false}
+                className="w-full h-auto max-h-[180px] object-contain select-none pointer-events-none" />
+              <p className="text-center text-xs text-surface-400 mt-3 font-medium">Good Things Take Time</p>
+            </Card>
+          </motion.div>
+
+          {/* Today's Focus */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
+            <TodayPlanWidget />
+          </motion.div>
+
+          {/* Motivational Quote */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+            <Card className="p-5 relative overflow-hidden min-h-[160px]">
+              <div className="absolute inset-0 opacity-20">
+                <img src="/SVG/roadmap-mountain.svg" alt="" aria-hidden="true" className="w-full h-full object-cover" />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-surface-900/90 via-surface-900/60 to-transparent" />
+              <div className="relative z-10">
+                <div className="text-4xl text-brand-500/30 font-display select-none pointer-events-none leading-none">&ldquo;</div>
+                <p className="text-sm font-semibold text-surface-100 leading-relaxed italic -mt-2">
+                  Discipline today builds the freedom tomorrow.
+                </p>
+              </div>
+            </Card>
+          </motion.div>
+
+          {/* Task Completion Donut */}
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-surface-50 mb-4">Task Completion</h3>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie data={donutData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={3} dataKey="value">
+                      {donutData.map((_, i) => (
+                        <Cell key={i} fill={DONUT_COLORS[i]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="text-center">
+                    <p className="text-xl font-display font-extrabold text-surface-50">{completionPct}%</p>
+                    <p className="text-[9px] text-surface-400 uppercase tracking-wider">Done</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                {donutData.map((item, i) => (
+                  <div key={item.name} className="flex items-center gap-2 text-xs text-surface-400">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: DONUT_COLORS[i] }} />
+                    <span className="truncate">{item.name}</span>
+                    <span className="ml-auto font-bold text-surface-300">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      </div>
 
       <BulkActionBar
         visible={hasSelection}
@@ -452,6 +494,33 @@ export function PersonalTasks() {
 
       {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} onAddTask={addTask} />}
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Sub-components
+// ══════════════════════════════════════════════════════════════════════════════
+
+function KpiCard({ icon, label, value, color }: {
+  icon: React.ReactNode; label: string; value: number; color: string;
+}) {
+  return (
+    <motion.div variants={fadeUp}
+      className="rounded-2xl p-4 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
+      style={{
+        background: `linear-gradient(135deg, ${color}12 0%, ${color}06 100%)`,
+        border: `1px solid ${color}30`,
+      }}>
+      <div className="absolute top-0 right-0 w-20 h-20 opacity-15 pointer-events-none rounded-bl-full"
+        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
+      <div className="flex items-center gap-2.5 mb-2">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
+          {icon}
+        </div>
+      </div>
+      <p className="text-2xl font-display font-extrabold text-surface-50 leading-none">{value}</p>
+      <p className="text-[11px] font-semibold mt-1" style={{ color: `${color}cc` }}>{label}</p>
+    </motion.div>
   );
 }
 

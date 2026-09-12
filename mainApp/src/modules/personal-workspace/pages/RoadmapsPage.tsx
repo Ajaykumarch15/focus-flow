@@ -5,7 +5,7 @@ import {
   Map, Plus, Calendar, Target, Clock, ArrowRight, Zap,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award,
-  AlertCircle, Search, X,
+  AlertCircle, Search, X, FileText, FileJson,
 } from 'lucide-react';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { Button } from '@shared/components/ui/Button';
@@ -29,7 +29,7 @@ const ICON_MAP: Record<string, any> = {
 
 function SkeletonCard() {
   return (
-    <div className="bg-surface-900 border border-surface-800 rounded-[22px] p-5 space-y-3">
+    <div className="bg-surface-900 border border-surface-800 rounded-2xl p-5 space-y-3">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-surface-800 animate-pulse" />
@@ -82,24 +82,66 @@ export function RoadmapsPage() {
     return result;
   }, [roadmaps, search, typeFilter, statusFilter, sortBy]);
 
+  const stats = useMemo(() => {
+    const total = roadmaps.length;
+    let onTrack = 0, atRisk = 0, behind = 0;
+    for (const r of roadmaps) {
+      const health = getListHealth(r);
+      if (health.tone === 'success') onTrack++;
+      else if (health.tone === 'warning') atRisk++;
+      else if (health.tone === 'danger') behind++;
+    }
+    return { total, onTrack, atRisk, behind };
+  }, [roadmaps]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-6">
-      {/* Header */}
+      {/* Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25 }}
-        className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+        transition={{ duration: 0.3 }}
+        className="relative overflow-hidden rounded-3xl min-h-[220px] sm:min-h-[260px]"
       >
-        <div>
-          <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">Roadmaps</h1>
-          <p className="text-sm text-surface-400 mt-0.5">
-            Plan your long-term goals and turn them into focused execution.
+        {/* Background image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: 'url(/SVG/roadmap-mountain.svg)' }}
+        />
+        {/* Gradient overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/85 via-white/60 to-transparent" />
+
+        <div className="relative z-10 p-6 sm:p-8 lg:p-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 min-h-[220px] sm:min-h-[260px]">
+          {/* Left: Text content */}
+          <div className="flex-1 max-w-md">
+            <p className="text-xs font-semibold tracking-widest text-blue-600 uppercase mb-2">Roadmaps</p>
+            <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-slate-800 leading-tight">
+              Your Journey,<br />Your Way
+            </h1>
+            <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+              Plan your long-term goals and turn them into focused execution.
+            </p>
+            {/* Quote pill */}
+            <div className="mt-4 p-3 rounded-xl bg-white/70 backdrop-blur-sm border border-slate-200/80 max-w-sm">
+              <p className="text-xs text-slate-700 italic leading-relaxed">
+                "A goal without a plan is just a wish."
+              </p>
+              <p className="text-[10px] text-slate-500 mt-1">— Antoine de Saint-Exupéry</p>
+            </div>
+          </div>
+
+          {/* Right: Person illustration */}
+          <div className="hidden sm:block flex-shrink-0 w-44 h-44 lg:w-52 lg:h-52">
+            <img src="/SVG/roadmap.png" alt="" className="w-full h-full object-contain drop-shadow-md" />
+          </div>
+        </div>
+
+        {/* Handwritten decoration */}
+        <div className="absolute top-5 right-5 sm:top-7 sm:right-7 lg:top-8 lg:right-10 text-right pointer-events-none">
+          <p className="text-sm text-blue-600/80 font-medium italic" style={{ transform: 'rotate(2deg)' }}>
+            "Small steps<br />lead to big<br />achievements!"
           </p>
         </div>
-        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
-          Create Roadmap
-        </Button>
       </motion.div>
 
       {/* Loading skeleton */}
@@ -119,16 +161,21 @@ export function RoadmapsPage() {
         </Card>
       )}
 
-      {/* Empty */}
+      {/* Empty state */}
       {!loading && !error && roadmaps.length === 0 && (
         <EmptyState
-          icon={<Map size={28} />}
+          illustration="/SVG/roadmap-mountain.svg"
           title="No roadmaps yet"
           description="Turn a long-term goal into focused execution. Create your first roadmap to get started."
           action={
-            <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
-              Create Roadmap
-            </Button>
+            <div className="flex gap-3">
+              <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
+                Create Roadmap
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/personal/roadmaps/import')} leftIcon={<FileJson size={16} />}>
+                Import from JSON
+              </Button>
+            </div>
           }
         />
       )}
@@ -136,43 +183,72 @@ export function RoadmapsPage() {
       {/* Search + Filters */}
       {!loading && !error && roadmaps.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="space-y-3">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 max-w-xs">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-              <Input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search roadmaps..."
-                className="pl-9 h-9 text-xs"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
-                  <X size={12} />
-                </button>
-              )}
-            </div>
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-              <option value="all">All Types</option>
-              {Object.entries(ROADMAP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-              <option value="all">All Status</option>
-              {Object.entries(ROADMAP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-            <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-              className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-              <option value="newest">Newest</option>
-              <option value="progress">Progress</option>
-              <option value="target">Target Date</option>
-            </select>
+          className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search roadmaps..."
+              className="pl-9 h-9 text-xs"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
+                <X size={12} />
+              </button>
+            )}
           </div>
-          {filteredRoadmaps.length !== roadmaps.length && (
-            <p className="text-[11px] text-surface-500">{filteredRoadmaps.length} of {roadmaps.length} roadmaps</p>
-          )}
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+            <option value="all">All Types</option>
+            {Object.entries(ROADMAP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+            <option value="all">All Status</option>
+            {Object.entries(ROADMAP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
+            <option value="newest">Newest First</option>
+            <option value="progress">Progress</option>
+            <option value="target">Target Date</option>
+          </select>
+          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={14} />} className="sm:ml-auto">
+            Create Roadmap
+          </Button>
+          <Button variant="secondary" onClick={() => navigate('/personal/roadmaps/import')} leftIcon={<FileJson size={14} />}>
+            Import from JSON
+          </Button>
         </motion.div>
+      )}
+
+      {/* KPI Cards */}
+      {!loading && !error && roadmaps.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Roadmaps', value: stats.total, icon: <FileText size={18} />, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+            { label: 'On Track', value: stats.onTrack, icon: <Target size={18} />, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20' },
+            { label: 'At Risk', value: stats.atRisk, icon: <AlertCircle size={18} />, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
+            { label: 'Behind', value: stats.behind, icon: <Clock size={18} />, color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/20' },
+          ].map((kpi, i) => (
+            <motion.div
+              key={kpi.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.05 }}
+              className={`flex items-center gap-3 p-4 rounded-2xl bg-surface-900 border border-surface-800 hover:border-surface-700 transition-colors`}
+            >
+              <div className={`w-10 h-10 rounded-xl ${kpi.bg} ${kpi.border} border flex items-center justify-center ${kpi.color}`}>
+                {kpi.icon}
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-surface-50">{kpi.value}</p>
+                <p className="text-[11px] text-surface-400">{kpi.label}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       )}
 
       {/* Roadmap Grid */}
@@ -263,7 +339,7 @@ export function RoadmapsPage() {
                       )}
                     </div>
 
-                    {/* Continue button for active roadmaps */}
+                    {/* Continue button */}
                     {roadmap.status !== 'completed' && roadmap.status !== 'archived' && (
                       <div className="mt-3 pt-3 border-t border-surface-800/50">
                         <Button
@@ -284,6 +360,26 @@ export function RoadmapsPage() {
                 </motion.div>
               );
             })}
+
+            {/* Create new roadmap card */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: filteredRoadmaps.length * 0.03 }}
+            >
+              <button
+                onClick={() => setShowCreate(true)}
+                className="w-full h-full min-h-[200px] rounded-2xl border-2 border-dashed border-surface-700 hover:border-brand-500/50 bg-surface-900/50 hover:bg-surface-900 transition-all duration-200 flex flex-col items-center justify-center gap-3 group cursor-pointer"
+              >
+                <div className="w-12 h-12 rounded-xl bg-surface-800 group-hover:bg-brand-500/10 flex items-center justify-center transition-colors">
+                  <Plus size={24} className="text-surface-500 group-hover:text-brand-400 transition-colors" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-surface-300 group-hover:text-surface-100 transition-colors">Create a new roadmap</p>
+                  <p className="text-xs text-surface-500 mt-1">Turn your goals into a clear step-by-step plan.</p>
+                </div>
+              </button>
+            </motion.div>
           </AnimatePresence>
         </div>
       )}

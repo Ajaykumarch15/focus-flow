@@ -741,6 +741,15 @@ export const api = {
       request<any>('/personal-roadmaps/link-task', { method: 'POST', body: JSON.stringify(body) }),
     unlinkTask: (taskId: string) =>
       request<{ message: string }>(`/personal-roadmaps/unlink-task/${taskId}`, { method: 'DELETE' }),
+
+    // Generator
+    generate: (body: any) =>
+      request<{ plan: any; warnings: any[] }>('/personal-roadmaps/generate', { method: 'POST', body: JSON.stringify(body) }),
+    importPlan: (body: { plan: any }) =>
+      request<{ roadmapId: string; title: string; phaseCount: number; milestoneCount: number; taskCount: number }>(
+        '/personal-roadmaps/import',
+        { method: 'POST', body: JSON.stringify(body) }
+      ),
   },
 
   schedules: {
