@@ -167,6 +167,24 @@ export function PhaseDetailPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, [menuOpen]);
 
+  // DnD — hooks must be declared before any conditional returns (Rules of Hooks).
+  const sortedMilestones = [...milestones].sort((a, b) => a.order - b.order);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !phaseId) return;
+    const oldIndex = sortedMilestones.findIndex(m => m._id === active.id);
+    const newIndex = sortedMilestones.findIndex(m => m._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(sortedMilestones.map(m => m._id), oldIndex, newIndex);
+    try {
+      await reorderMilestones(phaseId, reordered);
+    } catch {
+      // Failure toast is surfaced by the store.
+    }
+    fetchMilestones();
+  }, [sortedMilestones, phaseId, reorderMilestones]);
+
   const openCreateModal = () => {
     setEditingMilestone(null);
     setForm({ title: '', description: '', targetDate: '', status: 'todo' });
@@ -247,25 +265,6 @@ export function PhaseDetailPage() {
       </div>
     );
   }
-
-  const sortedMilestones = [...milestones].sort((a, b) => a.order - b.order);
-
-  // DnD
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id || !phaseId) return;
-    const oldIndex = sortedMilestones.findIndex(m => m._id === active.id);
-    const newIndex = sortedMilestones.findIndex(m => m._id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(sortedMilestones.map(m => m._id), oldIndex, newIndex);
-    try {
-      await reorderMilestones(phaseId, reordered);
-    } catch {
-      // Failure toast is surfaced by the store.
-    }
-    fetchMilestones();
-  }, [sortedMilestones, phaseId, reorderMilestones]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">

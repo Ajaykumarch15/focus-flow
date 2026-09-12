@@ -243,7 +243,7 @@ export function TodayPage() {
                          dark:via-brand-400/[0.04] blur-2xl" />
             <motion.img
               variants={fadeUp}
-              src={theme?.mode === 'dark' ? '/personal_workspace_hub_light.jpg' : '/personal_workspace_hub_light.jpg'}
+              src="/SVG/deep-focus.png"
               alt=""
               aria-hidden="true"
               loading="eager"
@@ -338,7 +338,7 @@ export function TodayPage() {
           {view.continue.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<ListTodo size={26} className="text-brand-400" />}
+                illustration="/SVG/today-goal.png"
                 title="Nothing to resume"
                 description="Resume where you left off, or start something new."
                 action={
@@ -403,7 +403,7 @@ export function TodayPage() {
           {view.doNow.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<Target size={26} className="text-amber-400" />}
+                illustration="/SVG/task-priority.png"
                 title="No tasks yet"
                 description="Create your first task to start tracking focus time."
                 action={

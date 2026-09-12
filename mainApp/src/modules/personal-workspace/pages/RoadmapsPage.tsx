@@ -122,7 +122,7 @@ export function RoadmapsPage() {
       {/* Empty */}
       {!loading && !error && roadmaps.length === 0 && (
         <EmptyState
-          icon={<Map size={28} />}
+          illustration="/SVG/roadmap-mountain.svg"
           title="No roadmaps yet"
           description="Turn a long-term goal into focused execution. Create your first roadmap to get started."
           action={

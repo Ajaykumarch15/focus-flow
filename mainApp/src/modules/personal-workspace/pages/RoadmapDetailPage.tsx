@@ -156,6 +156,18 @@ export function RoadmapDetailPage() {
     return [...roadmap.phases].sort((a, b) => a.order - b.order);
   }, [roadmap?.phases]);
 
+  // DnD — hooks must be declared before any conditional returns (Rules of Hooks).
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sortedPhases.findIndex(p => p._id === active.id);
+    const newIndex = sortedPhases.findIndex(p => p._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(sortedPhases.map(p => p._id), oldIndex, newIndex);
+    reorderPhases(roadmap?._id ?? '', reordered);
+  }, [sortedPhases, roadmap?._id, reorderPhases]);
+
   if (detailLoading) {
     return (
       <div className="p-6 lg:p-8 max-w-[900px] mx-auto space-y-6">
@@ -216,18 +228,6 @@ export function RoadmapDetailPage() {
       setPhaseDeleting(false);
     }
   };
-
-  // DnD
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = sortedPhases.findIndex(p => p._id === active.id);
-    const newIndex = sortedPhases.findIndex(p => p._id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(sortedPhases.map(p => p._id), oldIndex, newIndex);
-    reorderPhases(roadmap._id, reordered);
-  }, [sortedPhases, roadmap?._id, reorderPhases]);
 
   const Icon = ICON_MAP[roadmap.icon] || Map;
   const statusTone: BadgeTone = (ROADMAP_STATUS_COLORS[roadmap.status] || 'neutral') as BadgeTone;

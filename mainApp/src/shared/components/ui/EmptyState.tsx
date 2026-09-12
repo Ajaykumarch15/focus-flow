@@ -3,7 +3,8 @@ import { motion } from 'framer-motion';
 import { cn } from '@shared/utils/cn';
 
 interface EmptyStateProps {
-  icon: ReactNode;
+  icon?: ReactNode;
+  illustration?: string;
   title: string;
   description: string;
   action?: ReactNode;
@@ -11,7 +12,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, hint, className }: EmptyStateProps) {
+export function EmptyState({ icon, illustration, title, description, action, hint, className }: EmptyStateProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.96 }}
@@ -19,12 +20,25 @@ export function EmptyState({ icon, title, description, action, hint, className }
       transition={{ duration: 0.2, ease: 'easeOut' }}
       className={cn('flex flex-col items-center justify-center px-6 py-16 text-center', className)}
     >
-      <div className="relative mb-5">
-        <div className="absolute inset-0 rounded-3xl bg-brand-500/10 blur-xl" aria-hidden="true" />
-        <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-800 bg-surface-900 text-surface-400 shadow-lg">
-          {icon}
+      {illustration ? (
+        <div className="relative mb-5">
+          <img
+            src={illustration}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            draggable={false}
+            className="w-auto max-w-[180px] h-auto object-contain select-none pointer-events-none"
+          />
         </div>
-      </div>
+      ) : icon ? (
+        <div className="relative mb-5">
+          <div className="absolute inset-0 rounded-3xl bg-brand-500/10 blur-xl" aria-hidden="true" />
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-surface-800 bg-surface-900 text-surface-400 shadow-lg">
+            {icon}
+          </div>
+        </div>
+      ) : null}
       <h3 className="mb-1.5 font-display text-base font-bold text-surface-50">{title}</h3>
       <p className="mb-6 max-w-sm text-sm leading-relaxed text-surface-400">{description}</p>
       {action && <div className="flex flex-col items-center gap-3 sm:flex-row">{action}</div>}

@@ -58,6 +58,13 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
     low: 'bg-emerald-400',
   };
 
+  const PRIORITY_TAG: Record<string, { bg: string; text: string; label: string }> = {
+    urgent: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'Urgent' },
+    high: { bg: 'bg-pink-500/15', text: 'text-pink-400', label: 'High' },
+    medium: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'Medium' },
+    low: { bg: 'bg-sky-500/15', text: 'text-sky-400', label: 'Low' },
+  };
+
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [data-no-nav]')) return;
     if (onClickCard) onClickCard(task.id);
@@ -224,6 +231,12 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
 
           {/* Actions */}
           <div className="flex flex-col items-end gap-1.5 flex-shrink-0" data-no-nav>
+            {/* Priority Tag */}
+            {task.status !== 'completed' && PRIORITY_TAG[task.priority] && (
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${PRIORITY_TAG[task.priority].bg} ${PRIORITY_TAG[task.priority].text}`}>
+                {PRIORITY_TAG[task.priority].label}
+              </span>
+            )}
             <div className="flex items-center gap-1">
               {task.status !== 'completed' && (
                 <>

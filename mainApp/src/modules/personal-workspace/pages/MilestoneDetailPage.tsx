@@ -10,6 +10,7 @@ import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { api } from '@shared/utils/api';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
+import { EmptyState } from '@shared/components/ui/EmptyState';
 import { toast } from '@shared/services/useToastStore';
 import type { RoadmapTaskSummary } from '../types/roadmap';
 import { safeProgress } from '@personal/services/roadmapProgress';
@@ -302,7 +303,11 @@ export function MilestoneDetailPage() {
       {/* Task list */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="space-y-2">
         {tasks.length === 0 ? (
-          <p className="text-sm text-surface-500 text-center py-6">No tasks yet. Add or link a task to get started.</p>
+          <EmptyState
+            illustration="/SVG/roadmap-mountain.svg"
+            title="No tasks yet"
+            description="Add or link a task to get started."
+          />
         ) : tasks.map(task => {
           const fullTask = personalTaskMap.get(task.id);
           const scheduleDate = fullTask?.scheduledDate ?? (task.scheduledDate ? new Date(task.scheduledDate).getTime() : undefined);

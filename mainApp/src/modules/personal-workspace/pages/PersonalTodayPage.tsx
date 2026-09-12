@@ -211,7 +211,7 @@ const startTask = (task: Task) => {
           </div>
           <div className="relative mx-auto shrink-0">
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-16 h-40 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
-            <motion.img variants={fadeUp} src="/personal_workspace_hub_light.jpg" alt="" aria-hidden="true" loading="eager" draggable={false}
+            <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
               className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none" />
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-24 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
           </div>
@@ -327,7 +327,7 @@ const startTask = (task: Task) => {
           {doNowTasks.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<Target size={26} className="text-brand-400" />}
+                illustration="/SVG/task-priority.png"
                 title="All clear for today"
                 description="No missed or scheduled tasks. Create something new."
                 action={
@@ -366,7 +366,7 @@ const startTask = (task: Task) => {
           {continueTasks.length === 0 ? (
             <Card>
               <EmptyState
-                icon={<ListTodo size={26} className="text-brand-400" />}
+                illustration="/SVG/today-goal.png"
                 title="Nothing to resume"
                 description="All your tasks are completed or not yet started."
               />

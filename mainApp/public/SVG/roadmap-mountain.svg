@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260" role="img" aria-label="FocusFlow mountain milestone illustration">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF5FF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="mountain" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D9E7FF"/>
+      <stop offset="1" stop-color="#AFC9F8"/>
+    </linearGradient>
+    <linearGradient id="mountain2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C9DDFF"/>
+      <stop offset="1" stop-color="#8FB2F2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- soft background -->
+  <rect width="420" height="260" rx="28" fill="url(#sky)"/>
+
+  <!-- distant mountains -->
+  <path d="M34 226 L112 132 L150 178 L191 105 L278 226 Z"
+        fill="#E4EEFF"/>
+  <path d="M110 226 L190 92 L267 226 Z"
+        fill="url(#mountain)"/>
+  <path d="M190 92 L157 151 L181 140 L205 168 L225 144 L267 226 L190 226 Z"
+        fill="#D2E2FF"/>
+
+  <!-- foreground mountain -->
+  <path d="M178 226 L238 124 L326 226 Z"
+        fill="url(#mountain2)"/>
+  <path d="M238 124 L215 166 L238 151 L255 173 L270 153 L326 226 L238 226 Z"
+        fill="#DCE9FF"/>
+
+  <!-- small right ridge -->
+  <path d="M270 226 L318 165 L380 226 Z" fill="#B9CEF5"/>
+  <path d="M318 165 L301 188 L321 181 L340 198 L353 186 L380 226 L318 226 Z"
+        fill="#DCE8FF"/>
+
+  <!-- summit flag pole -->
+  <path d="M238 126 V38"
+        fill="none" stroke="#477DEB" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- flag -->
+  <path d="M240 42
+           C258 34 272 45 287 39
+           C278 52 267 59 240 55 Z"
+        fill="#5E8FF5"/>
+  <path d="M240 42
+           C254 39 268 45 278 42"
+        fill="none" stroke="#7EA7FA" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- subtle snow highlights -->
+  <path d="M238 124 L224 148 L238 143 L247 154 L258 141 Z"
+        fill="#F8FBFF"/>
+  <path d="M190 92 L174 119 L190 113 L201 127 L211 113 Z"
+        fill="#F8FBFF"/>
+
+  <!-- tiny progress marker -->
+  <circle cx="190" cy="214" r="5" fill="#5E8FF5"/>
+  <circle cx="238" cy="185" r="5" fill="#5E8FF5"/>
+  <circle cx="284" cy="160" r="5" fill="#5E8FF5"/>
+
+  <!-- ground -->
+  <path d="M32 227 Q205 219 388 227"
+        fill="none" stroke="#C5D8FA" stroke-width="3" stroke-linecap="round"/>
+</svg>
