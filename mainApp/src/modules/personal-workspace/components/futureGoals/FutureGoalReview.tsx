@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, ArrowRight, Bookmark } from 'lucide-react';
+import { ArrowRight, Bookmark } from 'lucide-react';
 import { useFutureGoalStore } from '@personal/services/useFutureGoalStore';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
-import { FUTURE_GOAL_CATEGORY_LABELS, type FutureGoal } from '@personal/types/futureGoal';
+import { FUTURE_GOAL_CATEGORY_LABELS } from '@personal/types/futureGoal';
 import { StartGoalModal } from './StartGoalModal';
 import { useState } from 'react';
 

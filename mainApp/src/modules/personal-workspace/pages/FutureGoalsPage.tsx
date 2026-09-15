@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Target, Search, X, Star, Zap, Globe, BookOpen, Heart, Briefcase, Palette, DollarSign, Activity, Sparkles } from 'lucide-react';
+import { Target, Search, X } from 'lucide-react';
 import { useFutureGoalStore } from '@personal/services/useFutureGoalStore';
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
@@ -9,19 +9,9 @@ import { EmptyState } from '@shared/components/ui/EmptyState';
 import { FutureGoalQuickAdd } from '@personal/components/futureGoals/FutureGoalQuickAdd';
 import { FutureGoalCard } from '@personal/components/futureGoals/FutureGoalCard';
 import { FutureGoalReview } from '@personal/components/futureGoals/FutureGoalReview';
-import { FUTURE_GOAL_CATEGORY_LABELS, FUTURE_GOAL_STATUS_LABELS, type FutureGoalCategory, type FutureGoalStatus } from '@personal/types/futureGoal';
+import { FUTURE_GOAL_CATEGORY_LABELS, FUTURE_GOAL_STATUS_LABELS } from '@personal/types/futureGoal';
 
-const CATEGORY_ICONS: Record<string, any> = {
-  career: Briefcase,
-  projects: Target,
-  learning: BookOpen,
-  travel: Globe,
-  personal: Heart,
-  health: Activity,
-  finance: DollarSign,
-  creative: Palette,
-  other: Sparkles,
-};
+
 
 function SkeletonCard() {
   return (
@@ -129,7 +119,7 @@ export function FutureGoalsPage() {
           <Target className="mx-auto mb-3 text-red-400" size={32} />
           <p className="text-surface-300 font-medium mb-1">Failed to load goals</p>
           <p className="text-surface-500 text-sm mb-4">{error}</p>
-          <Button variant="secondary" onClick={loadGoals}>Retry</Button>
+          <Button variant="secondary" onClick={() => loadGoals()}>Retry</Button>
         </Card>
       )}
 

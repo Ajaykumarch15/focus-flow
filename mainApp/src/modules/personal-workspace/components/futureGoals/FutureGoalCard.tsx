@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Trash2, ArrowRight, Clock, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { ArrowRight, Clock, MoreHorizontal } from 'lucide-react';
 import { useFutureGoalStore } from '@personal/services/useFutureGoalStore';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
@@ -33,7 +33,7 @@ interface FutureGoalCardProps {
 }
 
 export function FutureGoalCard({ goal }: FutureGoalCardProps) {
-  const { changeStatus, deleteGoal, reviewGoal } = useFutureGoalStore();
+  const { changeStatus, deleteGoal } = useFutureGoalStore();
   const [showStart, setShowStart] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
 
