@@ -25,7 +25,7 @@ interface FutureGoalState {
   startGoal: (id: string) => Promise<string>;
 }
 
-export const useFutureGoalStore = create<FutureGoalState>((set, get) => ({
+export const useFutureGoalStore = create<FutureGoalState>((set) => ({
   goals: [],
   reviewGoals: [],
   loading: false,

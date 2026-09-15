@@ -2,7 +2,6 @@ import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Sparkles } from 'lucide-react';
 import { useFutureGoalStore } from '@personal/services/useFutureGoalStore';
-import { Input } from '@shared/components/ui/Input';
 import { Button } from '@shared/components/ui/Button';
 import { FUTURE_GOAL_CATEGORY_LABELS, FUTURE_GOAL_CATEGORY_COLORS, type FutureGoalCategory } from '@personal/types/futureGoal';
 
