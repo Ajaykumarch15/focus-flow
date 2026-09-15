@@ -56,6 +56,7 @@ const PersonalTasks      = lazy(() => import('@personal/pages/PersonalTasks').th
 const PersonalTodayPage  = lazy(() => import('@personal/pages/PersonalTodayPage').then(module => ({ default: module.PersonalTodayPage })));
 const PersonalTaskDetail = lazy(() => import('@personal/pages/PersonalTaskDetail').then(module => ({ default: module.PersonalTaskDetail })));
 const PersonalSchedule   = lazy(() => import('@personal/pages/PersonalSchedule').then(module => ({ default: module.PersonalSchedule })));
+const FutureGoalsPage    = lazy(() => import('@personal/pages/FutureGoalsPage').then(module => ({ default: module.FutureGoalsPage })));
 const ActiveTimersPage = lazy(() => import('@timers/pages/ActiveTimersPage').then(module => ({ default: module.ActiveTimersPage })));
 const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
@@ -231,6 +232,7 @@ export default function App() {
                 <Route path="/personal/roadmaps/:id" element={<RoadmapDetailPage />} />
                 <Route path="/personal/roadmaps/:id/phases/:phaseId" element={<RoadmapPhaseDetail />} />
                 <Route path="/personal/roadmaps/:id/phases/:phaseId/milestones/:milestoneId" element={<RoadmapMilestoneDetail />} />
+                <Route path="/personal/goals" element={<FutureGoalsPage />} />
                 <Route path="/personal/journal" element={<Journal />} />
                 <Route path="/personal/search" element={<SearchResultsPage />} />
                 <Route path="/personal/settings" element={<PersonalSettingsPage />} />

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
   History, Library, Map, BarChart3, Calendar, Brain, Lightbulb,
-  FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer,
+  FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer, Target,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
@@ -32,6 +32,7 @@ const PERSONAL_NAV: NavPanelDef[] = [
       { to: '/personal/roadmaps', label: 'All Roadmaps' },
     ],
   },
+  { to: '/personal/goals', icon: Target, label: 'Goals' },
   { to: '/personal/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 

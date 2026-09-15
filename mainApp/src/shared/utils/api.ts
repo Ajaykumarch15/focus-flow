@@ -26,6 +26,7 @@ import type {
   RoadmapMilestoneDoc,
   RoadmapType,
 } from '@personal/types/roadmap';
+import type { FutureGoal } from '@personal/types/futureGoal';
 import type { FocusFlowBackup, BackupImportResult } from '@shared/types/backup';
 import type { PublicProfile, ProfileStats } from '@shared/types';
 
@@ -875,6 +876,29 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       }),
+  },
+
+  personalFutureGoals: {
+    list: (params?: { status?: string; category?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.category) qs.set('category', params.category);
+      const q = qs.toString() ? `?${qs.toString()}` : '';
+      return request<FutureGoal[]>(`/personal-future-goals${q}`);
+    },
+    get: (id: string) => request<FutureGoal>(`/personal-future-goals/${id}`),
+    create: (body: { title: string; description?: string; category?: string; color?: string }) =>
+      request<FutureGoal>('/personal-future-goals', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: Record<string, any>) =>
+      request<FutureGoal>(`/personal-future-goals/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) =>
+      request<{ message: string }>(`/personal-future-goals/${id}`, { method: 'DELETE' }),
+    review: (id: string) =>
+      request<FutureGoal>(`/personal-future-goals/${id}/review`, { method: 'PATCH' }),
+    getReviewGoals: () =>
+      request<FutureGoal[]>('/personal-future-goals/review'),
+    startGoal: (id: string) =>
+      request<{ roadmapId: string; title: string; goal: FutureGoal }>(`/personal-future-goals/${id}/start`, { method: 'POST' }),
   },
 
   meetings: {
