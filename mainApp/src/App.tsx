@@ -170,7 +170,22 @@ export default function App() {
         import('@personal/services/usePersonalTaskStore').then((m) =>
           m.usePersonalTaskStore.getState().rehydratePersonalTimer(),
         );
-      loadAll().then(rehydrate, rehydrate);
+      loadAll()
+        .then(() => {
+          // Eagerly load module stores that have their own localStorage caching.
+          // These fire in parallel and errors are swallowed — the page component
+          // will retry on mount if needed.
+          import('@worklog/services/useWorkLogStore').then((m) =>
+            m.useWorkLogStore.getState().loadToday().catch(() => {}),
+          );
+          import('@worklog/services/useHabitStore').then((m) =>
+            m.useHabitStore.getState().loadHabits().catch(() => {}),
+          );
+          import('@worklog/services/useScheduleStore').then((m) =>
+            m.useScheduleStore.getState().fetchSchedules().catch(() => {}),
+          );
+          return rehydrate();
+        }, rehydrate);
     } else if (!loading) {
       clearTimer();
     }

@@ -13,6 +13,7 @@ import { PersonalScheduleMonthView } from '@personal/components/schedule/Persona
 import { ScheduleTaskModal } from '@personal/components/schedule/ScheduleTaskModal';
 import { ScheduleSidebar } from '@personal/components/schedule/ScheduleSidebar';
 import { CollapsibleSection } from '@personal/components/schedule/CollapsibleSection';
+import { Pagination } from '@shared/components/ui/Pagination';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { getWeekDates, getScheduledState, formatScheduledDate } from '@personal/services/personalTaskSchedule';
@@ -89,6 +90,7 @@ export function PersonalSchedule() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  const [upcomingPage, setUpcomingPage] = useState(1);
 
   const today = useMemo(() => new Date(), []);
 
@@ -130,6 +132,14 @@ export function PersonalSchedule() {
     for (const r of roadmaps) map.set(r._id, r.title);
     return map;
   }, [roadmaps]);
+
+  // Pagination for upcoming tasks
+  const UPCOMING_PAGE_SIZE = 8;
+  const upcomingTotalPages = Math.ceil(upcomingTasks.length / UPCOMING_PAGE_SIZE);
+  const paginatedUpcomingTasks = useMemo(() => {
+    const start = (upcomingPage - 1) * UPCOMING_PAGE_SIZE;
+    return upcomingTasks.slice(start, start + UPCOMING_PAGE_SIZE);
+  }, [upcomingPage, upcomingTasks]);
 
   const navigateDate = useCallback((dir: number) => {
     setSelectedDate(d => {
@@ -301,9 +311,20 @@ export function PersonalSchedule() {
               defaultOpen={false}
             >
               {upcomingTasks.length > 0 ? (
-                upcomingTasks.map(t => (
-                  <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                ))
+                <div className="space-y-2">
+                  {paginatedUpcomingTasks.map(t => (
+                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                  ))}
+                  {upcomingTotalPages > 1 && (
+                    <Pagination
+                      currentPage={upcomingPage}
+                      totalPages={upcomingTotalPages}
+                      totalItems={upcomingTasks.length}
+                      pageSize={UPCOMING_PAGE_SIZE}
+                      onPageChange={setUpcomingPage}
+                    />
+                  )}
+                </div>
               ) : (
                 <p className="text-xs text-surface-500 text-center py-2">No upcoming tasks</p>
               )}

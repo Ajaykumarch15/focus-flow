@@ -2,12 +2,9 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
-  X, ListTodo, Clock, CheckCircle, Flame,
-  ArrowUp, ArrowDown, Eye, EyeOff,
+  X, ArrowUp, ArrowDown, Eye, EyeOff,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
-import { cn } from '@shared/utils/cn';
 import { PersonalTaskCard } from '@personal/components/tasks/PersonalTaskCard';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
@@ -15,7 +12,6 @@ import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
 import { TaskStatus } from '@shared/types';
 import { CATEGORIES } from '@shared/utils/colors';
 import { isOverdue } from '@shared/utils/time';
-import { getScheduledState, type ScheduledState } from '@personal/services/personalTaskSchedule';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
@@ -25,8 +21,6 @@ import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
-
-const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
 
 export function PersonalTasks() {
   const {
@@ -40,7 +34,7 @@ export function PersonalTasks() {
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
   const [filterCombined, setFilterCombined] = useState<string>('all');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
-  const [filterSchedule, setFilterSchedule] = useState<ScheduledState | 'all'>('all');
+  const [filterSchedule, setFilterSchedule] = useState<string>('');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [showCompleted, setShowCompleted] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -59,7 +53,14 @@ export function PersonalTasks() {
         if (priorities.includes(filterCombined) && task.priority !== filterCombined) return false;
         if (categories.includes(filterCombined) && task.category?.toLowerCase() !== filterCombined) return false;
       }
-      if (filterSchedule !== 'all' && getScheduledState(task) !== filterSchedule) return false;
+      if (filterSchedule) {
+        if (filterSchedule === 'no-date') {
+          if (task.deadline) return false;
+        } else {
+          const taskDate = task.deadline ? new Date(task.deadline).toISOString().slice(0, 10) : null;
+          if (taskDate !== filterSchedule) return false;
+        }
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
@@ -115,35 +116,19 @@ export function PersonalTasks() {
     [tasks],
   );
 
-  const kpiCounts = useMemo(() => ({
-    todo: tasks.filter(t => t.status === 'todo').length,
-    inProgress: tasks.filter(t => t.status === 'active' || t.status === 'paused').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    overdue: overdueCount,
-  }), [tasks, overdueCount]);
-
-  const donutData = useMemo(() => [
-    { name: 'Completed', value: kpiCounts.completed },
-    { name: 'In Progress', value: kpiCounts.inProgress },
-    { name: 'To Do', value: kpiCounts.todo },
-    { name: 'Overdue', value: kpiCounts.overdue },
-  ], [kpiCounts]);
-
-  const completionPct = tasks.length > 0 ? Math.round((kpiCounts.completed / tasks.length) * 100) : 0;
-
   const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterCombined !== 'all'
-    || filterSchedule !== 'all' || showOverdueOnly || showCompleted;
+    || Boolean(filterSchedule) || showOverdueOnly || showCompleted;
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setFilterStatus('all');
     setFilterCombined('all');
-    setFilterSchedule('all');
+    setFilterSchedule('');
     setShowOverdueOnly(false);
     setShowCompleted(false);
   }, []);
 
-  const isUnfiltered = !hasActiveFilters && filterCombined === 'all' && filterSchedule === 'all' && !showCompleted;
+  const isUnfiltered = !hasActiveFilters && filterCombined === 'all' && !filterSchedule && !showCompleted;
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -212,15 +197,6 @@ export function PersonalTasks() {
         </Button>
       </motion.div>
 
-      {/* ═══════════════ KPI CARDS ═══════════════ */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
-        <KpiCard icon={<ListTodo size={18} />} label="To Do" value={kpiCounts.todo} color="#3b82f6" />
-        <KpiCard icon={<Clock size={18} />} label="In Progress" value={kpiCounts.inProgress} color="#f59e0b" />
-        <KpiCard icon={<CheckCircle size={18} />} label="Completed" value={kpiCounts.completed} color="#22c55e" />
-        <KpiCard icon={<Flame size={18} />} label="Overdue" value={kpiCounts.overdue} color="#ef4444" />
-      </motion.div>
-
       {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 z-10 relative">
 
@@ -273,54 +249,42 @@ export function PersonalTasks() {
           {/* Filters Row 2: Status + Schedule tabs */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
             className="flex flex-wrap items-center gap-1.5">
-            {([
-              ['all', 'All'],
-              ['todo', 'To Do'],
-              ['active', 'In Progress'],
-              ['paused', 'Paused'],
-              ['completed', 'Completed'],
-            ] as const).map(([value, label]) => {
-              const active = filterStatus === value;
-              const count = statusCounts[value];
-              return (
-                <button key={value} type="button" aria-pressed={active}
-                  onClick={() => setFilterStatus(value)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-bold transition-all',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
-                    active
-                      ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
-                      : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                  )}>
-                  {label}
-                  <span className={cn(
-                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
-                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
-                  )}>{count}</span>
-                </button>
-              );
-            })}
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
+              aria-label="Filter by status"
+              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              {([
+                ['all', 'All', statusCounts.all],
+                ['todo', 'To Do', statusCounts.todo],
+                ['active', 'In Progress', statusCounts.active],
+                ['paused', 'Paused', statusCounts.paused],
+                ['completed', 'Completed', statusCounts.completed],
+              ] as const).map(([value, label, count]) => (
+                <option key={value} value={value}>{label} ({count})</option>
+              ))}
+            </select>
             <span className="w-px h-5 bg-surface-700 mx-1" aria-hidden="true" />
-            {([
-              ['all', 'All Dates'],
-              ['today', 'Today'],
-              ['missed', 'Missed'],
-              ['upcoming', 'Upcoming'],
-              ['unscheduled', 'No Date'],
-            ] as const).map(([value, label]) => {
-              const active = filterSchedule === value;
-              return (
-                <button key={value} onClick={() => setFilterSchedule(value)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all',
-                    active
-                      ? 'bg-info-500/15 border-info-500/40 text-info-300'
-                      : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                  )}>
-                  {label}
+            <div className="relative">
+              <input
+                type="date"
+                value={filterSchedule === 'no-date' ? '' : filterSchedule}
+                onChange={e => setFilterSchedule(e.target.value)}
+                aria-label="Filter by date"
+                className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 [color-scheme:dark]"
+              />
+              {filterSchedule && filterSchedule !== 'no-date' && (
+                <button type="button" onClick={() => setFilterSchedule('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-700 transition-colors">
+                  <X size={12} />
                 </button>
-              );
-            })}
+              )}
+            </div>
+            <Button
+              variant={!filterSchedule ? 'primary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilterSchedule(filterSchedule === 'no-date' ? '' : 'no-date')}
+              className="gap-1.5 h-9">
+              No Date
+            </Button>
             <Button
               variant={showOverdueOnly ? 'primary' : 'ghost'}
               size="sm"
@@ -343,9 +307,9 @@ export function PersonalTasks() {
               className="gap-1.5 h-9">
               {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
               {showCompleted ? 'Hide Completed' : 'Show Completed'}
-              {kpiCounts.completed > 0 && (
+              {statusCounts.completed > 0 && (
                 <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showCompleted ? 'bg-white/25 text-white' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                  {kpiCounts.completed}
+                  {statusCounts.completed}
                 </span>
               )}
             </Button>
@@ -413,7 +377,7 @@ export function PersonalTasks() {
             <Card className="p-5 overflow-hidden relative">
               <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
               <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="lazy" draggable={false}
-                className="w-full h-auto max-h-[180px] object-contain select-none pointer-events-none" />
+                className="w-full h-auto max-h-[380px] object-contain select-none pointer-events-none" />
               <p className="text-center text-xs text-surface-400 mt-3 font-medium">Good Things Take Time</p>
             </Card>
           </motion.div>
@@ -439,38 +403,6 @@ export function PersonalTasks() {
             </Card>
           </motion.div>
 
-          {/* Task Completion Donut */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
-            <Card className="p-5">
-              <h3 className="text-sm font-semibold text-surface-50 mb-4">Task Completion</h3>
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={donutData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={3} dataKey="value">
-                      {donutData.map((_, i) => (
-                        <Cell key={i} fill={DONUT_COLORS[i]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center">
-                    <p className="text-xl font-display font-extrabold text-surface-50">{completionPct}%</p>
-                    <p className="text-[9px] text-surface-400 uppercase tracking-wider">Done</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                {donutData.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2 text-xs text-surface-400">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: DONUT_COLORS[i] }} />
-                    <span className="truncate">{item.name}</span>
-                    <span className="ml-auto font-bold text-surface-300">{item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
         </div>
       </div>
 
@@ -494,33 +426,6 @@ export function PersonalTasks() {
 
       {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} onAddTask={addTask} />}
     </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Sub-components
-// ══════════════════════════════════════════════════════════════════════════════
-
-function KpiCard({ icon, label, value, color }: {
-  icon: React.ReactNode; label: string; value: number; color: string;
-}) {
-  return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-4 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
-      style={{
-        background: `linear-gradient(135deg, ${color}12 0%, ${color}06 100%)`,
-        border: `1px solid ${color}30`,
-      }}>
-      <div className="absolute top-0 right-0 w-20 h-20 opacity-15 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
-          {icon}
-        </div>
-      </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 leading-none">{value}</p>
-      <p className="text-[11px] font-semibold mt-1" style={{ color: `${color}cc` }}>{label}</p>
-    </motion.div>
   );
 }
 

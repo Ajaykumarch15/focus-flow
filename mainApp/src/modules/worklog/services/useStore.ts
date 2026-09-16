@@ -35,6 +35,8 @@ import { generateBrandShades } from '@shared/utils/colorUtils';
 // ── Defaults & Caching ────────────────────────────────────────────────────────
 const PROFILE_KEY = 'ff_profile_cache';
 const THEME_KEY = 'ff_theme_cache';
+const TASKS_KEY = 'ff_tasks_cache';
+const JOURNALS_KEY = 'ff_journals_cache';
 
 const DEFAULT_THEME: ThemeSettings = {
   mode: 'dark', accentColor: '#0ea5e9', fontSize: 'md',
@@ -207,6 +209,7 @@ interface StoreState {
   currentPauseStart?: number;
   dataLoading: boolean;
   dataError: string | null;
+  dataLoaded: boolean;
   mobileSidebarOpen: boolean;
 
   // Parallel timer support
@@ -266,6 +269,8 @@ interface StoreState {
 export const useStore = create<StoreState>((set, get) => {
   const cachedProfile = loadCached<UserProfile>(PROFILE_KEY, DEFAULT_PROFILE);
   const cachedTheme = loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME);
+  const cachedTasks = loadCached<Task[]>(TASKS_KEY, []);
+  const cachedJournals = loadCached<JournalEntry[]>(JOURNALS_KEY, []);
   applyThemeToDOM(cachedTheme);
 
   const snapshot = timerEngine.getSnapshot();
@@ -311,12 +316,13 @@ export const useStore = create<StoreState>((set, get) => {
   });
 
   return {
-    tasks: [],
-    journals: [],
+    tasks: cachedTasks,
+    journals: cachedJournals,
     profile: cachedProfile,
     theme: cachedTheme,
     dataLoading: false,
     dataError: null,
+    dataLoaded: false,
     mobileSidebarOpen: false,
     selectedTaskIds: new Set<string>(),
     setMobileSidebarOpen: (open) => set({ mobileSidebarOpen: open }),
@@ -332,13 +338,19 @@ export const useStore = create<StoreState>((set, get) => {
     loadAll: async () => {
       set({ dataLoading: true, dataError: null });
       try {
-        const [taskDocs, journalDocs, userDoc] = await Promise.all([
+        const [tasksResult, journalsResult, profileResult] = await Promise.allSettled([
           api.tasks.list(),
           api.journals.list(),
           api.profile.get(),
         ]);
 
-        const { profile, theme: serverTheme } = mapSettings(userDoc);
+        const taskDocs = tasksResult.status === 'fulfilled' ? tasksResult.value : [];
+        const journalDocs = journalsResult.status === 'fulfilled' ? journalsResult.value : [];
+        const userDoc = profileResult.status === 'fulfilled' ? profileResult.value : null;
+
+        const { profile, theme: serverTheme } = userDoc
+          ? mapSettings(userDoc)
+          : { profile: loadCached<UserProfile>(PROFILE_KEY, DEFAULT_PROFILE), theme: loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME) };
         const cached = loadCached<ThemeSettings>(THEME_KEY, DEFAULT_THEME);
         const mergedTheme: ThemeSettings = {
           ...serverTheme,
@@ -462,9 +474,14 @@ export const useStore = create<StoreState>((set, get) => {
           });
         });
 
+        const mappedJournals = journalDocs.map(mapJournal);
+
+        saveCache(TASKS_KEY, allTasks);
+        saveCache(JOURNALS_KEY, mappedJournals);
+
         set({
           tasks: allTasks,
-          journals: journalDocs.map(mapJournal),
+          journals: mappedJournals,
           profile,
           theme: mergedTheme,
           activeTaskId: engineSnap.taskId,
@@ -473,17 +490,20 @@ export const useStore = create<StoreState>((set, get) => {
           currentSessionStart: engineSnap.sessionStartTime || undefined,
           currentPauseStart: engineSnap.pauseStart,
           dataLoading: false,
+          dataLoaded: true,
         });
       } catch (err: any) {
         console.error('❌ loadAll failed:', err);
-        set({ dataError: err.message, dataLoading: false });
+        set({ dataError: err.message, dataLoading: false, dataLoaded: true });
       }
     },
 
     fetchTasks: async () => {
       try {
         const docs = await api.tasks.list();
-        set({ tasks: docs.map(mapTask) });
+        const mapped = docs.map(mapTask);
+        saveCache(TASKS_KEY, mapped);
+        set({ tasks: mapped });
       } catch (err) {
         console.error('❌ fetchTasks failed:', err);
       }
@@ -503,7 +523,9 @@ export const useStore = create<StoreState>((set, get) => {
     fetchJournals: async () => {
       try {
         const docs = await api.journals.list();
-        set({ journals: docs.map(mapJournal) });
+        const mapped = docs.map(mapJournal);
+        saveCache(JOURNALS_KEY, mapped);
+        set({ journals: mapped });
       } catch (err) {
         console.error('❌ fetchJournals failed:', err);
       }

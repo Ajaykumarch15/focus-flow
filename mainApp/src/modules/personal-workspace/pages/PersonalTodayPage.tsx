@@ -219,7 +219,7 @@ const startTask = (task: Task) => {
           <div className="relative mx-auto shrink-0">
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-16 h-40 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
             <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
-              className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none" />
+              className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[470px] xl:max-w-[490px] h-auto object-contain select-none pointer-events-none" />
             <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-24 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
           </div>
           <div className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0">

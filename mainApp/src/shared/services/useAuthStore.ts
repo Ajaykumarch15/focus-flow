@@ -71,6 +71,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('focusflow-storage');
     localStorage.removeItem('ff_profile_cache');
     localStorage.removeItem('ff_theme_cache');
+    localStorage.removeItem('ff_tasks_cache');
+    localStorage.removeItem('ff_journals_cache');
+    localStorage.removeItem('ff_personal_tasks_cache');
     localStorage.removeItem('ff_worklog_cache');
     localStorage.removeItem('ff_habit_cache');
     localStorage.removeItem('ff_habit_timer');

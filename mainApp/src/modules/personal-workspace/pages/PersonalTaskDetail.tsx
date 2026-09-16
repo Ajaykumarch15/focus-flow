@@ -31,7 +31,7 @@ export function PersonalTaskDetail() {
   const {
     getTask, startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer,
     addSubtask, toggleSubtask, deleteSubtask,
-    updateTask, deleteTask,
+    updateTask, deleteTask, completeTask,
   } = usePersonalTaskStore();
   const theme = useStore(s => s.theme);
   const isReducedMotion = theme?.reducedMotion;
@@ -161,6 +161,15 @@ export function PersonalTaskDetail() {
             ) : (
               <div className="flex items-center gap-2 group">
                 <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50">{task.title}</h1>
+                {task.status !== 'completed' && (
+                  <button
+                    type="button"
+                    onClick={() => completeTask(task.id)}
+                    aria-label={`Complete task: ${task.title}`}
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                    <CheckCircle size={14} aria-hidden="true" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setEditTitle(true)}
@@ -310,6 +319,17 @@ export function PersonalTaskDetail() {
                   aria-label={`Stop timer for ${task.title}`}
                   className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                   <Square size={14} fill="currentColor" aria-hidden="true" /> Stop
+                </motion.button>
+              )}
+              {task.status !== 'completed' && (
+                <motion.button
+                  type="button"
+                  whileHover={isReducedMotion ? {} : { scale: 1.02 }}
+                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+                  onClick={() => completeTask(task.id)}
+                  aria-label={`Complete task: ${task.title}`}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 rounded-xl font-semibold text-sm transition-all border border-emerald-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                  <CheckCircle size={15} aria-hidden="true" /> Complete
                 </motion.button>
               )}
             </div>
