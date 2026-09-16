@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle, AlertCircle,
@@ -234,6 +234,8 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
   const [activeTab, setActiveTab] = useState('overview');
   const [newItem, setNewItem] = useState('');
   const [showCompletionPrompt, setShowCompletionPrompt] = useState(false);
+
+  const handleUpdateField = useCallback((id: string, field: string, val: string) => updateField(id, field, val), [updateField]);
 
   const memory = selectMemory(log);
   const status = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
@@ -522,7 +524,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               <AutoProEditor
                 logId={log._id} field="problem" value={log.problem}
                 placeholder="What ticket/feature/bug? What user pain?" minRows={3}
-                updateFn={(id, field, val) => updateField(id, field, val)} />
+                updateFn={handleUpdateField} />
             </motion.div>
 
             <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -535,7 +537,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               <AutoProEditor
                 logId={log._id} field="currentWork" value={log.currentWork}
                 placeholder="Specific function, component, API..." minRows={3}
-                updateFn={(id, field, val) => updateField(id, field, val)} />
+                updateFn={handleUpdateField} />
             </motion.div>
           </motion.div>
         )}
@@ -554,7 +556,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               <AutoProEditor
                 logId={log._id} field="plan" value={log.plan}
                 placeholder={"1. First...\n2. Then..."} minRows={4}
-                updateFn={(id, field, val) => updateField(id, field, val)} />
+                updateFn={handleUpdateField} />
             </motion.div>
 
             <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -567,7 +569,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               <AutoProEditor
                 logId={log._id} field="designNotes" value={log.designNotes}
                 placeholder="Schema, components, tradeoffs..." minRows={3}
-                updateFn={(id, field, val) => updateField(id, field, val)} />
+                updateFn={handleUpdateField} />
             </motion.div>
 
             <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
@@ -580,7 +582,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               <AutoProEditor
                 logId={log._id} field="gitBranch" value={log.gitBranch}
                 placeholder="feature/branch-name" minRows={1}
-                updateFn={(id, field, val) => updateField(id, field, val)} />
+                updateFn={handleUpdateField} />
             </motion.div>
 
             <motion.div variants={fadeUp} initial="hidden" animate="show"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Search, Bug, CheckCircle2, Lightbulb, HelpCircle, Save } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '@worklog/services/useWorkLogStore';
@@ -20,12 +20,44 @@ export function ProblemFlowEditor({ workLog }: ProblemFlowEditorProps) {
   const [lessonsLearned, setLessonsLearned] = useState(flow.lessonsLearned || '');
   const [savingField, setSavingField] = useState<string | null>(null);
 
+  const problemRef = useRef(problem);
+  const investigationRef = useRef(investigation);
+  const rootCauseRef = useRef(rootCause);
+  const solutionRef = useRef(solution);
+  const lessonsLearnedRef = useRef(lessonsLearned);
+
+  useEffect(() => { problemRef.current = problem; }, [problem]);
+  useEffect(() => { investigationRef.current = investigation; }, [investigation]);
+  useEffect(() => { rootCauseRef.current = rootCause; }, [rootCause]);
+  useEffect(() => { solutionRef.current = solution; }, [solution]);
+  useEffect(() => { lessonsLearnedRef.current = lessonsLearned; }, [lessonsLearned]);
+
   useEffect(() => {
     setProblem(flow.problem || workLog.problem || '');
     setInvestigation(flow.investigation || '');
     setRootCause(flow.rootCause || '');
     setSolution(flow.solution || '');
     setLessonsLearned(flow.lessonsLearned || '');
+  }, [workLog._id]);
+
+  useEffect(() => {
+    return () => {
+      const fields = [
+        { key: 'problem', val: problemRef.current, orig: flow.problem || workLog.problem || '' },
+        { key: 'investigation', val: investigationRef.current, orig: flow.investigation || '' },
+        { key: 'rootCause', val: rootCauseRef.current, orig: flow.rootCause || '' },
+        { key: 'solution', val: solutionRef.current, orig: flow.solution || '' },
+        { key: 'lessonsLearned', val: lessonsLearnedRef.current, orig: flow.lessonsLearned || '' },
+      ];
+      for (const { key, val, orig } of fields) {
+        if (val !== orig) {
+          updateNestedField(workLog._id, 'problemFlow', key, val);
+          if (key === 'problem') {
+            updateField(workLog._id, 'problem', val);
+          }
+        }
+      }
+    };
   }, [workLog._id]);
 
   const handleSave = async (childField: string, value: string) => {
