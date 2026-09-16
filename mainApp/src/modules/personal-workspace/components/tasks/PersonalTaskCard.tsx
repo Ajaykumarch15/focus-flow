@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Link2, Timer } from 'lucide-react';
+import { MessageSquare, Link2, Timer, CheckCircle, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
+import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
+import { Button } from '@shared/components/ui/Button';
+import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
 import type { Task } from '@shared/types';
 
 interface PersonalTaskCardProps {
@@ -29,6 +32,8 @@ function getInitial(title: string): string {
 
 export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
   const navigate = useNavigate();
+  const { completeTask, deleteTask } = usePersonalTaskStore();
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
   const priority = PRIORITY_BADGE[task.priority] || PRIORITY_BADGE.medium;
   const subtasksDone = task.subtasks.filter(s => s.completed).length;
@@ -56,7 +61,23 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
   const isPaused = parallelState === 'paused';
   const hasTimer = isRunning || isPaused;
 
+  const handleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (task.status !== 'completed') await completeTask(task.id);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowConfirmDelete(true);
+  };
+
+  const confirmDelete = async () => {
+    await deleteTask(task.id);
+    setShowConfirmDelete(false);
+  };
+
   return (
+    <>
     <motion.button
       whileHover={{ y: -2 }}
       transition={{ duration: 0.15 }}
@@ -132,6 +153,30 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
         )}
       </div>
 
+      {/* Actions */}
+      <div className="flex flex-col items-center gap-1 flex-shrink-0" data-no-nav>
+        {task.status !== 'completed' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleComplete}
+            className="p-1.5 text-surface-400 hover:text-emerald-400"
+            title="Complete task"
+          >
+            <CheckCircle size={14} />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleDelete}
+          className="p-1.5 text-surface-400 hover:text-red-400"
+          title="Delete task"
+        >
+          <Trash2 size={14} />
+        </Button>
+      </div>
+
       {/* Right: Avatar */}
       <div
         className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
@@ -141,5 +186,15 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
         {getInitial(task.title)}
       </div>
     </motion.button>
+
+    <ConfirmDialog
+      isOpen={showConfirmDelete}
+      title="Delete Task?"
+      message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+      confirmLabel="Delete"
+      onConfirm={confirmDelete}
+      onCancel={() => setShowConfirmDelete(false)}
+    />
+    </>
   );
 }

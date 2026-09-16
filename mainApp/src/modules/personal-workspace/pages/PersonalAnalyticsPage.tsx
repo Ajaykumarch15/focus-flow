@@ -18,6 +18,7 @@ import {
   Consistency,
   RecentProgress,
   YourInsights,
+  TaskOverview,
 } from '@personal/components/analytics';
 
 const TIME_FILTERS = [
@@ -313,6 +314,9 @@ export function PersonalAnalyticsPage() {
           </button>
         ))}
       </motion.div>
+
+      {/* Task Overview */}
+      <TaskOverview />
 
       {/* Hero Section */}
       <AnalyticsHero

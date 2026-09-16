@@ -17,6 +17,20 @@ import { useStore } from '@worklog/services/useStore';
 import { useRoadmapStore } from './useRoadmapStore';
 import { toast } from '@shared/services/useToastStore';
 
+// ── Caching ───────────────────────────────────────────────────────────────────
+const PERSONAL_TASKS_KEY = 'ff_personal_tasks_cache';
+
+function loadCachedPersonal<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch { return fallback; }
+}
+
+function saveCachePersonal(key: string, value: unknown): void {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
+
 // ── Mappers ───────────────────────────────────────────────────────────────────
 function mapTask(doc: any): Task {
   return {
@@ -136,8 +150,10 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     });
   });
 
+  const cachedPersonalTasks = loadCachedPersonal<Task[]>(PERSONAL_TASKS_KEY, []);
+
   return {
-    tasks: [],
+    tasks: cachedPersonalTasks,
     journals: [],
     selectedTaskIds: new Set<string>(),
     loading: false,
@@ -150,6 +166,7 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
         set({ loading: true, error: null });
         const docs = await api.personalTasks.list();
         const personal = docs.map(mapTask);
+        saveCachePersonal(PERSONAL_TASKS_KEY, personal);
         set({ tasks: personal, loading: false });
       } catch (err: any) {
         console.error('❌ usePersonalTaskStore.fetchTasks failed:', err);
@@ -196,18 +213,28 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
         scheduledDate: data.scheduledDate || undefined,
       });
       const real = mapTask(doc);
-      set((s) => ({ tasks: s.tasks.map((t) => (t.id === tempId ? real : t)) }));
+      set((s) => {
+        const updated = s.tasks.map((t) => (t.id === tempId ? real : t));
+        saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+        return { tasks: updated };
+      });
       return real.id;
     } catch (err: any) {
-      set((s) => ({ tasks: s.tasks.filter((t) => t.id !== tempId) }));
+      set((s) => {
+        const updated = s.tasks.filter((t) => t.id !== tempId);
+        saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+        return { tasks: updated };
+      });
       throw err;
     }
   },
 
   updateTask: async (id, updates) => {
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t)),
-    }));
+    set((s) => {
+      const updated = s.tasks.map((t) => (t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t));
+      saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+      return { tasks: updated };
+    });
     await api.personalTasks.update(id, updates);
     // Refresh roadmap progress if a linked task's status changed
     if (updates.status) {
@@ -224,9 +251,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     }
     // Capture roadmapRef before removing from local state
     const taskToDelete = get().tasks.find((t) => t.id === id);
-    set((s) => ({
-      tasks: s.tasks.filter((t) => t.id !== id),
-    }));
+    set((s) => {
+      const updated = s.tasks.filter((t) => t.id !== id);
+      saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+      return { tasks: updated };
+    });
     await api.personalTasks.delete(id);
     // Refresh roadmap progress if the deleted task was linked to a milestone
     if (taskToDelete?.milestoneRef && taskToDelete?.roadmapRef) {
@@ -241,16 +270,21 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     await get().updateTask(id, { status: 'completed', completedAt: Date.now() });
   },
 
-  reorderTasks: (tasks) => set({ tasks }),
+  reorderTasks: (tasks) => {
+    saveCachePersonal(PERSONAL_TASKS_KEY, tasks);
+    set({ tasks });
+  },
 
   persistTaskOrder: async (orderedIds) => {
     try {
-      set((s) => ({
-        tasks: s.tasks.map((t) => {
+      set((s) => {
+        const updated = s.tasks.map((t) => {
           const idx = orderedIds.indexOf(t.id);
           return idx >= 0 ? { ...t, order: idx } : t;
-        }),
-      }));
+        });
+        saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+        return { tasks: updated };
+      });
       await api.personalTasks.reorder(orderedIds);
     } catch {
       get().fetchTasks();
@@ -278,12 +312,13 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
           await get().stopTimer(id);
         }
       }
-      set((s) => ({
-        tasks: s.tasks.map((t) =>
+      set((s) => {
+        const updated = s.tasks.map((t) =>
           ids.includes(t.id) ? { ...t, status: 'completed' as const, completedAt: now } : t
-        ),
-        selectedTaskIds: new Set(),
-      }));
+        );
+        saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+        return { tasks: updated, selectedTaskIds: new Set() };
+      });
       await Promise.all(ids.map((id) => api.personalTasks.update(id, { status: 'completed', completedAt: now })));
       // Refresh roadmap progress for any linked tasks
       const completedTasks = get().tasks.filter((t) => ids.includes(t.id) && t.milestoneRef);
@@ -301,10 +336,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
   bulkDeleteTasks: async (ids) => {
     if (!ids.length) return;
     try {
-      set((s) => ({
-        tasks: s.tasks.filter((t) => !ids.includes(t.id)),
-        selectedTaskIds: new Set(),
-      }));
+      set((s) => {
+        const updated = s.tasks.filter((t) => !ids.includes(t.id));
+        saveCachePersonal(PERSONAL_TASKS_KEY, updated);
+        return { tasks: updated, selectedTaskIds: new Set() };
+      });
       await Promise.all(ids.map((id) => api.personalTasks.delete(id)));
       toast.success('Tasks deleted', `${ids.length} task${ids.length > 1 ? 's' : ''} removed.`);
     } catch {

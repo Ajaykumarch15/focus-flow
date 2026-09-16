@@ -8,3 +8,4 @@ export { WhereFocusGoes } from './WhereFocusGoes';
 export { Consistency } from './Consistency';
 export { RecentProgress } from './RecentProgress';
 export { YourInsights } from './YourInsights';
+export { TaskOverview } from './TaskOverview';
