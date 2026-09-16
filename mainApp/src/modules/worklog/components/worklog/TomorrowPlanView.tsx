@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Target, Plus, Trash2, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { Button } from '@shared/components/ui/Button';
@@ -18,10 +18,29 @@ export function TomorrowPlanView({ workLog }: TomorrowPlanViewProps) {
   const [attentionRequired, setAttentionRequired] = useState(plan.attentionRequired || '');
   const [newItemText, setNewItemText] = useState('');
 
+  const topPriorityRef = useRef(topPriority);
+  const attentionRequiredRef = useRef(attentionRequired);
+
+  useEffect(() => { topPriorityRef.current = topPriority; }, [topPriority]);
+  useEffect(() => { attentionRequiredRef.current = attentionRequired; }, [attentionRequired]);
+
   useEffect(() => {
     setTopPriority(plan.topPriority || '');
     setUnfinishedItems(plan.unfinishedItems || []);
     setAttentionRequired(plan.attentionRequired || '');
+  }, [workLog._id]);
+
+  useEffect(() => {
+    return () => {
+      const tp = topPriorityRef.current;
+      const ar = attentionRequiredRef.current;
+      if (tp !== (plan.topPriority || '')) {
+        updateNestedField(workLog._id, 'tomorrowPlan', 'topPriority', tp);
+      }
+      if (ar !== (plan.attentionRequired || '')) {
+        updateNestedField(workLog._id, 'tomorrowPlan', 'attentionRequired', ar);
+      }
+    };
   }, [workLog._id]);
 
   const saveTopPriority = (val: string) => {

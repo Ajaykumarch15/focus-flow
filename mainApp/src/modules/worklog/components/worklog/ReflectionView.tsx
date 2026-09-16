@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { HeartPulse, Sparkles, Zap, Target, Shield, Flame } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { Card } from '@shared/components/ui/Card';
@@ -18,11 +18,42 @@ export function ReflectionView({ workLog }: ReflectionViewProps) {
   const [learned, setLearned] = useState(ref.learned || '');
   const [improvement, setImprovement] = useState(ref.improvement || '');
 
+  const wentWellRef = useRef(wentWell);
+  const slowedDownRef = useRef(slowedDown);
+  const learnedRef = useRef(learned);
+  const improvementRef = useRef(improvement);
+
+  useEffect(() => { wentWellRef.current = wentWell; }, [wentWell]);
+  useEffect(() => { slowedDownRef.current = slowedDown; }, [slowedDown]);
+  useEffect(() => { learnedRef.current = learned; }, [learned]);
+  useEffect(() => { improvementRef.current = improvement; }, [improvement]);
+
   useEffect(() => {
     setWentWell(ref.wentWell || '');
     setSlowedDown(ref.slowedDown || '');
     setLearned(ref.learned || '');
     setImprovement(ref.improvement || '');
+  }, [workLog._id]);
+
+  useEffect(() => {
+    return () => {
+      const ww = wentWellRef.current;
+      const sd = slowedDownRef.current;
+      const lr = learnedRef.current;
+      const imp = improvementRef.current;
+      if (ww !== (ref.wentWell || '')) {
+        updateNestedField(workLog._id, 'reflection', 'wentWell', ww);
+      }
+      if (sd !== (ref.slowedDown || '')) {
+        updateNestedField(workLog._id, 'reflection', 'slowedDown', sd);
+      }
+      if (lr !== (ref.learned || '')) {
+        updateNestedField(workLog._id, 'reflection', 'learned', lr);
+      }
+      if (imp !== (ref.improvement || '')) {
+        updateNestedField(workLog._id, 'reflection', 'improvement', imp);
+      }
+    };
   }, [workLog._id]);
 
   const saveRef = (field: string, val: any) => {
