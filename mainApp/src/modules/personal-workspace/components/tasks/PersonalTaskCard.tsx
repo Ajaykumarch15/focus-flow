@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Link2, Timer, CheckCircle, Trash2 } from 'lucide-react';
+import { MessageSquare, Link2, Timer, CheckCircle, Trash2, Calendar } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { Button } from '@shared/components/ui/Button';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
+import { getDeadlineStatus } from '@shared/utils/time';
 import type { Task } from '@shared/types';
 
 interface PersonalTaskCardProps {
@@ -25,10 +26,6 @@ const PRIORITY_BADGE: Record<string, { bg: string; text: string; label: string }
   medium: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'Medium' },
   low: { bg: 'bg-sky-500/15', text: 'text-sky-400', label: 'Low' },
 };
-
-function getInitial(title: string): string {
-  return title.charAt(0).toUpperCase() || '?';
-}
 
 export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
   const navigate = useNavigate();
@@ -61,6 +58,8 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
   const isPaused = parallelState === 'paused';
   const hasTimer = isRunning || isPaused;
 
+  const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
+
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (task.status !== 'completed') await completeTask(task.id);
@@ -78,65 +77,75 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
 
   return (
     <>
-    <motion.button
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.15 }}
-      onClick={() => navigate(`/personal/tasks/${task.id}`)}
-      className={`relative text-left w-full rounded-2xl border p-4 transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer flex items-center gap-4 ${
-        isRunning
-          ? 'border-blue-500/40 bg-blue-500/5 shadow-lg shadow-blue-500/10'
-          : isPaused
-          ? 'border-yellow-500/30 bg-yellow-500/5'
-          : task.status === 'completed'
-          ? 'opacity-60 border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
-          : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
-      }`}
-    >
-      {/* Left: Status dot + Title + Meta */}
-      <div className="flex-1 min-w-0">
-        {/* Top row: Status + Priority */}
-        <div className="flex items-center justify-between mb-1.5">
-          <div className="flex items-center gap-2">
-            {isRunning ? (
-              <motion.span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-blue-500"
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-              />
-            ) : isPaused ? (
-              <motion.span
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-yellow-500"
-                animate={{ opacity: [1, 0.5, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              />
-            ) : (
-              <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot}`} />
-            )}
-            <span className="text-xs font-medium text-surface-400">
-              {isRunning ? 'Running' : isPaused ? 'Paused' : status.label}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            {hasTimer && (
-              <span className="flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md">
-                <Timer size={9} />
-                {display}
+      <motion.button
+        whileHover={{ y: -2 }}
+        transition={{ duration: 0.15 }}
+        onClick={() => navigate(`/personal/tasks/${task.id}`)}
+        className={`relative text-left w-full rounded-2xl border overflow-hidden transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer flex items-stretch ${
+          isRunning
+            ? 'border-blue-500/40 bg-blue-500/5 shadow-lg shadow-blue-500/10'
+            : isPaused
+            ? 'border-yellow-500/30 bg-yellow-500/5'
+            : task.status === 'completed'
+            ? 'opacity-60 border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
+            : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
+        }`}
+      >
+        {/* Color accent strip */}
+        <div
+          className="w-[3px] flex-shrink-0 rounded-l-2xl"
+          style={{ backgroundColor: task.color || '#6366f1' }}
+        />
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 p-4 pl-3">
+          {/* Top row: Status + Priority + Timer */}
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2">
+              {isRunning ? (
+                <motion.span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-blue-500"
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1.2, repeat: Infinity }}
+                />
+              ) : isPaused ? (
+                <motion.span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 bg-yellow-500"
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                />
+              ) : (
+                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${status.dot}`} />
+              )}
+              <span className="text-xs font-medium text-surface-400">
+                {isRunning ? 'Running' : isPaused ? 'Paused' : status.label}
               </span>
-            )}
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${priority.bg} ${priority.text}`}>
-              {priority.label}
-            </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {hasTimer && (
+                <span className="flex items-center gap-1 text-[10px] font-mono font-semibold text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-md">
+                  <Timer size={9} />
+                  {display}
+                </span>
+              )}
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${priority.bg} ${priority.text}`}>
+                {priority.label}
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Title */}
-        <h3 className={`text-sm font-semibold leading-snug truncate ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-50'}`}>
-          {task.title}
-        </h3>
+          {/* Title */}
+          <h3 className={`text-sm font-semibold leading-snug truncate ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-50'}`}>
+            {task.title}
+          </h3>
 
-        {/* Bottom: Counts */}
-        {(commentCount > 0 || subtasksTotal > 0) && (
-          <div className="flex items-center gap-3 mt-2">
+          {/* Description preview */}
+          {task.description && (
+            <p className="text-xs text-surface-500 mt-1 truncate">{task.description}</p>
+          )}
+
+          {/* Bottom: Counts + Deadline */}
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
             {commentCount > 0 && (
               <span className="flex items-center gap-1 text-[11px] text-surface-500">
                 <MessageSquare size={11} />
@@ -149,52 +158,50 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
                 {subtasksDone}/{subtasksTotal}
               </span>
             )}
+            {deadlineInfo && (
+              <span className={`flex items-center gap-1 text-[11px] ${
+                deadlineInfo.status === 'overdue' ? 'text-red-400' : 'text-surface-500'
+              }`}>
+                <Calendar size={11} />
+                {deadlineInfo.label}
+              </span>
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Actions */}
-      <div className="flex flex-col items-center gap-1 flex-shrink-0" data-no-nav>
-        {task.status !== 'completed' && (
+        {/* Actions */}
+        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 pr-3" data-no-nav>
+          {task.status !== 'completed' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleComplete}
+              className="p-1.5 text-surface-400 hover:text-emerald-400"
+              title="Complete task"
+            >
+              <CheckCircle size={14} />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleComplete}
-            className="p-1.5 text-surface-400 hover:text-emerald-400"
-            title="Complete task"
+            onClick={handleDelete}
+            className="p-1.5 text-surface-400 hover:text-red-400"
+            title="Delete task"
           >
-            <CheckCircle size={14} />
+            <Trash2 size={14} />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="p-1.5 text-surface-400 hover:text-red-400"
-          title="Delete task"
-        >
-          <Trash2 size={14} />
-        </Button>
-      </div>
+        </div>
+      </motion.button>
 
-      {/* Right: Avatar */}
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
-        style={{ backgroundColor: task.color || '#6366f1' }}
-        title={task.title}
-      >
-        {getInitial(task.title)}
-      </div>
-    </motion.button>
-
-    <ConfirmDialog
-      isOpen={showConfirmDelete}
-      title="Delete Task?"
-      message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
-      confirmLabel="Delete"
-      onConfirm={confirmDelete}
-      onCancel={() => setShowConfirmDelete(false)}
-    />
+      <ConfirmDialog
+        isOpen={showConfirmDelete}
+        title="Delete Task?"
+        message={`Are you sure you want to delete "${task.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
     </>
   );
 }
