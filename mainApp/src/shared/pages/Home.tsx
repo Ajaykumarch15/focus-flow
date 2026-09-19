@@ -54,7 +54,7 @@ export function HomePage() {
   // Workspace context is owned by the route (see <WorkspaceSync/> in App.tsx), so
   // navigating is enough — no need to set it manually here.
   const handleSelectPersonal = () => {
-    navigate('/personal');
+    navigate('/personal/today');
   };
 
   const handleSelectWorkLog = () => {

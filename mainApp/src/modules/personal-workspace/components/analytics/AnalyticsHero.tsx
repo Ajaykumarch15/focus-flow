@@ -21,9 +21,9 @@ export function AnalyticsHero({ productivityScore, comparison }: AnalyticsHeroPr
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-50 via-surface-900 to-brand-50/50 border border-surface-800"
+      className="relative overflow-hidden -mx-4 sm:-mx-6 lg:-mx-8"
     >
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 sm:p-8 lg:p-10 min-h-[200px] sm:min-h-[240px]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-6 px-6 sm:px-8 lg:px-10 pt-0 pb-6 sm:pb-8 lg:pb-10 min-h-[200px] sm:min-h-[240px] max-w-[1400px] mx-auto">
         {/* Left: Text content */}
         <div className="flex-1 max-w-md">
           <h2 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50 leading-tight mb-2">

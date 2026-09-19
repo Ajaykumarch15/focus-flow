@@ -197,6 +197,26 @@ export function PersonalTasks() {
         </Button>
       </motion.div>
 
+      {/* ═══════════════ KPI CARDS ═══════════════ */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative"
+      >
+        {/*{[
+          { label: 'To Do', count: statusCounts.todo, color: 'text-surface-400', bg: 'bg-surface-800/50' },
+          { label: 'In Progress', count: statusCounts.active, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Completed', count: statusCounts.completed, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { label: 'Overdue', count: overdueCount, color: 'text-red-400', bg: 'bg-red-500/10' },
+        ].map((kpi) => (
+          <div key={kpi.label} className={`rounded-xl border border-surface-800 bg-surface-900 p-3 flex flex-col`}>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">{kpi.label}</span>
+            <span className={`text-2xl font-display font-extrabold mt-1 ${kpi.color}`}>{kpi.count}</span>
+          </div>
+        ))}*/}
+      </motion.div>
+
       {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 z-10 relative">
 
@@ -213,7 +233,7 @@ export function PersonalTasks() {
                 onChange={e => setSearch(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
                 aria-label="Search tasks"
-                className="h-10 pl-10 pr-9"
+                className="h-18 pl-10 pr-9"
               />
               {search && (
                 <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
@@ -224,7 +244,7 @@ export function PersonalTasks() {
             </div>
             <select value={filterCombined} onChange={e => setFilterCombined(e.target.value)}
               aria-label="Filter by priority or category"
-              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
               <option value="all">All</option>
               <optgroup label="Priority">
                 <option value="urgent">Urgent</option>
@@ -238,7 +258,7 @@ export function PersonalTasks() {
             </select>
             <button
               onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
-              className="h-10 w-10 flex items-center justify-center rounded-xl bg-surface-800 border border-surface-700 text-surface-200 hover:bg-surface-700 transition-all"
+              className="h-8 w-10 flex items-center justify-center rounded-xl bg-surface-800 border border-surface-700 text-surface-200 hover:bg-surface-700 transition-all"
               title={sortDir === 'asc' ? 'Ascending (earliest first)' : 'Descending (latest first)'}
               aria-label={`Sort ${sortDir === 'asc' ? 'descending' : 'ascending'}`}
             >
@@ -251,7 +271,7 @@ export function PersonalTasks() {
             className="flex flex-wrap items-center gap-1.5">
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
               aria-label="Filter by status"
-              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
               {([
                 ['all', 'All', statusCounts.all],
                 ['todo', 'To Do', statusCounts.todo],
@@ -269,7 +289,7 @@ export function PersonalTasks() {
                 value={filterSchedule === 'no-date' ? '' : filterSchedule}
                 onChange={e => setFilterSchedule(e.target.value)}
                 aria-label="Filter by date"
-                className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 [color-scheme:dark]"
+                className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 [color-scheme:dark]"
               />
               {filterSchedule && filterSchedule !== 'no-date' && (
                 <button type="button" onClick={() => setFilterSchedule('')}
@@ -278,13 +298,13 @@ export function PersonalTasks() {
                 </button>
               )}
             </div>
-            <Button
+            {/*<Button
               variant={!filterSchedule ? 'primary' : 'ghost'}
               size="sm"
               onClick={() => setFilterSchedule(filterSchedule === 'no-date' ? '' : 'no-date')}
               className="gap-1.5 h-9">
               No Date
-            </Button>
+            </Button>*/}
             <Button
               variant={showOverdueOnly ? 'primary' : 'ghost'}
               size="sm"

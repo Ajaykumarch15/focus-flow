@@ -2,35 +2,38 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Play, Pause, Square, Plus, Trash2,
-  CheckCircle, Circle, Clock, Edit2, Check, X,
-  Timer, Zap, ChevronDown, Calendar,
+  ArrowLeft, Plus, Trash2, CheckCircle, Circle,
+  Edit2, Check, X, Clock,
 } from 'lucide-react';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useStore } from '@worklog/services/useStore';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { formatDuration, formatHours, getDeadlineStatus } from '@shared/utils/time';
+import { formatHours, getDeadlineStatus } from '@shared/utils/time';
 import { getScheduledState, formatScheduledDate } from '@personal/services/personalTaskSchedule';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '@shared/utils/colors';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { LinkedRoadmapCard } from '@personal/components/roadmap/LinkedRoadmapCard';
 import { PauseCapturePanel } from '@worklog/components/focus/PauseCapturePanel';
 import { CompletionPromptPanel } from '@worklog/components/focus/CompletionPromptPanel';
-import { EngineeringMemoryPanel } from '@personal/components/EngineeringMemoryPanel';
+import { CircularTimer } from '@personal/components/focus/CircularTimer';
+import { RightSidebar } from '@personal/components/RightSidebar';
+import { LinkedRoadmapCard } from '@personal/components/roadmap/LinkedRoadmapCard';
+// import { PomodoroPresets } from '@personal/components/focus/PomodoroPresets';
+// import { TaskDetailSidebar } from '@personal/components/TaskDetailSidebar';
+// import { EngineeringMemoryTabs } from '@personal/components/EngineeringMemoryTabs';
+// import { TaskNotesSection } from '@personal/components/TaskNotesSection';
+// import { TaskAttachmentsSection } from '@personal/components/TaskAttachmentsSection';
 
-const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export function PersonalTaskDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const {
-    getTask, startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer,
-    addSubtask, toggleSubtask, deleteSubtask,
+    getTask, addSubtask, toggleSubtask, deleteSubtask,
     updateTask, deleteTask, completeTask,
   } = usePersonalTaskStore();
   const theme = useStore(s => s.theme);
@@ -38,7 +41,6 @@ export function PersonalTaskDetail() {
 
   const task = getTask(id!);
 
-  // Check parallel timer engine directly for this specific task's state
   const [parallelState, setParallelState] = useState(() =>
     task ? parallelTimerEngine.getState(task.id) : 'idle'
   );
@@ -59,10 +61,10 @@ export function PersonalTaskDetail() {
     });
     return unsubscribe;
   }, [task?.id]);
+
   const [newSubtask, setNewSubtask] = useState('');
   const [editTitle, setEditTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task?.title || '');
-  const [showSessions, setShowSessions] = useState(true);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   if (!task) {
@@ -78,7 +80,6 @@ export function PersonalTaskDetail() {
     );
   }
 
-  const isActive = parallelState !== 'idle';
   const isRunning = parallelState === 'running';
   const isPaused = parallelState === 'paused';
   const priority = PRIORITY_CONFIG[task.priority];
@@ -89,9 +90,6 @@ export function PersonalTaskDetail() {
     ? (task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100
     : 0;
 
-  const timerDisplay = isActive ? activeDisplay : formatDuration(task.totalTime);
-  const timerHasHours = timerDisplay.includes(':') && timerDisplay.split(':').length > 2;
-
   const handleAddSubtask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubtask.trim()) return;
@@ -100,392 +98,359 @@ export function PersonalTaskDetail() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
-
-      {/* ═══ Back + Header ═══ */}
-      <motion.div variants={fadeUp} initial="hidden" animate="show">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/personal/tasks')}
-          className="text-sm mb-4 px-3 py-1.5 rounded-lg w-fit"
-          leftIcon={<ArrowLeft size={15} />}>
-          Back to Tasks
-        </Button>
-
-        <div className={`rounded-2xl border bg-surface-900 p-6 lg:p-8 relative overflow-hidden ${
-          isTaskOverdue ? 'border-red-500/30' : 'border-surface-800/60'
-        }`}>
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl"
-            style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }} />
-
-          <div className="pl-3">
-            <div className="flex items-center gap-2 mb-3 flex-wrap">
-              <Badge tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' || task.priority === 'medium' ? 'warning' : 'success'} className={`text-[11px] border ${priority.border}`}>
-                {priority.label}
-              </Badge>
-              <Badge tone="neutral" className="text-[11px] border border-surface-700">
-                {task.category}
-              </Badge>
-              {deadlineInfo && (
-                <Badge tone={deadlineInfo.status === 'overdue' ? 'danger' : deadlineInfo.status === 'due-today' || deadlineInfo.status === 'due-soon' ? 'warning' : 'brand'} icon={<Clock size={10} className="mr-1" />} className={`text-[11px] border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}>
-                  {deadlineInfo.label}
-                </Badge>
-              )}
-              {task.scheduledDate && task.status !== 'completed' && (() => {
-                const state = getScheduledState(task);
-                const stateColors: Record<string, string> = { today: 'brand', missed: 'danger', upcoming: 'info', unscheduled: 'neutral', completed: 'success' };
-                return (
-                  <Badge tone={stateColors[state] as any || 'neutral'} icon={<Calendar size={10} className="mr-1" />} className="text-[11px] border border-surface-700">
-                    {formatScheduledDate(task.scheduledDate)}
-                  </Badge>
-                );
-              })()}
-              {task.status === 'completed' && (
-                <Badge tone="success" icon={<CheckCircle size={10} className="mr-1" />} className="text-[11px] border border-emerald-400/20">
-                  Done
-                </Badge>
-              )}
-            </div>
-
-            {editTitle ? (
-              <div className="flex items-center gap-2">
-                <Input className="text-xl font-display font-bold h-12 rounded-xl flex-1"
-                  value={titleValue} onChange={e => setTitleValue(e.target.value)} autoFocus />
-                <button onClick={() => { updateTask(task.id, { title: titleValue }); setEditTitle(false); }}
-                  className="p-2.5 bg-emerald-500/15 text-emerald-400 rounded-xl border border-emerald-500/20 hover:bg-emerald-500/25 transition-all">
-                  <Check size={16} />
-                </button>
-                <button onClick={() => setEditTitle(false)}
-                  className="p-2.5 bg-surface-800 text-surface-400 rounded-xl border border-surface-700 hover:bg-surface-700 transition-all">
-                  <X size={16} />
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 group">
-                <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50">{task.title}</h1>
-                {task.status !== 'completed' && (
-                  <button
-                    type="button"
-                    onClick={() => completeTask(task.id)}
-                    aria-label={`Complete task: ${task.title}`}
-                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-                    <CheckCircle size={14} aria-hidden="true" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setEditTitle(true)}
-                  aria-label={`Edit task title: ${task.title}`}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
-                  <Edit2 size={14} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmDelete(true)}
-                  aria-label={`Delete task ${task.title}`}
-                  className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
-              </div>
+    <div className="min-h-screen">
+      {/* ═══ Top Bar ═══ */}
+      <div className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
+        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/personal/tasks')}
+            className="text-sm px-3 py-1.5 rounded-lg"
+            leftIcon={<ArrowLeft size={15} />}
+          >
+            Back to Tasks
+          </Button>
+          <div className="flex items-center gap-3">
+            {task.status !== 'completed' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<CheckCircle size={14} />}
+                onClick={() => completeTask(task.id)}
+              >
+                Complete
+              </Button>
             )}
-
-            {task.description && (
-              <p className="text-surface-400 mt-2 text-sm max-w-2xl leading-relaxed">{task.description}</p>
-            )}
-
-            <div className="flex items-center gap-4 mt-4 flex-wrap">
-              <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
-                <Timer size={12} className="text-brand-400" /> {formatHours(task.totalTime)} focused
-              </span>
-              {task.subtasks.length > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
-                  <CheckCircle size={12} className="text-emerald-400" /> {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
-                </span>
-              )}
-              {task.sessions.length > 0 && (
-                <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
-                  <Zap size={12} className="text-purple-400" /> {task.sessions.length} session{task.sessions.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Edit2 size={14} />}
+              onClick={() => setEditTitle(true)}
+            >
+              Edit Task
+            </Button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* ═══ Linked Roadmap ═══ */}
-      {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (
-        <LinkedRoadmapCard
-          taskId={task.id}
-          roadmapId={task.roadmapRef!}
-          phaseId={task.phaseRef}
-          milestoneId={task.milestoneRef}
-        />
-      )}
+      {/* ═══ Main Content ═══ */}
+      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-6 space-y-5">
 
-      {/* ═══ Two-Column Layout ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Left Column: Timer + Sessions */}
-        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-5">
-
-          {/* Timer Card */}
-          <motion.div variants={fadeUp}
-            className={`rounded-2xl border p-6 text-center overflow-hidden transition-all duration-300 ${
-              isRunning
-                ? 'border-amber-400/50 bg-gradient-to-br from-amber-500/5 to-surface-900 shadow-lg shadow-amber-500/10'
-                : isPaused
-                ? 'border-yellow-400/40 bg-yellow-500/5'
-                : 'border-surface-800 bg-surface-900'
-            }`}>
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Timer size={14} className={`${
-                isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-500'
-              }`} />
-              <span className="text-xs font-semibold uppercase tracking-wider text-surface-400">Focus Timer</span>
-            </div>
-
-            <div className="my-6 relative min-w-0 px-2">
-              {isRunning && !isReducedMotion && (
-                <>
-                  <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/20"
-                    animate={{ scale: [1, 1.06, 1], opacity: [0.3, 0, 0.3] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }} />
-                  <motion.div className="absolute inset-0 rounded-2xl border-2 border-amber-500/15"
-                    animate={{ scale: [1, 1.1, 1], opacity: [0.15, 0, 0.15] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 0.5 }} />
-                </>
-              )}
-              <div className={`font-mono font-extrabold tabular-nums tracking-normal transition-colors duration-300 ${
-                timerHasHours
-                  ? 'text-[clamp(1.5rem,6vw,2.75rem)]'
-                  : 'text-[clamp(2.25rem,10vw,3.75rem)]'
-              } ${isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-300'}`}>
-                {timerDisplay}
-              </div>
-            </div>
-
-            <p className="text-xs font-medium mb-5">
-              {isRunning ? (
-                <span className="text-amber-400 flex items-center justify-center gap-1.5">
-                  <motion.span className="inline-block w-2 h-2 rounded-full bg-amber-400"
-                    animate={{ opacity: [1, 0.3, 1] }}
-                    transition={{ duration: 1.2, repeat: Infinity }} />
-                  Recording focus time
-                </span>
-              ) : isPaused ? (
-                <span className="text-amber-400/70">Timer paused</span>
-              ) : task.totalTime > 0 ? (
-                <span className="text-surface-500">Total: {formatHours(task.totalTime)}</span>
-              ) : (
-                <span className="text-surface-500">Ready to focus</span>
-              )}
-            </p>
-
-            <div className="flex gap-2.5 justify-center flex-wrap">
-              {!isActive && (
-                <motion.button
-                  type="button"
-                  whileHover={isReducedMotion ? {} : { scale: 1.02 }}
-                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => startParallelTimer(task.id)}
-                  aria-label={task.totalTime > 0 ? `Resume timer for ${task.title}` : `Start timer for ${task.title}`}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                  <Play size={15} fill="white" aria-hidden="true" /> {task.totalTime > 0 ? 'Resume' : 'Start Timer'}
-                </motion.button>
-              )}
-              {isRunning && (
-                <motion.button
-                  type="button"
-                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => pauseParallelTimer(task.id)}
-                  aria-label={`Pause timer for ${task.title}`}
-                  className="btn-secondary rounded-xl flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
-                  <Pause size={15} aria-hidden="true" /> Pause
-                </motion.button>
-              )}
-              {isPaused && (
-                <motion.button
-                  type="button"
-                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => resumeParallelTimer(task.id)}
-                  aria-label={`Resume timer for ${task.title}`}
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-semibold text-sm transition-all shadow-lg shadow-blue-500/25 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
-                  <Play size={15} fill="white" aria-hidden="true" /> Resume
-                </motion.button>
-              )}
-              {isActive && (
-                <motion.button
-                  type="button"
-                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => stopParallelTimer(task.id)}
-                  aria-label={`Stop timer for ${task.title}`}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-xl font-semibold text-sm transition-all border border-red-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                  <Square size={14} fill="currentColor" aria-hidden="true" /> Stop
-                </motion.button>
-              )}
-              {task.status !== 'completed' && (
-                <motion.button
-                  type="button"
-                  whileHover={isReducedMotion ? {} : { scale: 1.02 }}
-                  whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-                  onClick={() => completeTask(task.id)}
-                  aria-label={`Complete task: ${task.title}`}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 rounded-xl font-semibold text-sm transition-all border border-emerald-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
-                  <CheckCircle size={15} aria-hidden="true" /> Complete
-                </motion.button>
-              )}
-            </div>
-          </motion.div>
-
-          {/* Pause Capture (auto-shows on pause) */}
-          <PauseCapturePanel
-            paused={isPaused}
-            workLogId={null}
-            workLogTitle={null}
-          />
-
-          {/* Completion Prompt (shows when task is completed) */}
-          <CompletionPromptPanel
-            completed={task.status === 'completed'}
+        {/* ═══ Linked Roadmap (full width, at top) ═══ */}
+        {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (
+          <LinkedRoadmapCard
             taskId={task.id}
-            workLogTitle={null}
+            roadmapId={task.roadmapRef!}
+            phaseId={task.phaseRef}
+            milestoneId={task.milestoneRef}
+          />
+        )}
+
+        {/* ═══ Task Card: Timer + Header side by side ═══ */}
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          className={`rounded-2xl border bg-surface-900 relative overflow-hidden ${
+            isTaskOverdue ? 'border-red-500/30' : 'border-surface-800/60'
+          }`}
+        >
+          <div
+            className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-2xl"
+            style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }}
           />
 
-          {/* Session History */}
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden">
-            <button onClick={() => setShowSessions(!showSessions)}
-              className="w-full flex items-center justify-between p-4 hover:bg-surface-850/50 transition-colors">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Clock size={14} className="text-purple-400" />
+          <div className="flex flex-col md:flex-row gap-5 p-5 lg:p-6">
+            {/* Left: Focus Timer */}
+            <div className={`flex-shrink-0 p-4 rounded-xl flex flex-col items-center justify-center min-w-[220px] transition-all duration-300 ${
+              isRunning
+                ? 'bg-gradient-to-br from-amber-500/5 to-slate-900 border border-amber-400/40'
+                : isPaused
+                ? 'bg-yellow-500/5 border border-yellow-400/30'
+                : 'border border-surface-800'
+            }`}>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <Clock size={12} className={
+                  isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-500'
+                } />
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-surface-400">
+                  Focus Timer
+                </span>
+              </div>
+
+              <CircularTimer
+                taskId={task.id}
+                state={parallelState as 'idle' | 'running' | 'paused'}
+                display={activeDisplay || formatHours(task.totalTime)}
+                totalTime={task.totalTime}
+                isReducedMotion={isReducedMotion}
+              />
+
+              {/*<div className="mt-4">
+                <PomodoroPresets
+                  isRunning={isRunning}
+                  isPaused={isPaused}
+                />
+              </div>*/}
+            </div>
+
+            {/* Right: Task Header */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              {/* Badges */}
+              <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                <Badge
+                  tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' || task.priority === 'medium' ? 'warning' : 'success'}
+                  className={`text-[11px] border ${priority.border}`}
+                >
+                  {priority.label}
+                </Badge>
+                <Badge tone="neutral" className="text-[11px] border border-surface-700">
+                  {task.category}
+                </Badge>
+                {deadlineInfo && (
+                  <Badge
+                    tone={deadlineInfo.status === 'overdue' ? 'danger' : deadlineInfo.status === 'due-today' || deadlineInfo.status === 'due-soon' ? 'warning' : 'brand'}
+                    icon={<Clock size={10} className="mr-1" />}
+                    className={`text-[11px] border ${DEADLINE_CONFIG[deadlineInfo.status].border}`}
+                  >
+                    {deadlineInfo.label}
+                  </Badge>
+                )}
+                {task.scheduledDate && task.status !== 'completed' && (() => {
+                  const state = getScheduledState(task);
+                  const stateColors: Record<string, string> = { today: 'brand', missed: 'danger', upcoming: 'info', unscheduled: 'neutral', completed: 'success' };
+                  return (
+                    <Badge tone={stateColors[state] as any || 'neutral'} icon={<Clock size={10} className="mr-1" />} className="text-[11px] border border-surface-700">
+                      {formatScheduledDate(task.scheduledDate)}
+                    </Badge>
+                  );
+                })()}
+                {task.status === 'completed' && (
+                  <Badge tone="success" icon={<CheckCircle size={10} className="mr-1" />} className="text-[11px] border border-emerald-400/20">
+                    Done
+                  </Badge>
+                )}
+              </div>
+
+              {/* Title + Actions */}
+              {editTitle ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="text-xl font-display font-bold h-12 rounded-xl flex-1"
+                    value={titleValue}
+                    onChange={e => setTitleValue(e.target.value)}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => { updateTask(task.id, { title: titleValue }); setEditTitle(false); }}
+                    className="p-2.5 bg-emerald-500/15 text-emerald-400 rounded-xl border border-emerald-500/20 hover:bg-emerald-500/25 transition-all"
+                  >
+                    <Check size={16} />
+                  </button>
+                  <button
+                    onClick={() => setEditTitle(false)}
+                    className="p-2.5 bg-surface-800 text-surface-400 rounded-xl border border-surface-700 hover:bg-surface-700 transition-all"
+                  >
+                    <X size={16} />
+                  </button>
                 </div>
-                <span className="text-sm font-bold text-surface-100">Sessions</span>
-                {task.sessions.length > 0 && (
-                  <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">
-                    {task.sessions.length}
+              ) : (
+                <div className="flex items-start gap-2 group">
+                  <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 leading-tight">
+                    {task.title}
+                  </h1>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {task.status !== 'completed' && (
+                      <button
+                        type="button"
+                        onClick={() => completeTask(task.id)}
+                        aria-label={`Complete task: ${task.title}`}
+                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      >
+                        <CheckCircle size={14} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditTitle(true)}
+                      aria-label={`Edit task title: ${task.title}`}
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmDelete(true)}
+                      aria-label={`Delete task ${task.title}`}
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {task.description && (
+                <p className="text-surface-400 mt-2 text-sm max-w-2xl leading-relaxed">
+                  {task.description}
+                </p>
+              )}
+
+              {/* Meta stats */}
+              <div className="flex items-center gap-4 mt-3 flex-wrap">
+                <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
+                  <Clock size={12} className="text-brand-400" /> {formatHours(task.totalTime)} focused
+                </span>
+                {task.subtasks.length > 0 && (
+                  <span className="flex items-center gap-1.5 text-xs text-surface-400 font-medium">
+                    <CheckCircle size={12} className="text-emerald-400" /> {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
                   </span>
                 )}
               </div>
-              <motion.div animate={{ rotate: showSessions ? 180 : 0 }} transition={{ duration: 0.2 }}>
-                <ChevronDown size={14} className="text-surface-500" />
-              </motion.div>
-            </button>
-
-            <AnimatePresence initial={false}>
-              {showSessions && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.25 }}
-                  className="overflow-hidden border-t border-surface-800">
-                  <div className="p-4">
-                    {task.sessions.length === 0 ? (
-                      <div className="text-center py-4">
-                        <Clock size={20} className="text-surface-600 mx-auto mb-1.5" />
-                        <p className="text-xs text-surface-400">No sessions yet</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-1.5">
-                        {task.sessions.slice().reverse().map((session, i) => (
-                          <div key={session.id}
-                            className="flex items-center justify-between p-2.5 rounded-lg bg-surface-850/50 border border-surface-800">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-6 h-6 rounded-md bg-surface-800 flex items-center justify-center text-[10px] font-bold text-surface-400">
-                                {task.sessions.length - i}
-                              </div>
-                              <span className="text-xs text-surface-400">
-                                {session.endTime
-                                  ? new Date(session.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-                                  : 'Active'}
-                              </span>
-                            </div>
-                            <span className="text-sm font-mono font-semibold text-surface-200">
-                              {formatDuration(session.activeTime)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="mt-3 pt-3 border-t border-surface-800 flex justify-between items-center">
-                      <span className="text-xs text-surface-400 font-medium">Total Focus</span>
-                      <span className="text-sm font-mono font-bold text-brand-400">{formatHours(task.totalTime)}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
+            </div>
+          </div>
         </motion.div>
 
-        {/* Right Column: Subtasks */}
-        <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-5">
+        {/* Pause Capture (auto-shows on pause) */}
+        <PauseCapturePanel
+          paused={isPaused}
+          workLogId={null}
+          workLogTitle={null}
+        />
 
-          <motion.div variants={fadeUp}
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+        {/* Completion Prompt (shows when task is completed) */}
+        <CompletionPromptPanel
+          completed={task.status === 'completed'}
+          taskId={task.id}
+          workLogTitle={null}
+        />
+
+        {/* ═══ Bottom 2-Column: Subtasks + Sidebar ═══ */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-5">
+          {/* Left: Subtasks */}
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="show"
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-5"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <CheckCircle size={14} className="text-emerald-400" />
                 </div>
                 <span className="text-sm font-bold text-surface-100">Subtasks</span>
-                {task.subtasks.length > 0 && (
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                    {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
-                  </span>
-                )}
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                  {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} completed
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.querySelector<HTMLInputElement>('#subtask-input');
+                  input?.focus();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+              >
+                <Plus size={13} />
+                Add Subtask
+              </button>
             </div>
 
             {task.subtasks.length > 0 && (
               <div className="h-2 bg-surface-800 rounded-full mb-4 overflow-hidden">
-                <motion.div className="h-full bg-emerald-400 rounded-full"
+                <motion.div
+                  className="h-full bg-emerald-400 rounded-full"
                   animate={{ width: `${subtaskProgress}%` }}
-                  transition={{ duration: 0.5, ease: 'easeOut' }} />
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                />
               </div>
             )}
 
-            <div className="space-y-1 mb-3">
-              {task.subtasks.length === 0 && (
-                <p className="text-xs text-surface-600 italic py-2">No subtasks yet — add one below</p>
-              )}
-              <AnimatePresence>
-                {task.subtasks.map(st => (
-                  <motion.div key={st.id}
-                    initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}
-                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-850 border border-transparent hover:border-surface-800 transition-all group">
-                    <button onClick={() => toggleSubtask(task.id, st.id, !st.completed)}
-                      className="flex-shrink-0 transition-transform hover:scale-110">
-                      {st.completed
-                        ? <CheckCircle size={18} className="text-emerald-400" />
-                        : <Circle size={18} className="text-surface-500 hover:text-surface-300" />}
-                    </button>
-                    <span className={`flex-1 text-sm ${st.completed ? 'line-through text-surface-500' : 'text-surface-200'}`}>
-                      {st.title}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => deleteSubtask(task.id, st.id)}
-                      aria-label={`Delete subtask: ${st.title}`}
-                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
-                      <Trash2 size={12} aria-hidden="true" />
-                    </button>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+            {task.subtasks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10">
+                <div className="w-14 h-14 rounded-full bg-surface-800 flex items-center justify-center mb-3">
+                  <CheckCircle size={22} className="text-surface-600" />
+                </div>
+                <p className="text-sm font-semibold text-surface-300">No subtasks yet</p>
+                <p className="text-xs text-surface-500 mt-1 text-center max-w-[260px]">
+                  Break this task into smaller steps to make progress easier.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1 mb-3">
+                <AnimatePresence>
+                  {task.subtasks.map(st => (
+                    <motion.div
+                      key={st.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 8 }}
+                      className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-850 border border-transparent hover:border-surface-800 transition-all group"
+                    >
+                      <button
+                        onClick={() => toggleSubtask(task.id, st.id, !st.completed)}
+                        className="flex-shrink-0 transition-transform hover:scale-110"
+                      >
+                        {st.completed
+                          ? <CheckCircle size={18} className="text-emerald-400" />
+                          : <Circle size={18} className="text-surface-500 hover:text-surface-300" />}
+                      </button>
+                      <span className={`flex-1 text-sm ${st.completed ? 'line-through text-surface-500' : 'text-surface-200'}`}>
+                        {st.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => deleteSubtask(task.id, st.id)}
+                        aria-label={`Delete subtask: ${st.title}`}
+                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
 
             <form onSubmit={handleAddSubtask} className="flex gap-2">
-              <Input className="flex-1 text-sm rounded-xl" placeholder="Add subtask…"
-                value={newSubtask} onChange={e => setNewSubtask(e.target.value)} />
+              <Input
+                id="subtask-input"
+                className="flex-1 text-sm rounded-xl"
+                placeholder="Add subtask..."
+                value={newSubtask}
+                onChange={e => setNewSubtask(e.target.value)}
+              />
               <Button type="submit" disabled={!newSubtask.trim()} size="icon">
                 <Plus size={15} />
               </Button>
             </form>
           </motion.div>
 
-          {/* ═══ Engineering Memory ═══ */}
-          <motion.div variants={fadeUp}>
-            <EngineeringMemoryPanel taskId={task.id} />
-          </motion.div>
-        </motion.div>
+          {/* Right: Quote + Progress */}
+          <div className="hidden lg:block">
+            <RightSidebar />
+          </div>
+        </div>
+
+        {/* Sidebar Navigation + Stats */}
+        {/*<TaskDetailSidebar
+          totalTime={task.totalTime}
+          sessions={task.sessions}
+        />*/}
+
+        {/* Engineering Memory Tabs */}
+        {/*} <div id="section-activity">
+          <EngineeringMemoryTabs taskId={task.id} />
+        </div>*/}
+
+        {/* Notes Section */}
+        {/*<TaskNotesSection taskId={task.id} />
+
+        {/* Attachments Section */}
+        {/* <TaskAttachmentsSection />*/}
       </div>
 
       {/* Task Delete Confirmation */}
