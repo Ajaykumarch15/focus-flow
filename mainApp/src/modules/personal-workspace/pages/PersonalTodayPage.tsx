@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
+  Play, AlertTriangle, Clock, CheckCircle, Zap,
   Target, ListTodo, ArrowRight, ArrowUpRight,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
@@ -18,7 +18,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { Progress } from '@shared/components/ui/Progress';
+
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { KpiCounter } from '@shared/components/ui/KpiCounter';
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
@@ -41,7 +41,6 @@ export function PersonalTodayPage() {
   const todayTasks = useMemo(() => getTodayTasks(personalTasks), [personalTasks]);
   const missedTasks = useMemo(() => getMissedTasks(personalTasks), [personalTasks]);
 
-  const accent = theme?.accentColor || '#0ea5e9';
   const activeTask = activeTaskId ? personalTasks.find((t) => t.id === activeTaskId) : null;
 
   const todayMs = useMemo(() => {

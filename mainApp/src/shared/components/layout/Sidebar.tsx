@@ -3,7 +3,7 @@ import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
-  History, Library, Map, BarChart3, Calendar, Brain, Lightbulb,
+  History, Library, Map, BarChart3, Calendar, Lightbulb,
   FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer, Target,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
