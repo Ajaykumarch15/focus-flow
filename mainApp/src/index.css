@@ -81,6 +81,139 @@
     --color-info-800: #075985;
     --color-info-900: #0c4a6e;
 
+    /* Workspace & Hero illustration tokens (light) */
+    --ws-bg-startup: #e0f2fe;
+    --ws-bg-startup-2: #bae6fd;
+    --ws-bg-personal: #fef3c7;
+    --ws-bg-personal-2: #fed7aa;
+    --ws-bg-college: #e0e7ff;
+    --ws-bg-college-2: #c7d2fe;
+    --ws-bg-opensource: #d1fae5;
+    --ws-bg-opensource-2: #a7f3d0;
+    --ws-bg-internship: #fef9c3;
+    --ws-bg-internship-2: #fde68a;
+    --ws-bg-enterprise: #f1f5f9;
+    --ws-bg-enterprise-2: #e2e8f0;
+    --ws-bg-default: #e0f2fe;
+    --ws-bg-default-2: #bae6fd;
+
+    --ws-shape-startup: #38bdf8;
+    --ws-shape-personal: #f97316;
+    --ws-shape-college: #6366f1;
+    --ws-shape-opensource: #10b981;
+    --ws-shape-internship: #f59e0b;
+    --ws-shape-enterprise: #64748b;
+    --ws-shape-default: #38bdf8;
+
+    --ws-accent-startup: #0ea5e9;
+    --ws-accent-personal: #fb923c;
+    --ws-accent-college: #818cf8;
+    --ws-accent-opensource: #34d399;
+    --ws-accent-internship: #fbbf24;
+    --ws-accent-enterprise: #94a3b8;
+    --ws-accent-default: #0ea5e9;
+
+    --ws-content-startup: #38bdf8;
+    --ws-content-personal: #f97316;
+    --ws-content-college: #818cf8;
+    --ws-content-opensource: #10b981;
+    --ws-content-internship: #f59e0b;
+    --ws-content-enterprise: #94a3b8;
+    --ws-content-default: #38bdf8;
+
+    --hero-bg: #f1f5f9;
+    --hero-frame: #f8fafc;
+    --hero-frame-stroke: #e2e8f0;
+    --hero-title-bar: #f1f5f9;
+    --hero-text-1: #38bdf8;
+    --hero-text-2: #94a3b8;
+    --hero-plant-1: #34d399;
+    --hero-plant-2: #10b981;
+    --hero-plant-3: #6ee7b7;
+    --hero-plant-4: #86efac;
+    --hero-book-1: #818cf8;
+    --hero-book-2: #f472b6;
+    --hero-book-3: #fbbf24;
+    --hero-mug: #f8fafc;
+    --hero-mug-stroke: #e2e8f0;
+
+    /* Project card tint tokens (light) */
+    --project-bg-purple: #f5f3ff;
+    --project-bg-purple-2: #ede9fe;
+    --project-shape-purple: #8b5cf6;
+    --project-accent-purple: #a78bfa;
+    --project-content-purple: #7c3aed;
+
+    --project-bg-green: #ecfdf5;
+    --project-bg-green-2: #d1fae5;
+    --project-shape-green: #10b981;
+    --project-accent-green: #34d399;
+    --project-content-green: #059669;
+
+    --project-bg-pink: #fdf2f8;
+    --project-bg-pink-2: #fce7f3;
+    --project-shape-pink: #ec4899;
+    --project-accent-pink: #f472b6;
+    --project-content-pink: #db2777;
+
+    --project-bg-blue: #eff6ff;
+    --project-bg-blue-2: #dbeafe;
+    --project-shape-blue: #3b82f6;
+    --project-accent-blue: #60a5fa;
+    --project-content-blue: #2563eb;
+
+    --project-bg-orange: #fff7ed;
+    --project-bg-orange-2: #ffedd5;
+    --project-shape-orange: #f97316;
+    --project-accent-orange: #fb923c;
+    --project-content-orange: #ea580c;
+
+    --project-bg-gray: #f9fafb;
+    --project-bg-gray-2: #f3f4f6;
+    --project-shape-gray: #6b7280;
+    --project-accent-gray: #9ca3af;
+    --project-content-gray: #4b5563;
+
+    /* Detail page card tokens (light) */
+    --detail-hero-bg: #e8f4f8;
+    --detail-hero-land: #b8d4e3;
+    --detail-hero-sky: #dbeafe;
+    --detail-hero-tree: #6ee7b7;
+    --detail-hero-tree-2: #34d399;
+    --detail-hero-mountain: #94a3b8;
+    --detail-hero-mountain-2: #cbd5e1;
+    --detail-hero-sun: #fbbf24;
+    --detail-hero-ground: #d1fae5;
+
+    --detail-card-blue-bg: #eff6ff;
+    --detail-card-blue-icon: #3b82f6;
+    --detail-card-blue-accent: #60a5fa;
+
+    --detail-card-green-bg: #ecfdf5;
+    --detail-card-green-icon: #10b981;
+    --detail-card-green-accent: #34d399;
+
+    --detail-card-orange-bg: #fff7ed;
+    --detail-card-orange-icon: #f97316;
+    --detail-card-orange-accent: #fb923c;
+
+    --detail-card-purple-bg: #f5f3ff;
+    --detail-card-purple-icon: #8b5cf6;
+    --detail-card-purple-accent: #a78bfa;
+
+    --detail-card-cyan-bg: #ecfeff;
+    --detail-card-cyan-icon: #06b6d4;
+    --detail-card-cyan-accent: #22d3ee;
+
+    --detail-card-emerald-bg: #ecfdf5;
+    --detail-card-emerald-icon: #10b981;
+    --detail-card-emerald-accent: #34d399;
+
+    --detail-progress-ring-track: #e2e8f0;
+    --detail-progress-ring-fill: #0ea5e9;
+    --detail-quote-bg: #f0f9ff;
+    --detail-quote-icon: #38bdf8;
+
     /* Elevation scale (light) */
     --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.06);
     --shadow-sm: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
@@ -167,6 +300,139 @@
     --color-info-700: #075985;
     --color-info-800: #0c4a6e;
     --color-info-900: #082f49;
+
+    /* Workspace & Hero illustration tokens (dark) */
+    --ws-bg-startup: #0c1929;
+    --ws-bg-startup-2: #0e2240;
+    --ws-bg-personal: #1a1400;
+    --ws-bg-personal-2: #2a1e08;
+    --ws-bg-college: #0f0f2e;
+    --ws-bg-college-2: #1a1845;
+    --ws-bg-opensource: #0a1f15;
+    --ws-bg-opensource-2: #0f2e1f;
+    --ws-bg-internship: #1a1500;
+    --ws-bg-internship-2: #2a2208;
+    --ws-bg-enterprise: #111318;
+    --ws-bg-enterprise-2: #1a1d24;
+    --ws-bg-default: #0c1929;
+    --ws-bg-default-2: #0e2240;
+
+    --ws-shape-startup: #7dd3fc;
+    --ws-shape-personal: #fb923c;
+    --ws-shape-college: #818cf8;
+    --ws-shape-opensource: #34d399;
+    --ws-shape-internship: #fbbf24;
+    --ws-shape-enterprise: #94a3b8;
+    --ws-shape-default: #7dd3fc;
+
+    --ws-accent-startup: #38bdf8;
+    --ws-accent-personal: #fdba74;
+    --ws-accent-college: #a5b4fc;
+    --ws-accent-opensource: #6ee7b7;
+    --ws-accent-internship: #fcd34d;
+    --ws-accent-enterprise: #cbd5e1;
+    --ws-accent-default: #38bdf8;
+
+    --ws-content-startup: #7dd3fc;
+    --ws-content-personal: #fb923c;
+    --ws-content-college: #a5b4fc;
+    --ws-content-opensource: #34d399;
+    --ws-content-internship: #fbbf24;
+    --ws-content-enterprise: #cbd5e1;
+    --ws-content-default: #7dd3fc;
+
+    --hero-bg: #111827;
+    --hero-frame: #1e293b;
+    --hero-frame-stroke: #334155;
+    --hero-title-bar: #1e293b;
+    --hero-text-1: #38bdf8;
+    --hero-text-2: #475569;
+    --hero-plant-1: #10b981;
+    --hero-plant-2: #059669;
+    --hero-plant-3: #34d399;
+    --hero-plant-4: #6ee7b7;
+    --hero-book-1: #818cf8;
+    --hero-book-2: #f472b6;
+    --hero-book-3: #fbbf24;
+    --hero-mug: #1e293b;
+    --hero-mug-stroke: #334155;
+
+    /* Project card tint tokens (dark) */
+    --project-bg-purple: #1a1033;
+    --project-bg-purple-2: #231545;
+    --project-shape-purple: #a78bfa;
+    --project-accent-purple: #c4b5fd;
+    --project-content-purple: #a78bfa;
+
+    --project-bg-green: #0a1f15;
+    --project-bg-green-2: #0f2e1f;
+    --project-shape-green: #34d399;
+    --project-accent-green: #6ee7b7;
+    --project-content-green: #34d399;
+
+    --project-bg-pink: #1f0a18;
+    --project-bg-pink-2: #2d1025;
+    --project-shape-pink: #f472b6;
+    --project-accent-pink: #f9a8d4;
+    --project-content-pink: #f472b6;
+
+    --project-bg-blue: #0c1929;
+    --project-bg-blue-2: #0e2240;
+    --project-shape-blue: #60a5fa;
+    --project-accent-blue: #93c5fd;
+    --project-content-blue: #60a5fa;
+
+    --project-bg-orange: #1a1400;
+    --project-bg-orange-2: #2a1e08;
+    --project-shape-orange: #fb923c;
+    --project-accent-orange: #fdba74;
+    --project-content-orange: #fb923c;
+
+    --project-bg-gray: #111318;
+    --project-bg-gray-2: #1a1d24;
+    --project-shape-gray: #9ca3af;
+    --project-accent-gray: #d1d5db;
+    --project-content-gray: #d1d5db;
+
+    /* Detail page card tokens (dark) */
+    --detail-hero-bg: #0c1929;
+    --detail-hero-land: #1a2e40;
+    --detail-hero-sky: #0f172a;
+    --detail-hero-tree: #065f46;
+    --detail-hero-tree-2: #047857;
+    --detail-hero-mountain: #334155;
+    --detail-hero-mountain-2: #475569;
+    --detail-hero-sun: #fbbf24;
+    --detail-hero-ground: #0a1f15;
+
+    --detail-card-blue-bg: #0c1929;
+    --detail-card-blue-icon: #60a5fa;
+    --detail-card-blue-accent: #93c5fd;
+
+    --detail-card-green-bg: #0a1f15;
+    --detail-card-green-icon: #34d399;
+    --detail-card-green-accent: #6ee7b7;
+
+    --detail-card-orange-bg: #1a1400;
+    --detail-card-orange-icon: #fb923c;
+    --detail-card-orange-accent: #fdba74;
+
+    --detail-card-purple-bg: #1a1033;
+    --detail-card-purple-icon: #a78bfa;
+    --detail-card-purple-accent: #c4b5fd;
+
+    --detail-card-cyan-bg: #0a1e2a;
+    --detail-card-cyan-icon: #22d3ee;
+    --detail-card-cyan-accent: #67e8f9;
+
+    --detail-card-emerald-bg: #0a1f15;
+    --detail-card-emerald-icon: #34d399;
+    --detail-card-emerald-accent: #6ee7b7;
+
+    --detail-progress-ring-track: #27272a;
+    --detail-progress-ring-fill: #38bdf8;
+    --detail-quote-bg: #0c1929;
+    --detail-quote-icon: #38bdf8;
 
     /* Elevation scale (dark) */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);

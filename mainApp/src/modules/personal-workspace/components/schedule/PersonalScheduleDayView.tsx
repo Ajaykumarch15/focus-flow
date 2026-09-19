@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowRight, Clock, Calendar, CheckCircle2, Map as MapIcon } from 'lucide-react';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { Pagination } from '@shared/components/ui/Pagination';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import {
@@ -66,6 +67,9 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
   const navigate = useNavigate();
   const { tasks, updateTask } = usePersonalTaskStore();
   const { roadmaps } = useRoadmapStore();
+  const [upcomingPage, setUpcomingPage] = useState(1);
+
+  const UPCOMING_PAGE_SIZE = 8;
 
   const roadmapTitleMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -82,6 +86,14 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
     () => tasks.filter(t => !t.scheduledDate && t.status !== 'completed'),
     [tasks],
   );
+
+  const upcomingTotalPages = Math.ceil(upcomingTasks.length / UPCOMING_PAGE_SIZE);
+  const paginatedUpcomingTasks = useMemo(() => {
+    const start = (upcomingPage - 1) * UPCOMING_PAGE_SIZE;
+    return upcomingTasks.slice(start, start + UPCOMING_PAGE_SIZE);
+  }, [upcomingPage, upcomingTasks]);
+
+  useEffect(() => { setUpcomingPage(1); }, [selectedDate]);
 
   return (
     <div className="space-y-6">
@@ -170,7 +182,7 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
           </Card>
         ) : (
           <div className="space-y-2">
-            {upcomingTasks.map(task => (
+            {paginatedUpcomingTasks.map(task => (
               <TaskScheduleCard
                 key={task.id}
                 task={task}
@@ -179,6 +191,15 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
                 roadmapTitle={getRoadmapTitle(task)}
               />
             ))}
+            {upcomingTotalPages > 1 && (
+              <Pagination
+                currentPage={upcomingPage}
+                totalPages={upcomingTotalPages}
+                totalItems={upcomingTasks.length}
+                pageSize={UPCOMING_PAGE_SIZE}
+                onPageChange={setUpcomingPage}
+              />
+            )}
           </div>
         )}
       </motion.section>

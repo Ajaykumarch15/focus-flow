@@ -30,6 +30,9 @@ import { Progress } from '@shared/components/ui/Progress';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { formatHours, formatMs } from '@shared/utils/time';
 import { KpiCounter } from '@shared/components/ui/KpiCounter';
+import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
+import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
+import { RightSidebar } from '@personal/components/RightSidebar';
 
 // ── Motion ────────────────────────────────────────────────────────────────────
 
@@ -183,15 +186,12 @@ export function TodayPage() {
 
       {/* ═══════════════ HEADER ═══════════════ */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
-        className="relative rounded-3xl border border-surface-800/60 overflow-hidden bg-surface-900 dark:bg-[#05070D]
-                   shadow-[0_1px_3px_rgba(15,23,42,0.05)] dark:shadow-[0_16px_40px_-16px_rgba(0,0,0,0.5)]
-                   dark:border-brand-500/[0.08]
-                   p-6 sm:p-8 lg:p-10">
+        className="relative -mx-6 lg:-mx-8 overflow-hidden
+                   px-6 sm:px-8 lg:px-10 pt-0 pb-6 sm:pb-8 lg:pb-10">
         {/* ── Hero card decorative spots ── */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           {/* Spot — top left corner */}
-          <div className="absolute -top-12 -left-12 w-40 h-40 rounded-full
-            bg-brand-400/[0.18] dark:bg-brand-400/[0.06] blur-2xl" />
+          
           {/* Spot — behind buttons area */}
           <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full
             bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
@@ -223,24 +223,7 @@ export function TodayPage() {
                 : 'What should you do now?'}
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 mt-7">
-              {activeTask ? (
-                <Button size="lg" leftIcon={<Play size={15} fill="currentColor" />}
-                  className="bg-amber-500 hover:bg-amber-400 text-surface-950 font-bold shadow-lg shadow-amber-500/25"
-                  onClick={() => navigate(`/worklog/tasks/${activeTaskId}`)}>
-                  Resume Active Session
-                </Button>
-              ) : (
-                <Button size="lg" leftIcon={<Plus size={16} />}
-                  className="shadow-lg" style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
-                  onClick={() => setShowCreate(true)}>
-                  Start New Task
-                </Button>
-              )}
-              <Button variant="secondary" size="lg" rightIcon={<ArrowRight size={14} />} onClick={() => navigate('/worklog/tasks')}>
-                View My Backlog ({view.stats.activeCount})
-              </Button>
-            </div>
+            
           </div>
 
           {/* CENTER — decorative productivity illustration */}
@@ -278,9 +261,31 @@ export function TodayPage() {
                 </>
               ) : (
                 <>
-                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none mt-3">{view.stats.progressPct}%</div>
-                  <Progress value={view.stats.progressPct} tone={view.stats.progressPct >= 100 ? 'success' : 'brand'} className="mt-3" ariaLabel="Daily goal progress" />
-                  <p className="text-sm font-semibold text-surface-200 mt-2 pt-3 border-t border-surface-800/70">
+                  {/* Circular Progress */}
+                  <div className="relative w-24 h-24 mx-auto mt-4">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      <circle
+                        cx="50" cy="50" r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        className="text-surface-200 dark:text-surface-700"
+                      />
+                      <circle
+                        cx="50" cy="50" r="42"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        strokeDasharray={`${(view.stats.progressPct / 100) * 264} 264`}
+                        strokeLinecap="round"
+                        className={`${view.stats.progressPct >= 100 ? 'text-success-400' : 'text-brand-400'}`}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-2xl font-display font-extrabold text-surface-50">{view.stats.progressPct}%</span>
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold text-surface-200 mt-3">
                     {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
                   </p>
                   {remainingMs != null && remainingMs > 0 && view.stats.progressPct < 100 && (
@@ -325,123 +330,135 @@ export function TodayPage() {
       </motion.div>
 
       {/* ═══════════════ MAIN GRID ═══════════════ */}
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* LEFT COLUMN */}
+        <div className="lg:col-span-2 space-y-6">
 
-        {/* ─── Continue Working ─── */}
-        <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-continue" className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 id="today-continue" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-              <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-brand-400">
-                <Play size={14} fill="currentColor" />
-              </span>
-              Continue Working
-              {view.continue.length > 0 && <Badge tone="neutral">{view.continue.length}</Badge>}
-            </h2>
-            {view.continue.length > 0 && (
-              <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog/tasks')}>
-                View All
-              </Button>
+          {/* ─── Continue Working ─── */}
+          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-continue" className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 id="today-continue" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
+                <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-brand-400">
+                  <Play size={14} fill="currentColor" />
+                </span>
+                Continue Working
+                {view.continue.length > 0 && <Badge tone="neutral">{view.continue.length}</Badge>}
+              </h2>
+              {view.continue.length > 0 && (
+                <Button variant="ghost" size="xs" className="text-surface-400 hover:text-surface-200" onClick={() => navigate('/worklog/tasks')}>
+                  View All <ArrowRight size={12} />
+                </Button>
+              )}
+            </div>
+
+            {view.continue.length === 0 ? (
+              <Card>
+                <EmptyState
+                  illustration="/SVG/today-goal.png"
+                  title="Nothing to resume"
+                  description="Resume where you left off, or start something new."
+                  action={
+                    <Button leftIcon={<Plus size={15} />} className="shadow-lg"
+                      style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
+                      onClick={() => setShowCreate(true)}>
+                      Create Task
+                    </Button>
+                  }
+                />
+              </Card>
+            ) : (
+              <div className="space-y-2.5">
+                {view.continue.map((item, i) => (
+                  <ContinueRow key={item.taskId} item={item} isPrimary={i === 0 && activeTaskId === item.taskId}
+                    onOpen={() => navigate(`/worklog/tasks/${item.taskId}`)} />
+                ))}
+              </div>
             )}
-          </div>
-
-          {view.continue.length === 0 ? (
-            <Card>
-              <EmptyState
-                illustration="/SVG/today-goal.png"
-                title="Nothing to resume"
-                description="Resume where you left off, or start something new."
-                action={
-                  <Button leftIcon={<Plus size={15} />} className="shadow-lg"
-                    style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
-                    onClick={() => setShowCreate(true)}>
-                    Create Task
-                  </Button>
-                }
-              />
-            </Card>
-          ) : (
-            <div className="space-y-2.5">
-              {view.continue.map((item, i) => (
-                <ContinueRow key={item.taskId} item={item} isPrimary={i === 0 && activeTaskId === item.taskId}
-                  onOpen={() => navigate(`/worklog/tasks/${item.taskId}`)} />
-              ))}
-            </div>
-          )}
-        </motion.section>
-
-        {/* ─── Today's Focus ─── */}
-        <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-focus" className="space-y-3">
-          <h2 id="today-focus" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-            <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-amber-400">
-              <Target size={14} />
-            </span>
-            Today's Focus
-            {view.doNow.length > 0 && <Badge tone="neutral">{view.doNow.length}</Badge>}
-          </h2>
-
-          {activeTask && (
-            <Card className="border-amber-500/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap size={15} className="text-amber-400" /> Focus Now
-                </CardTitle>
-                <StatusBadge status={activeTimerState} />
-              </CardHeader>
-              <CardBody>
-                <p className="font-semibold text-surface-50 truncate">{activeTask.title}</p>
-                <div className="flex items-end justify-between mt-3 gap-3">
-                  <div>
-                    {activeTask.subtasks.length > 0 && (
-                      <p className="text-xs text-surface-400">
-                        {activeTask.subtasks.filter((s) => s.completed).length}/{activeTask.subtasks.length} subtasks
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="timer-display text-2xl font-display font-extrabold text-brand-400" aria-live="polite">{display}</div>
-                    <p className="text-[10px] text-surface-500 uppercase tracking-wider mt-0.5">Session clock</p>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate(`/worklog/tasks/${activeTask.id}`)}>Open Task</Button>
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-          {view.doNow.length === 0 ? (
-            <Card>
-              <EmptyState
-                illustration="/SVG/task-priority.png"
-                title="No tasks yet"
-                description="Create your first task to start tracking focus time."
-                action={
-                  <Button leftIcon={<Plus size={15} />} className="shadow-lg"
-                    style={{ backgroundColor: accent, boxShadow: `0 8px 24px -4px ${accent}40` }}
-                    onClick={() => setShowCreate(true)}>
-                    Create Task
-                  </Button>
-                }
-              />
-            </Card>
-          ) : (
-            <div className="space-y-2.5">
-              {view.doNow.map((item) => (
-                <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/worklog/tasks/${item.task.id}`)} />
-              ))}
-            </div>
-          )}
-        </motion.section>
-
-        {/* ─── Today's Plan + Attention ─── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ─── Today's Plan ─── */}
-          <motion.section variants={fadeUp} initial="hidden" animate="show">
-            <TodayPlanWidget />
           </motion.section>
 
-          {/* ─── Attention ─── */}
-          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-attention" className="space-y-3">
+          {/* ─── Today's Focus ─── */}
+          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-focus" className="space-y-3">
+            <h2 id="today-focus" className="flex items-center justify-between font-display font-bold text-surface-50 text-lg">
+              <span className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-amber-400">
+                  <Target size={14} />
+                </span>
+                Today's Focus
+                {view.doNow.length > 0 && <Badge tone="neutral">{view.doNow.length}</Badge>}
+              </span>
+              {!activeTask && view.doNow.length === 0 && (
+                <button
+                  onClick={() => navigate('/worklog/tasks')}
+                  className="text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
+                >
+                  Focus Mode <ArrowRight size={12} />
+                </button>
+              )}
+            </h2>
+
+            {activeTask && (
+              <Card className="border-amber-500/20">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap size={15} className="text-amber-400" /> Focus Now
+                  </CardTitle>
+                  <StatusBadge status={activeTimerState} />
+                </CardHeader>
+                <CardBody>
+                  <p className="font-semibold text-surface-50 truncate">{activeTask.title}</p>
+                  <div className="flex items-end justify-between mt-3 gap-3">
+                    <div>
+                      {activeTask.subtasks.length > 0 && (
+                        <p className="text-xs text-surface-400">
+                          {activeTask.subtasks.filter((s) => s.completed).length}/{activeTask.subtasks.length} subtasks
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="timer-display text-2xl font-display font-extrabold text-brand-400" aria-live="polite">{display}</div>
+                      <p className="text-[10px] text-surface-500 uppercase tracking-wider mt-0.5">Session clock</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" leftIcon={<Zap size={13} />} onClick={() => navigate(`/worklog/tasks/${activeTask.id}`)}>Open Task</Button>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {!activeTask && view.doNow.length === 0 && (
+              <Card>
+                <div className="p-6 flex flex-col items-center text-center">
+                  <div className="w-20 h-20 mb-4 flex items-center justify-center">
+                    <img src="/SVG/focus.svg.png" alt="" className="w-full h-full object-contain" />
+                  </div>
+                  <p className="text-sm font-semibold text-surface-200 mb-1">Nothing in focus right now</p>
+                  <p className="text-xs text-surface-400 mb-4">Pick a task and start making progress.</p>
+                  <Button size="sm" leftIcon={<Play size={12} />} onClick={() => setShowCreate(true)}>
+                    Choose a Task
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {!activeTask && view.doNow.length > 0 && (
+              <div className="space-y-2.5">
+                {view.doNow.map((item) => (
+                  <DoNowRow key={item.task.id} item={item} accent={accent} onStart={startTask} onOpen={() => navigate(`/worklog/tasks/${item.task.id}`)} />
+                ))}
+              </div>
+            )}
+          </motion.section>
+
+          {/* ─── Today's Plan + Attention ─── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* ─── Today's Plan ─── */}
+            <motion.section variants={fadeUp} initial="hidden" animate="show">
+              <TodayPlanWidget />
+            </motion.section>
+
+            {/* ─── Attention ─── */}
+            <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-attention" className="space-y-3">
             <h2 id="today-attention" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
               <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-danger-400">
                 <BellRing size={14} />
@@ -486,8 +503,14 @@ export function TodayPage() {
           </motion.section>
         )}
 
+        </div>
 
-
+        {/* RIGHT COLUMN */}
+        <div className="space-y-5">
+          <CompactCalendarWidget />
+          <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
+          <RightSidebar />
+        </div>
       </div>
 
       <AnimatePresence>

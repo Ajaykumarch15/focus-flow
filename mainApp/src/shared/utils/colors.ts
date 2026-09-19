@@ -29,7 +29,7 @@ export const PRIORITY_CONFIG = {
 export { STATUS_CONFIG, MOOD_LABELS_WITH_EMOJI as MOOD_LABELS } from '@worklog/services/config';
 
 export const CATEGORIES = [
-  'Work', 'Personal', 'Learning', 'Health', 'Finance', 'Creative', 'Social', 'Other'
+  'Work', 'Personal', 'Learning', 'Other'
 ];
 
 export const DEADLINE_CONFIG = {

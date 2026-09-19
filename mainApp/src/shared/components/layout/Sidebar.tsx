@@ -14,7 +14,7 @@ import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
 // ── Navigation definitions with sub-items ──────────────────────────────────
 
 const PERSONAL_NAV: NavPanelDef[] = [
-  { to: '/personal', icon: Brain, label: 'Personal' },
+  //{ to: '/personal', icon: Brain, label: 'Personal' },
   { to: '/personal/today', icon: LayoutDashboard, label: 'Today' },
   {
     to: '/personal/tasks', icon: CheckSquare, label: 'Tasks',
