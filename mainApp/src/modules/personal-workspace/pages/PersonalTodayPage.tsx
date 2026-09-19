@@ -30,7 +30,7 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 
 export function PersonalTodayPage() {
-  const { profile, theme, activeTaskId, activeTimerState, dataLoading, dataError, loadAll } = useStore();
+  const { profile, activeTaskId, activeTimerState, dataLoading, dataError, loadAll } = useStore();
   const { tasks: personalTasks, fetchTasks: fetchPersonalTasks } = usePersonalTaskStore();
   const { display } = useActiveTimer();
   const navigate = useNavigate();
