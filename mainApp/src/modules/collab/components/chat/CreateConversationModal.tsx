@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, Search, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useChatStore } from '@collab/stores/useChatStore';
@@ -24,10 +25,10 @@ export function CreateConversationModal({
   const members = useCollaborationStore((s) => s.members);
   const user = useAuthStore((s) => s.user);
   const workspaceId = useWorkspaceId();
+  const navigate = useNavigate();
   const createConversation = useChatStore((s) => s.createConversation);
   const setActiveConversation = useChatStore((s) => s.setActiveConversation);
   const loadMessages = useChatStore((s) => s.loadMessages);
-  const setChatOpen = useChatStore((s) => s.setChatOpen);
 
   useEffect(() => {
     if (isOpen && preselectedUserId) {
@@ -67,7 +68,7 @@ export function CreateConversationModal({
       const conv = await createConversation(workspaceId, ids, groupChat ? groupName : undefined);
       setActiveConversation(conv.id);
       await loadMessages(conv.id);
-      setChatOpen(true);
+      navigate(`/collab/${workspaceId}/chat?c=${conv.id}`);
       onClose();
     } catch (err) {
       console.error('Failed to create conversation', err);

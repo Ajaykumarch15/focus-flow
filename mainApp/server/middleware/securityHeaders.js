@@ -11,7 +11,7 @@ const CSP_DIRECTIVES = {
   'img-src': ["'self'", 'data:', 'blob:', 'https:'],
   // Dev client (localhost:5173) fetches the API cross-origin at :5001 and uses
   // a websocket for HMR; behind nginx in prod /api is same-origin ('self').
-  'connect-src': ["'self'", 'ws://localhost:5173', 'http://localhost:5001'],
+  'connect-src': ["'self'", 'ws://localhost:5173', 'ws://localhost:5001', 'http://localhost:5001'],
   'frame-ancestors': ["'none'"],
 };
 

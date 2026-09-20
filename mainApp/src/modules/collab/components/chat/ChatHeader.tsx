@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
 import { useChatStore } from '@collab/stores/useChatStore';
 import { OnlineStatusBadge } from './OnlineStatusBadge';
 import { ParticipantsPanel } from './ParticipantsPanel';
@@ -8,12 +7,10 @@ export function ChatHeader({
   conversationId,
   otherUserName,
   otherUserId,
-  onClose,
 }: {
   conversationId: string;
   otherUserName: string;
   otherUserId: string;
-  onClose: () => void;
 }) {
   const conv = useChatStore((s) => s.conversations.find((c) => c.id === conversationId));
   const isGroup = conv?.type === 'group';
@@ -72,14 +69,6 @@ export function ChatHeader({
           </div>
         )}
       </div>
-
-      <button
-        onClick={onClose}
-        className="p-1.5 m-2 rounded-lg text-surface-400 hover:text-surface-100 hover:bg-surface-800 transition-colors self-start"
-        aria-label="Close chat"
-      >
-        <X size={16} />
-      </button>
 
       {isGroup && showParticipants && (
         <ParticipantsPanel conversationId={conversationId} />

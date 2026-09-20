@@ -12,7 +12,6 @@ import { NowIndicator } from '@worklog/components/NowIndicator';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '@collab/components/NotificationCenter';
 import { GlobalCommandPalette } from '@collab/components/GlobalCommandPalette';
-import { useChatStore } from '@collab/stores/useChatStore';
 
 export function GlobalHeader() {
   const { user, logout } = useAuthStore();
@@ -23,8 +22,6 @@ export function GlobalHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const chatOpen = useChatStore((s) => s.chatOpen);
-  const setChatOpen = useChatStore((s) => s.setChatOpen);
   const menuRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<HTMLDivElement>(null);
 
@@ -141,15 +138,11 @@ export function GlobalHeader() {
         {/* Notifications */}
         <NotificationCenter />
 
-        {/* Chat Toggle */}
+        {/* Chat */}
         <button
-          onClick={() => setChatOpen(!chatOpen)}
-          className={`relative p-2 rounded-xl transition-colors ${
-            chatOpen
-              ? 'text-brand-400 bg-brand-500/10'
-              : 'text-surface-400 hover:text-surface-50 hover:bg-surface-800'
-          }`}
-          aria-label="Toggle chat"
+          onClick={() => navigate(`/collab/${workspaceId || 'default'}/chat`)}
+          className="p-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
+          aria-label="Open chat"
           title="Messages"
         >
           <MessageSquare size={17} />

@@ -5,6 +5,7 @@ import {
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
   History, Library, Map, BarChart3, Calendar, Lightbulb,
   FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer, Target,
+  MessageSquare,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
@@ -61,6 +62,7 @@ const getCollabNav = (workspaceId: string): NavPanelDef[] => [
       { to: `/collab/${workspaceId}/projects`, label: 'All Projects' },
     ],
   },
+  { to: `/collab/${workspaceId}/chat`, icon: MessageSquare, label: 'Chat' },
   { to: `/collab/${workspaceId}/schedule`, icon: Calendar, label: 'Schedule' },
   { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
   { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },

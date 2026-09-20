@@ -83,6 +83,7 @@ const MeetingsMembersPage = lazy(() => import('@meetings/pages/MeetingsMembersPa
 // Workspace schedule pages
 const WorkspaceSchedulePage = lazy(() => import('@collab/pages/WorkspaceSchedulePage').then(module => ({ default: module.WorkspaceSchedulePage })));
 const ProjectSchedulePage = lazy(() => import('@collab/pages/ProjectSchedulePage').then(module => ({ default: module.ProjectSchedulePage })));
+const ChatPage = lazy(() => import('@collab/pages/ChatPage').then(module => ({ default: module.ChatPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
@@ -277,6 +278,7 @@ export default function App() {
                 <Route path="/collab/:workspaceSlug/projects/:projectId/people" element={<ProjectPeoplePage />} />
                 <Route path="/collab/:workspaceSlug/projects/:projectId/schedule" element={<ProjectSchedulePage />} />
                 <Route path="/collab/:workspaceSlug/people" element={<PeoplePage />} />
+                <Route path="/collab/:workspaceSlug/chat" element={<ChatPage />} />
                 <Route path="/collab/:workspaceSlug/schedule" element={<WorkspaceSchedulePage />} />
                 <Route path="/collab/:workspaceSlug/teams/:teamId" element={<TeamDetailPage />} />
                 <Route path="/collab/:workspaceSlug/leaderboard" element={<Leaderboard />} />

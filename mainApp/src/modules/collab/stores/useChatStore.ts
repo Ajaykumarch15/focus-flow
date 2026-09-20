@@ -53,7 +53,6 @@ interface ChatState {
   messages: Record<string, ChatMessage[]>;
   typingUsers: Record<string, Set<string>>;
   onlineUsers: Record<string, boolean>;
-  chatOpen: boolean;
   searchQuery: string;
   participants: Record<string, Participant[]>;
   loadingMessages: boolean;
@@ -70,7 +69,6 @@ interface ChatState {
   deleteMessage: (conversationId: string, messageId: string) => Promise<void>;
   toggleReaction: (conversationId: string, messageId: string, emoji: string) => void;
   setActiveConversation: (id: string | null) => void;
-  setChatOpen: (open: boolean) => void;
   setSearchQuery: (query: string) => void;
   markAsRead: (conversationId: string) => void;
   setTyping: (conversationId: string, isTyping: boolean) => void;
@@ -87,7 +85,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   typingUsers: {},
   onlineUsers: {},
-  chatOpen: false,
   searchQuery: '',
   participants: {},
   loadingMessages: false,
@@ -295,8 +292,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  setChatOpen: (open: boolean) => set({ chatOpen: open }),
-
   setSearchQuery: (query: string) => set({ searchQuery: query }),
 
   markAsRead: (conversationId: string) => {
@@ -337,7 +332,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const conv = await get().createConversation(workspaceId, [userId]);
     get().setActiveConversation(conv.id);
     await get().loadMessages(conv.id);
-    set({ chatOpen: true });
     return conv;
   },
 

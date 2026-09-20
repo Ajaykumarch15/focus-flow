@@ -7,7 +7,6 @@ import { ScheduleNotificationPanel } from '@personal/components/schedule/Schedul
 import { GlobalHeader }   from '@shared/components/ui/GlobalHeader';
 import { useStore }       from '@worklog/services/useStore';
 import { useScheduleEvaluator } from '@shared/hooks/useScheduleEvaluator';
-import { ChatSidebar }    from '@collab/components/chat/ChatSidebar';
 
 export function AppLayout() {
   const location = useLocation();
@@ -111,7 +110,6 @@ export function AppLayout() {
 
       <ToastContainer />
       <ScheduleNotificationPanel />
-      <ChatSidebar />
     </div>
   );
 }

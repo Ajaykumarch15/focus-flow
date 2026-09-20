@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Shield, CheckCircle2, Zap, FolderOpen,
@@ -6,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
-import { useChatStore } from '@collab/stores/useChatStore';
 import { api } from '@shared/utils/api';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
@@ -41,7 +41,7 @@ interface PersonDetailsDrawerProps {
 export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawerProps) {
   const { tasks, teams, activeWorkspaceId, loadTeams, updateMemberRole } = useCollaborationStore();
   const { user } = useAuthStore();
-  const openConversationWith = useChatStore((s) => s.openConversationWith);
+  const navigate = useNavigate();
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [addingToTeam, setAddingToTeam] = useState(false);
   const [editingRole, setEditingRole] = useState(false);
@@ -354,7 +354,7 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
                   type="button"
                   onClick={() => {
                     if (stats?.member.id && activeWorkspaceId) {
-                      openConversationWith(stats.member.id, activeWorkspaceId);
+                      navigate(`/collab/${activeWorkspaceId}/chat`);
                       onClose();
                     }
                   }}

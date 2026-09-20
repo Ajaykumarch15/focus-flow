@@ -100,17 +100,30 @@ function initSocket(io) {
             return ack?.({ error: 'Conversation not found' });
           }
 
+          const senderUser = await User.findById(userId).select('name avatar');
+          const senderName = senderUser?.name || 'Unknown';
+
           const msg = await Message.create({
-            conversation: conversationId,
-            sender: userId,
+            conversationId,
+            senderId: userId,
+            senderName,
+            senderAvatar: senderUser?.avatar || '',
             content,
-            replyTo: replyTo || undefined,
-            readBy: [userId]
+            replyTo: replyTo || null,
+            readBy: [{ user: userId, readAt: new Date() }],
           });
 
-          await Conversation.findByIdAndUpdate(conversationId, { lastMessage: msg._id });
+          await Conversation.findByIdAndUpdate(conversationId, {
+            lastMessage: {
+              content,
+              senderName,
+              senderId: userId,
+              createdAt: new Date(),
+            },
+            updatedAt: new Date(),
+          });
 
-          for (const memberId of conversation.members) {
+          for (const memberId of conversation.participants) {
             if (memberId.toString() !== userId) {
               await Conversation.findByIdAndUpdate(conversationId, {
                 $inc: { [`unreadCounts.${memberId}`]: 1 }
@@ -118,8 +131,24 @@ function initSocket(io) {
             }
           }
 
-          const populated = await Message.findById(msg._id).populate('sender', 'name avatar email');
-          const msgJson = populated.toObject();
+          const msgJson = {
+            id: String(msg._id),
+            conversationId: String(msg.conversationId),
+            sender: {
+              id: String(userId),
+              name: senderName,
+              ...(senderUser?.avatar ? { avatar: senderUser.avatar } : {}),
+            },
+            content: msg.content,
+            replyTo: msg.replyTo ? String(msg.replyTo) : null,
+            reactions: {},
+            edited: false,
+            editedAt: null,
+            deleted: false,
+            deletedAt: null,
+            readBy: [{ user: String(userId), readAt: new Date().toISOString() }],
+            createdAt: msg.createdAt,
+          };
 
           io.to(`conv:${conversationId}`).emit('new_message', msgJson);
 
