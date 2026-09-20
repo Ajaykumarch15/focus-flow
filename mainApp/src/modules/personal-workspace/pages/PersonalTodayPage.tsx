@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect, ReactNode } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, ArrowRight, ArrowUpRight,
+  Target, ListTodo, ArrowRight, TrendingUp,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -18,9 +18,9 @@ import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { Progress } from '@shared/components/ui/Progress';
 
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
-import { KpiCounter } from '@shared/components/ui/KpiCounter';
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
 import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
 import { RightSidebar } from '@personal/components/RightSidebar';
@@ -64,6 +64,29 @@ export function PersonalTodayPage() {
 
   const continueTasks = useMemo(() =>
     personalTasks.filter(t => t.status === 'active' || t.status === 'paused'),
+    [personalTasks],
+  );
+
+  const overdueCount = useMemo(
+    () => personalTasks.filter(t => t.status !== 'completed' && t.deadline && new Date(t.deadline) < new Date()).length,
+    [personalTasks],
+  );
+
+  const activeTasksCount = useMemo(
+    () => personalTasks.filter(t => t.status === 'active').length,
+    [personalTasks],
+  );
+
+  const totalTasksCount = personalTasks.length;
+
+  const completionRate = useMemo(() => {
+    if (totalTasksCount === 0) return 0;
+    const doneCount = personalTasks.filter(t => t.status === 'completed').length;
+    return Math.round((doneCount / totalTasksCount) * 100);
+  }, [personalTasks, totalTasksCount]);
+
+  const completedTasksCount = useMemo(
+    () => personalTasks.filter(t => t.status === 'completed').length,
     [personalTasks],
   );
 
@@ -212,17 +235,58 @@ export function PersonalTodayPage() {
         )}
       </AnimatePresence>
 
-      {/* KEY METRICS */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat icon={<Clock size={18} style={{ color: '#f59e0b' }} />} label="Today's Focus Time"
-          value={formatHours(todayMs)} sub={`Target: ${profile.personalDailyGoal}h`} color="#f59e0b"
-          onExpand={() => navigate('/personal/analytics')} />
-        <Stat icon={<CheckCircle size={18} style={{ color: '#3b82f6' }} />} label="Completed Today"
-          value={String(completedToday)} sub="Tasks done" color="#3b82f6"
-          onExpand={() => navigate('/personal/analytics')} />
-        <Stat icon={<ListTodo size={18} style={{ color: '#a855f7' }} />} label="Scheduled Today"
-          value={String(todayTasks.length)} sub="Tasks planned" color="#a855f7"
-          onExpand={() => navigate('/personal/analytics')} />
+      {/* KEY METRICS - Stat Cards */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "Today's Focus", value: formatHours(todayMs), icon: Clock, color: '#f59e0b', borderClass: 'border-t-amber-500' },
+          { label: 'Completed Today', value: String(completedToday), icon: CheckCircle, color: '#10b981', borderClass: 'border-t-emerald-500' },
+          { label: 'Scheduled Today', value: String(todayTasks.length), icon: ListTodo, color: '#8b5cf6', borderClass: 'border-t-purple-500' },
+          { label: 'Overdue', value: String(overdueCount), icon: AlertTriangle, color: '#ef4444', borderClass: 'border-t-red-500' },
+        ].map(({ label, value, icon: Icon, color, borderClass }) => (
+          <motion.div key={label} variants={fadeUp}>
+            <Card className={`p-4 border-t-[3px] ${borderClass}`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Icon size={13} style={{ color }} />
+                <span className="text-[11px] text-surface-400 font-medium">{label}</span>
+              </div>
+              <p className="text-lg font-display font-bold text-surface-50">{value}</p>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Task Breakdown */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-emerald-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">Completion Rate</span>
+              <TrendingUp size={14} className="text-emerald-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{completionRate}%</p>
+            <Progress value={completionRate} tone="success" className="mt-2 h-1.5" />
+          </Card>
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-blue-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">In Progress</span>
+              <Clock size={14} className="text-blue-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{activeTasksCount}</p>
+            <p className="text-[11px] text-surface-500 mt-1">tasks actively being worked on</p>
+          </Card>
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-purple-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">Total Tasks</span>
+              <ListTodo size={14} className="text-purple-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{totalTasksCount}</p>
+            <p className="text-[11px] text-surface-500 mt-1">{completedTasksCount} completed</p>
+          </Card>
+        </motion.div>
       </motion.div>
 
       {/* MAIN GRID */}
@@ -343,45 +407,6 @@ export function PersonalTodayPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 // Sub-components
 // ══════════════════════════════════════════════════════════════════════════════
-
-function Stat({ icon, label, value, sub, color, onExpand }: {
-  icon: ReactNode; label: string; value: string; sub?: string; color: string; onExpand?: () => void;
-}) {
-  const numMatch = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
-  const numPart = numMatch ? parseFloat(numMatch[1]) : null;
-  const suffix = numMatch ? numMatch[2] : '';
-
-  return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-5 relative overflow-hidden transition-all hover:scale-[1.02] cursor-pointer"
-      style={{
-        background: `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`,
-        border: `1px solid ${color}40`,
-      }}
-      onClick={onExpand}>
-      <div className="absolute top-0 right-0 w-32 h-32 opacity-20 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center justify-between mb-4">
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}25` }}>
-          {icon}
-        </div>
-        <button
-          className="opacity-30 hover:opacity-60 transition-opacity"
-          onClick={(e) => { e.stopPropagation(); onExpand?.(); }}
-          aria-label={`View ${label} details`}>
-          <ArrowUpRight size={16} style={{ color }} />
-        </button>
-      </div>
-      <p className="text-[13px] font-semibold mb-1" style={{ color: `${color}cc` }}>{label}</p>
-      <p className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 mb-0.5 leading-none">
-        {numPart !== null
-          ? <KpiCounter value={numPart} suffix={suffix} duration={700} />
-          : value}
-      </p>
-      {sub && <p className="text-xs text-surface-400 mt-2">{sub}</p>}
-    </motion.div>
-  );
-}
 
 function ContinueRow({ task, onOpen }: { task: Task; onOpen: () => void }) {
   return (

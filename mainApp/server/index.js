@@ -99,6 +99,8 @@ const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IE
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
 const errorHandler = require('./middleware/errorHandler'); // IES-P0-14
 const { startReaper } = require('./jobs/reaper');          // IES-P1-26
+const chatRoutes = require('./routes/chat');               // Real-time chat
+const { initSocket } = require('./socket/chat');          // Socket.IO handler
 
 const app = express();
 
@@ -164,6 +166,7 @@ app.use('/api/personal-sessions', personalSessionRoutes); // Personal Sessions
 app.use('/api/backup', backupRoutes);                     // Backup & Restore
 app.use('/api/meetings', meetingRoutes);                  // Meetings
 app.use('/api/personal-future-goals', personalFutureGoalRoutes); // Future Goals
+app.use('/api/chat', chatRoutes);                                // Real-time chat
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());
@@ -177,8 +180,19 @@ const PORT = process.env.PORT || 5001;
 (async () => {
   await connectWithRetry(process.env.MONGODB_URI);
   const server = await startServer(app, PORT);
-  // IES-P1-26: reclaim abandoned sessions in the background. unref()'d — it never
-  // keeps the process alive on its own.
+
+  // Socket.IO real-time layer
+  const { Server } = require('socket.io');
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.CLIENT_URL || 'http://localhost:5173',
+      credentials: true,
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+  });
+  initSocket(io);
+
   startReaper();
   const shutdown = createShutdownHandler({ server });
   process.on('SIGINT', () => shutdown('SIGINT'));

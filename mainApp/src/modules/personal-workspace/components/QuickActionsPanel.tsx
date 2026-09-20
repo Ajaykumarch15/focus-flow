@@ -48,7 +48,7 @@ export function QuickActionsPanel({ onCreateTask }: QuickActionsPanelProps) {
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.2 }}
-      className="rounded-2xl border border-surface-800 bg-surface-900 p-4"
+      className="rounded-2xl border border-surface-800/30 bg-transparent p-4"
     >
       <h3 className="text-sm font-bold text-surface-100 mb-3 flex items-center gap-2">
         <span className="text-amber-400">&#9889;</span>

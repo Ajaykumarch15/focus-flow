@@ -1,11 +1,13 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
-  X, ArrowUp, ArrowDown, Eye, EyeOff,
+  X, ArrowUp, ArrowDown, Eye, EyeOff, LayoutGrid, List,
 } from 'lucide-react';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { PersonalTaskCard } from '@personal/components/tasks/PersonalTaskCard';
+import { TaskListView } from '@worklog/components/tasks/TaskListView';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
@@ -18,11 +20,13 @@ import { EmptyState } from '@shared/components/ui/EmptyState';
 import { Card } from '@shared/components/ui/Card';
 import { Pagination } from '@shared/components/ui/Pagination';
 import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
+import { cn } from '@shared/utils/cn';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
 export function PersonalTasks() {
+  const navigate = useNavigate();
   const {
     tasks,
     selectedTaskIds, selectAllTasks, clearTaskSelection,
@@ -39,6 +43,7 @@ export function PersonalTasks() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
@@ -217,10 +222,10 @@ export function PersonalTasks() {
         ))}*/}
       </motion.div>
 
-      {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 z-10 relative">
+      {/* ═══════════════ TASKS CONTENT ═══════════════ */}
+      <div className="z-10 relative">
 
-        {/* ── LEFT: Filters + Task List ── */}
+        {/* ── Filters + Task List ── */}
         <div className="space-y-4 min-w-0">
           {/* Filters Row 1: Search + Merged Filter + Sort Toggle */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
@@ -264,6 +269,31 @@ export function PersonalTasks() {
             >
               {sortDir === 'asc' ? <ArrowUp size={15} /> : <ArrowDown size={15} />}
             </button>
+            <div className="flex-1" />
+            <div className="inline-flex bg-surface-800 border border-surface-700 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setView('grid')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+                  view === 'grid' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                )}
+              >
+                <LayoutGrid size={13} />
+                Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+                  view === 'list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                )}
+              >
+                <List size={13} />
+                List
+              </button>
+            </div>
           </motion.div>
 
           {/* Filters Row 2: Status + Schedule tabs */}
@@ -355,6 +385,12 @@ export function PersonalTasks() {
 
           {/* Task List */}
           {sorted.length > 0 ? (
+            view === 'list' ? (
+              <TaskListView
+                tasks={sorted}
+                onTaskClick={(id) => navigate(`/personal/tasks/${id}`)}
+              />
+            ) : (
             <>
               <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
                 <AnimatePresence mode="popLayout">
@@ -378,6 +414,7 @@ export function PersonalTasks() {
                 onPageChange={setCurrentPage}
               />
             </>
+            )
           ) : (
             <EmptyState
               illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}
@@ -388,41 +425,6 @@ export function PersonalTasks() {
               )}
             />
           )}
-        </div>
-
-        {/* ── RIGHT SIDEBAR ── */}
-        <div className="space-y-5 hidden lg:block">
-          {/* Illustration */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="p-5 overflow-hidden relative">
-              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
-              <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="lazy" draggable={false}
-                className="w-full h-auto max-h-[380px] object-contain select-none pointer-events-none" />
-              <p className="text-center text-xs text-surface-400 mt-3 font-medium">Good Things Take Time</p>
-            </Card>
-          </motion.div>
-
-          {/* Today's Focus */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-            <TodayPlanWidget />
-          </motion.div>
-
-          {/* Motivational Quote */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
-            <Card className="p-5 relative overflow-hidden min-h-[160px]">
-              <div className="absolute inset-0 opacity-20">
-                <img src="/SVG/roadmap-mountain.svg" alt="" aria-hidden="true" className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-surface-900/90 via-surface-900/60 to-transparent" />
-              <div className="relative z-10">
-                <div className="text-4xl text-brand-500/30 font-display select-none pointer-events-none leading-none">&ldquo;</div>
-                <p className="text-sm font-semibold text-surface-100 leading-relaxed italic -mt-2">
-                  Discipline today builds the freedom tomorrow.
-                </p>
-              </div>
-            </Card>
-          </motion.div>
-
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Calendar, ChevronLeft, ChevronRight, Plus,
   AlertTriangle, Clock, ArrowRight, FileText,
-  Flame,
+  Flame, LayoutGrid, List, CheckCircle,
 } from 'lucide-react';
 import { Button } from '@shared/components/ui/Button';
 import { PersonalScheduleDayView } from '@personal/components/schedule/PersonalScheduleDayView';
@@ -83,10 +83,105 @@ function TaskRow({ task, roadmapTitle }: { task: Task; roadmapTitle?: string }) 
   );
 }
 
+function TaskCard({ task, roadmapTitle }: { task: Task; roadmapTitle?: string }) {
+  const navigate = useNavigate();
+  const state = getScheduledState(task);
+  const isMissed = state === 'missed';
+  
+  const STATUS_CONFIG: Record<string, { dot: string; label: string }> = {
+    todo: { dot: 'bg-surface-400', label: 'To Do' },
+    active: { dot: 'bg-blue-500', label: 'In Progress' },
+    paused: { dot: 'bg-yellow-500', label: 'Paused' },
+    completed: { dot: 'bg-emerald-500', label: 'Completed' },
+  };
+  
+  const PRIORITY_BADGE: Record<string, { bg: string; text: string; label: string }> = {
+    urgent: { bg: 'bg-red-500/15', text: 'text-red-400', label: 'Urgent' },
+    high: { bg: 'bg-pink-500/15', text: 'text-pink-400', label: 'High' },
+    medium: { bg: 'bg-amber-500/15', text: 'text-amber-400', label: 'Medium' },
+    low: { bg: 'bg-sky-500/15', text: 'text-sky-400', label: 'Low' },
+  };
+  
+  const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
+  const priority = PRIORITY_BADGE[task.priority] || PRIORITY_BADGE.medium;
+  const subtasksDone = task.subtasks.filter(s => s.completed).length;
+  const subtasksTotal = task.subtasks.length;
+  
+  return (
+    <motion.button
+      whileHover={{ y: -2 }}
+      onClick={() => navigate(`/personal/tasks/${task.id}`)}
+      className={`w-full text-left p-4 rounded-2xl border transition-all ${
+        isMissed 
+          ? 'border-red-500/20 bg-red-500/5 hover:border-red-500/30' 
+          : 'border-surface-800 bg-surface-900 hover:border-surface-700 hover:bg-surface-850'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${status.dot}`} />
+          <span className="text-[10px] text-surface-400">{status.label}</span>
+        </div>
+        {isMissed && (
+          <span className="text-[10px] font-bold text-red-400 px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/20">
+            Overdue
+          </span>
+        )}
+      </div>
+      
+      <p className={`font-medium truncate mb-2 ${isMissed ? 'text-red-300' : 'text-surface-100'}`}>
+        {task.title}
+      </p>
+      
+      {task.description && (
+        <p className="text-xs text-surface-500 line-clamp-2 mb-3">{task.description}</p>
+      )}
+      
+      <div className="flex items-center gap-2 flex-wrap mb-3">
+        {task.category && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface-800 text-surface-300">
+            {task.category}
+          </span>
+        )}
+        <span className={`text-[10px] px-2 py-0.5 rounded-full ${priority.bg} ${priority.text}`}>
+          {priority.label}
+        </span>
+        {roadmapTitle && (
+          <span className="text-[10px] font-medium text-sky-400">{roadmapTitle}</span>
+        )}
+      </div>
+      
+      <div className="flex items-center justify-between text-[10px] text-surface-500">
+        <div className="flex items-center gap-3">
+          {subtasksTotal > 0 && (
+            <span className="flex items-center gap-1">
+              <CheckCircle size={10} />
+              {subtasksDone}/{subtasksTotal}
+            </span>
+          )}
+          {task.scheduledDate && (
+            <span className="flex items-center gap-1">
+              <Calendar size={10} />
+              {formatScheduledDate(task.scheduledDate)}
+            </span>
+          )}
+        </div>
+        {task.totalTime > 0 && (
+          <span className="flex items-center gap-1">
+            <Clock size={10} />
+            {Math.round(task.totalTime / 60000)}m
+          </span>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
 export function PersonalSchedule() {
   const { tasks } = usePersonalTaskStore();
   const { roadmaps } = useRoadmapStore();
   const [viewMode, setViewMode] = useState<ViewMode>('day');
+  const [viewType, setViewType] = useState<'grid' | 'list'>('list');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [weekOffset, setWeekOffset] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -239,6 +334,27 @@ export function PersonalSchedule() {
                   <ChevronRight size={16} />
                 </button>
               </div>
+              {/* Grid/List toggle */}
+              <div className="flex items-center p-1 rounded-xl bg-surface-900 border border-surface-800">
+                <button
+                  type="button"
+                  onClick={() => setViewType('grid')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    viewType === 'grid' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                  )}>
+                  <LayoutGrid size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewType('list')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors',
+                    viewType === 'list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                  )}>
+                  <List size={13} />
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-3">
               {(viewMode === 'day' || viewMode === 'week') && (
@@ -268,9 +384,17 @@ export function PersonalSchedule() {
               defaultOpen={overdueTasks.length > 0}
             >
               {overdueTasks.length > 0 ? (
-                overdueTasks.map(t => (
-                  <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                ))
+                viewType === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {overdueTasks.map(t => (
+                      <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))}
+                  </div>
+                ) : (
+                  overdueTasks.map(t => (
+                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                  ))
+                )
               ) : (
                 <p className="text-xs text-surface-500 text-center py-2">No overdue tasks</p>
               )}
@@ -286,9 +410,17 @@ export function PersonalSchedule() {
               defaultOpen={true}
             >
               {todayTasks.length > 0 ? (
-                todayTasks.map(t => (
-                  <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                ))
+                viewType === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {todayTasks.map(t => (
+                      <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))}
+                  </div>
+                ) : (
+                  todayTasks.map(t => (
+                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                  ))
+                )
               ) : (
                 <div className="py-6 flex flex-col items-center">
                   <img src="/SVG/calender.png" alt="" className="w-32 h-20 object-contain opacity-40 mb-3" />
@@ -312,9 +444,17 @@ export function PersonalSchedule() {
             >
               {upcomingTasks.length > 0 ? (
                 <div className="space-y-2">
-                  {paginatedUpcomingTasks.map(t => (
-                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                  ))}
+                  {viewType === 'grid' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {paginatedUpcomingTasks.map(t => (
+                        <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                      ))}
+                    </div>
+                  ) : (
+                    paginatedUpcomingTasks.map(t => (
+                      <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))
+                  )}
                   {upcomingTotalPages > 1 && (
                     <Pagination
                       currentPage={upcomingPage}
@@ -340,9 +480,17 @@ export function PersonalSchedule() {
               defaultOpen={false}
             >
               {unscheduledTasks.length > 0 ? (
-                unscheduledTasks.map(t => (
-                  <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                ))
+                viewType === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {unscheduledTasks.map(t => (
+                      <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))}
+                  </div>
+                ) : (
+                  unscheduledTasks.map(t => (
+                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                  ))
+                )
               ) : (
                 <p className="text-xs text-surface-500 text-center py-2">All tasks are scheduled</p>
               )}

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Menu, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
@@ -12,6 +12,7 @@ import { NowIndicator } from '@worklog/components/NowIndicator';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '@collab/components/NotificationCenter';
 import { GlobalCommandPalette } from '@collab/components/GlobalCommandPalette';
+import { useChatStore } from '@collab/stores/useChatStore';
 
 export function GlobalHeader() {
   const { user, logout } = useAuthStore();
@@ -22,6 +23,8 @@ export function GlobalHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const chatOpen = useChatStore((s) => s.chatOpen);
+  const setChatOpen = useChatStore((s) => s.setChatOpen);
   const menuRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +140,20 @@ export function GlobalHeader() {
 
         {/* Notifications */}
         <NotificationCenter />
+
+        {/* Chat Toggle */}
+        <button
+          onClick={() => setChatOpen(!chatOpen)}
+          className={`relative p-2 rounded-xl transition-colors ${
+            chatOpen
+              ? 'text-brand-400 bg-brand-500/10'
+              : 'text-surface-400 hover:text-surface-50 hover:bg-surface-800'
+          }`}
+          aria-label="Toggle chat"
+          title="Messages"
+        >
+          <MessageSquare size={17} />
+        </button>
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>

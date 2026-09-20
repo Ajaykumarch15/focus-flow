@@ -23,7 +23,7 @@ export function TodayPlanWidget() {
   return (
     <section
       aria-labelledby="todays-plan-heading"
-      className="card p-5 rounded-[22px] bg-surface-900/90 border border-surface-800/80 shadow-sm flex flex-col justify-between"
+      className="card p-5 rounded-[22px] bg-transparent border border-surface-800/30 shadow-sm flex flex-col justify-between"
     >
       <div>
         {/* Header */}

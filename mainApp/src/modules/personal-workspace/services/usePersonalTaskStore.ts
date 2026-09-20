@@ -249,6 +249,9 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     if (timerEngine.getActiveTaskId() === id) {
       await get().stopTimer(id);
     }
+    if (parallelTimerEngine.getState(id) !== 'idle') {
+      await get().stopParallelTimer(id);
+    }
     // Capture roadmapRef before removing from local state
     const taskToDelete = get().tasks.find((t) => t.id === id);
     set((s) => {
@@ -266,6 +269,9 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
   completeTask: async (id) => {
     if (timerEngine.getActiveTaskId() === id) {
       await get().stopTimer(id);
+    }
+    if (parallelTimerEngine.getState(id) !== 'idle') {
+      await get().stopParallelTimer(id);
     }
     await get().updateTask(id, { status: 'completed', completedAt: Date.now() });
   },
@@ -310,6 +316,9 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
       for (const id of ids) {
         if (timerEngine.getActiveTaskId() === id) {
           await get().stopTimer(id);
+        }
+        if (parallelTimerEngine.getState(id) !== 'idle') {
+          await get().stopParallelTimer(id);
         }
       }
       set((s) => {

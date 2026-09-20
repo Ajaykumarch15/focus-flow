@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
+import { useChatStore } from '@collab/stores/useChatStore';
 import { api } from '@shared/utils/api';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
@@ -40,6 +41,7 @@ interface PersonDetailsDrawerProps {
 export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawerProps) {
   const { tasks, teams, activeWorkspaceId, loadTeams, updateMemberRole } = useCollaborationStore();
   const { user } = useAuthStore();
+  const openConversationWith = useChatStore((s) => s.openConversationWith);
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [addingToTeam, setAddingToTeam] = useState(false);
   const [editingRole, setEditingRole] = useState(false);
@@ -350,6 +352,12 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => {
+                    if (stats?.member.id && activeWorkspaceId) {
+                      openConversationWith(stats.member.id, activeWorkspaceId);
+                      onClose();
+                    }
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-brand-500/10 text-brand-400 text-xs font-semibold hover:bg-brand-500/20 transition-colors"
                 >
                   <Mail size={13} />
