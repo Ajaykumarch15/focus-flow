@@ -17,9 +17,7 @@ import { isOverdue } from '@shared/utils/time';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { Card } from '@shared/components/ui/Card';
 import { Pagination } from '@shared/components/ui/Pagination';
-import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 import { cn } from '@shared/utils/cn';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
