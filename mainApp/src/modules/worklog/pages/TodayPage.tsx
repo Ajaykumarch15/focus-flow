@@ -26,6 +26,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingNeedsAttention } from '@shared/components/illustrations';
 import { Progress } from '@shared/components/ui/Progress';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { formatHours, formatMs } from '@shared/utils/time';
@@ -66,14 +67,14 @@ function reasonTone(item: DoNowItem): BadgeTone {
 
 export function TodayPage() {
   const {
-    tasks, profile, theme, activeTaskId, activeSessionId, activeTimerState,
+    tasks, profile, theme,
     dataLoading, dataError, getTodayTime, getWeekTime, loadAll, startParallelTimer,
   } = useStore();
   const { user } = useAuthStore();
   const { activeLogs } = useWorkLogStore();
   const { blockers, tasks: collabTasks, sprints, projects } = useCollaborationStore();
   const { roadmaps, loadRoadmaps } = useRoadmapStore();
-  const { display } = useActiveTimer();
+  const { activeTaskId, activeSessionId, activeTimerState, activeTask, display } = useActiveTimer();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [todayMilestones, setTodayMilestones] = useState<TodayMilestone[]>([]);
@@ -123,7 +124,6 @@ export function TodayPage() {
     now: Date.now(),
   }), [tasks, activeTaskId, activeSessionId, activeLogs, blockers, reviews, deadlines, todayMs, weekMs, dailyGoalMs]);
 
-  const activeTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : null;
   const firstName = profile.name.trim().split(' ')[0] || 'there';
   const remainingMs = view.stats.progressPct !== null ? Math.max(0, dailyGoalMs - todayMs) : null;
 
@@ -470,7 +470,7 @@ export function TodayPage() {
             {view.attention.length === 0 ? (
               <Card>
                 <EmptyState
-                  icon={<CheckCircle size={26} className="text-emerald-400" />}
+                  illustration={<NothingNeedsAttention />}
                   title="Nothing needs attention"
                   description="No overdue tasks, blockers, or pending reviews right now."
                 />

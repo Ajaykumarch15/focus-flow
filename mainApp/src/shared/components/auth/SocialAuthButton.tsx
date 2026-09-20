@@ -3,7 +3,7 @@ import { GoogleIcon } from './GoogleIcon';
 
 export function AuthDivider({ label }: { label: string }) {
   return (
-    <div className="my-5 flex items-center gap-3" role="separator" aria-label={label}>
+    <div className="my-4 flex items-center gap-3" role="separator" aria-label={label}>
       <span className="h-px flex-1 bg-surface-800" />
       <span className="text-[11px] font-medium uppercase tracking-wider text-surface-500">{label}</span>
       <span className="h-px flex-1 bg-surface-800" />

@@ -9,6 +9,7 @@ import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoTimelineEntries } from '@shared/components/illustrations';
 
 interface TimelineViewProps {
   workLog: WorkLog;
@@ -110,7 +111,7 @@ export function TimelineView({ workLog }: TimelineViewProps) {
       {entries.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<Clock size={32} className="text-surface-600" />}
+            illustration={<NoTimelineEntries />}
             title="No timeline entries yet"
             description="Start a timer session or add manual entries to build your day's story."
           />

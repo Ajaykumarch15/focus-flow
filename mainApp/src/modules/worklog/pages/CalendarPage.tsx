@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, Search, Plus,
   Calendar as CalendarIcon, Star, Users, Bell,
-  ArrowLeft, CalendarDays,
+  ArrowLeft,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
@@ -16,6 +16,7 @@ import { QuickCreatePopover } from '@worklog/components/calendar/QuickCreatePopo
 import { EventDetailsDrawer } from '@worklog/components/calendar/EventDetailsDrawer';
 import { CreateCalendarEventModal } from '@worklog/components/calendar/CreateCalendarEventModal';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoScheduledTasks } from '@shared/components/illustrations';
 import { Button } from '@shared/components/ui/Button';
 import type { CalendarEvent, CalendarView, CalendarEventType } from '@worklog/types/calendar';
 import { scheduleItemToCalendarEvent } from '@worklog/types/calendar';
@@ -404,7 +405,7 @@ export function CalendarPage() {
             className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
           >
             <EmptyState
-              icon={<CalendarDays size={40} className="text-surface-500" />}
+              illustration={<NoScheduledTasks />}
               title="No scheduled items"
               description="Your calendar is clear. Add a task, meeting, event, or reminder."
               action={

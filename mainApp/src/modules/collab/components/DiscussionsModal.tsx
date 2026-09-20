@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Loader2, MessageSquare, Send, CheckCircle2, Sparkles, X } from 'lucide-react';
+import { Loader2, MessageSquare, Send, CheckCircle2, X } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoDiscussions } from '@shared/components/illustrations';
 import { Textarea } from '@shared/components/ui/Textarea';
 
 export function DiscussionsModal({
@@ -78,7 +79,7 @@ export function DiscussionsModal({
             </div>
           ) : targetDiscussions.length === 0 ? (
             <EmptyState
-              icon={<Sparkles size={24} className="text-surface-600" />}
+              illustration={<NoDiscussions />}
               title="No discussions yet"
               description="Start an async thread by leaving a note or mentioning a teammate with @Name."
               className="text-center py-10 border border-dashed border-surface-800 rounded-xl p-6"

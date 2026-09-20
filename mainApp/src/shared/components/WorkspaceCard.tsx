@@ -81,7 +81,7 @@ export function WorkspaceCard({
     <motion.div
       variants={variants}
       whileHover={reduceMotion ? undefined : { y: -4, transition: { duration: 0.25, ease: 'easeOut' } }}
-      className={`group relative flex min-h-[180px] flex-col overflow-hidden rounded-3xl border border-white/15
+      className={`group relative flex min-h-[140px] flex-col overflow-hidden rounded-2xl border border-white/15
                   shadow-lg shadow-black/10 transition-[border-color] duration-300 hover:border-white/30
                   ${a.focusRing} ${className ?? ''}`}
     >
@@ -120,32 +120,32 @@ export function WorkspaceCard({
       />
 
       {/* Content */}
-      <div className="relative z-10 flex h-full flex-col p-6">
+      <div className="relative z-10 flex h-full flex-col p-4">
         {/* Category badges */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           {badges.map((badge, i) => (
             <span
               key={badge}
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/25 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-white/90 backdrop-blur-md"
+              className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/25 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white/90 backdrop-blur-md"
             >
-              {i === 0 && <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${a.dot}`} />}
+              {i === 0 && <span aria-hidden="true" className={`h-1 w-1 rounded-full ${a.dot}`} />}
               {badge}
             </span>
           ))}
         </div>
 
         {/* Bottom-anchored editorial content */}
-        <div className="mt-auto pt-24">
-          <h3 className="font-display text-2xl font-extrabold leading-tight tracking-tight text-white [text-shadow:0_1px_12px_rgba(0,0,0,0.35)]">
+        <div className="mt-auto pt-16">
+          <h3 className="font-display text-lg font-extrabold leading-tight tracking-tight text-white [text-shadow:0_1px_12px_rgba(0,0,0,0.35)]">
             {title}
           </h3>
 
           {/* Supporting information */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             {chips.map(chip => (
               <span
                 key={chip.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/85 backdrop-blur-md"
+                className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[10px] font-semibold text-white/85 backdrop-blur-md"
               >
                 {chip.icon}
                 {chip.label}
@@ -157,11 +157,11 @@ export function WorkspaceCard({
           <button
             type="button"
             onClick={onAction}
-            className={`mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 text-xs font-bold text-white backdrop-blur-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${a.actionHover}`}
+            className={`mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-[11px] font-bold text-white backdrop-blur-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${a.actionHover}`}
           >
             {actionLabel}
             <ArrowRight
-              size={16}
+              size={13}
               aria-hidden="true"
               className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
             />

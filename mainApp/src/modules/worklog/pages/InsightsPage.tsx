@@ -16,6 +16,7 @@ import {
 } from '@worklog/services/insightsSelectors';
 import { SkeletonCard } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NotEnoughData } from '@shared/components/illustrations';
 
 // ── PI-1.1/1.2/1.3/1.4/1.5: Personal Insights page (Phase PI) ─────────────────
 // Companion to Reports, not a replacement. Where Reports answers "what happened"
@@ -274,7 +275,7 @@ export function InsightsPage() {
       ) : !view.hasData && !week.hasData && !pattern.hasData && !task.hasData && !knowledge.hasData ? (
         <EmptyState
           className="rounded-2xl border border-surface-800 bg-surface-900"
-          icon={<Lightbulb size={28} />}
+          illustration={<NotEnoughData />}
           title="Not enough data yet."
           description="Start a focus session, complete a task, or write a journal entry and your daily, weekly, work-pattern, task, and knowledge insights will appear here."
           hint="Insights are generated only from real tracked data — nothing is guessed."

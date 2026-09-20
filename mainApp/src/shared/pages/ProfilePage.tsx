@@ -6,7 +6,7 @@ import { useAuthStore } from '@shared/services/useAuthStore';
 import { toast } from '@shared/services/useToastStore';
 import { Skeleton } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { UserX } from 'lucide-react';
+import { ProfileNotFound } from '@shared/components/illustrations';
 import {
   ProfileHeader,
   ProfileStatsGrid,
@@ -142,7 +142,7 @@ export function ProfilePage() {
         <div className="max-w-4xl mx-auto">
           <EmptyState
             className="rounded-2xl border border-surface-800 bg-surface-900/70 !py-16"
-            icon={<UserX size={28} />}
+            illustration={<ProfileNotFound />}
             title="Profile not found"
             description="This profile doesn't exist or isn't publicly visible."
           />

@@ -6,6 +6,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoFutureGoals } from '@shared/components/illustrations';
 import { FutureGoalQuickAdd } from '@personal/components/futureGoals/FutureGoalQuickAdd';
 import { FutureGoalCard } from '@personal/components/futureGoals/FutureGoalCard';
 import { FutureGoalReview } from '@personal/components/futureGoals/FutureGoalReview';
@@ -126,7 +127,7 @@ export function FutureGoalsPage() {
       {/* Empty state */}
       {!loading && !error && goals.length === 0 && (
         <EmptyState
-          icon={<Target size={40} className="text-violet-400" />}
+          illustration={<NoFutureGoals />}
           title="No future goals yet"
           description="Start capturing things you want to do, learn, or become someday. No pressure — just jot them down."
         />

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Plus, Search, X, SlidersHorizontal, ChevronDown,
+  Plus, X, SlidersHorizontal, ChevronDown,
   Folder, Users, LayoutGrid, BarChart3,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
@@ -11,6 +11,7 @@ import { CreateWorkspaceModal } from '@collab/components/CreateWorkspaceModal';
 import { Button } from '@shared/components/ui/Button';
 import { SkeletonCard } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoSearchResults, NoWorkspaces } from '@shared/components/illustrations';
 import { ErrorBoundary } from '@shared/components/ui/ErrorBoundary';
 import { WorkspaceCardNew } from '@shared/components/WorkspaceCardNew';
 import { cn } from '@shared/utils/cn';
@@ -342,7 +343,7 @@ export function WorkspaceListingPage() {
             </div>
           ) : filtered.length === 0 && workspaces.length > 0 ? (
             <EmptyState
-              icon={<Search size={28} />}
+              illustration={<NoSearchResults />}
               title="No workspaces found"
               description={typeFilters.length > 0 ? 'Try a different filter.' : 'No workspaces match your criteria.'}
               action={
@@ -355,7 +356,7 @@ export function WorkspaceListingPage() {
             />
           ) : workspaces.length === 0 ? (
             <EmptyState
-              icon={<Plus size={28} />}
+              illustration={<NoWorkspaces />}
               title="No workspaces yet"
               description={isAdmin ? "Create your first engineering workspace to start collaborating with your team." : "No workspaces have been created yet. Ask an admin to create one."}
               action={

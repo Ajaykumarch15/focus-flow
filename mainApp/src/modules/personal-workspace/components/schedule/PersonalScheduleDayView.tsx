@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, Clock, Calendar, CheckCircle2, Map as MapIcon } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Clock, Calendar, Map as MapIcon } from 'lucide-react';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingScheduledToday, NothingUpcoming } from '@shared/components/illustrations';
 import { Pagination } from '@shared/components/ui/Pagination';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
@@ -143,7 +144,7 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
         {todayTasks.length === 0 ? (
           <Card>
             <EmptyState
-              icon={<CheckCircle2 size={26} className="text-cyan-400" />}
+              illustration={<NothingScheduledToday />}
               title="Nothing scheduled for today"
               description="Use the + button to schedule tasks for today."
             />
@@ -175,7 +176,7 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
         {upcomingTasks.length === 0 ? (
           <Card>
             <EmptyState
-              icon={<ArrowRight size={26} className="text-violet-400" />}
+              illustration={<NothingUpcoming />}
               title="Nothing upcoming"
               description="Schedule tasks for future dates to see them here."
             />

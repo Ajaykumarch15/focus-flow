@@ -63,7 +63,7 @@ export function Login() {
         subtitle="Sign in to continue your focus journey"
         error={authError}
       >
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <AuthInput
             label="Email"
             name="email"
@@ -117,7 +117,7 @@ export function Login() {
         <AuthDivider label="or continue with" />
         <SocialAuthButton onClick={() => setShowHelpModal(true)} />
 
-        <p className="mt-6 text-center text-xs text-surface-400">
+        <p className="mt-4 text-center text-xs text-surface-400">
           Don't have an account?{' '}
           {PUBLIC_REGISTRATION_ENABLED ? (
             <Link to="/register" className="font-semibold text-brand-400 transition-colors hover:text-brand-300 hover:underline">

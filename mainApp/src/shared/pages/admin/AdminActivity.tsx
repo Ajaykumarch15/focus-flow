@@ -8,6 +8,7 @@ import { api } from '@shared/utils/api';
 import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoActivity } from '@shared/components/illustrations';
 
 const ACTION_LABELS: Record<string, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   'login':              { label: 'Logged in',          color: 'text-blue-400',    bg: 'bg-blue-500/10',    icon: Globe },
@@ -115,7 +116,7 @@ export function AdminActivity() {
 
       <Card className="divide-y divide-surface-800 max-h-[600px] overflow-y-auto scrollbar-thin">
         {activities.length === 0 && !loading ? (
-          <EmptyState icon={<Activity size={28} className="text-surface-600" />} title="No activity recorded yet" description="" className="!py-12" />
+           <EmptyState illustration={<NoActivity />} title="No activity recorded yet" description="" className="!py-12" />
         ) : activities.map((a: any) => <ActivityItem key={a._id} activity={a} />)}
         {loading && activities.length === 0 && (
           <div role="status" className="p-8 text-center"><Loader2 size={20} className="text-purple-400 animate-spin mx-auto" /></div>

@@ -64,64 +64,50 @@ export function HomePage() {
   const totalMembers = workspaces.reduce((sum, ws) => sum + (ws.membersCount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-6 relative overflow-x-hidden overflow-y-auto flex flex-col">
+    <div className="min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-5 relative overflow-x-hidden overflow-y-auto flex flex-col">
       
       {/* Background Decorative Gradients */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-[20%] left-[10%] w-48 h-48 rounded-full
-        bg-brand-400/[0.31] dark:bg-brand-400/[0.06] blur-3xl pointer-events-none" />
-      <div className="absolute top-[60%] left-[55%] w-40 h-40 rounded-[2rem] rotate-12
-        bg-info-400/[0.67] dark:bg-info-300/[0.05] blur-2xl pointer-events-none" />
-      <div className="absolute top-[75%] left-[5%] w-36 h-36 rounded-full
-        bg-success-400/[0.46] dark:bg-success-300/[0.10] blur-2xl pointer-events-none" />
-      <div className="absolute top-[10%] right-[15%] w-44 h-44 rounded-full
-        bg-brand-300/[0.07] dark:bg-brand-400/[0.05] blur-3xl pointer-events-none" />
-      <div className="absolute -top-12 -right-10 w-40 h-40 rounded-full
-        bg-brand-400/[0.70] dark:bg-brand-400/[0.06] blur-3xl pointer-events-none" />
-      <div className="absolute top-[45%] left-[30%] w-32 h-32 rounded-xl rotate-45
-        bg-info-300/[0.36] dark:bg-info-400/[0.04] blur-2xl pointer-events-none" />
-      <div className="absolute bottom-[10%] right-[10%] w-52 h-28 rounded-full
-        bg-brand-500/[0.66] dark:bg-brand-400/[0.04] blur-3xl pointer-events-none" />
+      <div className="absolute top-[20%] left-[10%] w-48 h-48 rounded-full bg-brand-400/[0.06] blur-3xl pointer-events-none" />
+      <div className="absolute top-[60%] left-[55%] w-40 h-40 rounded-[2rem] rotate-12 bg-info-400/[0.05] blur-2xl pointer-events-none" />
+      <div className="absolute bottom-[10%] right-[10%] w-52 h-28 rounded-full bg-brand-400/[0.04] blur-3xl pointer-events-none" />
       
       {/* Header Bar */}
       <header className="flex items-center justify-between max-w-6xl mx-auto w-full z-10 relative">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shadow-brand-500/20">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl overflow-hidden shadow-lg shadow-brand-500/20">
             <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full object-cover" />
           </div>
           <div>
-            <h1 className="font-display font-bold text-lg leading-none text-surface-50">FocusFlow</h1>
-            <p className="text-[11px] text-surface-400 font-medium mt-0.5">Developer Operating System</p>
+            <h1 className="font-display font-bold text-sm leading-none text-surface-50">FocusFlow</h1>
+            <p className="text-[10px] text-surface-400 font-medium mt-0.5">Developer Operating System</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <ThemeToggle />
-          <Badge tone="neutral" icon={<span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />} className="px-3.5 py-1.5 border border-surface-800">
+          <Badge tone="neutral" icon={<span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />} className="px-3 py-1 border border-surface-800 text-[11px]">
             {user?.name || 'Developer'}
           </Badge>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto w-full z-10 relative mt-8 flex-1">
+      <main className="max-w-5xl mx-auto w-full z-10 relative mt-5 flex-1">
         
         {/* Welcome Section */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="text-center space-y-2 mb-6">
-          <Badge tone="brand" className="px-3 py-1 uppercase tracking-widest border border-brand-500/20">
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="text-center space-y-1.5 mb-11">
+          <Badge tone="brand" className="px-2.5 py-0.5 uppercase tracking-widest border border-brand-500/20 text-[10px]">
             Homepage
           </Badge>
-          <h2 className="text-3xl sm:text-4xl font-display font-extrabold text-surface-50">
+          <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-surface-50">
             {getGreeting()}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-cyan-400">{user?.name || 'Ajay'}</span>
           </h2>
-          {/*<p className="text-sm text-surface-400 max-w-md mx-auto">
-            Choose where you want to work today. Switch between your personal productivity system and engineering workspaces anytime.
-          </p>*/}
         </motion.div>
 
         {/* Workspaces Grid */}
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
           <WorkspaceCard
             variants={itemVariants}
@@ -209,7 +195,7 @@ export function HomePage() {
       </main>
 
       {/* Footer */}
-        <footer className="text-center text-xs text-surface-400 z-10 relative pt-4 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full">
+      <footer className="text-center text-[10px] text-surface-400 z-10 relative pt-3 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full">
         FocusFlow Developer Workspace Platform · Personal & Team Collaboration Engine
       </footer>
 

@@ -30,9 +30,9 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 
 export function PersonalTodayPage() {
-  const { profile, activeTaskId, activeTimerState, dataLoading, dataError, loadAll } = useStore();
+  const { profile, dataLoading, dataError, loadAll } = useStore();
   const { tasks: personalTasks, fetchTasks: fetchPersonalTasks } = usePersonalTaskStore();
-  const { display } = useActiveTimer();
+  const { activeTimerState, activeTask, display, elapsedMs } = useActiveTimer();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
 
@@ -40,8 +40,6 @@ export function PersonalTodayPage() {
 
   const todayTasks = useMemo(() => getTodayTasks(personalTasks), [personalTasks]);
   const missedTasks = useMemo(() => getMissedTasks(personalTasks), [personalTasks]);
-
-  const activeTask = activeTaskId ? personalTasks.find((t) => t.id === activeTaskId) : null;
 
   const todayMs = useMemo(() => {
     const now = new Date();
@@ -52,8 +50,8 @@ export function PersonalTodayPage() {
         if (s.startTime >= sod) total += s.activeTime ?? 0;
       }
     }
-    return total;
-  }, [personalTasks]);
+    return total + elapsedMs;
+  }, [personalTasks, elapsedMs]);
 
   const completedToday = useMemo(() => {
     const sod = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();

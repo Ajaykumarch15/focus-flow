@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lightbulb, Plus, Trash2, Scale, BookOpen } from 'lucide-react';
+import { Lightbulb, Plus, Trash2, BookOpen } from 'lucide-react';
 import { WorkLog, useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoDecisions } from '@shared/components/illustrations';
 
 interface TechnicalDecisionsViewProps {
   workLog: WorkLog;
@@ -110,7 +111,7 @@ export function TechnicalDecisionsView({ workLog }: TechnicalDecisionsViewProps)
       {decisions.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<Scale size={32} className="text-surface-600" />}
+            illustration={<NoDecisions />}
             title="No technical decisions logged"
             description="Log architectural decisions, library choices, and trade-offs made during development."
           />

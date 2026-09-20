@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Timer, Layers, Briefcase, User, BookOpen, Heart, DollarSign, Palette, Users, HelpCircle, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { parallelTimerEngine, type TimerStateSnapshot } from '@worklog/services/parallelTimerEngine';
+import { timerEngine } from '@worklog/services/timerEngine';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoActiveTimers } from '@shared/components/illustrations';
 import { SkeletonCard } from '@shared/components/ui/Skeleton';
 import { KpiCounter } from '@shared/components/ui/KpiCounter';
 import { ActiveTimerCard } from '@timers/components/ActiveTimerCard';
@@ -38,6 +40,7 @@ export function ActiveTimersPage() {
   const [allTimers, setAllTimers] = useState<Map<string, TimerStateSnapshot>>(
     () => parallelTimerEngine.getAllSnapshots()
   );
+  const [legacySnapshot, setLegacySnapshot] = useState(() => timerEngine.getSnapshot());
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -45,16 +48,36 @@ export function ActiveTimersPage() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = parallelTimerEngine.subscribe((_, __, allSnapshots) => {
+    const unsubParallel = parallelTimerEngine.subscribe((_, __, allSnapshots) => {
       setAllTimers(new Map(allSnapshots));
     });
-    return unsubscribe;
+    const unsubLegacy = timerEngine.subscribe((snapshot) => {
+      setLegacySnapshot(snapshot);
+    });
+    return () => {
+      unsubParallel();
+      unsubLegacy();
+    };
   }, []);
 
-  const activeTimers = useMemo(
-    () => Array.from(allTimers.entries()).filter(([_, s]) => s.timerState !== 'idle'),
-    [allTimers]
-  );
+  const activeTimers = useMemo(() => {
+    const parallel = Array.from(allTimers.entries()).filter(([_, s]) => s.timerState !== 'idle');
+    // Include legacy single timer if active and not already in parallel map
+    if (legacySnapshot.taskId && legacySnapshot.timerState !== 'idle' && !allTimers.has(legacySnapshot.taskId)) {
+      parallel.push([legacySnapshot.taskId, {
+        taskId: legacySnapshot.taskId,
+        sessionId: legacySnapshot.sessionId,
+        timerState: legacySnapshot.timerState,
+        sessionStartTime: legacySnapshot.sessionStartTime,
+        totalPauseDuration: legacySnapshot.totalPauseDuration,
+        pauseStart: legacySnapshot.pauseStart,
+        baseElapsedMs: legacySnapshot.baseElapsedMs,
+        sessionKind: legacySnapshot.sessionKind,
+        lastUpdated: legacySnapshot.lastUpdated,
+      }]);
+    }
+    return parallel;
+  }, [allTimers, legacySnapshot]);
 
   const totalCount = activeTimers.length;
 
@@ -164,7 +187,7 @@ export function ActiveTimersPage() {
         <motion.div variants={fadeUp} initial="hidden" animate="show">
           <div className="rounded-2xl border border-surface-800 bg-surface-900">
             <EmptyState
-              icon={<Timer size={28} className="text-surface-400" />}
+              illustration={<NoActiveTimers />}
               title="No active timers"
               description="Start tracking a task to see it here. You can run multiple timers in parallel."
               action={

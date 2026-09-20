@@ -20,6 +20,7 @@ import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Skeleton } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingHereYet, NoActivityMatches } from '@shared/components/illustrations';
 import { Button } from '@shared/components/ui/Button';
 import { Select } from '@shared/components/ui/Select';
 import { formatTimeOfDay, formatRelativeTime, formatMs } from '@shared/utils/time';
@@ -181,7 +182,7 @@ export function PersonalActivityTimeline() {
         <PageHeader title="Personal Activity" description="Your recent engineering work" icon={<History size={18} className="text-brand-400" />} />
         <div className="rounded-3xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<History size={32} className="text-surface-600" />}
+            illustration={<NothingHereYet />}
             title="Nothing here yet"
             description="Start a focus session, add a journal note, or log work in a work log — this timeline will build itself from what you do."
           />
@@ -197,7 +198,7 @@ export function PersonalActivityTimeline() {
         <PageHeader title="Personal Activity" description="Your recent engineering work" icon={<History size={18} className="text-brand-400" />} />
         <div className="rounded-3xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<History size={32} className="text-surface-600" />}
+            illustration={<NoActivityMatches />}
             title="No activity matches these filters"
             description="Try a wider time range or clear the event-type filter."
             action={

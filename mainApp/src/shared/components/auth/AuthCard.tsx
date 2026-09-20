@@ -15,15 +15,15 @@ export function AuthCard({ title, subtitle, error, children }: AuthCardProps) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45 }}
-      className="rounded-3xl border border-surface-800 bg-surface-900 p-7 sm:p-8
-                 shadow-[0_10px_30px_-4px_rgba(15,23,42,0.06),0_4px_12px_-2px_rgba(15,23,42,0.03)]
-                 dark:shadow-[0_16px_50px_-12px_rgba(0,0,0,0.6),0_0_40px_-18px_var(--color-brand-500)]"
+      className="rounded-2xl border border-surface-800/60 bg-surface-900/80 backdrop-blur-sm p-5 sm:p-6
+                 shadow-[0_8px_24px_-6px_rgba(15,23,42,0.08)]"
+                 
     >
-      <div className="mb-6 text-center">
-        <h1 className="text-xl sm:text-2xl font-display font-extrabold tracking-tight text-surface-50">
+      <div className="mb-5 text-center">
+        <h1 className="text-lg sm:text-xl font-display font-extrabold tracking-tight text-surface-50">
           {title}
         </h1>
-        <p className="mt-1.5 text-xs sm:text-sm text-surface-400">{subtitle}</p>
+        <p className="mt-1 text-xs text-surface-400">{subtitle}</p>
       </div>
 
       {error && (
@@ -32,7 +32,7 @@ export function AuthCard({ title, subtitle, error, children }: AuthCardProps) {
           animate={{ opacity: 1, y: 0 }}
           role="alert"
           aria-live="assertive"
-          className="mb-5 flex items-start gap-2 rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-xs font-medium leading-relaxed text-danger-600 dark:text-danger-400"
+          className="mb-4 flex items-start gap-2 rounded-xl border border-danger-500/20 bg-danger-500/10 p-3 text-xs font-medium leading-relaxed text-danger-600 dark:text-danger-400"
         >
           <AlertCircle size={14} className="mt-0.5 shrink-0" />
           <span>{error}</span>

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft, Users, FolderOpen, LayoutGrid, Settings, Activity,
   ChevronRight, Folder, Plus, BookOpen, UserPlus, Kanban,
-  Clock, FileText,
+  Clock,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
@@ -368,18 +368,22 @@ export function WorkspaceHubPage() {
                 variants={fadeUp}
                 onClick={() => navigate(wsPath(sub))}
                 className={cn(
-                  'group/card relative flex flex-col rounded-2xl p-5 text-left',
+                  'group/card relative flex flex-col rounded-2xl p-5 text-left overflow-hidden',
                   'border', cardBorder, cardBg,
                   'backdrop-blur-sm shadow-sm transition-all duration-300 ease-snappy',
-                  'hover:shadow-md hover:-translate-y-0.5 cursor-pointer',
+                  'hover:shadow-lg hover:-translate-y-1 cursor-pointer',
                 )}
               >
+                {/* Gradient glow on hover */}
+                <div className="absolute inset-0 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none"
+                  style={{ background: `radial-gradient(circle at 30% 20%, ${iconColor === 'text-blue-500' ? '#3b82f6' : iconColor === 'text-emerald-500' ? '#10b981' : iconColor === 'text-violet-500' ? '#8b5cf6' : iconColor === 'text-amber-500' ? '#f59e0b' : '#f43f5e'}10, transparent 60%)` }} />
+
                 {/* Card illustration */}
                 <div className="absolute top-4 right-4 w-20 h-14 opacity-80 dark:opacity-60 group-hover/card:opacity-100 dark:group-hover/card:opacity-80 transition-opacity">
                   <CardIllustration type={id} />
                 </div>
 
-                <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl mb-3', iconBg)}>
+                <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl mb-3 transition-transform duration-300 group-hover/card:scale-110', iconBg)}>
                   <Icon size={18} className={iconColor} />
                 </div>
 
@@ -413,40 +417,42 @@ export function WorkspaceHubPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="lg:col-span-3 p-5"
+            className="lg:col-span-3"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-display text-sm font-bold text-surface-50 flex items-center gap-2">
-                <Clock size={15} className="text-surface-400" />
-                Recent Activity
-              </h3>
-              <button
-                onClick={() => navigate(wsPath('activity'))}
-                className="text-xs font-medium text-brand-500 hover:text-brand-400 transition-colors flex items-center gap-1"
-              >
-                View All <ChevronRight size={12} />
-              </button>
-            </div>
+            <div className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden">
+              <div className="px-5 pt-5 pb-3 flex items-center justify-between">
+                <h3 className="font-display text-sm font-bold text-surface-50 flex items-center gap-2.5">
+                  <div className="w-1 h-5 rounded-full bg-amber-500" />
+                  Recent Activity
+                </h3>
+                <button
+                  onClick={() => navigate(wsPath('activity'))}
+                  className="text-xs font-medium text-brand-500 hover:text-brand-400 transition-colors flex items-center gap-1"
+                >
+                  View All <ChevronRight size={12} />
+                </button>
+              </div>
 
-            <div className="space-y-1">
-              {activities.length === 0 ? (
-                <p className="text-sm text-surface-500 text-center py-8">No recent activity yet</p>
-              ) : (
-                activities.slice(0, 3).map((a) => (
-                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-850 dark:hover:bg-surface-800/40 transition-colors">
-                    <Avatar src={a.actor.avatar} name={a.actor.name} size="xs" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-surface-300 truncate">
-                        <span className="font-semibold text-surface-200">{a.actor.name}</span>{' '}
-                        {a.action.replace(/[._]/g, ' ')}
-                      </p>
+              <div className="px-3 pb-3 space-y-0.5">
+                {activities.length === 0 ? (
+                  <p className="text-sm text-surface-500 text-center py-8">No recent activity yet</p>
+                ) : (
+                  activities.slice(0, 3).map((a) => (
+                    <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-surface-800/50 transition-colors group cursor-pointer">
+                      <Avatar src={a.actor.avatar} name={a.actor.name} size="xs" className="ring-2 ring-surface-800" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-surface-300 truncate">
+                          <span className="font-semibold text-surface-200">{a.actor.name}</span>{' '}
+                          {a.action.replace(/[._]/g, ' ')}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-surface-500 flex-shrink-0 whitespace-nowrap tabular-nums">
+                        {timeAgo(a.timestamp)}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-surface-500 flex-shrink-0 whitespace-nowrap">
-                      {timeAgo(a.timestamp)}
-                    </span>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </motion.div>
 
@@ -455,41 +461,45 @@ export function WorkspaceHubPage() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="lg:col-span-2 p-5"
+            className="lg:col-span-2"
           >
-            <h3 className="font-display text-sm font-bold text-surface-50 flex items-center gap-2 mb-4">
-              <FileText size={15} className="text-surface-400" />
-              Quick Links
-            </h3>
+            <div className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden h-full flex flex-col">
+              <div className="px-5 pt-5 pb-3">
+                <h3 className="font-display text-sm font-bold text-surface-50 flex items-center gap-2.5">
+                  <div className="w-1 h-5 rounded-full bg-brand-500" />
+                  Quick Links
+                </h3>
+              </div>
 
-            <div className="space-y-2">
-              {QUICK_LINKS.map(({ label, icon: LinkIcon, color, bg }) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    if (label === 'Create New Project') navigate(wsPath('projects'));
-                    else if (label === 'View Documentation') navigate(wsPath('projects'));
-                    else if (label === 'Invite Members') navigate(wsPath('people'));
-                    else if (label === 'Open Kanban Board') navigate(wsPath('projects'));
-                  }}
-                  className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-xl',
-                    'border border-surface-800/60 bg-surface-850 dark:bg-surface-800/20',
-                    'hover:bg-surface-800 dark:hover:bg-surface-800/50 hover:border-surface-700 transition-all duration-200',
-                    'group/link cursor-pointer',
-                  )}
-                >
-                  <div className={cn('h-8 w-8 flex items-center justify-center rounded-lg flex-shrink-0', bg)}>
-                    <LinkIcon size={15} className={color} />
-                  </div>
-                  <span className="text-xs font-semibold text-surface-200 flex-1 text-left">{label}</span>
-                  <ChevronRight size={14} className="text-surface-500 group-hover/link:text-surface-300 group-hover/link:translate-x-0.5 transition-all" />
-                </button>
-              ))}
-            </div>
+              <div className="px-3 pb-3 space-y-1 flex-1">
+                {QUICK_LINKS.map(({ label, icon: LinkIcon, color, bg }) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      if (label === 'Create New Project') navigate(wsPath('projects'));
+                      else if (label === 'View Documentation') navigate(wsPath('projects'));
+                      else if (label === 'Invite Members') navigate(wsPath('people'));
+                      else if (label === 'Open Kanban Board') navigate(wsPath('projects'));
+                    }}
+                    className={cn(
+                      'w-full flex items-center gap-3 p-3 rounded-xl',
+                      'border border-transparent',
+                      'hover:bg-surface-800/50 hover:border-surface-800 transition-all duration-200',
+                      'group/link cursor-pointer',
+                    )}
+                  >
+                    <div className={cn('h-9 w-9 flex items-center justify-center rounded-xl flex-shrink-0 transition-transform duration-200 group-hover/link:scale-110', bg)}>
+                      <LinkIcon size={16} className={color} />
+                    </div>
+                    <span className="text-xs font-semibold text-surface-200 flex-1 text-left group-hover/link:text-surface-50 transition-colors">{label}</span>
+                    <ChevronRight size={14} className="text-surface-600 group-hover/link:text-surface-400 group-hover/link:translate-x-0.5 transition-all" />
+                  </button>
+                ))}
+              </div>
 
-            <div className="mt-4 pt-3 border-t border-surface-800/60 text-center">
-              <p className="text-[11px] text-surface-500 italic">"Small steps build great structures."</p>
+              <div className="mx-5 mb-5 pt-3 border-t border-surface-800/60 text-center">
+                <p className="text-[11px] text-surface-500 italic">"Small steps build great structures."</p>
+              </div>
             </div>
           </motion.div>
         </div>

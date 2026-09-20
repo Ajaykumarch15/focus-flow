@@ -6,6 +6,7 @@ import { api } from '@shared/utils/api';
 import type { SearchResults, SearchResultItem } from '@collab/types/collaboration';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { StartSearching, NoSearchResults } from '@shared/components/illustrations';
 
 const SECTION_ICONS: Record<SearchResultItem['kind'], ReactNode> = {
   project: <FolderOpen size={14} className="text-brand-400" />,
@@ -111,21 +112,20 @@ export function SearchResultsPage() {
 
       {!q ? (
         <EmptyState
-          icon={<Search size={28} className="text-surface-500" />}
+          illustration={<StartSearching />}
           title="Start searching"
           description="Type a query above to search across your workspace."
         />
       ) : !loading && totalResults === 0 ? (
         <EmptyState
-          icon={<Search size={28} className="text-surface-500" />}
+          illustration={<NoSearchResults />}
           title="No results found"
           description={`No results found for "${q}".`}
-        />
-      ) : (
+        />      ) : (
         <div className="space-y-6">
           {facets.length === 0 && !loading && (
             <EmptyState
-              icon={<Search size={28} className="text-surface-500" />}
+              illustration={<NoSearchResults />}
               title="No results found"
               description={`No results found for "${q}".`}
             />

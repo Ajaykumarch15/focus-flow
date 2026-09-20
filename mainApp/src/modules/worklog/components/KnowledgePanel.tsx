@@ -12,6 +12,7 @@ import { selectKnowledge, filterKnowledge, type KnowledgeDecision, type Knowledg
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoKnowledge, NoSearchResults } from '@shared/components/illustrations';
 import { Skeleton } from '@shared/components/ui/Skeleton';
 import { Input } from '@shared/components/ui/Input';
 
@@ -229,7 +230,7 @@ export function KnowledgePanel({
       {!showError && !hasData && !searching && (
         <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
           <EmptyState
-            icon={<BookOpen size={28} className="text-surface-600" />}
+            illustration={<NoKnowledge />}
             title="No knowledge captured yet"
             description="Capture a decision or lesson in your work log — or add a knowledge doc in a workspace — and it will surface here."
           />
@@ -240,7 +241,7 @@ export function KnowledgePanel({
       {!showError && searching && filtered.total === 0 && (
         <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
           <EmptyState
-            icon={<Search size={24} className="text-surface-500" />}
+            illustration={<NoSearchResults />}
             title="No knowledge matches"
             description={`Nothing in your docs, decisions, lessons, or links matches "${query.trim()}".`}
             action={

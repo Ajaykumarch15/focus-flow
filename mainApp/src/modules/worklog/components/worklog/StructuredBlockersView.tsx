@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertOctagon, Plus, Trash2, ShieldAlert } from 'lucide-react';
+import { AlertOctagon, Plus, Trash2 } from 'lucide-react';
 import { WorkLog, StructuredBlocker, useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
@@ -9,6 +9,7 @@ import { Select } from '@shared/components/ui/Select';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoBlockers } from '@shared/components/illustrations';
 
 interface StructuredBlockersViewProps {
   workLog: WorkLog;
@@ -119,7 +120,7 @@ export function StructuredBlockersView({ workLog }: StructuredBlockersViewProps)
       {blockers.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-surface-800 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<ShieldAlert size={32} className="text-emerald-500/60" />}
+            illustration={<NoBlockers />}
             title="No active blockers"
             description="Great progress! No impediments recorded for this work item."
           />

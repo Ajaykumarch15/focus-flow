@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@shared/components/ui/Button';
+import { NotFoundIllustration } from '@shared/components/illustrations';
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 // Theme source of truth = the `dark` class actually rendered on <html> (the
@@ -67,14 +68,8 @@ export function NotFoundPage() {
             </p>
           </div>
         ) : (
-          /* LIGHT — the existing illustration IS the visual */
-          <img
-            src="/404.png"
-            alt=""
-            aria-hidden="true"
-            draggable={false}
-            className="w-[90%] max-w-[500px] lg:max-w-[760px] h-auto object-contain select-none pointer-events-none"
-          />
+          /* LIGHT — illustration */
+          <NotFoundIllustration size={400} className="text-surface-900" />
         )}
 
         <Link to="/" aria-label="Go to the FocusFlow home page">

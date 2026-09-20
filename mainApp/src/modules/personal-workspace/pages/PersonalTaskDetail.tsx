@@ -16,6 +16,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { TaskNotFound } from '@shared/components/illustrations';
 import { PauseCapturePanel } from '@worklog/components/focus/PauseCapturePanel';
 import { CompletionPromptPanel } from '@worklog/components/focus/CompletionPromptPanel';
 import { CircularTimer } from '@personal/components/focus/CircularTimer';
@@ -71,7 +72,7 @@ export function PersonalTaskDetail() {
     return (
       <div className="p-6 flex items-center justify-center h-full">
         <EmptyState
-          icon={<Circle size={28} className="text-surface-600" />}
+          illustration={<TaskNotFound />}
           title="Task not found"
           description="This task may have been deleted."
           action={<Button onClick={() => navigate('/personal/tasks')} size="lg">Back to Tasks</Button>}
