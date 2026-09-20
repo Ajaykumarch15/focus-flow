@@ -367,7 +367,7 @@ export function TodayPage() {
               <span className="text-xs font-semibold text-surface-300">Total Tasks</span>
               <CheckSquare size={14} className="text-purple-400" />
             </div>
-            <p className="text-2xl font-display font-extrabold text-surface-50">{view.stats.totalCount}</p>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{tasks.length}</p>
             <p className="text-[11px] text-surface-500 mt-1">{view.stats.completedToday} completed today</p>
           </Card>
         </motion.div>
