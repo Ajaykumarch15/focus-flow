@@ -9,6 +9,7 @@ import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 import { cn } from '@shared/utils/cn';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoWorkspaceMembers, NoSearchResults, NoUsersFound } from '@shared/components/illustrations';
 import { PersonCard } from '@collab/components/people/PersonCard';
 import { PersonDetailsDrawer } from '@collab/components/people/PersonDetailsDrawer';
 import { InvitePeopleModal } from '@collab/components/people/InvitePeopleModal';
@@ -326,7 +327,7 @@ export function ProjectPeoplePage() {
                   className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
                 >
                   <EmptyState
-                    icon={<UsersRound size={40} className="text-surface-500" />}
+                    illustration={<NoWorkspaceMembers />}
                     title="No teams yet"
                     description="Create teams to organize project members into groups."
                   />
@@ -432,7 +433,7 @@ export function ProjectPeoplePage() {
                       className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
                     >
                       <EmptyState
-                        icon={<Search size={40} className="text-surface-500" />}
+                        illustration={<NoSearchResults />}
                         title="No results found"
                         description="Try adjusting your search."
                       />
@@ -453,7 +454,7 @@ export function ProjectPeoplePage() {
                   className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
                 >
                   <EmptyState
-                    icon={<Users size={40} className="text-surface-500" />}
+                    illustration={<NoWorkspaceMembers />}
                     title="No team members yet"
                     description="No members are assigned to this project."
                   />
@@ -465,7 +466,7 @@ export function ProjectPeoplePage() {
                   className="rounded-3xl border border-dashed border-surface-700 bg-surface-900/60"
                 >
                   <EmptyState
-                    icon={<Search size={40} className="text-surface-500" />}
+                    illustration={<NoUsersFound />}
                     title="No people found"
                     description="Try adjusting your search or filters."
                   />

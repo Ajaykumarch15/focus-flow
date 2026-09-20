@@ -10,7 +10,6 @@ import {
   Timer,
   Rocket,
   LayoutGrid,
-  CalendarDays,
   Bell,
   Sparkles,
   Inbox,
@@ -31,6 +30,7 @@ import { SortableScheduleCard } from '@worklog/components/schedule/SortableSched
 import { Button } from '@shared/components/ui/Button';
 import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoScheduledTasks, NoScheduledThisWeek } from '@shared/components/illustrations';
 import { calculateScheduleMetrics, formatMinutes, timeToMinutes } from '@worklog/services/scheduleAnalytics';
 import type { DerivedScheduleState, Task } from '@shared/types';
 import { deriveScheduleState as deriveState } from '@shared/hooks/useScheduleEvaluator';
@@ -692,7 +692,7 @@ export function SchedulePage() {
         <>
           {daySchedules.length === 0 ? (
             <EmptyState
-              icon={<CalendarIcon size={24} />}
+              illustration={<NoScheduledTasks />}
               title="No scheduled tasks"
               description="Schedule your tasks to plan focused work sessions for this day."
               action={
@@ -884,7 +884,7 @@ export function SchedulePage() {
 
           {weekSchedules.length === 0 ? (
             <EmptyState
-              icon={<CalendarDays size={24} />}
+              illustration={<NoScheduledThisWeek />}
               title="No scheduled tasks this week"
               description="Schedule tasks across the week to plan ahead."
             />

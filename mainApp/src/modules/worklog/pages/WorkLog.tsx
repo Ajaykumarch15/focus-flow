@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Plus, Trash2,
-  Link2, BookMarked,
+  Link2,
   ChevronDown,
   CheckCheck, RotateCcw, X, Clock,
   Play,
@@ -20,6 +20,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Skeleton } from '@shared/components/ui/Skeleton';
 import { Button } from '@shared/components/ui/Button';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoWorkLogs, NoMatchingLogs } from '@shared/components/illustrations';
 import { Input } from '@shared/components/ui/Input';
 import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
@@ -466,7 +467,7 @@ export function WorkLogPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="rounded-2xl border border-dashed border-surface-300 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 overflow-hidden">
           <EmptyState
-            icon={<BookMarked size={28} className="text-brand-400" />}
+            illustration={<NoWorkLogs />}
             title="No work logs yet"
             description="Create a work log for any feature, bug, or task. Link it to a task to unlock timer controls and automatic time tracking."
             action={
@@ -480,7 +481,7 @@ export function WorkLogPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="rounded-2xl border border-dashed border-surface-300 dark:border-surface-700 bg-surface-50 dark:bg-surface-900/50 overflow-hidden">
           <EmptyState
-            icon={<Search size={24} className="text-surface-500" />}
+            illustration={<NoMatchingLogs />}
             title="No matching logs"
             description={`No logs match "${search}".`}
             action={

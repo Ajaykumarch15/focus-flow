@@ -101,7 +101,7 @@ export function Register() {
         subtitle="Start your focused journey"
         error={friendlyError()}
       >
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-3">
           <AuthInput
             label="Name"
             name="name"
@@ -159,7 +159,7 @@ export function Register() {
         <AuthDivider label="or continue with" />
         <SocialAuthButton />
 
-        <p className="mt-6 text-center text-xs text-surface-400">
+        <p className="mt-4 text-center text-xs text-surface-400">
           Already have an account?{' '}
           <Link to="/login" className="font-semibold text-brand-400 transition-colors hover:text-brand-300 hover:underline">
             Sign In

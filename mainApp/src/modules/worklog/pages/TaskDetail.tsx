@@ -20,6 +20,7 @@ import { Textarea } from '@shared/components/ui/Textarea';
 
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { TaskNotFound } from '@shared/components/illustrations';
 import { RichContent } from '@shared/components/ui/RichContent';
 import { TaskContinuationPanel } from '@personal/components/TaskContinuationPanel';
 import { LinkedRoadmapCard } from '@personal/components/roadmap/LinkedRoadmapCard';
@@ -61,7 +62,7 @@ export function TaskDetail() {
     return (
       <div className="p-6 flex items-center justify-center h-full">
         <EmptyState
-          icon={<Circle size={28} className="text-surface-600" />}
+          illustration={<TaskNotFound />}
           title="Task not found"
           description="This task may have been deleted."
           action={<Button onClick={() => navigate('/worklog/tasks')} size="lg">Back to Tasks</Button>}

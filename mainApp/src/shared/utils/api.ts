@@ -941,5 +941,43 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  chat: {
+    listConversations: (workspaceId: string) =>
+      request<any[]>(`/chat/conversations?workspaceId=${encodeURIComponent(workspaceId)}`),
+    createConversation: (data: { workspaceId: string; participantIds: string[]; name?: string; description?: string }) =>
+      request<any>('/chat/conversations', { method: 'POST', body: JSON.stringify(data) }),
+    getConversation: (id: string) => request<any>(`/chat/conversations/${id}`),
+    getParticipants: (conversationId: string) =>
+      request<any[]>(`/chat/conversations/${conversationId}/participants`),
+    getUnreadCount: (conversationId: string) =>
+      request<{ count: number }>(`/chat/conversations/${conversationId}/unread-count`),
+    getMessages: (conversationId: string, opts?: { limit?: number; before?: string }) => {
+      const params = new URLSearchParams();
+      if (opts?.limit) params.set('limit', String(opts.limit));
+      if (opts?.before) params.set('before', opts.before);
+      const qs = params.toString() ? '?' + params.toString() : '';
+      return request<any[]>(`/chat/conversations/${conversationId}/messages${qs}`);
+    },
+    sendMessage: (conversationId: string, content: string, replyTo?: string) =>
+      request<any>(`/chat/conversations/${conversationId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content, replyTo }),
+      }),
+    editMessage: (conversationId: string, messageId: string, content: string) =>
+      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content }),
+      }),
+    deleteMessage: (conversationId: string, messageId: string) =>
+      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE' }),
+    toggleReaction: (conversationId: string, messageId: string, emoji: string) =>
+      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}/reactions`, {
+        method: 'POST',
+        body: JSON.stringify({ emoji }),
+      }),
+    markRead: (conversationId: string) =>
+      request<any>(`/chat/conversations/${conversationId}/read`, { method: 'PATCH' }),
+  },
 };
 

@@ -5,12 +5,14 @@
  * Allows quick pause/stop for any running timer.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, Square, Layers } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { parallelTimerEngine, TimerStateSnapshot } from '@worklog/services/parallelTimerEngine';
+import { timerEngine } from '@worklog/services/timerEngine';
 import { Button } from '@shared/components/ui/Button';
+import { formatDuration } from '@shared/utils/time';
 
 interface ActiveTimerItemProps {
   taskId: string;
@@ -21,20 +23,27 @@ interface ActiveTimerItemProps {
 }
 
 function ActiveTimerItem({ taskId, snapshot, onPause, onResume, onStop }: ActiveTimerItemProps) {
-  const [elapsed, setElapsed] = useState(() =>
-    parallelTimerEngine.getFormattedDisplay(taskId)
-  );
+  const [tick, setTick] = useState(0);
   const { tasks } = useStore();
 
   const task = tasks.find((t) => t.id === taskId);
   const title = task?.title ?? 'Unknown Task';
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsed(parallelTimerEngine.getFormattedDisplay(taskId));
-    }, 1000);
+    if (snapshot.timerState !== 'running') return;
+    const interval = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(interval);
-  }, [taskId]);
+  }, [snapshot.timerState]);
+
+  const elapsed = useMemo(() => {
+    const now = Date.now();
+    const live = snapshot.timerState === 'running'
+      ? now - snapshot.sessionStartTime - snapshot.totalPauseDuration
+      : snapshot.timerState === 'paused' && snapshot.pauseStart
+        ? snapshot.pauseStart - snapshot.sessionStartTime - snapshot.totalPauseDuration
+        : 0;
+    return formatDuration(snapshot.baseElapsedMs + live);
+  }, [snapshot, tick]);
 
   const isRunning = snapshot.timerState === 'running';
   const isPaused = snapshot.timerState === 'paused';
@@ -102,33 +111,66 @@ export function ActiveTimersBar() {
   const [allTimers, setAllTimers] = useState<Map<string, TimerStateSnapshot>>(
     () => parallelTimerEngine.getAllSnapshots()
   );
+  const [legacySnapshot, setLegacySnapshot] = useState(() => timerEngine.getSnapshot());
 
   // Subscribe to timer updates
   useEffect(() => {
-    const unsubscribe = parallelTimerEngine.subscribe((_, __, allSnapshots) => {
+    const unsubParallel = parallelTimerEngine.subscribe((_, __, allSnapshots) => {
       setAllTimers(new Map(allSnapshots));
     });
-    return unsubscribe;
+    const unsubLegacy = timerEngine.subscribe((snapshot) => {
+      setLegacySnapshot(snapshot);
+    });
+    return () => {
+      unsubParallel();
+      unsubLegacy();
+    };
   }, []);
 
-  // Filter to only running/paused timers
-  const activeTimers = Array.from(allTimers.entries()).filter(
-    ([_, snapshot]) => snapshot.timerState !== 'idle'
-  );
+  // Merge parallel + legacy into one list (avoid duplicates)
+  const activeTimers = useMemo(() => {
+    const parallel = Array.from(allTimers.entries()).filter(
+      ([_, snapshot]) => snapshot.timerState !== 'idle'
+    );
+    if (legacySnapshot.taskId && legacySnapshot.timerState !== 'idle' && !allTimers.has(legacySnapshot.taskId)) {
+      parallel.push([legacySnapshot.taskId, {
+        taskId: legacySnapshot.taskId,
+        sessionId: legacySnapshot.sessionId,
+        timerState: legacySnapshot.timerState,
+        sessionStartTime: legacySnapshot.sessionStartTime,
+        totalPauseDuration: legacySnapshot.totalPauseDuration,
+        pauseStart: legacySnapshot.pauseStart,
+        baseElapsedMs: legacySnapshot.baseElapsedMs,
+        sessionKind: legacySnapshot.sessionKind,
+        lastUpdated: legacySnapshot.lastUpdated,
+      }]);
+    }
+    return parallel;
+  }, [allTimers, legacySnapshot]);
 
   const handlePause = useCallback((taskId: string) => {
-    const { pauseParallelTimer } = useStore.getState();
-    pauseParallelTimer(taskId);
+    // Route to legacy or parallel engine based on which one owns this task
+    if (timerEngine.getActiveTaskId() === taskId && timerEngine.getState() !== 'idle') {
+      useStore.getState().pauseTimer(taskId);
+    } else {
+      useStore.getState().pauseParallelTimer(taskId);
+    }
   }, []);
 
   const handleResume = useCallback((taskId: string) => {
-    const { resumeParallelTimer } = useStore.getState();
-    resumeParallelTimer(taskId);
+    if (timerEngine.getActiveTaskId() === taskId && timerEngine.getState() !== 'idle') {
+      useStore.getState().resumeTimer(taskId);
+    } else {
+      useStore.getState().resumeParallelTimer(taskId);
+    }
   }, []);
 
   const handleStop = useCallback((taskId: string) => {
-    const { stopParallelTimer } = useStore.getState();
-    stopParallelTimer(taskId);
+    if (timerEngine.getActiveTaskId() === taskId && timerEngine.getState() !== 'idle') {
+      useStore.getState().stopTimer(taskId);
+    } else {
+      useStore.getState().stopParallelTimer(taskId);
+    }
   }, []);
 
   if (activeTimers.length === 0) {

@@ -12,6 +12,7 @@ import {
 import { formatHours } from '@shared/utils/time';
 import { SkeletonStatCard, SkeletonChart } from '@shared/components/ui/Skeleton';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoAnalytics } from '@shared/components/illustrations';
 import {
   computeRangeStats,
   computeCategoryBreakdown,
@@ -151,7 +152,7 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
     return (
       <EmptyState
         className="rounded-2xl border border-surface-800 bg-surface-900"
-        icon={<BarChart3 size={28} />}
+        illustration={<NoAnalytics />}
         title="No Tracked Time Yet"
         description="Start tracking focus sessions to see your productivity analytics, time distribution, and performance insights."
         hint="Start a timer on any task to begin collecting data"

@@ -1,14 +1,16 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
   X, ArrowUpDown, ListTodo, Clock, CheckCircle, Flame,
-  Eye, EyeOff,
+  Eye, EyeOff, LayoutGrid, List,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useStore } from '@worklog/services/useStore';
 import { cn } from '@shared/utils/cn';
 import { TaskCard } from '@worklog/components/tasks/TaskCard';
+import { TaskListView } from '@worklog/components/tasks/TaskListView';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
@@ -28,6 +30,7 @@ const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transi
 const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
 
 export function Tasks() {
+  const navigate = useNavigate();
   const {
     tasks,
     selectedTaskIds, toggleTaskSelection, selectAllTasks, clearTaskSelection,
@@ -44,6 +47,7 @@ export function Tasks() {
   const [currentPage, setCurrentPage] = useState(1);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const containerRef = useRef<HTMLDivElement>(null);
 
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -304,6 +308,31 @@ export function Tasks() {
                 <option value="priority">Priority</option>
               </select>
             </div>
+            <div className="flex-1" />
+            <div className="inline-flex bg-surface-800 border border-surface-700 rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setView('grid')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+                  view === 'grid' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                )}
+              >
+                <LayoutGrid size={13} />
+                Grid
+              </button>
+              <button
+                type="button"
+                onClick={() => setView('list')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
+                  view === 'list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
+                )}
+              >
+                <List size={13} />
+                List
+              </button>
+            </div>
           </motion.div>
 
           {/* Filters Row 2: Status tabs */}
@@ -386,6 +415,12 @@ export function Tasks() {
 
           {/* Task List */}
           {sorted.length > 0 ? (
+            view === 'list' ? (
+              <TaskListView
+                tasks={sorted}
+                onTaskClick={(id) => navigate(`/worklog/tasks/${id}`)}
+              />
+            ) : (
             <>
               <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
                 <AnimatePresence mode="popLayout">
@@ -422,6 +457,7 @@ export function Tasks() {
                 onPageChange={setCurrentPage}
               />
             </>
+            )
           ) : (
             <EmptyState
               illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}

@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Search, X, LayoutList, BookMarked } from 'lucide-react';
+import { ArrowLeft, Search, X, LayoutList } from 'lucide-react';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import { WorkLogDetailPanel } from './WorkLogDetailPanel';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { WorkLogNotFound } from '@shared/components/illustrations';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 
@@ -43,7 +44,7 @@ export function WorkLogMasterDetail({ logs, selectedId, onSelect, onBack }: {
         </motion.button>
         <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden">
           <EmptyState
-            icon={<BookMarked size={40} className="text-surface-600" />}
+            illustration={<WorkLogNotFound />}
             title="Work log not found"
             description="This work log may have been deleted."
             action={<Button variant="secondary" onClick={onBack} leftIcon={<ArrowLeft size={14} />}>Back to Work Logs</Button>}

@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Users, Search, BookMarked,
+  Users, Search,
   GitBranch, ArrowLeft,
   Trash2, Edit2, X, Check, ShieldCheck, ShieldAlert, AlertTriangle,
   Trash, RotateCcw, UserPlus, Mail, User, Lock, EyeOff,
@@ -26,6 +26,7 @@ import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoWorkLogs, NoMemberships, NoUsersFound } from '@shared/components/illustrations';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -541,7 +542,7 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
                 <span>{log.completedItems?.length || 0} completed</span>
               </div>
             </Card>
-          )) : <EmptyState icon={<BookMarked size={28} className="text-surface-600" />} title="No work logs" description="" />}
+          )) : <EmptyState illustration={<NoWorkLogs />} title="No work logs" description="" />}
         </div>
       )}
 
@@ -553,7 +554,7 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
             </div>
           ) : workspaces.length === 0 ? (
             <EmptyState
-              icon={<Building2 size={28} className="text-surface-600" />}
+              illustration={<NoMemberships />}
               title="No workspace memberships"
               description="This user is not a member of any workspace."
             />
@@ -861,7 +862,7 @@ export function AdminPeople() {
       {/* ── User Grid ── */}
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<Users size={32} className="text-surface-600" />}
+          illustration={<NoUsersFound />}
           title="No users found"
           description="Adjust your search or filters, or provision a new user."
           action={<Button leftIcon={<UserPlus size={14} />} onClick={() => setShowCreateUser(true)} className="text-xs font-bold">Provision New User</Button>}

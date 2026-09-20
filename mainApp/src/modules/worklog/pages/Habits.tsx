@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Activity, Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X, Flame, TrendingUp,
+  Check, Clock, Pause, Play, Plus, SmilePlus, Square, Target, Trash2, X, Flame, TrendingUp,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -14,6 +14,7 @@ import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoHabits } from '@shared/components/illustrations';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
 const FEELING_SCORES: Record<HabitFeeling, number> = { rough: 1, okay: 2, good: 3, great: 4, energized: 5 };
@@ -643,7 +644,7 @@ export function Habits() {
       ) : habits.length === 0 ? (
         <Card className="p-10 text-center">
           <EmptyState
-            icon={<Activity size={38} className="text-surface-600" />}
+            illustration={<NoHabits />}
             title="No habits yet"
             description="Create your first habit and track today in one place."
           />

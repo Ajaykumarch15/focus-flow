@@ -4,7 +4,7 @@ import { cn } from '@shared/utils/cn';
 
 interface EmptyStateProps {
   icon?: ReactNode;
-  illustration?: string;
+  illustration?: ReactNode;
   title: string;
   description: string;
   action?: ReactNode;
@@ -21,15 +21,8 @@ export function EmptyState({ icon, illustration, title, description, action, hin
       className={cn('flex flex-col items-center justify-center px-6 py-16 text-center', className)}
     >
       {illustration ? (
-        <div className="relative mb-5">
-          <img
-            src={illustration}
-            alt=""
-            aria-hidden="true"
-            loading="lazy"
-            draggable={false}
-            className="w-auto max-w-[180px] h-auto object-contain select-none pointer-events-none"
-          />
+        <div className="relative mb-5 flex items-center justify-center">
+          {illustration}
         </div>
       ) : icon ? (
         <div className="relative mb-5">

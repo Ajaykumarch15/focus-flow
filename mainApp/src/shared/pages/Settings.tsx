@@ -4,7 +4,7 @@ import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { api } from '@shared/utils/api';
 import {
-  Moon, Sun, Palette, User, Bell, Users, Cloud, Check, BellRing,
+  Moon, Sun, Palette, User, Users, Cloud, Check, BellRing,
   Shield, Database, Zap, Eye, AlertTriangle,
 } from 'lucide-react';
 import { ACCENT_PRESETS } from '@shared/utils/colors';
@@ -16,6 +16,7 @@ import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NotificationsBlocked } from '@shared/components/illustrations';
 import { BackupRestoreSection } from '@shared/components/BackupRestoreSection';
 
 const LOCAL_CACHE_KEYS = [
@@ -455,7 +456,7 @@ function NotificationSettingsSection({ onSaved }: { onSaved: () => void }) {
     return (
       <EmptyState
         className="rounded-xl border border-surface-800 bg-surface-850/50 !py-8"
-        icon={<Bell size={20} />}
+        illustration={<NotificationsBlocked />}
         title="Browser notifications are blocked"
         description="Enable them in your browser settings."
       />

@@ -31,15 +31,16 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
   const task = tasks.find((t) => t.id === taskId);
   const title = task?.title ?? 'Unknown Task';
 
+  const isRunning = snapshot.timerState === 'running';
+  const isPaused = snapshot.timerState === 'paused';
+
   useEffect(() => {
+    if (!isRunning) return;
     const interval = setInterval(() => {
       setElapsed(parallelTimerEngine.getFormattedDisplay(taskId));
     }, 1000);
     return () => clearInterval(interval);
-  }, [taskId]);
-
-  const isRunning = snapshot.timerState === 'running';
-  const isPaused = snapshot.timerState === 'paused';
+  }, [taskId, isRunning]);
 
   const handlePause = useCallback(() => {
     pauseParallelTimer(taskId);

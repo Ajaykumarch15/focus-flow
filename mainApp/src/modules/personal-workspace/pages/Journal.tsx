@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, BookOpen, Trash2, Search } from 'lucide-react';
+import { Plus, Trash2, Search } from 'lucide-react';
 import { TextEditor } from '@maple1521/rich-text-editor';
 import { RichContent } from '@shared/components/ui/RichContent';
 import { stripHtml } from '@shared/utils/htmlContent';
@@ -12,6 +12,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Select } from '@shared/components/ui/Select';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoJournalEntries } from '@shared/components/illustrations';
 import type { Mood } from '@shared/types';
 
 const MAX_CHARS = 20000;
@@ -157,7 +158,7 @@ export function Journal() {
           className="card"
         >
           <EmptyState
-            icon={<BookOpen size={36} className="text-surface-600" />}
+            illustration={<NoJournalEntries />}
             title="No journal entries yet"
             description="Start writing to track your progress and reflections"
           />

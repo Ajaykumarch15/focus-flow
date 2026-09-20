@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect, type ReactNode } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, BellRing, ArrowRight, ArrowUpRight, Map,
+  Play, Plus, AlertTriangle, Clock, CheckCircle, Zap, CheckSquare,
+  Target, ListTodo, BellRing, ArrowRight, TrendingUp, Map,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -26,10 +26,11 @@ import { Button } from '@shared/components/ui/Button';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingNeedsAttention } from '@shared/components/illustrations';
 import { Progress } from '@shared/components/ui/Progress';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { formatHours, formatMs } from '@shared/utils/time';
-import { KpiCounter } from '@shared/components/ui/KpiCounter';
+
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
 import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
 import { RightSidebar } from '@personal/components/RightSidebar';
@@ -66,14 +67,14 @@ function reasonTone(item: DoNowItem): BadgeTone {
 
 export function TodayPage() {
   const {
-    tasks, profile, theme, activeTaskId, activeSessionId, activeTimerState,
+    tasks, profile, theme,
     dataLoading, dataError, getTodayTime, getWeekTime, loadAll, startParallelTimer,
   } = useStore();
   const { user } = useAuthStore();
   const { activeLogs } = useWorkLogStore();
   const { blockers, tasks: collabTasks, sprints, projects } = useCollaborationStore();
   const { roadmaps, loadRoadmaps } = useRoadmapStore();
-  const { display } = useActiveTimer();
+  const { activeTaskId, activeSessionId, activeTimerState, activeTask, display } = useActiveTimer();
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [todayMilestones, setTodayMilestones] = useState<TodayMilestone[]>([]);
@@ -123,7 +124,6 @@ export function TodayPage() {
     now: Date.now(),
   }), [tasks, activeTaskId, activeSessionId, activeLogs, blockers, reviews, deadlines, todayMs, weekMs, dailyGoalMs]);
 
-  const activeTask = activeTaskId ? tasks.find((t) => t.id === activeTaskId) : null;
   const firstName = profile.name.trim().split(' ')[0] || 'there';
   const remainingMs = view.stats.progressPct !== null ? Math.max(0, dailyGoalMs - todayMs) : null;
 
@@ -319,14 +319,58 @@ export function TodayPage() {
         )}
       </AnimatePresence>
 
-      {/* ═══════════════ KEY METRICS ═══════════════ */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Stat icon={<Clock size={18} style={{ color: accent }} />} label="Today's Focus Time" value={formatHours(todayMs)}
-          sub={`Target: ${profile.dailyGoal}h`} color={accent} />
-        <Stat icon={<CheckCircle size={18} className="text-emerald-400" />} label="Completed Today"
-          value={String(view.stats.completedToday)} sub="Tasks done" color="#3b82f6" />
-        <Stat icon={<ListTodo size={18} className="text-violet-400" />} label="Scheduled Today"
-          value={String(view.stats.activeCount)} sub="Tasks planned" color="#a855f7" />
+      {/* ═══════════════ KEY METRICS - Stat Cards ═══════════════ */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
+        {[
+          { label: "Today's Focus", value: formatHours(todayMs), icon: Clock, color: accent, borderClass: 'border-t-sky-500' },
+          { label: 'Completed Today', value: String(view.stats.completedToday), icon: CheckCircle, color: '#10b981', borderClass: 'border-t-emerald-500' },
+          { label: 'Scheduled Today', value: String(view.stats.activeCount), icon: ListTodo, color: '#8b5cf6', borderClass: 'border-t-purple-500' },
+          { label: 'Overdue', value: String(view.stats.overdueCount), icon: AlertTriangle, color: '#ef4444', borderClass: 'border-t-red-500' },
+        ].map(({ label, value, icon: Icon, color, borderClass }) => (
+          <motion.div key={label} variants={fadeUp}>
+            <Card className={`p-4 border-t-[3px] ${borderClass}`}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <Icon size={13} style={{ color }} />
+                <span className="text-[11px] text-surface-400 font-medium">{label}</span>
+              </div>
+              <p className="text-lg font-display font-bold text-surface-50">{value}</p>
+            </Card>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Task Breakdown */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-3 z-10 relative">
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-emerald-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">Completion Rate</span>
+              <TrendingUp size={14} className="text-emerald-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{view.stats.progressPct ?? 0}%</p>
+            <Progress value={view.stats.progressPct ?? 0} tone="success" className="mt-2 h-1.5" />
+          </Card>
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-blue-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">In Progress</span>
+              <Clock size={14} className="text-blue-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{view.stats.activeCount}</p>
+            <p className="text-[11px] text-surface-500 mt-1">tasks actively being worked on</p>
+          </Card>
+        </motion.div>
+        <motion.div variants={fadeUp}>
+          <Card className="p-4 border-t-[3px] border-t-purple-500">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-surface-300">Total Tasks</span>
+              <CheckSquare size={14} className="text-purple-400" />
+            </div>
+            <p className="text-2xl font-display font-extrabold text-surface-50">{view.stats.totalCount}</p>
+            <p className="text-[11px] text-surface-500 mt-1">{view.stats.completedToday} completed today</p>
+          </Card>
+        </motion.div>
       </motion.div>
 
       {/* ═══════════════ MAIN GRID ═══════════════ */}
@@ -460,7 +504,7 @@ export function TodayPage() {
             {/* ─── Attention ─── */}
             <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="today-attention" className="space-y-3">
             <h2 id="today-attention" className="flex items-center gap-2.5 font-display font-bold text-surface-50 text-lg">
-              <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-danger-400">
+              <span className="w-8 h-8 rounded-xl bg-transparent border border-surface-800/30 flex items-center justify-center text-danger-400">
                 <BellRing size={14} />
               </span>
               Attention
@@ -468,9 +512,9 @@ export function TodayPage() {
             </h2>
 
             {view.attention.length === 0 ? (
-              <Card>
+              <Card className="bg-transparent border-surface-800/30">
                 <EmptyState
-                  icon={<CheckCircle size={26} className="text-emerald-400" />}
+                  illustration={<NothingNeedsAttention />}
                   title="Nothing needs attention"
                   description="No overdue tasks, blockers, or pending reviews right now."
                 />
@@ -524,40 +568,6 @@ export function TodayPage() {
 // Sub-components (page-local)
 // ══════════════════════════════════════════════════════════════════════════════
 
-function Stat({ icon, label, value, sub, color }: {
-  icon: ReactNode; label: string; value: string; sub?: string; color: string;
-}) {
-  const numMatch = value.match(/^(\d+(?:\.\d+)?)(.*)$/);
-  const numPart = numMatch ? parseFloat(numMatch[1]) : null;
-  const suffix = numMatch ? numMatch[2] : '';
-
-  const gradientBorder = `${color}40`;
-
-  return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-5 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
-      style={{
-        background: `linear-gradient(135deg, ${color}18 0%, ${color}08 100%)`,
-        border: `1px solid ${gradientBorder}`,
-      }}>
-      <div className="absolute top-0 right-0 w-32 h-32 opacity-20 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center justify-between mb-4">
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ backgroundColor: `${color}25` }}>
-          {icon}
-        </div>
-        <ArrowUpRight size={16} className="opacity-30" style={{ color }} />
-      </div>
-      <p className="text-[13px] font-semibold mb-1" style={{ color: `${color}cc` }}>{label}</p>
-      <p className="text-3xl lg:text-4xl font-display font-extrabold text-surface-50 mb-0.5">
-        {numPart !== null
-          ? <KpiCounter value={numPart} suffix={suffix} duration={700} />
-          : value}
-      </p>
-      {sub && <p className="text-xs text-surface-400 mt-1">{sub}</p>}
-    </motion.div>
-  );
-}
 
 const SOURCE_LABEL: Record<ContinueItem['source'], string> = {
   active: 'Active',
@@ -636,12 +646,12 @@ function AttentionRow({ item, onOpen }: { item: AttentionItem; onOpen: () => voi
   );
   return clickable ? (
     <motion.button variants={fadeUp} onClick={onOpen}
-      className="w-full text-left p-4 rounded-2xl border border-surface-800 bg-surface-900 hover:border-surface-700 hover:bg-surface-850 transition-all group flex items-center justify-between gap-3">
+      className="w-full text-left p-4 rounded-2xl border border-surface-800/30 bg-transparent hover:border-surface-700/50 hover:bg-surface-800/30 transition-all group flex items-center justify-between gap-3">
       <div className="min-w-0">{content}</div>
       <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors flex-shrink-0" />
     </motion.button>
   ) : (
-    <motion.div variants={fadeUp} className="p-4 rounded-2xl border border-surface-800 bg-surface-900">
+    <motion.div variants={fadeUp} className="p-4 rounded-2xl border border-surface-800/30 bg-transparent">
       <div className="min-w-0">{content}</div>
     </motion.div>
   );
@@ -650,7 +660,7 @@ function AttentionRow({ item, onOpen }: { item: AttentionItem; onOpen: () => voi
 function WorklogMilestoneRow({ milestone, onOpen }: { milestone: TodayMilestone; onOpen: () => void }) {
   return (
     <motion.button variants={fadeUp} onClick={onOpen}
-      className="w-full text-left p-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 hover:border-sky-500/50 transition-all group flex items-center justify-between gap-3">
+      className="w-full text-left p-4 rounded-2xl border border-sky-500/20 bg-transparent hover:border-sky-500/40 transition-all group flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <Badge tone="info">Milestone</Badge>

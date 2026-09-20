@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Users } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { api } from '@shared/utils/api';
 import { toast } from '@shared/services/useToastStore';
 import { Skeleton, SkeletonCircle } from '@shared/components/ui/Skeleton';
@@ -8,6 +8,7 @@ import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoLeaderboard } from '@shared/components/illustrations';
 
 interface LeaderboardUser {
   _id: string;
@@ -185,7 +186,7 @@ export function Leaderboard() {
 
         {users.length === 0 && (
           <EmptyState
-            icon={<Users size={40} className="text-surface-400" />}
+            illustration={<NoLeaderboard />}
             title="No leaderboard entries yet"
             description="No users have opted into the leaderboard yet."
           />

@@ -12,6 +12,7 @@ import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NoReportsForDay } from '@shared/components/illustrations';
 import { STATUS_LABELS, MOOD_EMOJIS } from '@worklog/services/config';
 
 function formatMs(ms: number): string {
@@ -150,7 +151,7 @@ export function ShareReportPage() {
           </h2>
           {data?.workLogs?.length === 0 ? (
             <EmptyState
-              icon={<BookMarked size={28} className="text-surface-400" />}
+              illustration={<NoReportsForDay />}
               title="No work logs for this day"
               description=""
             />

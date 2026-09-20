@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Settings, User, ChevronDown, Menu } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Menu, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
@@ -137,6 +137,16 @@ export function GlobalHeader() {
 
         {/* Notifications */}
         <NotificationCenter />
+
+        {/* Chat */}
+        <button
+          onClick={() => navigate(`/collab/${workspaceId || 'default'}/chat`)}
+          className="p-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
+          aria-label="Open chat"
+          title="Messages"
+        >
+          <MessageSquare size={17} />
+        </button>
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>

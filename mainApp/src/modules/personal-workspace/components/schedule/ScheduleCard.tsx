@@ -4,6 +4,7 @@ import { Play, Pause, Square, Trash2, Edit3, ExternalLink, Clock, CheckCircle2, 
 import { useNavigate } from 'react-router-dom';
 import { ScheduleItem, Task, DerivedScheduleState } from '@shared/types';
 import { useStore } from '@worklog/services/useStore';
+import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useScheduleStore } from '@worklog/services/useScheduleStore';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { Button } from '@shared/components/ui/Button';
@@ -33,7 +34,9 @@ function minutesToTime(mins: number): string {
 
 export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCardProps) {
   const navigate = useNavigate();
-  const { startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer, completeTask, tasks } = useStore();
+  const { startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer, tasks: workTasks } = useStore();
+  const { completeTask: completeWorkTask } = useStore();
+  const { tasks: personalTasks, completeTask: completePersonalTask } = usePersonalTaskStore();
   const { openModal, deleteSchedule, updateSchedule } = useScheduleStore();
   const { activeTaskId, activeTimerState } = useActiveTimer();
   const [now, setNow] = useState(Date.now());
@@ -47,12 +50,13 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
     return () => clearInterval(timer);
   }, [derivedProp, schedule._id]);
 
-  // Resolve task
+  // Resolve task (check personal tasks first, then work tasks)
   const taskObj: Task | undefined =
     typeof schedule.taskId === 'object'
       ? (schedule.taskId as Task)
-      : tasks.find((t) => t.id === schedule.taskId);
+      : personalTasks.find((t) => t.id === schedule.taskId) || workTasks.find((t) => t.id === schedule.taskId);
 
+  const isPersonalTask = taskObj?.workspaceContext === 'personal';
   const taskId = taskObj?.id || (typeof schedule.taskId === 'string' ? schedule.taskId : '');
   const taskTitle = taskObj?.title || 'Untitled Task';
   const taskColor = taskObj?.color || '#0ea5e9';
@@ -113,7 +117,11 @@ export function ScheduleCard({ schedule, derivedState: derivedProp }: ScheduleCa
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (taskObj && taskObj.status !== 'completed') {
-      await completeTask(taskId);
+      if (isPersonalTask) {
+        await completePersonalTask(taskId);
+      } else {
+        await completeWorkTask(taskId);
+      }
     }
     if (schedule.status !== 'completed') {
       await updateSchedule(schedule._id, { status: 'completed' });

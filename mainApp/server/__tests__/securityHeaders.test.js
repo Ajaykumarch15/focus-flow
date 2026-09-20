@@ -38,7 +38,7 @@ describe('IES-P0-11 · security headers', () => {
     expect(csp).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
     expect(csp).toContain("font-src 'self' https://fonts.gstatic.com");
     expect(csp).toContain("img-src 'self' data: blob: https:");
-    expect(csp).toContain("connect-src 'self' ws://localhost:5173 http://localhost:5001");
+    expect(csp).toContain("connect-src 'self' ws://localhost:5173 ws://localhost:5001 http://localhost:5001");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
   });
@@ -70,7 +70,7 @@ describe('IES-P0-11 · security headers', () => {
     // it there (it would only emit a console warning). It is enforced solely via
     // the HTTP header set by securityHeaders middleware (asserted above).
     expect(content).toContain("connect-src 'self'");
-    expect(content).toContain("ws://localhost:5173 http://localhost:5001");
+    expect(content).toContain("ws://localhost:5173 ws://localhost:5001 http://localhost:5001");
     expect(content).toContain("object-src 'none'");
   });
 

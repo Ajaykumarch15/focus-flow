@@ -573,6 +573,9 @@ export const useStore = create<StoreState>((set, get) => {
       if (timerEngine.getActiveTaskId() === id) {
         await get().stopTimer(id);
       }
+      if (parallelTimerEngine.getState(id) !== 'idle') {
+        await get().stopParallelTimer(id);
+      }
       set(s => ({
         tasks: s.tasks.filter(t => t.id !== id),
         journals: s.journals.filter(j => j.taskId !== id),
@@ -583,6 +586,9 @@ export const useStore = create<StoreState>((set, get) => {
     completeTask: async (id) => {
       if (timerEngine.getActiveTaskId() === id) {
         await get().stopTimer(id);
+      }
+      if (parallelTimerEngine.getState(id) !== 'idle') {
+        await get().stopParallelTimer(id);
       }
       await get().updateTask(id, { status: 'completed', completedAt: Date.now() });
       // The updateTask handler already refreshes roadmap progress for linked tasks
@@ -608,6 +614,9 @@ export const useStore = create<StoreState>((set, get) => {
         for (const id of ids) {
           if (timerEngine.getActiveTaskId() === id) {
             await get().stopTimer(id);
+          }
+          if (parallelTimerEngine.getState(id) !== 'idle') {
+            await get().stopParallelTimer(id);
           }
         }
         set(s => ({

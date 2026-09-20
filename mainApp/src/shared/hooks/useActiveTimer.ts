@@ -41,15 +41,22 @@ export function useActiveTimer(externalTasks?: Task[]) {
     };
   }, []);
 
-  // Find first active parallel timer (running or paused)
+  const storeTasks = useStore(s => s.tasks);
+  const personalTasks = usePersonalTaskStore(s => s.tasks);
+
+  // Find first active parallel timer (running or paused), excluding completed tasks
   const firstParallel = useMemo(() => {
+    const allTasks = [...storeTasks, ...personalTasks];
     for (const [taskId, snapshot] of parallelSnapshots) {
       if (snapshot.timerState !== 'idle') {
-        return { taskId, snapshot };
+        const task = allTasks.find(t => t.id === taskId);
+        if (task && task.status !== 'completed') {
+          return { taskId, snapshot };
+        }
       }
     }
     return null;
-  }, [parallelSnapshots]);
+  }, [parallelSnapshots, storeTasks, personalTasks]);
 
   // Determine which timer to use: parallel takes priority if no legacy is active
   const useParallel = !legacySnapshot.taskId && firstParallel;
@@ -73,8 +80,6 @@ export function useActiveTimer(externalTasks?: Task[]) {
     ? firstParallel!.snapshot.baseElapsedMs
     : legacySnapshot.baseElapsedMs;
 
-  const storeTasks = useStore(s => s.tasks);
-  const personalTasks = usePersonalTaskStore(s => s.tasks);
   const tasks = externalTasks ?? (sessionKind === 'personal' ? personalTasks : storeTasks);
   const activeTask = tasks.find(t => t.id === activeTaskId);
 

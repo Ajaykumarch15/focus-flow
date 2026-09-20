@@ -49,11 +49,23 @@ class ParallelTimerEngine {
   private listeners: Set<TimerChangeListener> = new Set();
   private broadcastChannel: BroadcastChannel | null = null;
   private senderId: string = Math.random().toString(36).substring(2);
+  private cleanupFns: Array<() => void> = [];
 
   constructor() {
     this.initBroadcastChannel();
     this.initVisibilityListeners();
     this.restoreFromStorage();
+  }
+
+  public dispose(): void {
+    this.stopTicker();
+    this.cleanupFns.forEach((fn) => fn());
+    this.cleanupFns = [];
+    if (this.broadcastChannel) {
+      this.broadcastChannel.close();
+      this.broadcastChannel = null;
+    }
+    this.listeners.clear();
   }
 
   // ── 1. State Inspection ──────────────────────────────────────────────────
@@ -478,6 +490,12 @@ class ParallelTimerEngine {
     window.addEventListener('visibilitychange', handleVisibilityOrFocus);
     window.addEventListener('focus', handleVisibilityOrFocus);
     window.addEventListener('pageshow', handleVisibilityOrFocus);
+
+    this.cleanupFns.push(() => {
+      window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      window.removeEventListener('pageshow', handleVisibilityOrFocus);
+    });
   }
 
   // ── 5. Cross-Tab Sync ──────────────────────────────────────────────────
@@ -492,7 +510,7 @@ class ParallelTimerEngine {
           this.handleRemoteMessage(event.data);
       }
     } catch {
-      window.addEventListener('storage', (e) => {
+      const storageHandler = (e: StorageEvent) => {
         if (e.key === 'ff_parallel_timer_sync_event' && e.newValue) {
           try {
             const data = JSON.parse(e.newValue);
@@ -502,6 +520,10 @@ class ParallelTimerEngine {
             /* ignore */
           }
         }
+      };
+      window.addEventListener('storage', storageHandler);
+      this.cleanupFns.push(() => {
+        window.removeEventListener('storage', storageHandler);
       });
     }
   }

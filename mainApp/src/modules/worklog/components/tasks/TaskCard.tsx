@@ -276,7 +276,7 @@ export function TaskCard({ task, selected = false, onToggleSelect, dragHandlePro
                     className={`p-1.5 ${isRunning ? 'text-amber-400' : isPaused ? 'text-orange-400' : 'text-surface-400 hover:text-surface-200'}`}
                     title={isRunning ? 'Pause' : isPaused ? 'Resume' : 'Start focus session'}
                   >
-                    {isRunning ? <Pause size={14} /> : isPaused ? <Square size={14} /> : <Play size={14} />}
+                    {isRunning ? <Pause size={14} /> : isPaused ? <Play size={14} /> : <Play size={14} />}
                   </Button>
                   {isRunning && (
                     <Button variant="ghost" size="sm" onClick={handleStopTimer} className="p-1.5 text-surface-400 hover:text-red-400" title="Stop timer">

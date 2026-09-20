@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Shield, CheckCircle2, Zap, FolderOpen,
@@ -40,6 +41,7 @@ interface PersonDetailsDrawerProps {
 export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawerProps) {
   const { tasks, teams, activeWorkspaceId, loadTeams, updateMemberRole } = useCollaborationStore();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [showTeamDropdown, setShowTeamDropdown] = useState(false);
   const [addingToTeam, setAddingToTeam] = useState(false);
   const [editingRole, setEditingRole] = useState(false);
@@ -350,6 +352,12 @@ export function PersonDetailsDrawer({ stats, open, onClose }: PersonDetailsDrawe
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => {
+                    if (stats?.member.id && activeWorkspaceId) {
+                      navigate(`/collab/${activeWorkspaceId}/chat`);
+                      onClose();
+                    }
+                  }}
                   className="flex-1 flex items-center justify-center gap-2 h-9 rounded-xl bg-brand-500/10 text-brand-400 text-xs font-semibold hover:bg-brand-500/20 transition-colors"
                 >
                   <Mail size={13} />
