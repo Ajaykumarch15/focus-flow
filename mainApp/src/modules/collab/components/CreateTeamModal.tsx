@@ -61,7 +61,7 @@ export function CreateTeamModal({ isOpen, onClose, projectId }: { isOpen: boolea
         initial={{ opacity: 0, scale: 0.95, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 16 }}
-        className="bg-surface-900 border border-surface-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden"
+        className="bg-surface-900 border border-surface-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -86,7 +86,7 @@ export function CreateTeamModal({ isOpen, onClose, projectId }: { isOpen: boolea
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div>
             <label className="block text-xs font-semibold text-surface-300 mb-1.5">
               Team Name <span className="text-red-400">*</span>
