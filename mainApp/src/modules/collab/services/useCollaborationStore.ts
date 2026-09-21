@@ -386,7 +386,7 @@ interface CollaborationStore {
   createWorkspace: (name: string, type: WorkspaceType, description: string, members?: Array<{ userId: string; role?: string; isProjectManager?: boolean }>) => Promise<Workspace | undefined>;
   updateWorkspace: (workspaceId: string, patch: { name: string; type: WorkspaceType; description: string }) => Promise<Workspace | undefined>;
   deleteWorkspace: (workspaceId: string) => Promise<boolean>;
-  createTeam: (name: string, description: string, color: string, memberIds: string[], leaderId?: string) => Promise<void>;
+  createTeam: (name: string, description: string, color: string, memberIds: string[], leaderId?: string, projectId?: string) => Promise<void>;
   updateMemberRole: (memberId: string, role: MemberRole) => Promise<void>;
   updateMemberStatus: (memberId: string, status: any, currentTask?: string) => void;
 
@@ -816,7 +816,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
     return true;
   },
 
-  createTeam: async (name, description, color, memberIds, leaderId) => {
+  createTeam: async (name, description, color, memberIds, leaderId, projectId) => {
     const tempId = `team-${Date.now()}`;
     const temp: WorkspaceTeam = {
       id: tempId,
@@ -831,7 +831,7 @@ export const useCollaborationStore = create<CollaborationStore>((set, get) => ({
         set((state) => ({ teams: [...state.teams, temp] }));
         return () => set((state) => ({ teams: state.teams.filter((t) => t.id !== tempId) }));
       },
-      () => api.teams.create({ name, description, members: memberIds, color, leaderId, workspaceId: get().activeWorkspaceId || undefined }),
+      () => api.teams.create({ name, description, members: memberIds, color, leaderId, workspaceId: get().activeWorkspaceId || undefined, projectId: projectId || undefined }),
       { errorTitle: 'Team creation failed' },
     );
     if (!created) return;

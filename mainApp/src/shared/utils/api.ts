@@ -438,7 +438,7 @@ export const api = {
 
   teams: {
     list: () => request<any[]>('/teams'),
-    create: (data: { name: string; description?: string; members?: string[]; workspaceId?: string; leaderId?: string; color?: string }) => 
+    create: (data: { name: string; description?: string; members?: string[]; workspaceId?: string; leaderId?: string; color?: string; projectId?: string }) => 
       request<any>('/teams', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: { name?: string; description?: string; members?: string[]; leaderId?: string; color?: string }) => 
       request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
