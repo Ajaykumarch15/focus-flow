@@ -81,6 +81,11 @@ interface PersonalTaskState {
   parallelTimers: Record<string, TimerState>;  // taskId -> timer state
   activeTaskIds: string[];                      // all running task IDs
 
+  // Ghost session detection: task IDs with status 'active'/'paused' but no
+  // corresponding entry in either timer engine (orphaned backend sessions).
+  ghostSessionTaskIds: string[];
+  clearGhostSession: (taskId: string) => void;
+
   fetchTasks: () => Promise<void>;
   fetchJournals: () => Promise<void>;
   addTask: (data: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'sessions' | 'totalTime' | 'deadline' | 'scheduledDate' | 'order'> & { deadline?: string | number; scheduledDate?: string | number }) => Promise<string>;
@@ -160,6 +165,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     error: null,
     parallelTimers: initParallelTimers,
     activeTaskIds: initActiveTaskIds,
+    ghostSessionTaskIds: [],
+
+    clearGhostSession: (taskId) => set(s => ({
+      ghostSessionTaskIds: s.ghostSessionTaskIds.filter(id => id !== taskId),
+    })),
 
     fetchTasks: async () => {
       try {
@@ -648,9 +658,9 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
   getJournalsForTask: (taskId) => get().journals.filter((j) => j.taskId === taskId),
 
   rehydratePersonalTimer: async () => {
-    // If the engine already holds a session (restored from localStorage, or a work
-    // session rehydrated by useStore.loadAll), don't clobber it. Just make sure a
-    // restored personal session has its heartbeat running.
+    // If the legacy engine already holds a session (restored from localStorage,
+    // or a work session rehydrated by useStore.loadAll), don't clobber it.
+    // Just make sure a restored personal session has its heartbeat running.
     if (timerEngine.getState() !== 'idle') {
       if (timerEngine.getSessionKind() === 'personal' && timerEngine.getActiveSessionId()) {
         startTimerHeartbeat(() => timerEngine.hydrate(null));
@@ -659,8 +669,11 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
     }
     try {
       const sessions = await api.personalSessions.list({ active: true });
-      const active = (sessions || []).find((s: any) => s.isActive);
-      if (!active) return;
+      const activeSessions = (sessions || []).filter((s: any) => s.isActive);
+      if (activeSessions.length === 0) return;
+
+      // Hydrate the legacy engine with the first active personal session.
+      const active = activeSessions[0];
       const openPause = [...(active.pauseLog || [])].reverse()
         .find((p: any) => p?.pauseStart && !p?.resumeTime);
       timerEngine.hydrate({
@@ -674,6 +687,49 @@ export const usePersonalTaskStore = create<PersonalTaskState>((set, get) => {
         sessionKind: 'personal',
       });
       startTimerHeartbeat(() => timerEngine.hydrate(null));
+
+      // Hydrate any additional active personal sessions into the parallel engine
+      // so they appear in the Active Timers page and keep their heartbeats.
+      for (let i = 1; i < activeSessions.length; i++) {
+        const session = activeSessions[i];
+        const taskId = String(session.personalTaskId ?? session.taskId);
+        if (parallelTimerEngine.getState(taskId) !== 'idle') continue;
+        const pause = [...(session.pauseLog || [])].reverse()
+          .find((p: any) => p?.pauseStart && !p?.resumeTime);
+        parallelTimerEngine.hydrateTimer({
+          taskId,
+          sessionId: String(session._id),
+          timerState: pause ? 'paused' : 'running',
+          sessionStartTime: session.startTime,
+          totalPauseDuration: session.totalPauseDuration || 0,
+          pauseStart: pause?.pauseStart,
+          baseElapsedMs: 0,
+          sessionKind: 'personal',
+        });
+        startSessionHeartbeat(String(session._id), 'personal', () => {
+          parallelTimerEngine.stop(taskId);
+        });
+      }
+
+      // ── Ghost Session Detection (personal) ────────────────────────────────
+      const engineSnap = timerEngine.getSnapshot();
+      const legacyActiveId = engineSnap.taskId;
+      const parallelActiveIds = parallelTimerEngine.getActiveTaskIds();
+      const allEngineActiveIds = new Set([
+        ...(legacyActiveId ? [legacyActiveId] : []),
+        ...parallelActiveIds,
+      ]);
+
+      const ghostTaskIds = get().tasks
+        .filter(t => (t.status === 'active' || t.status === 'paused') && !allEngineActiveIds.has(t.id))
+        .map(t => t.id);
+
+      if (ghostTaskIds.length > 0) {
+        console.warn('👻 Personal ghost sessions detected:', ghostTaskIds);
+        set({ ghostSessionTaskIds: ghostTaskIds });
+      } else {
+        set({ ghostSessionTaskIds: [] });
+      }
     } catch {
       // Offline: engine keeps whatever localStorage restored on construction.
     }

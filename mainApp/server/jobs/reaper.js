@@ -6,9 +6,14 @@
 //
 // Heartbeat cadence (client) is ~30s; 10 minutes without one means the session
 // is abandoned, not merely paused — the app is closed or the tab was killed.
+//
+// IES-P1-26: also reaps stale PersonalSession documents (previously only work
+// sessions were cleaned up, leaving personal ghost sessions in the DB forever).
 
 const Session = require('../models/Session');
 const Task = require('../models/Task');
+const PersonalSession = require('../models/PersonalSession');
+const PersonalTask = require('../models/PersonalTask');
 const { finalizeSessionDoc } = require('../utils/sessionFinalize');
 const { logger } = require('../utils/logger');
 
@@ -68,12 +73,51 @@ async function reapStaleSessions({ now = Date.now() } = {}) {
   return stale.length;
 }
 
+/**
+ * Sweep stale active personal sessions. Returns the number closed.
+ *
+ * PersonalSession was previously not reaped, so ghost personal sessions could
+ * accumulate in the DB forever if the client crashed or the tab was killed.
+ */
+async function reapStalePersonalSessions({ now = Date.now() } = {}) {
+  const cutoff = now - STALE_MS;
+
+  const stale = await PersonalSession.find({
+    isActive: true,
+    $or: [
+      { lastHeartbeat: { $lt: cutoff } },
+      { lastHeartbeat: { $exists: false }, startTime: { $lt: cutoff } },
+    ],
+  });
+  if (!stale.length) return 0;
+
+  for (const session of stale) {
+    try {
+      await closeStaleSession(session, now);
+    } catch (err) {
+      logger.warn({ err, sessionId: String(session._id) }, 'Reaper failed to close stale personal session');
+    }
+  }
+
+  // Keep personal task totals honest and reset status to todo.
+  const personalTaskIds = [...new Set(stale.map((s) => s.personalTaskId.toString()))];
+  await Promise.all(personalTaskIds.map(async (taskId) => {
+    const allSessions = await PersonalSession.find({ personalTaskId: taskId, isActive: false });
+    const totalTime = allSessions.reduce((acc, s) => acc + (s.activeTime || 0), 0);
+    await PersonalTask.findOneAndUpdate({ _id: taskId }, { totalTime, status: 'todo' });
+  }));
+
+  return stale.length;
+}
+
 let scheduled = false;
 let running = false;
 
 /**
  * Start the recurring reaper. unref()'d so it never keeps the process alive in
  * tests; overlapping sweeps are skipped, never queued.
+ *
+ * Reaps both work Session and PersonalSession zombie documents.
  */
 function startReaper({ intervalMs = 5 * 60 * 1000, now } = {}) {
   if (scheduled) throw new Error('Session reaper already scheduled');
@@ -83,7 +127,11 @@ function startReaper({ intervalMs = 5 * 60 * 1000, now } = {}) {
     if (running) return;
     running = true;
     try {
-      await reapStaleSessions(now ? { now } : {});
+      const workClosed = await reapStaleSessions(now ? { now } : {});
+      const personalClosed = await reapStalePersonalSessions(now ? { now } : {});
+      if (workClosed || personalClosed) {
+        logger.info({ workClosed, personalClosed }, 'Reaper sweep completed');
+      }
     } catch (err) {
       logger.warn({ err }, 'Session reaper sweep failed');
     } finally {
@@ -94,4 +142,10 @@ function startReaper({ intervalMs = 5 * 60 * 1000, now } = {}) {
   return handle;
 }
 
-module.exports = { STALE_MS, closeStaleSession, reapStaleSessions, startReaper };
+module.exports = {
+  STALE_MS,
+  closeStaleSession,
+  reapStaleSessions,
+  reapStalePersonalSessions,
+  startReaper,
+};
