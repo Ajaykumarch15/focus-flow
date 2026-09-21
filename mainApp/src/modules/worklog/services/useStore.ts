@@ -216,6 +216,11 @@ interface StoreState {
   parallelTimers: Record<string, TimerState>;  // taskId -> timer state
   activeTaskIds: string[];                      // all running task IDs
 
+  // Ghost session detection: task IDs with status 'active'/'paused' but no
+  // corresponding entry in either timer engine (orphaned backend sessions).
+  ghostSessionTaskIds: string[];
+  clearGhostSession: (taskId: string) => void;
+
   setMobileSidebarOpen: (open: boolean) => void;
   loadAll: () => Promise<void>;
   fetchTasks: () => Promise<void>;
@@ -333,6 +338,11 @@ export const useStore = create<StoreState>((set, get) => {
     currentPauseStart: snapshot.pauseStart,
     parallelTimers: initParallelTimers,
     activeTaskIds: initActiveTaskIds,
+    ghostSessionTaskIds: [],
+
+    clearGhostSession: (taskId) => set(s => ({
+      ghostSessionTaskIds: s.ghostSessionTaskIds.filter(id => id !== taskId),
+    })),
 
     // ── Boot ────────────────────────────────────────────────────────────────
     loadAll: async () => {
@@ -408,16 +418,18 @@ export const useStore = create<StoreState>((set, get) => {
 
         const allTasks = [...baseTasks, ...workspaceTasks];
 
-        // Process any queued offline timer operations
+        // Process any queued offline timer operations. Fire-and-forget: the queue
+        // retries failed ops with backoff; blocking here would delay boot and the
+        // rehydration fetch below is idempotent (replayed STARTs are deduped by opId).
         offlineQueue.processQueue().catch(() => {});
 
-        // Rehydrate TimerEngine with active session from backend
+        // Rehydrate TimerEngine with active session(s) from backend.
+        // Handles both legacy single-timer and parallel multi-timer engines.
         try {
           const [allSessions, personalSessions] = await Promise.all([
             api.sessions.list().catch(() => []),
             api.personalSessions.list().catch(() => []),
           ]);
-          const match = allSessions.find((s: any) => s.isActive);
           const localTimer = loadTimer();
 
           // Keep the offline day/week cache authoritative from the backend, so a
@@ -425,27 +437,57 @@ export const useStore = create<StoreState>((set, get) => {
           // Include personal sessions for accurate daily/weekly totals.
           rebuildDayCache([...allSessions, ...personalSessions]);
 
-          if (match && localTimer?.sessionKind !== 'personal') {
-            const pauseStart = getOpenPauseStart(match);
-            const isPaused = baseTasks.find(t => t.id === docId(match.taskId))?.status === 'paused' || Boolean(pauseStart);
-            const matchedTask = baseTasks.find(t => t.id === docId(match.taskId));
+          // Find ALL active work sessions (not just the first) to prevent ghost
+          // sessions that exist on the backend but are invisible on the client.
+          const activeWorkSessions = allSessions.filter((s: any) => s.isActive);
+
+          if (activeWorkSessions.length > 0 && localTimer?.sessionKind !== 'personal') {
+            // Hydrate the legacy single-timer engine with the first active session.
+            const primary = activeWorkSessions[0];
+            const pauseStart = getOpenPauseStart(primary);
+            const isPaused = baseTasks.find(t => t.id === docId(primary.taskId))?.status === 'paused' || Boolean(pauseStart);
+            const matchedTask = baseTasks.find(t => t.id === docId(primary.taskId));
 
             timerEngine.hydrate({
-              taskId: docId(match.taskId),
-              sessionId: docId(match._id),
+              taskId: docId(primary.taskId),
+              sessionId: docId(primary._id),
               timerState: isPaused ? 'paused' : 'running',
-              sessionStartTime: match.startTime,
-              totalPauseDuration: match.totalPauseDuration || 0,
+              sessionStartTime: primary.startTime,
+              totalPauseDuration: primary.totalPauseDuration || 0,
               pauseStart,
               baseElapsedMs: matchedTask?.totalTime ?? 0,
               sessionKind: 'work',
             });
+
+            // Hydrate any additional active work sessions into the parallel engine
+            // so they appear in the Active Timers page and keep their heartbeats.
+            for (let i = 1; i < activeWorkSessions.length; i++) {
+              const session = activeWorkSessions[i];
+              const taskId = docId(session.taskId);
+              // Skip if already in the parallel engine (e.g., restored from localStorage)
+              if (parallelTimerEngine.getState(taskId) !== 'idle') continue;
+              const openPause = getOpenPauseStart(session);
+              const task = baseTasks.find(t => t.id === taskId);
+              parallelTimerEngine.hydrateTimer({
+                taskId,
+                sessionId: docId(session._id),
+                timerState: openPause ? 'paused' : 'running',
+                sessionStartTime: session.startTime,
+                totalPauseDuration: session.totalPauseDuration || 0,
+                pauseStart: openPause,
+                baseElapsedMs: task?.totalTime ?? 0,
+                sessionKind: 'work',
+              });
+              startSessionHeartbeat(docId(session._id), 'work', () => {
+                parallelTimerEngine.stop(taskId);
+              });
+            }
           } else if (localTimer) {
             // A locally-persisted PERSONAL timer lives in a separate store from
             // work sessions, so it takes precedence over a backend work session.
             // Surface the conflict so the orphaned work session isn't silently lost
             // (the server reaper will close it once its heartbeat stops).
-            if (match) {
+            if (activeWorkSessions.length > 0) {
               toast.warning('Personal timer restored', 'A work session was still open on the server and will be closed.');
             }
             timerEngine.hydrate(localTimer);
@@ -458,7 +500,28 @@ export const useStore = create<StoreState>((set, get) => {
           if (localTimer) timerEngine.hydrate(localTimer);
         }
 
+        // ── Ghost Session Detection ──────────────────────────────────────────
+        // Tasks with status 'active'/'paused' but no entry in either timer engine
+        // are orphaned backend sessions (ghosts). Surface them so the UI can offer
+        // a cleanup action; the server reaper will eventually close them anyway.
         const engineSnap = timerEngine.getSnapshot();
+        const legacyActiveId = engineSnap.taskId;
+        const parallelActiveIds = parallelTimerEngine.getActiveTaskIds();
+        const allEngineActiveIds = new Set([
+          ...(legacyActiveId ? [legacyActiveId] : []),
+          ...parallelActiveIds,
+        ]);
+
+        const ghostTaskIds = allTasks
+          .filter(t => (t.status === 'active' || t.status === 'paused') && !allEngineActiveIds.has(t.id))
+          .map(t => t.id);
+
+        if (ghostTaskIds.length > 0) {
+          console.warn('👻 Ghost sessions detected:', ghostTaskIds);
+          set({ ghostSessionTaskIds: ghostTaskIds });
+        } else {
+          set({ ghostSessionTaskIds: [] });
+        }
 
         // IES-P1-26: a timer restored from the backend (or local storage) must
         // resume beating, or the reaper will close it as a zombie. Routes by

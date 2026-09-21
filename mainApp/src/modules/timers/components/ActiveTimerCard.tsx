@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Square, Clock } from 'lucide-react';
+import { Play, Pause, Square, Clock, CheckCircle, Trash2 } from 'lucide-react';
 import { parallelTimerEngine, type TimerStateSnapshot } from '@worklog/services/parallelTimerEngine';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -19,12 +19,17 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
     parallelTimerEngine.getFormattedDisplay(taskId)
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<'stop' | 'complete' | 'delete'>('stop');
 
   const workTasks = useStore((s) => s.tasks);
   const personalTasks = usePersonalTaskStore((s) => s.tasks);
   const pauseParallelTimer = useStore((s) => s.pauseParallelTimer);
   const resumeParallelTimer = useStore((s) => s.resumeParallelTimer);
   const stopParallelTimer = useStore((s) => s.stopParallelTimer);
+  const workCompleteTask = useStore((s) => s.completeTask);
+  const workDeleteTask = useStore((s) => s.deleteTask);
+  const personalCompleteTask = usePersonalTaskStore((s) => s.completeTask);
+  const personalDeleteTask = usePersonalTaskStore((s) => s.deleteTask);
 
   const isPersonal = snapshot.sessionKind === 'personal';
   const tasks = isPersonal ? personalTasks : workTasks;
@@ -50,10 +55,27 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
     resumeParallelTimer(taskId);
   }, [taskId, resumeParallelTimer]);
 
-  const handleStop = useCallback(() => {
-    stopParallelTimer(taskId);
+  const handleConfirm = useCallback(() => {
+    if (confirmAction === 'stop') {
+      stopParallelTimer(taskId);
+    } else if (confirmAction === 'complete') {
+      (isPersonal ? personalCompleteTask : workCompleteTask)(taskId);
+    } else if (confirmAction === 'delete') {
+      (isPersonal ? personalDeleteTask : workDeleteTask)(taskId);
+    }
     setConfirmOpen(false);
-  }, [taskId, stopParallelTimer]);
+  }, [taskId, confirmAction, isPersonal, stopParallelTimer, workCompleteTask, personalCompleteTask, workDeleteTask, personalDeleteTask]);
+
+  const openConfirm = useCallback((action: 'stop' | 'complete' | 'delete') => {
+    setConfirmAction(action);
+    setConfirmOpen(true);
+  }, []);
+
+  const confirmLabels = {
+    stop: { title: 'Stop Timer', message: `Stop the timer for "${title}"? The session will be finalized and saved.`, confirm: 'Stop Timer' },
+    complete: { title: 'Complete Task', message: `Mark "${title}" as complete? This will stop the timer and mark the task done.`, confirm: 'Complete Task' },
+    delete: { title: 'Delete Task', message: `Delete "${title}"? This will stop the timer and permanently remove the task.`, confirm: 'Delete Task' },
+  };
 
   const startTime = snapshot.sessionStartTime
     ? formatTimeOfDay(snapshot.sessionStartTime)
@@ -100,7 +122,7 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
             {elapsed}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {isRunning && (
               <Button
                 size="sm"
@@ -128,11 +150,31 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setConfirmOpen(true)}
+              onClick={() => openConfirm('stop')}
               aria-label={`Stop ${title}`}
               className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
             >
               <Square size={16} />
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openConfirm('complete')}
+              aria-label={`Complete ${title}`}
+              className="text-green-400 hover:text-green-300 hover:bg-green-500/10"
+            >
+              <CheckCircle size={16} />
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => openConfirm('delete')}
+              aria-label={`Delete ${title}`}
+              className="text-surface-400 hover:text-red-300 hover:bg-red-500/10"
+            >
+              <Trash2 size={16} />
             </Button>
           </div>
         </div>
@@ -140,12 +182,12 @@ export function ActiveTimerCard({ taskId, snapshot }: ActiveTimerCardProps) {
 
       <ConfirmDialog
         isOpen={confirmOpen}
-        title="Stop Timer"
-        message={`Are you sure you want to stop the timer for "${title}"? The session will be finalized and saved.`}
-        confirmLabel="Stop Timer"
-        cancelLabel="Keep Running"
-        variant="danger"
-        onConfirm={handleStop}
+        title={confirmLabels[confirmAction].title}
+        message={confirmLabels[confirmAction].message}
+        confirmLabel={confirmLabels[confirmAction].confirm}
+        cancelLabel="Cancel"
+        variant={confirmAction === 'delete' ? 'danger' : 'warning'}
+        onConfirm={handleConfirm}
         onCancel={() => setConfirmOpen(false)}
       />
     </>

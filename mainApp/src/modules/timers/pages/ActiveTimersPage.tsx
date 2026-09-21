@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, Layers, Briefcase, User, BookOpen, Heart, DollarSign, Palette, Users, HelpCircle, ArrowRight } from 'lucide-react';
+import { Timer, Layers, Briefcase, User, BookOpen, Heart, DollarSign, Palette, Users, HelpCircle, ArrowRight, AlertTriangle, Filter, Clock } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { parallelTimerEngine, type TimerStateSnapshot } from '@worklog/services/parallelTimerEngine';
 import { timerEngine } from '@worklog/services/timerEngine';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
+import { stopTaskTimer } from '@worklog/services/activeTimerRouter';
 import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Badge } from '@shared/components/ui/Badge';
 import { Button } from '@shared/components/ui/Button';
@@ -15,6 +16,7 @@ import { SkeletonCard } from '@shared/components/ui/Skeleton';
 import { KpiCounter } from '@shared/components/ui/KpiCounter';
 import { ActiveTimerCard } from '@timers/components/ActiveTimerCard';
 import { formatMs } from '@shared/utils/time';
+import { toast } from '@shared/services/useToastStore';
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   Work: <Briefcase size={14} />,
@@ -42,6 +44,8 @@ export function ActiveTimersPage() {
   );
   const [legacySnapshot, setLegacySnapshot] = useState(() => timerEngine.getSnapshot());
   const [hydrated, setHydrated] = useState(false);
+  const [elapsedFilter, setElapsedFilter] = useState<'all' | 'above10min'>('above10min');
+  const [stateFilter, setStateFilter] = useState<'all' | 'running' | 'paused'>('all');
 
   useEffect(() => {
     setHydrated(true);
@@ -61,6 +65,18 @@ export function ActiveTimersPage() {
   }, []);
 
   const activeTimers = useMemo(() => {
+    const now = Date.now();
+    const TEN_MIN_MS = 10 * 60 * 1000;
+
+    const computeElapsed = (s: TimerStateSnapshot): number => {
+      const elapsed = s.timerState === 'running'
+        ? now - s.sessionStartTime - s.totalPauseDuration
+        : s.timerState === 'paused'
+          ? (s.pauseStart ?? now) - s.sessionStartTime - s.totalPauseDuration
+          : 0;
+      return elapsed + s.baseElapsedMs;
+    };
+
     const parallel = Array.from(allTimers.entries()).filter(([_, s]) => s.timerState !== 'idle');
     // Include legacy single timer if active and not already in parallel map
     if (legacySnapshot.taskId && legacySnapshot.timerState !== 'idle' && !allTimers.has(legacySnapshot.taskId)) {
@@ -76,10 +92,26 @@ export function ActiveTimersPage() {
         lastUpdated: legacySnapshot.lastUpdated,
       }]);
     }
-    return parallel;
-  }, [allTimers, legacySnapshot]);
+
+    // Apply filters
+    return parallel.filter(([_, s]) => {
+      if (elapsedFilter === 'above10min' && computeElapsed(s) < TEN_MIN_MS) return false;
+      if (stateFilter === 'running' && s.timerState !== 'running') return false;
+      if (stateFilter === 'paused' && s.timerState !== 'paused') return false;
+      return true;
+    });
+  }, [allTimers, legacySnapshot, elapsedFilter, stateFilter]);
 
   const totalCount = activeTimers.length;
+
+  // Total count before filtering (for KPI display)
+  const unfilteredCount = useMemo(() => {
+    const parallel = Array.from(allTimers.entries()).filter(([_, s]) => s.timerState !== 'idle');
+    if (legacySnapshot.taskId && legacySnapshot.timerState !== 'idle' && !allTimers.has(legacySnapshot.taskId)) {
+      parallel.push([legacySnapshot.taskId, legacySnapshot as unknown as TimerStateSnapshot]);
+    }
+    return parallel.length;
+  }, [allTimers, legacySnapshot]);
 
   const totalElapsedMs = useMemo(() => {
     return activeTimers.reduce((sum, [_, s]) => {
@@ -96,6 +128,32 @@ export function ActiveTimersPage() {
 
   const workTasks = useStore((s) => s.tasks);
   const personalTasks = usePersonalTaskStore((s) => s.tasks);
+  const workGhostIds = useStore((s) => s.ghostSessionTaskIds);
+  const personalGhostIds = usePersonalTaskStore((s) => s.ghostSessionTaskIds);
+  const clearWorkGhost = useStore((s) => s.clearGhostSession);
+  const clearPersonalGhost = usePersonalTaskStore((s) => s.clearGhostSession);
+
+  const allGhostIds = useMemo(() => [...workGhostIds, ...personalGhostIds], [workGhostIds, personalGhostIds]);
+
+  const fixAllGhostSessions = useCallback(async () => {
+    const ids = [...allGhostIds];
+    let fixed = 0;
+    for (const id of ids) {
+      try {
+        await stopTaskTimer(id);
+        clearWorkGhost(id);
+        clearPersonalGhost(id);
+        fixed++;
+      } catch {
+        // continue with next
+      }
+    }
+    if (fixed > 0) {
+      toast.success('Ghost sessions cleaned up', `${fixed} stale timer${fixed > 1 ? 's' : ''} stopped.`);
+    } else {
+      toast.error('Cleanup failed', 'Could not stop ghost sessions. They will be cleaned up by the server reaper.');
+    }
+  }, [allGhostIds, clearWorkGhost, clearPersonalGhost]);
 
   const groupedTimers = useMemo(() => {
     const groups: Record<string, { taskId: string; snapshot: TimerStateSnapshot }[]> = {};
@@ -151,6 +209,39 @@ export function ActiveTimersPage() {
         }
       />
 
+      {/* Ghost Session Cleanup Banner */}
+      {allGhostIds.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-warning-500/30 bg-warning-500/10 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-warning-500/20 flex items-center justify-center shrink-0">
+              <AlertTriangle size={16} className="text-warning-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display font-bold text-warning-300 text-sm">
+                {allGhostIds.length} Ghost Session{allGhostIds.length > 1 ? 's' : ''} Detected
+              </h3>
+              <p className="text-xs text-surface-400 mt-0.5">
+                Tasks with active timers that aren't showing in the list. This can happen after a browser crash.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={fixAllGhostSessions}
+                className="text-warning-300 hover:text-warning-200"
+              >
+                Fix All
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <motion.div
           variants={fadeUp}
@@ -162,7 +253,7 @@ export function ActiveTimersPage() {
             </div>
           </div>
           <p className="font-display text-2xl font-extrabold text-surface-50">
-            <KpiCounter value={totalCount} />
+            <KpiCounter value={unfilteredCount} />
           </p>
           <p className="text-xs text-surface-400 mt-1">Active Timers</p>
         </motion.div>
@@ -182,6 +273,86 @@ export function ActiveTimersPage() {
           <p className="text-xs text-surface-400 mt-1">Total Tracked Time</p>
         </motion.div>
       </motion.div>
+
+      {/* Filter Bar */}
+      {unfilteredCount > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 flex-wrap"
+        >
+          <div className="flex items-center gap-1.5 text-xs text-surface-400">
+            <Filter size={13} />
+            <span>Filter:</span>
+          </div>
+          <div className="flex items-center gap-1 bg-surface-900 border border-surface-800 rounded-xl p-1">
+            <button
+              onClick={() => setElapsedFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                elapsedFilter === 'all'
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                  : 'text-surface-400 hover:text-surface-200 border border-transparent'
+              }`}
+            >
+              All Timers
+            </button>
+            <button
+              onClick={() => setElapsedFilter('above10min')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                elapsedFilter === 'above10min'
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                  : 'text-surface-400 hover:text-surface-200 border border-transparent'
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <Clock size={11} />
+                {'>'} 10 min
+              </span>
+            </button>
+          </div>
+
+          <div className="w-px h-5 bg-surface-700" />
+
+          <div className="flex items-center gap-1 bg-surface-900 border border-surface-800 rounded-xl p-1">
+            <button
+              onClick={() => setStateFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                stateFilter === 'all'
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                  : 'text-surface-400 hover:text-surface-200 border border-transparent'
+              }`}
+            >
+              All States
+            </button>
+            <button
+              onClick={() => setStateFilter('running')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                stateFilter === 'running'
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/30'
+                  : 'text-surface-400 hover:text-surface-200 border border-transparent'
+              }`}
+            >
+              Running
+            </button>
+            <button
+              onClick={() => setStateFilter('paused')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                stateFilter === 'paused'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-surface-400 hover:text-surface-200 border border-transparent'
+              }`}
+            >
+              Paused
+            </button>
+          </div>
+
+          {totalCount < unfilteredCount && (
+            <span className="text-xs text-surface-500">
+              Showing {totalCount} of {unfilteredCount} timers
+            </span>
+          )}
+        </motion.div>
+      )}
 
       {totalCount === 0 ? (
         <motion.div variants={fadeUp} initial="hidden" animate="show">
