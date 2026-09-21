@@ -113,6 +113,7 @@ function toWorkspace(raw: any, _index?: number, existingSlugs?: Set<string>): Wo
     membersCount: Number(raw.membersCount ?? 0),
     projectsCount: Number(raw.projectsCount ?? 0),
     createdAt: raw.createdAt ?? new Date().toISOString(),
+    role: raw.role ?? undefined,
     settings: {
       allowMemberInvites: raw.settings?.allowMemberInvites ?? DEFAULT_WORKSPACE_SETTINGS.allowMemberInvites,
       requireReviewForDone: raw.settings?.requireReviewForDone ?? DEFAULT_WORKSPACE_SETTINGS.requireReviewForDone,
