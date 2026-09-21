@@ -60,9 +60,9 @@ function can(user, permission, context) {
     case PROJECT.VIEW:
       return isWsAdmin || isProjectMbr;
 
-    // All workspace members can create projects
+    // Only workspace admin/superadmin can create projects
     case PROJECT.CREATE:
-      return true;
+      return isWsAdmin;
 
     // Project Manager, or workspace admin/superadmin can edit project metadata
     case PROJECT.EDIT:

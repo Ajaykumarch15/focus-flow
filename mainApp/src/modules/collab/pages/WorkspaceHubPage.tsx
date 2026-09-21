@@ -229,6 +229,7 @@ export function WorkspaceHubPage() {
   const { workspaces, loadProjects, loadMembers, members, activities, loadWorkspaceActivity } = useCollaborationStore();
 
   const workspace = workspaces.find((w) => w.id === workspaceId);
+  const canCreateProject = workspace?.role === 'admin' || workspace?.role === 'superadmin';
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -472,7 +473,10 @@ export function WorkspaceHubPage() {
               </div>
 
               <div className="px-3 pb-3 space-y-1 flex-1">
-                {QUICK_LINKS.map(({ label, icon: LinkIcon, color, bg }) => (
+                {QUICK_LINKS.filter(link => {
+                  if (link.label === 'Create New Project') return canCreateProject;
+                  return true;
+                }).map(({ label, icon: LinkIcon, color, bg }) => (
                   <button
                     key={label}
                     onClick={() => {

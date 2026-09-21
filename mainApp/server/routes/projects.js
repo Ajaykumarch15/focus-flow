@@ -128,6 +128,11 @@ router.post('/', validate(projectCreateSchema), async (req, res, next) => {
       if (!ws || !can(req.user, WORKSPACE.VIEW, { workspace: ws })) {
         return res.status(403).json({ message: 'Only workspace members can create projects' });
       }
+      // Role check: only workspace admins/superadmins can create projects
+      const wsMember = ws.members.find(m => String(m.userId) === String(req.user._id));
+      if (!wsMember || (wsMember.role !== 'admin' && wsMember.role !== 'superadmin')) {
+        return res.status(403).json({ message: 'Only workspace admins can create projects' });
+      }
       const existing = await Project.findOne({ workspaceRef: workspaceId, nameKey: trimmedName.toLowerCase() });
       if (existing) {
         return res.status(400).json({ message: 'A project with this name already exists in the workspace' });
