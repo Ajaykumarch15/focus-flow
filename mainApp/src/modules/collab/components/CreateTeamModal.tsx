@@ -6,7 +6,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 
-export function CreateTeamModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function CreateTeamModal({ isOpen, onClose, projectId }: { isOpen: boolean; onClose: () => void; projectId?: string }) {
   const { createTeam, members } = useCollaborationStore();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -37,7 +37,7 @@ export function CreateTeamModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     if (!name.trim() || selectedMembers.length === 0) return;
     setSaving(true);
     try {
-      await createTeam(name.trim(), description.trim(), '#8b5cf6', selectedMembers, leaderId || undefined);
+      await createTeam(name.trim(), description.trim(), '#8b5cf6', selectedMembers, leaderId || undefined, projectId);
       onClose();
       setName('');
       setDescription('');

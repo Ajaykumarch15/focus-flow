@@ -14,6 +14,7 @@ import { PersonCard } from '@collab/components/people/PersonCard';
 import { PersonDetailsDrawer } from '@collab/components/people/PersonDetailsDrawer';
 import { InvitePeopleModal } from '@collab/components/people/InvitePeopleModal';
 import { AddProjectMembersModal } from '@collab/components/projects/AddProjectMembersModal';
+import { CreateTeamModal } from '@collab/components/CreateTeamModal';
 import type { PersonStats } from '@collab/components/people/types';
 
 const fadeUp = { hidden: { opacity: 0, y: -6 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
@@ -48,6 +49,7 @@ export function ProjectPeoplePage() {
   const [viewMode, setViewMode] = useState<ViewMode>('teams');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [selectedStats, setSelectedStats] = useState<PersonStats | null>(null);
 
   useEffect(() => {
@@ -223,6 +225,9 @@ export function ProjectPeoplePage() {
             </div>
             {isAdmin && (
               <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => setShowCreateTeamModal(true)} leftIcon={<UsersRound size={16} />}>
+                  Create Team
+                </Button>
                 <Button variant="secondary" onClick={() => setShowAddMembersModal(true)} leftIcon={<UserPlus size={16} />}>
                   Add Members
                 </Button>
@@ -507,6 +512,12 @@ export function ProjectPeoplePage() {
         open={showAddMembersModal}
         onClose={() => setShowAddMembersModal(false)}
         projectId={projectId!}
+      />
+
+      <CreateTeamModal
+        isOpen={showCreateTeamModal}
+        onClose={() => setShowCreateTeamModal(false)}
+        projectId={projectId}
       />
     </div>
   );
