@@ -6,7 +6,7 @@ import {
   ChevronRight, Zap, AlertCircle, Target,
   GraduationCap, Rocket, Trophy, BookOpen, Code, Briefcase,
   Lightbulb, Brain, Palette, Globe, Heart, Star, Award, Info,
-  Pencil, Trash2, Plus, GripVertical,
+  Pencil, Trash2, Plus, GripVertical, CalendarDays,
 } from 'lucide-react';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors,
@@ -31,6 +31,7 @@ import {
 } from '../types/roadmap';
 import { safeProgress, getDetailHealth, formatProgress } from '@personal/services/roadmapProgress';
 import { PersonalRoadmapTimeline } from '@personal/components/roadmap/PersonalRoadmapTimeline';
+import { RoadmapCalendarView } from '@personal/components/roadmap/RoadmapCalendarView';
 
 const ICON_MAP: Record<string, any> = {
   Map, GraduationCap, Rocket, Target, Trophy, BookOpen,
@@ -122,7 +123,7 @@ export function RoadmapDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [viewMode, setViewMode] = useState<'phases' | 'timeline'>('phases');
+  const [viewMode, setViewMode] = useState<'phases' | 'timeline' | 'calendar'>('phases');
   /** null → closed; 'create' → new-phase form; otherwise the phase being edited. */
   const [phaseFormTarget, setPhaseFormTarget] = useState<'create' | RoadmapPhaseDoc | null>(null);
   const [phaseDeleteTarget, setPhaseDeleteTarget] = useState<RoadmapPhaseDoc | null>(null);
@@ -347,14 +348,15 @@ export function RoadmapDetailPage() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-900 border border-surface-800">
-          {(['phases', 'timeline'] as const).map(view => (
+          {(['phases', 'timeline', 'calendar'] as const).map(view => (
             <button
               key={view}
               onClick={() => setViewMode(view)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
                 viewMode === view ? 'bg-brand-500/15 text-brand-400' : 'text-surface-400 hover:text-surface-200'
               }`}
             >
+              {view === 'calendar' && <CalendarDays size={12} />}
               {view}
             </button>
           ))}
@@ -374,12 +376,29 @@ export function RoadmapDetailPage() {
         </motion.div>
       )}
 
+      {viewMode === 'calendar' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+          <RoadmapCalendarView
+            tasks={roadmap.tasks}
+            phases={sortedPhases}
+            milestones={roadmap.milestones}
+            roadmapStartDate={roadmap.startDate}
+            roadmapTargetDate={roadmap.targetDate}
+            onTaskClick={(task) => {
+              if (task.phaseRef && task.milestoneRef) {
+                navigate(`/personal/roadmaps/${id}/phases/${task.phaseRef}/milestones/${task.milestoneRef}`);
+              }
+            }}
+          />
+        </motion.div>
+      )}
+
       {/* Phases */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, delay: 0.1 }}
-        className={viewMode === 'timeline' ? 'hidden' : undefined}
+        className={viewMode !== 'phases' ? 'hidden' : undefined}
       >
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Phases</h2>

@@ -12,7 +12,6 @@ import { ProjectCard } from '@collab/components/projects/ProjectCard';
 import { AddProjectModal } from '@collab/components/projects/AddProjectModal';
 import { SAMPLE_PROJECTS, type ProjectData, mapProjectToCardData } from '@collab/components/projects/types';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { useWorkspacePath } from '@collab/hooks/useWorkspacePath';
 
@@ -107,8 +106,6 @@ export function ProjectsPage() {
   const workspaceId = useWorkspaceId();
   const wsPath = useWorkspacePath();
   const { projects: storeProjects, activeWorkspaceId, tasks, workspaces, setActiveWorkspace } = useCollaborationStore();
-  const { user } = useAuthStore();
-  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
   const [localProjects, setLocalProjects] = useState<ProjectData[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -118,6 +115,7 @@ export function ProjectsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   const activeWorkspace = workspaces.find((w) => w.id === workspaceId);
+  const canCreateProject = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'superadmin';
   const hasAttemptedLoad = useRef(false);
 
   useEffect(() => {
@@ -224,6 +222,11 @@ export function ProjectsPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-surface-300 font-medium">{displayProjects.length} Projects</span>
             </div>
+            {canCreateProject && (
+              <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={14} />} size="sm">
+                New Project
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -461,12 +464,12 @@ export function ProjectsPage() {
               description={
                 hasActiveFilters
                   ? 'Try a different search term or adjust your filters.'
-                  : isAdmin
+                  : canCreateProject
                     ? 'Create your first project and start organizing your work.'
                     : 'No projects have been created yet. Ask an admin to create one.'
               }
               action={
-                isAdmin ? (
+                canCreateProject ? (
                   <Button onClick={() => setShowAddModal(true)} leftIcon={<Plus size={14} />}>
                     Create Project
                   </Button>
