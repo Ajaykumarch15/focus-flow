@@ -15,8 +15,6 @@ export function CreateTeamModal({ isOpen, onClose, projectId, projectMemberIds }
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
 
-  if (!isOpen) return null;
-
   const availableMembers = useMemo(() => {
     if (projectId && projectMemberIds && projectMemberIds.length > 0) {
       const pmSet = new Set(projectMemberIds);
@@ -30,6 +28,8 @@ export function CreateTeamModal({ isOpen, onClose, projectId, projectMemberIds }
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase()),
   );
+
+  if (!isOpen) return null;
 
   const selectedMemberObjects = members.filter((m) => selectedMembers.includes(m.id));
 
