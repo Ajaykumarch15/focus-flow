@@ -40,9 +40,10 @@ export function ProjectPeoplePage() {
   const workspaceId = useWorkspaceId();
   const wsPath = useWorkspacePath();
   const navigate = useNavigate();
-  const { members, projects, tasks, teams } = useCollaborationStore();
+  const { members, projects, tasks, teams, workspaces } = useCollaborationStore();
   const { user } = useAuthStore();
-  const isAdmin = (user?.roleId?.level ?? 0) >= 60;
+  const activeWorkspace = workspaces.find((w) => w.id === workspaceId);
+  const isWorkspaceAdmin = activeWorkspace?.role === 'admin' || activeWorkspace?.role === 'superadmin';
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [sortBy, setSortBy] = useState('name');
@@ -70,6 +71,18 @@ export function ProjectPeoplePage() {
     () => projects.find((p) => p.id === projectId),
     [projects, projectId],
   );
+
+  const isProjectManager = useMemo(
+    () => project?.members.some((m) => m.userId === user?._id && m.isProjectManager) ?? false,
+    [project, user?._id],
+  );
+
+  const isTeamLeader = useMemo(
+    () => teams.some((t) => t.leaderId === user?._id),
+    [teams, user?._id],
+  );
+
+  const canCreateTeam = isWorkspaceAdmin || isProjectManager || isTeamLeader;
 
   const projectMemberIds = useMemo(
     () => new Set(project?.members.map((m) => m.userId) ?? []),
@@ -223,17 +236,23 @@ export function ProjectPeoplePage() {
                 Team members assigned to this project.
               </p>
             </div>
-            {isAdmin && (
+            {(canCreateTeam || isWorkspaceAdmin) && (
               <div className="flex items-center gap-2">
-                <Button variant="secondary" onClick={() => setShowCreateTeamModal(true)} leftIcon={<UsersRound size={16} />}>
-                  Create Team
-                </Button>
-                <Button variant="secondary" onClick={() => setShowAddMembersModal(true)} leftIcon={<UserPlus size={16} />}>
-                  Add Members
-                </Button>
-                <Button onClick={() => setShowInviteModal(true)} leftIcon={<Plus size={16} />}>
-                  Invite People
-                </Button>
+                {canCreateTeam && (
+                  <Button variant="secondary" onClick={() => setShowCreateTeamModal(true)} leftIcon={<UsersRound size={16} />}>
+                    Create Team
+                  </Button>
+                )}
+                {isWorkspaceAdmin && (
+                  <>
+                    <Button variant="secondary" onClick={() => setShowAddMembersModal(true)} leftIcon={<UserPlus size={16} />}>
+                      Add Members
+                    </Button>
+                    <Button onClick={() => setShowInviteModal(true)} leftIcon={<Plus size={16} />}>
+                      Invite People
+                    </Button>
+                  </>
+                )}
               </div>
             )}
           </motion.div>
@@ -518,6 +537,7 @@ export function ProjectPeoplePage() {
         isOpen={showCreateTeamModal}
         onClose={() => setShowCreateTeamModal(false)}
         projectId={projectId}
+        projectMemberIds={Array.from(projectMemberIds)}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Users, X, Check, Crown } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
@@ -6,7 +6,7 @@ import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 
-export function CreateTeamModal({ isOpen, onClose, projectId }: { isOpen: boolean; onClose: () => void; projectId?: string }) {
+export function CreateTeamModal({ isOpen, onClose, projectId, projectMemberIds }: { isOpen: boolean; onClose: () => void; projectId?: string; projectMemberIds?: string[] }) {
   const { createTeam, members } = useCollaborationStore();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -17,7 +17,15 @@ export function CreateTeamModal({ isOpen, onClose, projectId }: { isOpen: boolea
 
   if (!isOpen) return null;
 
-  const filtered = members.filter(
+  const availableMembers = useMemo(() => {
+    if (projectId && projectMemberIds && projectMemberIds.length > 0) {
+      const pmSet = new Set(projectMemberIds);
+      return members.filter((m) => pmSet.has(m.id));
+    }
+    return members;
+  }, [members, projectId, projectMemberIds]);
+
+  const filtered = availableMembers.filter(
     (m) =>
       m.name.toLowerCase().includes(search.toLowerCase()) ||
       m.email.toLowerCase().includes(search.toLowerCase()),

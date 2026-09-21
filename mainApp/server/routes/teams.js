@@ -100,7 +100,7 @@ function validateTeamMemberRefs(memberIds, workspace, project) {
     const projectMemberIds = new Set([String(project.userId)]);
     if (Array.isArray(project.members)) {
       project.members.forEach((m) => {
-        const mId = m._id ? String(m._id) : String(m);
+        const mId = m.userId ? String(m.userId) : m._id ? String(m._id) : String(m);
         projectMemberIds.add(mId);
       });
     }
