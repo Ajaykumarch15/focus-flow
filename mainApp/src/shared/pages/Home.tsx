@@ -97,7 +97,7 @@ export function HomePage() {
       <main className="max-w-5xl mx-auto w-full z-10 relative mt-5 flex-1">
         
         {/* Welcome Section */}
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="text-center space-y-1.5 mb-11">
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="text-center space-y-1.5 mb-24">
           <Badge tone="brand" className="px-2.5 py-0.5 uppercase tracking-widest border border-brand-500/20 text-[10px]">
             Homepage
           </Badge>
