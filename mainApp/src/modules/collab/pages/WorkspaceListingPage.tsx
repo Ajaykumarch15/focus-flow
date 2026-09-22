@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   Plus, X, SlidersHorizontal, ChevronDown,
-  Folder, Users, LayoutGrid, BarChart3,
 } from 'lucide-react';
 import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -149,24 +148,13 @@ export function WorkspaceListingPage() {
     );
   }, [filtered]);
 
-  const stats = useMemo(() => ({
-    totalWorkspaces: workspaces.length,
-    totalMembers: workspaces.reduce((s, w) => s + (w.membersCount ?? 0), 0),
-    totalProjects: workspaces.reduce((s, w) => s + (w.projectsCount ?? 0), 0),
-    avgProgress: 0,
-  }), [workspaces]);
 
   const handleOpen = (ws: typeof workspaces[0]) => {
     setActiveWorkspace(ws.id);
     navigate(`/collab/${ws.slug}`);
   };
 
-  const STAT_CARDS = [
-    { label: 'Total Workspaces', value: stats.totalWorkspaces, icon: Folder, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },
-    { label: 'Total Members', value: stats.totalMembers, icon: Users, color: 'text-violet-500', bg: 'bg-violet-50 dark:bg-violet-500/10' },
-    { label: 'Total Projects', value: stats.totalProjects, icon: LayoutGrid, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10' },
-    { label: 'Average Progress', value: `${stats.avgProgress}%`, icon: BarChart3, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-  ];
+
 
   const TABS = [
     { id: 'all' as const, label: 'All', count: workspaces.length },
