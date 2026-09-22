@@ -266,7 +266,7 @@ export function PersonalSchedule() {
   }, [selectedDate, today]);
 
   return (
-    <div className="relative px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-6 max-w-[1600px] space-y-6">
+    <div className="relative px-4 sm:px-6 lg:px-8 pt-1 sm:pt-2 lg:pt-3 pb-6 max-w-[1600px] space-y-6">
       {/* Decorative spots */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute -top-16 -left-16 w-48 h-48 rounded-full bg-brand-400/[0.12] dark:bg-brand-400/[0.06] blur-3xl" />

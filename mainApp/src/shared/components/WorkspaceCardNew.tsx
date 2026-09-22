@@ -253,7 +253,7 @@ export function WorkspaceCardNew({
       )}
     >
       {/* Illustration Area */}
-      <div className="relative h-32 overflow-hidden">
+      <div className="relative h-25 overflow-hidden">
         <CardIllustration type={category} />
         <div className="absolute bottom-0 inset-x-0 h-8 bg-gradient-to-t from-white dark:from-surface-900/80 to-transparent pointer-events-none" />
         {/* Status badge */}
@@ -289,10 +289,10 @@ export function WorkspaceCardNew({
           </div>
         </div>
 
-        {/* Description */}
+        {/* Description
         <p className="line-clamp-2 text-[11px] leading-relaxed text-surface-400">
           {description || 'No description provided.'}
-        </p>
+        </p> */}
 
         {/* Stats Row */}
         <div className="flex items-center gap-3">
