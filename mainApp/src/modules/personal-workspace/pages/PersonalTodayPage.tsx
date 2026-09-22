@@ -255,39 +255,7 @@ export function PersonalTodayPage() {
         ))}
       </motion.div>
 
-      {/* Task Breakdown */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <motion.div variants={fadeUp}>
-          <Card className="p-4 border-t-[3px] border-t-emerald-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-surface-300">Completion Rate</span>
-              <TrendingUp size={14} className="text-emerald-400" />
-            </div>
-            <p className="text-2xl font-display font-extrabold text-surface-50">{completionRate}%</p>
-            <Progress value={completionRate} tone="success" className="mt-2 h-1.5" />
-          </Card>
-        </motion.div>
-        <motion.div variants={fadeUp}>
-          <Card className="p-4 border-t-[3px] border-t-blue-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-surface-300">In Progress</span>
-              <Clock size={14} className="text-blue-400" />
-            </div>
-            <p className="text-2xl font-display font-extrabold text-surface-50">{activeTasksCount}</p>
-            <p className="text-[11px] text-surface-500 mt-1">tasks actively being worked on</p>
-          </Card>
-        </motion.div>
-        <motion.div variants={fadeUp}>
-          <Card className="p-4 border-t-[3px] border-t-purple-500">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-surface-300">Total Tasks</span>
-              <ListTodo size={14} className="text-purple-400" />
-            </div>
-            <p className="text-2xl font-display font-extrabold text-surface-50">{totalTasksCount}</p>
-            <p className="text-[11px] text-surface-500 mt-1">{completedTasksCount} completed</p>
-          </Card>
-        </motion.div>
-      </motion.div>
+      
 
       {/* MAIN GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -374,7 +342,7 @@ export function PersonalTodayPage() {
             {continueTasks.length === 0 ? (
               <Card>
                 <EmptyState
-                  illustration="/SVG/today-goal.png"
+                  
                   title="Nothing to resume"
                   description="All your tasks are completed or not yet started."
                 />
@@ -393,7 +361,7 @@ export function PersonalTodayPage() {
         <div className="space-y-5">
           <CompactCalendarWidget />
           <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
-          <RightSidebar />
+         {/* <RightSidebar />*/}
         </div>
       </div>
 

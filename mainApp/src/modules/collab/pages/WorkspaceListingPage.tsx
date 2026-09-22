@@ -180,7 +180,7 @@ export function WorkspaceListingPage() {
         <div className="absolute -top-40 -left-40 w-96 h-96 dark:bg-brand-500/5 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/3 -right-40 w-96 h-96 dark:bg-cyan-500/4 rounded-full blur-3xl pointer-events-none" />
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 relative z-10 space-y-6 lg:space-y-8">
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-6 lg:pt-3 lg:pb-8 relative z-10 space-y-6 lg:space-y-8">
           {/* Hero Section */}
           <motion.section
             initial={{ opacity: 0, y: -12 }}
@@ -198,7 +198,7 @@ export function WorkspaceListingPage() {
                 Select a workspace to view projects, teams, and members.
               </p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              {/*<div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {STAT_CARDS.map(({ label, value, icon: Icon, color, bg }) => (
                   <div
                     key={label}
@@ -217,10 +217,10 @@ export function WorkspaceListingPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>*/}
             </div>
 
-            <div className="hidden lg:block w-[340px] flex-shrink-0">
+            <div className="hidden lg:block w-[300px] flex-shrink-0">
               <ListHeroIllustration />
             </div>
           </motion.section>
