@@ -2,8 +2,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
-  Play, Plus, AlertTriangle, Clock, CheckCircle, Zap, CheckSquare,
-  Target, ListTodo, BellRing, ArrowRight, TrendingUp, Map,
+  Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
+  Target, ListTodo, BellRing, ArrowRight, Map,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';

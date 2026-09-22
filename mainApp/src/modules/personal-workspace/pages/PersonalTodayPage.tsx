@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, ArrowRight, TrendingUp,
+  Target, ListTodo, ArrowRight,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -18,12 +18,10 @@ import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { Progress } from '@shared/components/ui/Progress';
-
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
 import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
-import { RightSidebar } from '@personal/components/RightSidebar';
+
 import type { Task } from '@shared/types';
 
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -69,24 +67,6 @@ export function PersonalTodayPage() {
 
   const overdueCount = useMemo(
     () => personalTasks.filter(t => t.status !== 'completed' && t.deadline && new Date(t.deadline) < new Date()).length,
-    [personalTasks],
-  );
-
-  const activeTasksCount = useMemo(
-    () => personalTasks.filter(t => t.status === 'active').length,
-    [personalTasks],
-  );
-
-  const totalTasksCount = personalTasks.length;
-
-  const completionRate = useMemo(() => {
-    if (totalTasksCount === 0) return 0;
-    const doneCount = personalTasks.filter(t => t.status === 'completed').length;
-    return Math.round((doneCount / totalTasksCount) * 100);
-  }, [personalTasks, totalTasksCount]);
-
-  const completedTasksCount = useMemo(
-    () => personalTasks.filter(t => t.status === 'completed').length,
     [personalTasks],
   );
 

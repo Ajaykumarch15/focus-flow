@@ -213,7 +213,6 @@ function CircularProgress({ percent, accentColor }: { percent: number; accentCol
 export function WorkspaceCardNew({
   name,
   category,
-  description,
   completionPercent,
   membersCount,
   projectsCount,
