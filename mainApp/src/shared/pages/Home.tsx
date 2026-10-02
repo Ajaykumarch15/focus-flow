@@ -64,7 +64,7 @@ export function HomePage() {
   const totalMembers = workspaces.reduce((sum, ws) => sum + (ws.membersCount || 0), 0);
 
   return (
-    <div className="min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-5 relative overflow-x-hidden overflow-y-auto flex flex-col">
+    <div className="h-dvh md:h-auto md:min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-5 relative overflow-hidden md:overflow-y-auto flex flex-col">
       
       {/* Background Decorative Gradients */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -74,7 +74,7 @@ export function HomePage() {
       <div className="absolute bottom-[10%] right-[10%] w-52 h-28 rounded-full bg-brand-400/[0.04] blur-3xl pointer-events-none" />
       
       {/* Header Bar */}
-      <header className="flex items-center justify-between max-w-6xl mx-auto w-full z-10 relative">
+      <header className="flex items-center justify-between max-w-6xl mx-auto w-full z-10 relative shrink-0">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl overflow-hidden shadow-lg shadow-brand-500/20">
             <img src={theme.mode === 'dark' ? '/darkicon.png' : '/lighticon.png'} alt="FocusFlow" className="w-full h-full object-cover" />
@@ -94,10 +94,10 @@ export function HomePage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto w-full z-10 relative mt-5 flex-1">
+      <main className="max-w-5xl mx-auto w-full z-10 relative mt-5 flex-1 min-h-0 flex flex-col">
         
-        {/* Welcome Section */}
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="text-center space-y-1.5 mb-24">
+        {/* Welcome Section — hidden on mobile to free viewport for cards */}
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="hidden md:block text-center space-y-1.5 mb-24 shrink-0">
           <Badge tone="brand" className="px-2.5 py-0.5 uppercase tracking-widest border border-brand-500/20 text-[10px]">
             Homepage
           </Badge>
@@ -106,8 +106,13 @@ export function HomePage() {
           </h2>
         </motion.div>
 
-        {/* Workspaces Grid */}
-        <motion.div variants={containerVariants} initial="hidden" animate="show" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Workspaces Grid — mobile: contained vertical list in remaining viewport; md+: grid */}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain no-scrollbar md:grid md:grid-cols-2 md:gap-4 lg:grid-cols-3 md:overflow-visible"
+        >
 
           <WorkspaceCard
             variants={itemVariants}
@@ -195,7 +200,7 @@ export function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-[10px] text-surface-400 z-10 relative pt-3 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full">
+      <footer className="hidden md:block text-center text-[10px] text-surface-400 z-10 relative pt-3 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full shrink-0">
         FocusFlow Developer Workspace Platform · Personal & Team Collaboration Engine
       </footer>
 
