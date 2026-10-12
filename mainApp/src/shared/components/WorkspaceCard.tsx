@@ -135,7 +135,7 @@ export function WorkspaceCard({
         </div>
 
         {/* Bottom-anchored editorial content */}
-        <div className="mt-auto pt-16">
+        <div className="mt-auto pt-6 md:pt-16">
           <h3 className="font-display text-lg font-extrabold leading-tight tracking-tight text-white [text-shadow:0_1px_12px_rgba(0,0,0,0.35)]">
             {title}
           </h3>
@@ -153,17 +153,18 @@ export function WorkspaceCard({
             ))}
           </div>
 
-          {/* Primary action */}
+          {/* Primary action — mobile: circular arrow pinned top-right; md+: full-width button */}
           <button
             type="button"
             onClick={onAction}
-            className={`mt-3.5 flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-[11px] font-bold text-white backdrop-blur-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${a.actionHover}`}
+            aria-label={actionLabel}
+            className={`absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-white/90 text-zinc-900 backdrop-blur-md transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900/60 md:static md:mt-3.5 md:h-auto md:w-full md:gap-1.5 md:rounded-xl md:border-white/20 md:bg-white/10 md:px-4 md:py-2.5 md:text-[11px] md:font-bold md:text-white md:focus-visible:ring-white/50 ${a.actionHover}`}
           >
-            {actionLabel}
+            <span className="hidden md:inline">{actionLabel}</span>
             <ArrowRight
               size={13}
               aria-hidden="true"
-              className="transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+              className="h-4 w-4 md:h-[13px] md:w-[13px] transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
             />
           </button>
         </div>

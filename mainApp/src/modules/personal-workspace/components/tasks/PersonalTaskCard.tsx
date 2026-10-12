@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { MessageSquare, Link2, Timer, CheckCircle, Trash2, Calendar } from 'lucide-react';
+import { MessageSquare, Link2, Timer, CheckCircle, Trash2, Calendar, MoreVertical, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -31,6 +31,7 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
   const navigate = useNavigate();
   const { completeTask, deleteTask } = usePersonalTaskStore();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const status = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
   const priority = PRIORITY_BADGE[task.priority] || PRIORITY_BADGE.medium;
   const subtasksDone = task.subtasks.filter(s => s.completed).length;
@@ -60,6 +61,20 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
 
   const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('[data-kebab-root]')) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (task.status !== 'completed') await completeTask(task.id);
@@ -81,7 +96,7 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
         whileHover={{ y: -2 }}
         transition={{ duration: 0.15 }}
         onClick={() => navigate(`/personal/tasks/${task.id}`)}
-        className={`relative text-left w-full rounded-2xl border overflow-hidden transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer flex items-stretch ${
+        className={`relative text-left w-full rounded-2xl border transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer flex items-stretch ${menuOpen ? 'overflow-visible' : 'overflow-hidden'} ${
           isRunning
             ? 'border-blue-500/40 bg-blue-500/5 shadow-lg shadow-blue-500/10'
             : isPaused
@@ -135,19 +150,19 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
           </div>
 
           {/* Title */}
-          <h3 className={`text-sm font-semibold leading-snug truncate ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-50'}`}>
+          <h3 className={`text-sm font-semibold leading-snug line-clamp-2 lg:line-clamp-1 ${task.status === 'completed' ? 'line-through text-surface-500' : 'text-surface-50'}`}>
             {task.title}
           </h3>
 
           {/* Description preview */}
           {task.description && (
-            <p className="text-xs text-surface-500 mt-1 truncate">{task.description}</p>
+            <p className="hidden lg:block text-xs text-surface-500 mt-1 truncate">{task.description}</p>
           )}
 
           {/* Bottom: Counts + Deadline */}
           <div className="flex items-center gap-3 mt-2 flex-wrap">
             {commentCount > 0 && (
-              <span className="flex items-center gap-1 text-[11px] text-surface-500">
+              <span className="hidden lg:flex items-center gap-1 text-[11px] text-surface-500">
                 <MessageSquare size={11} />
                 {commentCount}
               </span>
@@ -170,7 +185,7 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col items-center justify-center gap-1 flex-shrink-0 pr-3" data-no-nav>
+        <div data-kebab-root className="relative flex flex-col items-center justify-start gap-1 flex-shrink-0 pr-3 pt-3.5 lg:justify-center lg:pt-0">
           {task.status !== 'completed' && (
             <Button
               variant="ghost"
@@ -186,11 +201,44 @@ export function PersonalTaskCard({ task }: PersonalTaskCardProps) {
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            className="p-1.5 text-surface-400 hover:text-red-400"
+            className="hidden lg:inline-flex p-1.5 text-surface-400 hover:text-red-400"
             title="Delete task"
           >
             <Trash2 size={14} />
           </Button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Task actions"
+            className="lg:hidden p-1.5 rounded-lg text-surface-400 hover:text-surface-200 hover:bg-surface-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+          >
+            <MoreVertical size={15} />
+          </button>
+
+          {/* Kebab menu (mobile) */}
+          {menuOpen && (
+            <div role="menu" data-no-nav
+              className="absolute right-0 top-20 z-40 w-36 rounded-xl border border-surface-800 bg-surface-900 shadow-2xl p-1">
+              <button
+                role="menuitem"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); navigate(`/personal/tasks/${task.id}`); }}
+                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-surface-300 hover:text-surface-50 hover:bg-surface-850 transition-colors"
+              >
+                <ExternalLink size={13} /> Open task
+              </button>
+              <button
+                role="menuitem"
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setShowConfirmDelete(true); }}
+                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <Trash2 size={13} /> Delete
+              </button>
+            </div>
+          )}
         </div>
       </motion.button>
 

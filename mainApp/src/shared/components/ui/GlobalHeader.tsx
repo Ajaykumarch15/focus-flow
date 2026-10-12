@@ -55,6 +55,12 @@ export function GlobalHeader() {
           <FocusFlowLogo size="sm" showText={false} />
         </button>
 
+        {/* Branding — mobile only (desktop keeps breadcrumbs) */}
+        <div className="lg:hidden leading-none">
+          <p className="text-sm font-bold text-surface-50">FocusFlow</p>
+          <p className="mt-0.5 text-[10px] font-medium text-surface-400">Developer Operating System</p>
+        </div>
+
         {/* Workspace Switcher */}
         {/*}
         <div className="relative" ref={wsRef}>
@@ -109,9 +115,9 @@ export function GlobalHeader() {
         </div>*/}
       </div>
 
-      {/* Center: Breadcrumbs */}
-      <div className="flex-1 min-w-0 hidden sm:block">
-        <Breadcrumbs />
+      {/* Center: Breadcrumbs (flex spacer always; breadcrumb content on lg+) */}
+      <div className="flex-1 min-w-0">
+        <div className="hidden lg:block"><Breadcrumbs /></div>
       </div>
 
       {/* Right: Search + Theme + Notifications + User */}
@@ -132,7 +138,7 @@ export function GlobalHeader() {
           </kbd>
         </button>*/}
         <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
-        <NowIndicator />
+        <div className="hidden lg:block"><NowIndicator /></div>
         <ThemeToggle />
 
         {/* Notifications */}
@@ -141,7 +147,7 @@ export function GlobalHeader() {
         {/* Chat */}
         <button
           onClick={() => navigate(`/collab/${workspaceId || 'default'}/chat`)}
-          className="p-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
+          className="hidden lg:block p-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
           aria-label="Open chat"
           title="Messages"
         >
@@ -157,8 +163,8 @@ export function GlobalHeader() {
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-cyan-400 flex items-center justify-center text-[11px] font-bold text-white">
               {user?.name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
-            <span className="text-xs font-medium text-surface-300 hidden md:block max-w-[100px] truncate">{user?.name}</span>
-            <ChevronDown size={12} className={`text-surface-500 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+            <span className="text-xs font-medium text-surface-300 hidden lg:block max-w-[100px] truncate">{user?.name}</span>
+            <ChevronDown size={12} className={`text-surface-500 hidden lg:block transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
           </button>
 
           <AnimatePresence>

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, ArrowRight,
+  Target, ListTodo, ArrowRight, ChevronRight,
+  Plus, FileText, Calendar, Map,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -119,12 +120,12 @@ export function PersonalTodayPage() {
   }
 
   return (
-    <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+    <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto flex flex-col gap-6 lg:block lg:space-y-6">
 
-      {/* HERO */}
+      {/* HERO — desktop */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Personal dashboard overview"
-        className="relative -mx-6 lg:-mx-8 overflow-hidden
-                   px-6 sm:px-8 lg:px-10 pt-0 pb-6 sm:pb-8 lg:pb-10">
+        className="hidden lg:block relative -mx-8 overflow-hidden
+                   px-10 pt-0 pb-10">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           
           <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
@@ -195,28 +196,93 @@ export function PersonalTodayPage() {
         </div>
       </motion.section>
 
+      {/* HERO — mobile */}
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Personal dashboard overview"
+        className="order-1 lg:hidden flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          {activeTask && (
+            <Badge tone="warning" className="mb-2 text-[10px] font-bold uppercase tracking-wider animate-pulse">Timer Running</Badge>
+          )}
+          <p className="text-[11px] font-extrabold uppercase tracking-widest text-surface-500">{greeting},</p>
+          <h1 className="mt-1 text-[2rem] leading-none font-display font-extrabold tracking-tight">
+            <span className="bg-gradient-to-r from-success-500 to-info-500 bg-clip-text text-transparent">{firstName}</span>
+            <span className="ml-2 text-xl align-middle">👋</span>
+          </h1>
+          <p className="mt-2 text-xs text-surface-500">Keep going, you're doing great!</p>
+        </div>
+        <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
+          className="w-28 sm:w-36 shrink-0 h-28 sm:h-36 object-contain select-none pointer-events-none" />
+      </motion.section>
+
+      {/* GOAL + STATS — mobile (combined card) */}
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Today's goal and progress"
+        className="order-2 lg:hidden rounded-3xl border border-surface-800/60 bg-gradient-to-r from-success-500/15 via-surface-900 to-info-500/15 p-4 flex items-center gap-4">
+        <div className="flex flex-col items-center shrink-0">
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
+                className="text-surface-200 dark:text-surface-700" />
+              {progressPct !== null && (
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
+                  strokeDasharray={`${(progressPct / 100) * 264} 264`} strokeLinecap="round"
+                  className={progressPct >= 100 ? 'text-success-400' : 'text-brand-400'} />
+              )}
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-display font-extrabold text-surface-50">{progressPct === null ? '—' : `${progressPct}%`}</span>
+            </div>
+          </div>
+          <p className="mt-1.5 text-xs font-semibold text-surface-200">
+            {formatHours(todayMs)} <span className="text-surface-500 font-normal">/ {profile.personalDailyGoal}h</span>
+          </p>
+          <p className="text-[10px] text-surface-500">Today's Goal</p>
+        </div>
+        <div className="flex-1 min-w-0 grid grid-cols-3 gap-1">
+          {[
+            { label: 'Completed', value: completedToday, icon: CheckCircle, cls: 'text-success-500' },
+            { label: 'Scheduled', value: todayTasks.length, icon: Calendar, cls: 'text-purple-500' },
+            { label: 'Overdue', value: overdueCount, icon: AlertTriangle, cls: 'text-danger-500' },
+          ].map(({ label, value, icon: Icon, cls }) => (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <Icon size={18} className={cls} />
+              <span className="text-[10px] text-surface-500">{label}</span>
+              <span className="text-lg font-display font-bold text-surface-50">{value}</span>
+            </div>
+          ))}
+        </div>
+      </motion.section>
+
       {/* MISSED BANNER */}
       <AnimatePresence>
         {missedTasks.length > 0 && (
-          <motion.div variants={fadeUp} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
-            <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
+          <motion.button variants={fadeUp} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}
+            type="button" onClick={() => navigate('/personal/tasks')}
+            aria-label={`${missedTasks.length} tasks need attention. View tasks`}
+            className="group order-4 w-full flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5 text-left transition-colors hover:bg-danger-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-500/40">
+            <span className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
               <AlertTriangle size={16} className="text-danger-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-danger-500">
-                {missedTasks.length} Missed Task{missedTasks.length !== 1 ? 's' : ''} Requiring Attention
-              </p>
-              <p className="text-xs text-danger-400/80 mt-0.5">Reschedule or complete these to stay on track.</p>
-            </div>
-            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold"
-              onClick={() => navigate('/personal/tasks')}>View All -&gt;</Button>
-          </motion.div>
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-bold text-danger-500">
+                <span className="lg:hidden">
+                  {missedTasks.length} Task{missedTasks.length !== 1 ? 's' : ''} Need{missedTasks.length !== 1 ? '' : 's'} Attention
+                </span>
+                <span className="hidden lg:block">
+                  {missedTasks.length} Missed Task{missedTasks.length !== 1 ? 's' : ''} Requiring Attention
+                </span>
+              </span>
+              <span className="block text-xs text-danger-400/80 mt-0.5">Reschedule or complete these to stay on track.</span>
+            </span>
+            <ChevronRight size={16} className="text-danger-400 shrink-0 lg:hidden transition-transform group-hover:translate-x-0.5" />
+            <span className="hidden lg:inline-flex items-center h-7 px-2.5 rounded-lg text-xs font-bold text-danger-400 group-hover:text-danger-300 group-hover:bg-danger-500/10 transition-colors">
+              View All -&gt;
+            </span>
+          </motion.button>
         )}
       </AnimatePresence>
 
-      {/* KEY METRICS - Stat Cards */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KEY METRICS - Stat Cards (desktop) */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="hidden lg:grid grid-cols-4 gap-3">
         {[
           { label: "Today's Focus", value: formatHours(todayMs), icon: Clock, color: '#f59e0b', borderClass: 'border-t-amber-500' },
           { label: 'Completed Today', value: String(completedToday), icon: CheckCircle, color: '#10b981', borderClass: 'border-t-emerald-500' },
@@ -238,7 +304,7 @@ export function PersonalTodayPage() {
       
 
       {/* MAIN GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="order-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN */}
         <div className="lg:col-span-2 space-y-6">
           {/* ACTIVE FOCUS */}
@@ -251,12 +317,22 @@ export function PersonalTodayPage() {
                 Active Focus
               </span>
               {!activeTask && (
-                <button
-                  onClick={() => navigate('/personal/tasks')}
-                  className="text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
-                >
-                  Focus Mode <ArrowRight size={12} />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/personal/tasks')}
+                    className="lg:hidden flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/15 px-2.5 py-1 text-[11px] font-bold text-success-600 dark:text-success-400 transition-colors hover:bg-success-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-500/40"
+                  >
+                    Focus Mode <ArrowRight size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/personal/tasks')}
+                    className="hidden lg:flex items-center gap-1 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors"
+                  >
+                    Focus Mode <ArrowRight size={12} />
+                  </button>
+                </>
               )}
             </h2>
             {activeTask ? (
@@ -289,22 +365,32 @@ export function PersonalTodayPage() {
               </Card>
             ) : (
               <Card>
-                <div className="p-6 flex flex-col items-center text-center">
-                  <div className="w-20 h-20 mb-4 flex items-center justify-center">
+                <div className="p-5 flex items-center gap-4 lg:p-6 lg:flex-col lg:items-center lg:text-center lg:gap-0">
+                  <div className="w-24 h-24 shrink-0 flex items-center justify-center lg:w-20 lg:h-20 lg:mb-4">
                     <img src="/SVG/focus.svg.png" alt="" className="w-full h-full object-contain" />
                   </div>
-                  <p className="text-sm font-semibold text-surface-200 mb-1">Nothing in focus right now</p>
-                  <p className="text-xs text-surface-400 mb-4">Pick a task and start making progress.</p>
-                  <Button size="sm" leftIcon={<Play size={12} />} onClick={() => navigate('/personal/tasks')}>
-                    Choose a Task
-                  </Button>
+                  <div className="flex-1 min-w-0 lg:flex-none lg:w-full">
+                    <p className="text-sm font-semibold text-surface-200 mb-1">Nothing in focus right now</p>
+                    <p className="text-xs text-surface-400 lg:mb-4">Pick a task and start making progress.</p>
+                    <Button size="sm" leftIcon={<Play size={12} />} className="hidden lg:inline-flex"
+                      onClick={() => navigate('/personal/tasks')}>
+                      Choose a Task
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/personal/tasks')}
+                      className="lg:hidden mt-3 w-full h-9 rounded-xl bg-gradient-to-r from-success-500 to-teal-500 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-all hover:from-success-400 hover:to-teal-400 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-500/40"
+                    >
+                      <Play size={12} /> Choose a Task
+                    </button>
+                  </div>
                 </div>
               </Card>
             )}
           </motion.section>
 
           {/* CONTINUE WORKING */}
-          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="pt-continue" className="space-y-3">
+          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="pt-continue" className="hidden lg:block space-y-3">
             <h2 id="pt-continue" className="flex items-center justify-between font-display font-bold text-surface-50 text-lg">
               <span className="flex items-center gap-2.5">
                 <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-brand-400">
@@ -338,12 +424,41 @@ export function PersonalTodayPage() {
         </div>
 
         {/* RIGHT COLUMN */}
-        <div className="space-y-5">
+        <div className="hidden lg:block space-y-5">
           <CompactCalendarWidget />
           <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
          {/* <RightSidebar />*/}
         </div>
       </div>
+
+      {/* QUICK ACTIONS — mobile */}
+      <motion.div variants={fadeUp} initial="hidden" animate="show" className="order-5 lg:hidden">
+        <div className="flex items-center gap-2.5 mb-3">
+          <span className="w-7 h-7 rounded-full border border-warning-500/25 bg-warning-500/15 flex items-center justify-center text-warning-500">
+            <Zap size={13} />
+          </span>
+          <h2 className="font-display font-bold text-surface-50 text-lg">Quick Actions</h2>
+        </div>
+        <div className="grid grid-cols-4 gap-2.5">
+          {[
+            { label: 'Add Task', icon: Plus, onClick: () => setShowCreate(true), cls: 'bg-success-500/10 border-success-500/20 text-success-600 dark:text-success-400' },
+            { label: 'Add Note', icon: FileText, onClick: () => navigate('/personal/tasks'), cls: 'bg-info-500/10 border-info-500/20 text-info-600 dark:text-info-400' },
+            { label: 'Plan My Day', icon: Calendar, onClick: () => navigate('/personal/today'), cls: 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400' },
+            { label: 'Open Roadmap', icon: Map, onClick: () => navigate('/personal/roadmaps'), cls: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400' },
+          ].map(({ label, icon: Icon, onClick, cls }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={onClick}
+              aria-label={label}
+              className={`${cls} border rounded-2xl aspect-square flex flex-col items-center justify-center gap-1.5 transition-all hover:-translate-y-0.5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40`}
+            >
+              <Icon size={20} />
+              <span className="text-[10px] font-semibold leading-tight text-center px-1">{label}</span>
+            </button>
+          ))}
+        </div>
+      </motion.div>
 
       <AnimatePresence>
         {showCreate && <CreateTaskModal onClose={() => setShowCreate(false)} onAddTask={(data) => usePersonalTaskStore.getState().addTask(data)} />}
