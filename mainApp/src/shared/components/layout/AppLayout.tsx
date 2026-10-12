@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar }        from './Sidebar';
+import { MobileBottomNav } from './MobileBottomNav';
 import { ToastContainer } from '@shared/components/ui/ToastContainer';
 import { ScheduleNotificationPanel } from '@personal/components/schedule/ScheduleNotificationPanel';
 import { GlobalHeader }   from '@shared/components/ui/GlobalHeader';
@@ -51,7 +52,7 @@ export function AppLayout() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <GlobalHeader />
-        <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin relative">
+        <main ref={mainRef} className="flex-1 overflow-y-auto scrollbar-thin relative pb-20 lg:pb-0">
           {/* ── Ambient decorative spots — global ── */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute -top-20 left-[8%] w-56 h-56 rounded-full
@@ -110,6 +111,7 @@ export function AppLayout() {
 
       <ToastContainer />
       <ScheduleNotificationPanel />
+      <MobileBottomNav />
     </div>
   );
 }

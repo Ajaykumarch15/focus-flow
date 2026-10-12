@@ -25,7 +25,7 @@ export function BulkActionBar({ visible, selectedIds, onSelectAll, totalCount, o
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
+          className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-50"
         >
           <div className="flex items-center gap-2 px-4 py-2.5 bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl backdrop-blur-xl">
             <span className="text-sm font-medium text-surface-200 mr-1">
