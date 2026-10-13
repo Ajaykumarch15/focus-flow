@@ -47,6 +47,7 @@ export interface Task {
   sessions: TimerSession[];
   totalTime: number;
   tags: string[];
+  labels?: string[];
   color: string;
   order: number;
   roadmapRef?: string;

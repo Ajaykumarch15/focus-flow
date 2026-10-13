@@ -54,6 +54,7 @@ const taskBase = {
   deadline: dateInput.optional(),
   color: z.string().trim().max(20, 'Color too long').optional(),
   tags: z.array(z.string().trim().max(50, 'Tag too long')).max(50, 'Too many tags'),
+  labels: z.array(z.string().trim().max(50, 'Label too long')).max(50, 'Too many labels').optional(),
 };
 
 const subtaskItem = z.object({
@@ -107,6 +108,7 @@ const TASK_PATCH_FIELDS = {
   scheduledDate: true,
   color: true,
   tags: true,
+  labels: true,
   completedAt: true,
 };
 
@@ -136,7 +138,7 @@ router.get('/', async (req, res, next) => {
 // POST /api/personal-tasks
 router.post('/', validate(taskCreateSchema), async (req, res, next) => {
   try {
-    const { title, description, priority, status, category, deadline, color, tags, subtasks } = req.body;
+    const { title, description, priority, status, category, deadline, color, tags, labels, subtasks } = req.body;
     const { scheduledDate, personalRoadmapRef, personalPhaseRef, personalMilestoneRef } = req.body;
 
     if (!title || !title.trim()) {
@@ -155,6 +157,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       category: category || 'Work',
       color: color || '#0ea5e9',
       tags: tags || [],
+      labels: labels || [],
       subtasks: subtasks || [],
       deadline: encodeDeadline(deadline, userTimezone(req.user)) || undefined,
       scheduledDate: scheduledDate || undefined,

@@ -142,6 +142,7 @@ function mapTask(doc: any): Task {
     reminderMinutesBefore: doc.reminderMinutesBefore ?? undefined,
     color: doc.color ?? '#0ea5e9',
     tags: doc.tags ?? [],
+    labels: doc.labels ?? [],
     subtasks: (doc.subtasks ?? []).map((s: any): Subtask => ({
       id: s._id,
       title: s.title,

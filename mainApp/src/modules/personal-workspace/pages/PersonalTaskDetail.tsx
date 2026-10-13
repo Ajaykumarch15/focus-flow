@@ -15,6 +15,7 @@ import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '@shared/utils/colors';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { Badge } from '@shared/components/ui/Badge';
+import { RichContent } from '@shared/components/ui/RichContent';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { TaskNotFound } from '@shared/components/illustrations';
 import { PauseCapturePanel } from '@worklog/components/focus/PauseCapturePanel';
@@ -294,9 +295,10 @@ export function PersonalTaskDetail() {
 
               {/* Description */}
               {task.description && (
-                <p className="text-surface-400 mt-2 text-sm max-w-2xl leading-relaxed">
-                  {task.description}
-                </p>
+                <RichContent
+                  content={task.description}
+                  className="mt-2 max-w-2xl text-sm text-surface-400"
+                />
               )}
 
               {/* Meta stats */}
