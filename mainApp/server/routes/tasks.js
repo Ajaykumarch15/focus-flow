@@ -556,6 +556,7 @@ router.post('/', validate(taskCreateSchema), async (req, res, next) => {
       category: category || 'Work',
       color: color || '#0ea5e9',
       tags: tags || [],
+      labels: labels || [],
       subtasks: subtasks || [],
       deadline: encodeDeadline(deadline, userTimezone(req.user)) || undefined,
       roadmapRef: roadmapRef || undefined,

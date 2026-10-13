@@ -172,7 +172,7 @@ export function TaskDetail() {
             )}
 
             {task.description && (
-              <p className="text-surface-400 mt-2 text-sm max-w-2xl leading-relaxed">{task.description}</p>
+              <RichContent content={task.description} className="mt-2 max-w-2xl text-sm text-surface-400" />
             )}
 
             {/* Quick stats row */}
