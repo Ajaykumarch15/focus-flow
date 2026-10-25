@@ -16,12 +16,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
     'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md shadow-brand-500/25 ' +
-    'hover:shadow-lg hover:shadow-brand-500/35 hover:-translate-y-px',
-  secondary: 'bg-surface-900 text-surface-50 border border-surface-800 hover:bg-surface-850 hover:border-surface-700',
-  danger: 'bg-danger-500/10 text-danger-600 dark:text-danger-400 border border-danger-500/20 hover:bg-danger-500/20',
-  success: 'bg-success-500/10 text-success-600 dark:text-success-400 border border-success-500/20 hover:bg-success-500/20',
-  ghost: 'text-surface-400 hover:text-surface-50 hover:bg-surface-850',
-  outline: 'border border-surface-800 text-surface-50 hover:bg-surface-850 hover:border-surface-700',
+    'hover:shadow-lg hover:shadow-brand-500/35 focus-visible:ring-brand-500/40',
+  secondary: 'bg-surface-900 text-surface-50 border border-surface-800 hover:bg-surface-850 hover:border-surface-700 hover:shadow-md focus-visible:ring-surface-400/40',
+  danger: 'bg-danger-500/10 text-danger-600 dark:text-danger-400 border border-danger-500/20 hover:bg-danger-500/20 hover:shadow-md hover:shadow-danger-500/20 focus-visible:ring-danger-500/40',
+  success: 'bg-success-500/10 text-success-600 dark:text-success-400 border border-success-500/20 hover:bg-success-500/20 hover:shadow-md hover:shadow-success-500/20 focus-visible:ring-success-500/40',
+  ghost: 'text-surface-400 hover:text-surface-50 hover:bg-surface-850 focus-visible:ring-surface-400/40',
+  outline: 'border border-surface-800 text-surface-50 hover:bg-surface-850 hover:border-surface-700 hover:shadow-md focus-visible:ring-surface-400/40',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -34,8 +34,9 @@ const sizeClasses: Record<ButtonSize, string> = {
 };
 
 const baseClasses =
-  'inline-flex items-center justify-center font-semibold transition-all duration-200 select-none ' +
-  'disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98]';
+  'inline-flex items-center justify-center font-semibold transition-all duration-200 ease-snappy select-none ' +
+  'hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.98] ' +
+  'motion-reduce:transition-none motion-reduce:transform-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100';
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
