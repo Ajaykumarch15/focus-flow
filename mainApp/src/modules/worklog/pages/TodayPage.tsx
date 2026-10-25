@@ -1,9 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
   Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
-  Target, ListTodo, BellRing, ArrowRight, Map,
+  Target, ListTodo, BellRing, ArrowRight, Map, TrendingUp, Sparkles, CalendarDays, AlertOctagon,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -21,13 +21,13 @@ import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 import { Card, CardHeader, CardTitle, CardBody } from '@shared/components/ui/Card';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
 
 import { Button } from '@shared/components/ui/Button';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { NothingNeedsAttention } from '@shared/components/illustrations';
-import { Progress } from '@shared/components/ui/Progress';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { formatHours, formatMs } from '@shared/utils/time';
 
@@ -321,20 +321,25 @@ export function TodayPage() {
 
       {/* ═══════════════ KEY METRICS - Stat Cards ═══════════════ */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
-        {[
-          { label: "Today's Focus", value: formatHours(todayMs), icon: Clock, color: accent, borderClass: 'border-t-sky-500' },
-          { label: 'Completed Today', value: String(view.stats.completedToday), icon: CheckCircle, color: '#10b981', borderClass: 'border-t-emerald-500' },
-          { label: 'Scheduled Today', value: String(view.stats.activeCount), icon: ListTodo, color: '#8b5cf6', borderClass: 'border-t-purple-500' },
-          { label: 'Overdue', value: String(view.stats.overdueCount), icon: AlertTriangle, color: '#ef4444', borderClass: 'border-t-red-500' },
-        ].map(({ label, value, icon: Icon, color, borderClass }) => (
+        {(([
+          {label: "Today's Focus", value: formatHours(todayMs), icon: Clock, accent: 'brand', illustration: TrendingUp, bg: '/SVG/svg/time-management_4ss6.svg', bgPos: 'bottom-left'},
+        { label: 'Completed Today', value: String(view.stats.completedToday), icon: CheckCircle, accent: 'success', illustration: Sparkles, bg: '/SVG/svg/thumbs%20up.svg', bgPos: 'top-right' },
+        { label: 'Scheduled Today', value: String(view.stats.activeCount), icon: ListTodo, accent: 'info', illustration: CalendarDays, bg: '/SVG/svg/PLAN.svg', bgPos: 'bottom-right' },
+        { label: 'Overdue', value: String(view.stats.overdueCount), icon: AlertTriangle, accent: 'danger', illustration: AlertOctagon, bg: '/SVG/svg/tight%20deadline.svg', bgPos: 'top' },
+        ]) as const).map(({ label, value, icon: Icon, accent, illustration: Illustration, bg, bgPos }) => (
           <motion.div key={label} variants={fadeUp}>
-            <Card className={`p-4 border-t-[3px] ${borderClass}`}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Icon size={13} style={{ color }} />
-                <span className="text-[11px] text-surface-400 font-medium">{label}</span>
-              </div>
-              <p className="text-lg font-display font-bold text-surface-50">{value}</p>
-            </Card>
+            <StatisticsCard
+              title={label}
+              value={value}
+              icon={<Icon size={14} />}
+              illustration={<Illustration size={16} className="opacity-80" />}
+              accent={accent}
+              description=""
+              transparent
+              alwaysShowBorder
+              backgroundImage={bg}
+              backgroundPosition={bgPos}
+            />
           </motion.div>
         ))}
       </motion.div>
@@ -439,8 +444,18 @@ export function TodayPage() {
             )}
 
             {!activeTask && view.doNow.length === 0 && (
-              <Card>
-                <div className="p-6 flex flex-col items-center text-center">
+              <Card className="relative overflow-hidden">
+                {/* Decorative focus illustration as card background */}
+                <img
+                  src="/SVG/svg/deep-work_muov.svg"
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  draggable={false}
+                  className="pointer-events-none absolute -right-4 -bottom-3 z-0 h-28 w-auto max-w-[40%] object-contain
+                             opacity-20 dark:opacity-[0.14] select-none"
+                />
+                <div className="relative z-10 p-6 flex flex-col items-center text-center">
                   <div className="w-20 h-20 mb-4 flex items-center justify-center">
                     <img src="/SVG/focus.svg.png" alt="" className="w-full h-full object-contain" />
                   </div>
@@ -537,30 +552,38 @@ export function TodayPage() {
 // ══════════════════════════════════════════════════════════════════════════════
 
 
-const SOURCE_LABEL: Record<ContinueItem['source'], string> = {
-  active: 'Active',
-  paused: 'Paused',
-  worklog: 'In work log',
-  history: 'Started',
+/** Maps a badge tone to the blinking border's conic-gradient color pair [from, to]. */
+const TONE_BORDER: Record<BadgeTone, [string, string]> = {
+  brand: ['var(--color-brand-500)', 'var(--color-info-400)'],
+  success: ['var(--color-success-500)', 'var(--color-brand-400)'],
+  warning: ['var(--color-warning-500)', 'var(--color-warning-400)'],
+  danger: ['var(--color-danger-500)', 'var(--color-danger-400)'],
+  info: ['var(--color-info-500)', 'var(--color-info-400)'],
+  neutral: ['var(--color-brand-500)', 'var(--color-info-400)'],
 };
+
+function borderStyle([from, to]: [string, string]): CSSProperties {
+  return { '--rb-from': from, '--rb-to': to } as CSSProperties;
+}
 
 function ContinueRow({ item, isPrimary, onOpen }: {
   item: ContinueItem; isPrimary?: boolean; onOpen: () => void;
 }) {
+  const tone: BadgeTone = item.status === 'active' ? 'success' : item.status === 'paused' ? 'warning' : 'brand';
   return (
     <motion.button variants={fadeUp} onClick={onOpen}
-      className="w-full text-left p-4 rounded-2xl border border-surface-800 bg-surface-900 hover:border-surface-700 hover:bg-surface-850 transition-all group flex items-center gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          {isPrimary && <Badge tone="brand">Resume</Badge>}
-          <StatusBadge status={item.status} />
-          <Badge tone="neutral">{SOURCE_LABEL[item.source]}</Badge>
+      className="rotating-border w-full text-left flex items-center gap-4 group"
+      style={borderStyle(TONE_BORDER[tone])}>
+      <div className="rotating-border-inner flex items-center gap-4 bg-surface-900 hover:bg-surface-850 transition-colors p-4">
+        <div className="flex-1 min-w-0 flex items-center gap-2.5">
+          {isPrimary && <Badge tone="brand" className="shrink-0">Resume</Badge>}
+          <StatusBadge status={item.status} className="shrink-0" />
+          <p className="font-medium text-surface-50 truncate">{item.title}</p>
         </div>
-        <p className="font-medium text-surface-50 truncate">{item.title}</p>
-      </div>
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div className="timer-display text-sm font-bold text-surface-300">{formatHours(item.totalTime)}</div>
-        <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors" />
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="timer-display text-sm font-bold text-surface-300">{formatHours(item.totalTime)}</div>
+          <ArrowRight size={14} className="text-surface-600 group-hover:text-surface-400 transition-colors" />
+        </div>
       </div>
     </motion.button>
   );
@@ -572,26 +595,21 @@ function DoNowRow({ item, accent, onStart, onOpen }: {
   const t = item.task;
   return (
     <motion.div variants={fadeUp}
-      className="p-4 rounded-2xl border border-surface-800 bg-surface-900 hover:border-surface-700 transition-colors">
-      <button onClick={onOpen} className="w-full text-left">
-        <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <Badge tone={reasonTone(item)}>{item.reason}</Badge>
-          {item.subtaskProgress && (
-            <Badge tone="neutral">{item.subtaskProgress.done}/{item.subtaskProgress.total} subtasks</Badge>
-          )}
+      className="rotating-border rotating-border-cycle flex items-center"
+      style={{ ...borderStyle(TONE_BORDER[reasonTone(item)]), '--rb-cycle': '15s' } as CSSProperties}>
+      <div className="rotating-border-inner flex items-center gap-4 bg-surface-900 hover:bg-surface-850 transition-colors p-4">
+        <button onClick={onOpen} className="flex-1 min-w-0 flex items-center gap-2.5 text-left group">
+          <Badge tone={reasonTone(item)} className="shrink-0">{item.reason}</Badge>
+          <p className="font-medium text-surface-50 truncate">{t.title}</p>
+        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button size="sm" leftIcon={<Play size={12} />} className="shadow-sm"
+            style={{ backgroundColor: accent, boxShadow: `0 4px 12px -2px ${accent}40` }}
+            onClick={() => onStart(t)}>
+            Start
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onOpen}>Open</Button>
         </div>
-        <p className="font-medium text-surface-50 truncate">{t.title}</p>
-      </button>
-      {item.subtaskProgress && (
-        <Progress value={item.subtaskProgress.pct} className="mt-3" ariaLabel={`${t.title} subtask progress`} />
-      )}
-      <div className="flex gap-2 mt-3">
-        <Button size="sm" leftIcon={<Play size={12} />} className="shadow-sm"
-          style={{ backgroundColor: accent, boxShadow: `0 4px 12px -2px ${accent}40` }}
-          onClick={() => onStart(t)}>
-          Start
-        </Button>
-        <Button variant="secondary" size="sm" onClick={onOpen}>Open</Button>
       </div>
     </motion.div>
   );

@@ -118,6 +118,7 @@ export default {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'float': 'float 6s ease-in-out infinite',
         'glow': 'glow 2s ease-in-out infinite alternate',
+        'danger-blink': 'dangerBlink 2s ease-in-out infinite',
       },
       keyframes: {
         float: {
@@ -127,7 +128,11 @@ export default {
         glow: {
           '0%': { boxShadow: '0 0 5px rgba(14,165,233,0.3)' },
           '100%': { boxShadow: '0 0 20px rgba(14,165,233,0.8)' },
-        }
+        },
+        dangerBlink: {
+          '0%, 100%': { boxShadow: '0 0 0 0 color-mix(in srgb, var(--color-danger-500) 0%, transparent)' },
+          '50%': { boxShadow: '0 0 18px 4px color-mix(in srgb, var(--color-danger-500) 55%, transparent)' },
+        },
       },
       backdropBlur: {
         xs: '2px',

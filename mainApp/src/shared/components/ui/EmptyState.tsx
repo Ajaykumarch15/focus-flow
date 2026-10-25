@@ -22,7 +22,18 @@ export function EmptyState({ icon, illustration, title, description, action, hin
     >
       {illustration ? (
         <div className="relative mb-5 flex items-center justify-center">
-          {illustration}
+          {typeof illustration === 'string' ? (
+            <img
+              src={illustration}
+              alt=""
+              aria-hidden="true"
+              loading="lazy"
+              draggable={false}
+              className="h-32 w-auto max-w-full object-contain select-none"
+            />
+          ) : (
+            illustration
+          )}
         </div>
       ) : icon ? (
         <div className="relative mb-5">

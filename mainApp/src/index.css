@@ -486,6 +486,45 @@
   .accent-border:hover {
     border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-surface-700));
   }
+  .rotating-border {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem; /* 16px */
+    padding: 1.5px;
+  }
+  .rotating-border::before {
+    content: '';
+    position: absolute;
+    inset: -150%;
+    background: conic-gradient(
+      from 0deg,
+      var(--rb-from, var(--color-success-500)),
+      var(--rb-to, var(--color-brand-500)) 45%,
+      var(--rb-from, var(--color-success-500))
+    );
+    animation: rotating-border-blink 2s ease-in-out infinite;
+  }
+  .rotating-border > .rotating-border-inner {
+    position: relative;
+    border-radius: calc(1rem - 1.5px);
+    width: 100%;
+  }
+  /* Cycle variant: border rotates continuously instead of blinking.
+     Pass --rb-cycle (e.g. 15s) via the style attribute to set cycle length. */
+  .rotating-border.rotating-border-cycle::before {
+    opacity: 1;
+    animation: rotating-border-spin var(--rb-cycle, 15s) linear infinite;
+  }
+  @keyframes rotating-border-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+  @keyframes rotating-border-spin {
+    to { transform: rotate(360deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rotating-border::before { animation: none; }
+  }
 
   .input {
     background-color: var(--color-surface-900);
@@ -774,6 +813,16 @@
   background: var(--color-brand-500);
   pointer-events: none;
   animation: ripple-expand 0.6s ease-out forwards;
+}
+
+/* ── Overdue card ripple (dotLottie asset, recolored to danger) ─────────────
+   The Ripple.lottie asset ships with static blue fills; lottie-web writes
+   them as SVG presentation attributes, so a scoped CSS rule recolors them
+   to the semantic danger token (which flips automatically in dark mode)
+   without altering the original asset. */
+.statistics-card-ripple svg path {
+  fill: var(--color-danger-500) !important;
+  stroke: transparent !important;
 }
 
 /* ── Accessibility & Overflow Protection ─────────────────────────────────── */
