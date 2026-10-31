@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calendar } from 'lucide-react';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Pagination } from '@shared/components/ui/Pagination';
@@ -35,6 +35,23 @@ export function TaskListView({ tasks, onTaskClick, pageSize = 10 }: TaskListView
   const [currentPage, setCurrentPage] = useState(1);
 
   const totalPages = Math.ceil(tasks.length / pageSize);
+
+  // Keep the page in range when the filtered task count shrinks (filter/search/
+  // delete) — otherwise a stale page renders an empty table even though tasks
+  // still exist.
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // Reset to the first page when the result set changes identity (filters,
+  // search, bulk ops). Compare by first/last ids + length so in-place updates
+  // (e.g. a parallel timer touching a task) don't yank the user back to page 1.
+  const resultSignature = `${tasks.length}:${tasks[0]?.id ?? ''}:${tasks[tasks.length - 1]?.id ?? ''}`;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [resultSignature]);
 
   const paginatedTasks = useMemo(() => {
     const start = (currentPage - 1) * pageSize;

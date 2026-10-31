@@ -243,7 +243,7 @@ export function MilestoneDetailPage() {
   // ── Loading / Error ──
   if (detailLoading || !milestone) {
     return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-3">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-3">
         <div className="h-4 w-64 bg-surface-800 rounded animate-pulse" />
         <div className="h-6 w-48 bg-surface-800 rounded animate-pulse" />
         <div className="space-y-2">
@@ -254,7 +254,7 @@ export function MilestoneDetailPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-4">
       {/* Milestone header + actions */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
         className="flex items-start justify-between gap-3">

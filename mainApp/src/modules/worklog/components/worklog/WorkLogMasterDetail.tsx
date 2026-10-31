@@ -36,7 +36,7 @@ export function WorkLogMasterDetail({ logs, selectedId, onSelect, onBack }: {
 
   if (!selected) {
     return (
-      <div className="max-w-5xl mx-auto space-y-6">
+      <div className="space-y-6">
         <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
           onClick={onBack}
           className="flex items-center gap-2 text-sm text-surface-400 hover:text-surface-200 transition-colors">
@@ -55,10 +55,10 @@ export function WorkLogMasterDetail({ logs, selectedId, onSelect, onBack }: {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Master rail — all work logs in one surface */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
+        className="rounded-2xl border border-surface-800 bg-transparent p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <div className="w-7 h-7 rounded-lg bg-surface-800 flex items-center justify-center flex-shrink-0">
             <LayoutList size={13} className="text-brand-400" />

@@ -15,13 +15,14 @@ import { formatHours, formatMs } from '@shared/utils/time';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { calculateScheduleMetrics } from '@worklog/services/scheduleAnalytics';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
+import { fetchPersonalSessions, sumClosedSessionMs, computeLivePersonalMs, type PersonalSessionLite } from '@personal/services/personalFocusTime';
 
 export function PersonalPage() {
   const navigate = useNavigate();
   const { profile, loadAll } = useStore();
   const { tasks, fetchTasks } = usePersonalTaskStore();
   const { schedules, fetchSchedules } = useScheduleStore();
-  const { activeTaskId: activeId } = useActiveTimer();
+  const { activeTaskId: activeId, elapsedMs, activeTimerState } = useActiveTimer();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,34 +33,48 @@ export function PersonalPage() {
     return () => clearTimeout(t);
   }, []);
 
+  // Live timer contribution (0 when no timer is running/paused)
+  const liveMs = activeId && activeTimerState && activeTimerState !== 'idle' ? elapsedMs : 0;
+
+  // Personal work sessions (server-tracked — task docs never embed sessions)
+  const [personalSessions, setPersonalSessions] = useState<PersonalSessionLite[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const list = await fetchPersonalSessions();
+      if (!cancelled) setPersonalSessions(list);
+    };
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  const personalTaskIds = useMemo(() => tasks.map(t => t.id), [tasks]);
+
   const todayMs = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    return tasks.reduce((sum, t) => {
-      const todaySessions = t.sessions.filter(s => {
-        const d = new Date(s.startTime);
-        return d >= start && d <= now;
-      });
-      return sum + todaySessions.reduce((s, sess) => s + (sess.activeTime || 0), 0);
-    }, 0);
-  }, [tasks]);
+    const sod = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+    return sumClosedSessionMs(personalSessions, sod, Date.now()) + computeLivePersonalMs(personalTaskIds);
+    // elapsedMs/liveMs keep this fresh while a timer runs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalSessions, personalTaskIds, liveMs]);
 
   const weekMs = useMemo(() => {
     const now = new Date();
+    // Monday-start week (ISO). `getDay()` is Sunday-based (0), so map it to
+    // Monday-based: Monday→0 … Sunday→6. The old `- getDay() + 1` formula misfired
+    // on Sundays (start landed tomorrow, yielding ~0 week time).
+    const mondayOffset = (now.getDay() + 6) % 7;
     const start = new Date(now);
-    start.setDate(start.getDate() - start.getDay() + 1);
+    start.setDate(now.getDate() - mondayOffset);
     start.setHours(0, 0, 0, 0);
-    return tasks.reduce((sum, t) => {
-      const weekSessions = t.sessions.filter(s => {
-        const d = new Date(s.startTime);
-        return d >= start && d <= now;
-      });
-      return sum + weekSessions.reduce((s, sess) => s + (sess.activeTime || 0), 0);
-    }, 0);
-  }, [tasks]);
+    return sumClosedSessionMs(personalSessions, start.getTime(), now.getTime()) + computeLivePersonalMs(personalTaskIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalSessions, personalTaskIds, liveMs]);
 
   const dailyGoalMs = (profile.personalDailyGoal ?? 6) * 3600000;
-  const goalPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : 0;
+  // Goal=0 means "disabled" (Settings: "Set to 0 to disable") — null so the
+  // UI can show a disabled stat instead of a misleading 0% / "0m remaining".
+  const goalPct = dailyGoalMs > 0 ? Math.min(100, Math.round((todayMs / dailyGoalMs) * 100)) : null;
 
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
   const totalTasks = tasks.length;
@@ -70,7 +85,10 @@ export function PersonalPage() {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     return tasks.filter(t => {
       if (t.status !== 'completed') return false;
-      return new Date(t.updatedAt) >= start;
+      // Keyed on completedAt when recorded; updatedAt fallback only for legacy
+      // task docs — both are epoch-ms here.
+      const at = t.completedAt ?? t.updatedAt;
+      return at != null && new Date(at) >= start;
     }).length;
   }, [tasks]);
 
@@ -126,8 +144,10 @@ export function PersonalPage() {
       {/* ── KPI Row ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={<Clock size={18} />} label="Today's Focus" value={formatHours(todayMs)} accent="text-sky-400" />
-        <KpiCard icon={<Target size={18} />} label="Daily Goal" value={`${goalPct}%`} accent="text-brand-400"
-          sub={goalPct >= 100 ? 'Goal reached!' : `${formatMs(Math.max(0, dailyGoalMs - todayMs))} remaining`} />
+        <KpiCard icon={<Target size={18} />} label="Daily Goal" value={goalPct === null ? '—' : `${goalPct}%`} accent="text-brand-400"
+          sub={goalPct === null ? 'Goal disabled — set one in Settings'
+            : goalPct >= 100 ? 'Goal reached!'
+            : `${formatMs(Math.max(0, dailyGoalMs - todayMs))} remaining`} />
         <KpiCard icon={<CheckCircle2 size={18} />} label="Completed Today" value={String(completedToday)} accent="text-emerald-400"
           sub={`${completedTasks}/${totalTasks} total tasks`} />
         <KpiCard icon={<Flame size={18} />} label="This Week" value={formatHours(weekMs)} accent="text-orange-400" />

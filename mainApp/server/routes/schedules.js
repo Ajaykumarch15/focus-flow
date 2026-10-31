@@ -202,8 +202,12 @@ const scheduleSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'startTime must be HH:mm'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/, 'endTime must be HH:mm'),
   notes: z.string().optional().default(''),
-  status: z.enum(['scheduled', 'in-progress', 'completed', 'missed', 'cancelled']).optional().default('scheduled'),
+  status: z.enum(['scheduled', 'in-progress', 'completed', 'missed', 'cancelled', 'skipped']).optional().default('scheduled'),
   recurrence: z.enum(['none', 'daily', 'weekly', 'custom']).optional().default('none'),
+  locked: z.boolean().optional(),
+  actualStartAt: z.number().int().min(0).nullable().optional(),
+  actualEndAt: z.number().int().min(0).nullable().optional(),
+  extendedMins: z.number().int().min(0).max(24 * 60).optional(),
   workspaceId: objectId.nullable().optional(),
   projectId: objectId.nullable().optional(),
 });
@@ -211,7 +215,7 @@ const scheduleSchema = z.object({
 // POST /api/schedules - Create a schedule entry
 router.post('/', validate(scheduleSchema), async (req, res, next) => {
   try {
-    const { taskId, date, startTime, endTime, notes, status, recurrence, workspaceId, projectId, userId } = req.body;
+    const { taskId, date, startTime, endTime, notes, status, recurrence, locked, actualStartAt, actualEndAt, extendedMins, workspaceId, projectId, userId } = req.body;
 
     if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
       throw httpError(400, 'BAD_REQUEST', 'endTime must be after startTime');
@@ -229,6 +233,10 @@ router.post('/', validate(scheduleSchema), async (req, res, next) => {
       notes,
       status,
       recurrence,
+      locked: locked || false,
+      actualStartAt: actualStartAt ?? null,
+      actualEndAt: actualEndAt ?? null,
+      extendedMins: extendedMins || 0,
       workspaceId: workspaceId || null,
       projectId: projectId || null,
       assignedBy: workspaceId ? req.user._id : null,
@@ -244,7 +252,16 @@ router.post('/', validate(scheduleSchema), async (req, res, next) => {
   }
 });
 
-const schedulePatchSchema = scheduleSchema.partial();
+const schedulePatchSchema = scheduleSchema.partial().extend({
+  // Optional audit metadata pushed onto schedule.revisions by the rescheduling
+  // engine (and by explicit user actions like Skip). Never applied to fields.
+  revisionMeta: z.object({
+    strategy: z.enum(['shift-all', 'relocate', 'shrink', 'keep-as-is', 'manual', 'skip']).optional(),
+    reason: z.string().max(500).optional(),
+    // Snapshot of what changed (free-form, capped size in handler)
+    items: z.record(z.string(), z.unknown()).nullable().optional(),
+  }).optional(),
+});
 
 // PATCH /api/schedules/:id - Edit a schedule entry
 router.patch('/:id', validate(schedulePatchSchema, { params: z.object({ id: objectId }) }), async (req, res, next) => {
@@ -259,17 +276,41 @@ router.patch('/:id', validate(schedulePatchSchema, { params: z.object({ id: obje
       throw httpError(403, 'FORBIDDEN', 'Not authorized');
     }
 
-    if (req.body.userId) schedule.userId = req.body.userId;
-    if (req.body.taskId) schedule.taskId = req.body.taskId;
-    if (req.body.date) schedule.date = req.body.date;
-    if (req.body.startTime) schedule.startTime = req.body.startTime;
-    if (req.body.endTime) schedule.endTime = req.body.endTime;
-    if (req.body.notes !== undefined) schedule.notes = req.body.notes;
-    if (req.body.status) schedule.status = req.body.status;
-    if (req.body.recurrence) schedule.recurrence = req.body.recurrence;
+    const { revisionMeta, ...body } = req.body;
+
+    if (body.userId) schedule.userId = body.userId;
+    if (body.taskId) schedule.taskId = body.taskId;
+    if (body.date) schedule.date = body.date;
+    if (body.startTime) schedule.startTime = body.startTime;
+    if (body.endTime) schedule.endTime = body.endTime;
+    if (body.notes !== undefined) schedule.notes = body.notes;
+    if (body.status) schedule.status = body.status;
+    if (body.recurrence) schedule.recurrence = body.recurrence;
+    // Explicit undefined-checks so falsy values (locked: false, reset to null) persist
+    if (body.locked !== undefined) schedule.locked = body.locked;
+    if (body.actualStartAt !== undefined) schedule.actualStartAt = body.actualStartAt;
+    if (body.actualEndAt !== undefined) schedule.actualEndAt = body.actualEndAt;
+    if (body.extendedMins !== undefined) schedule.extendedMins = body.extendedMins;
+    // Completed tasks must not revert to in-progress via a stale status write
+    if (body.status && schedule.status === 'completed' && ['scheduled', 'in-progress'].includes(body.status)) {
+      throw httpError(409, 'CONFLICT', 'Completed task cannot be rescheduled automatically');
+    }
 
     if (timeToMinutes(schedule.endTime) <= timeToMinutes(schedule.startTime)) {
       throw httpError(400, 'BAD_REQUEST', 'endTime must be after startTime');
+    }
+
+    // Atomic commit: audit entry goes in the same save() as the field changes
+    if (revisionMeta) {
+      const entries = schedule.revisions && schedule.revisions.length > 0 ? schedule.revisions : [];
+      entries.push({
+        strategy: revisionMeta.strategy || 'manual',
+        reason: revisionMeta.reason || '',
+        items: revisionMeta.items || null,
+        at: new Date(),
+      });
+      // Hard cap: keep the newest 200 revisions
+      schedule.revisions = entries.slice(-200);
     }
 
     await schedule.save();

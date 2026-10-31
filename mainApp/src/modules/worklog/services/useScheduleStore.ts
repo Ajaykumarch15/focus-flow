@@ -2,7 +2,15 @@ import { create } from 'zustand';
 import { api } from '@shared/utils/api';
 import { toast } from '@shared/services/useToastStore';
 import { useScheduleNotificationStore } from './useScheduleNotificationStore';
-import { ScheduleItem, ScheduleCreatePayload, ScheduleUpdatePayload } from '@shared/types';
+import {
+  ScheduleItem,
+  ScheduleCreatePayload,
+  ScheduleUpdatePayload,
+  RescheduleItemChange,
+  RescheduleStrategy,
+  ScheduleStatus,
+} from '@shared/types';
+import { timeToMinutes } from './scheduleAnalytics';
 
 export function getTodayDateString(): string {
   const d = new Date();
@@ -10,6 +18,33 @@ export function getTodayDateString(): string {
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/** One rescheduling operation, kept for undo + audit */
+export interface RescheduleAuditEntry {
+  id: string;
+  at: number;
+  label: string;
+  strategy: RescheduleStrategy;
+  /** Pre-change snapshots of every affected item (source of truth for undo) */
+  snapshot: ScheduleItem[];
+}
+
+const AUDIT_KEY = 'ff_reschedule_audit';
+const AUDIT_LIMIT = 20;
+
+function loadAudit(): RescheduleAuditEntry[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]');
+    return Array.isArray(raw) ? raw.slice(0, AUDIT_LIMIT) : [];
+  } catch {
+    return [];
+  }
+}
+function saveAudit(entries: RescheduleAuditEntry[]) {
+  try {
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(entries.slice(0, AUDIT_LIMIT)));
+  } catch { /* storage full/unavailable */ }
 }
 
 interface ScheduleState {
@@ -33,9 +68,30 @@ interface ScheduleState {
   createSchedule: (payload: ScheduleCreatePayload) => Promise<ScheduleItem | null>;
   updateSchedule: (id: string, payload: ScheduleUpdatePayload) => Promise<ScheduleItem | null>;
   deleteSchedule: (id: string) => Promise<boolean>;
+
+  // --- Execution-aware extensions ---
+  /** Schedule id whose "Extend Time / reschedule" dialog should be open */
+  extendDialogScheduleId: string | null;
+  openExtendDialog: (scheduleId: string) => void;
+  closeExtendDialog: () => void;
+
+  /** Mark a task as skipped (user chose not to run it) */
+  skipSchedule: (id: string, reason?: string) => Promise<boolean>;
+
+  /** Quiet merge of an API-returned schedule item into local state (no toast) */
+  __mergeQuiet: (updated: ScheduleItem) => void;
+
+  /** Rescheduling audit trail, newest first (undoable ops + history) */
+  rescheduleHistory: RescheduleAuditEntry[];
+  /** Apply a confirmed proposal: updates every changed slot atomically-in-sequence with rollback info */
+  applyReschedule: (changes: RescheduleItemChange[], meta: { strategy: RescheduleStrategy; scheduleId: string; label: string }) => Promise<boolean>;
+  /** Revert the most recent rescheduling operation from its snapshot */
+  undoLastReschedule: () => Promise<boolean>;
+  /** Records an execution-prefixed status change (start/complete) quietly */
+  setScheduleExecution: (id: string, patch: { actualStartAt?: number; actualEndAt?: number; status?: ScheduleStatus }) => Promise<void>;
 }
 
-export const useScheduleStore = create<ScheduleState>((set) => ({
+export const useScheduleStore = create<ScheduleState>((set, get) => ({
   schedules: [],
   selectedDate: getTodayDateString(),
   viewMode: 'day',
@@ -45,6 +101,8 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
   preselectedTaskId: null,
   editingSchedule: null,
   conflictWarning: null,
+  extendDialogScheduleId: null,
+  rescheduleHistory: loadAudit(),
 
   setSelectedDate: (date) => set({ selectedDate: date }),
   setViewMode: (mode) => set({ viewMode: mode }),
@@ -69,7 +127,16 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
     try {
       const items = await api.schedules.list(params);
       set((state) => {
-        const scheduleMap = new Map(state.schedules.map((s) => [s._id, s]));
+        // When a date window is provided, drop cached items inside that window
+        // before merging the fresh response, so deleted/superseded entries are
+        // removed instead of accumulating forever. Items outside the window are
+        // kept so previously-loaded days/weeks still render without refetching.
+        const from = params?.from ?? params?.date ?? null;
+        const to = params?.to ?? params?.date ?? null;
+        const retained = from && to
+          ? state.schedules.filter((s) => !(s.date >= from && s.date <= to))
+          : state.schedules;
+        const scheduleMap = new Map(retained.map((s) => [s._id, s]));
         for (const item of items) {
           scheduleMap.set(item._id, item);
         }
@@ -147,5 +214,145 @@ export const useScheduleStore = create<ScheduleState>((set) => ({
       toast.error('Delete Failed', err.message || 'Could not delete schedule entry');
       return false;
     }
+  },
+
+  // -------------------------------------------------------------------------
+  // Execution-aware extensions
+  // -------------------------------------------------------------------------
+
+  openExtendDialog: (scheduleId) => set({ extendDialogScheduleId: scheduleId }),
+  closeExtendDialog: () => set({ extendDialogScheduleId: null }),
+
+  /** Quiet merge of an API-returned schedule item into local state (no toast) */
+  __mergeQuiet: (updated: ScheduleItem) => {
+    set((state) => ({
+      schedules: state.schedules.map((s) => (s._id === updated._id ? updated : s)),
+    }));
+  },
+
+  skipSchedule: async (id, reason) => {
+    try {
+      const res = await api.schedules.update(id, {
+        status: 'skipped',
+        revisionMeta: { strategy: 'skip', reason: reason || 'Skipped by user' },
+      });
+      useScheduleNotificationStore.getState().resetForSchedule(id);
+      get().__mergeQuiet(res.schedule);
+      return true;
+    } catch (err: any) {
+      toast.error('Skip Failed', err.message || 'Could not skip this schedule');
+      return false;
+    }
+  },
+
+  setScheduleExecution: async (id, patch) => {
+    try {
+      const res = await api.schedules.update(id, patch);
+      get().__mergeQuiet(res.schedule);
+    } catch {
+      // Non-fatal: execution state already lives in the timer/session system
+    }
+  },
+
+  applyReschedule: async (changes, meta) => {
+    if (changes.length === 0) return false;
+    const auditEntry: RescheduleAuditEntry = {
+      id: `ra_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      at: Date.now(),
+      label: meta.label,
+      strategy: meta.strategy,
+      snapshot: [],
+    };
+
+    const results = await Promise.allSettled(
+      changes.map((c) => {
+        // Snapshot from current local state for undo
+        const current = get().schedules.find((s) => s._id === c.scheduleId);
+        if (current) {
+          auditEntry.snapshot.push(current);
+        }
+        const payload: ScheduleUpdatePayload = {
+          startTime: c.to.startTime,
+          endTime: c.to.endTime,
+          revisionMeta: {
+            strategy: meta.strategy,
+            reason: meta.label,
+            items: { from: c.from, to: c.to },
+          },
+        };
+        // Track cumulative extension on the extended target slot only
+        if (c.scheduleId === meta.scheduleId && current) {
+          const oldDur = timeToMinutes(current.endTime) - timeToMinutes(current.startTime);
+          let newDur = timeToMinutes(c.to.endTime) - timeToMinutes(c.to.startTime);
+          if (newDur < oldDur) newDur = oldDur;
+          payload.extendedMins = (current.extendedMins || 0) + Math.max(0, newDur - oldDur);
+        }
+        return api.schedules.update(c.scheduleId, payload);
+      })
+    );
+    const failed: string[] = [];
+    let ok = 0;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        ok += 1;
+        get().__mergeQuiet(r.value.schedule);
+        useScheduleNotificationStore.getState().resetForSchedule(changes[i].scheduleId);
+      } else {
+        failed.push(changes[i].taskTitle);
+      }
+    });
+
+    if (ok > 0) {
+      const history = [auditEntry, ...loadAudit()].slice(0, AUDIT_LIMIT);
+      saveAudit(history);
+      set({ rescheduleHistory: history });
+    }
+
+    if (failed.length > 0) {
+      toast.warning(
+        'Reschedule partially applied',
+        `${ok} of ${changes.length} updated. Failed: ${failed.join(', ')}. You can undo from the schedule page.`,
+      );
+    } else if (ok > 1) {
+      toast.success('Schedule updated', `${meta.label} — ${ok} slots changed.`);
+    } else {
+      toast.success('Schedule updated', meta.label);
+    }
+    return ok > 0;
+  },
+
+  undoLastReschedule: async () => {
+    const history = get().rescheduleHistory;
+    if (history.length === 0) {
+      toast.info('Nothing to undo', 'No recent reschedule operations.');
+      return false;
+    }
+    const [entry, ...rest] = history;
+    const results = await Promise.allSettled(
+      entry.snapshot.map((snap) =>
+        api.schedules.update(snap._id, {
+          startTime: snap.startTime,
+          endTime: snap.endTime,
+          extendedMins: snap.extendedMins || 0,
+          revisionMeta: { strategy: 'manual', reason: `Undo: ${entry.label}` },
+        })
+      )
+    );
+    let reverted = 0;
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        reverted += 1;
+        get().__mergeQuiet(r.value.schedule);
+        useScheduleNotificationStore.getState().resetForSchedule(entry.snapshot[i]._id);
+      }
+    });
+    saveAudit(rest);
+    set({ rescheduleHistory: rest });
+    if (reverted === entry.snapshot.length && reverted > 0) {
+      toast.success('Reschedule undone', `Reverted "${entry.label}".`);
+      return true;
+    }
+    toast.warning('Undo partially applied', `Reverted ${reverted} of ${entry.snapshot.length} changes.`);
+    return reverted > 0;
   },
 }));

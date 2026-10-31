@@ -8,6 +8,7 @@ import {
   Play,
   Search, AlertOctagon, Eye,
   MessageSquare,
+  LayoutGrid, Rows3,
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkLogStatus } from '@worklog/services/useWorkLogStore';
 import { WorkLogMasterDetail } from '@worklog/components/worklog/WorkLogMasterDetail';
@@ -53,6 +54,14 @@ function formatMs(ms: number): string {
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
+const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  'planning':    { label: 'low',    color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+  'in-progress': { label: 'medium', color: 'text-amber-400',   bg: 'bg-amber-500/15' },
+  'reviewing':   { label: 'medium', color: 'text-amber-400',   bg: 'bg-amber-500/15' },
+  'blocked':     { label: 'high',   color: 'text-red-400',     bg: 'bg-red-500/15' },
+  'done':        { label: 'low',    color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
+};
+
 // ── Compact grid card ────────────────────────────────────────────────────────
 function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }) {
   const { activeTaskId, activeTimerState, parallelTimers } = useStore();
@@ -84,13 +93,6 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
     return () => clearInterval(interval);
   }, [isRunning, linkedTaskId]);
 
-  const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }> = {
-    'planning':    { label: 'low',    color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-    'in-progress': { label: 'medium', color: 'text-amber-400',   bg: 'bg-amber-500/15' },
-    'reviewing':   { label: 'medium', color: 'text-amber-400',   bg: 'bg-amber-500/15' },
-    'blocked':     { label: 'high',   color: 'text-red-400',     bg: 'bg-red-500/15' },
-    'done':        { label: 'low',    color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
-  };
   const priority = PRIORITY_MAP[log.status] || PRIORITY_MAP['in-progress'];
 
   return (
@@ -156,6 +158,102 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
             </span>
           )}
         </div>
+        {log.taskRef && (
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
+            style={{ backgroundColor: log.taskRef.color || '#6366f1' }}
+            title={log.taskRef.title}>
+            {log.taskRef.title.charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
+// ── Compact list row ─────────────────────────────────────────────────────────
+function WorkLogListRow({ log, onClick }: { log: WorkLog; onClick: () => void }) {
+  const { activeTaskId, activeTimerState, parallelTimers } = useStore();
+  const linkedTaskId = log.taskRef?._id;
+
+  const isLegacyActive = activeTaskId === linkedTaskId && !!linkedTaskId;
+  const parallelState = linkedTaskId ? parallelTimers[linkedTaskId] : undefined;
+  const isRunning = (isLegacyActive && activeTimerState === 'running')
+    || parallelState === 'running';
+
+  const statusInfo = STATUS_MAP[log.status] || STATUS_MAP['in-progress'];
+  const priority = PRIORITY_MAP[log.status] || PRIORITY_MAP['in-progress'];
+  const commentCount = log.completedItems.length;
+  const linkCount = log.links.length;
+
+  const [elapsed, setElapsed] = useState(() =>
+    linkedTaskId ? parallelTimerEngine.getFormattedDisplay(linkedTaskId) : ''
+  );
+
+  useEffect(() => {
+    if (!isRunning || !linkedTaskId) return;
+    const interval = setInterval(() => {
+      setElapsed(parallelTimerEngine.getFormattedDisplay(linkedTaskId));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRunning, linkedTaskId]);
+
+  return (
+    <motion.button
+      variants={fadeUp}
+      onClick={onClick}
+      animate={isRunning ? {
+        borderColor: ['rgba(245,158,11,0.4)', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.4)'],
+        transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
+      } : {
+        borderColor: undefined,
+      }}
+      className={`relative w-full text-left rounded-xl border px-4 py-3 flex items-center gap-3 transition-all hover:border-brand-500/30 hover:bg-surface-850/80 cursor-pointer overflow-hidden ${
+        isRunning
+          ? 'bg-amber-500/5 shadow-lg shadow-amber-500/10'
+          : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
+      }`}
+    >
+      {/* Left: running dot + status */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {isRunning && (
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
+        )}
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: log.taskRef?.color || '#6366f1' }} />
+        <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md flex-shrink-0 ${statusInfo.bg} ${statusInfo.color}`}>
+          {statusInfo.emoji} {statusInfo.label}
+        </span>
+      </div>
+
+      {/* Title */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-surface-50 truncate" title={log.title}>{log.title}</p>
+        {log.taskRef && (
+          <p className="text-[11px] text-surface-500 truncate">{log.taskRef.title}</p>
+        )}
+      </div>
+
+      {/* Right: meta + priority + avatar */}
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {isRunning && elapsed && (
+          <span className="flex items-center gap-1 text-[11px] text-amber-400 font-mono font-bold tabular-nums">
+            <Clock size={10} /> {elapsed}
+          </span>
+        )}
+        {commentCount > 0 && (
+          <span className="hidden md:flex items-center gap-1 text-[11px] text-surface-500">
+            <MessageSquare size={11} />
+            {commentCount}
+          </span>
+        )}
+        {linkCount > 0 && (
+          <span className="hidden md:flex items-center gap-1 text-[11px] text-surface-500">
+            <Link2 size={11} />
+            {linkCount}
+          </span>
+        )}
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${priority.color} ${priority.bg}`}>
+          {priority.label}
+        </span>
         {log.taskRef && (
           <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0"
             style={{ backgroundColor: log.taskRef.color || '#6366f1' }}
@@ -321,6 +419,13 @@ export function WorkLogPage() {
   const [showClosed, setShowClosed] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<WorkLogStatus | 'all'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() =>
+    (localStorage.getItem('worklog-view-mode') === 'list' ? 'list' : 'grid')
+  );
+
+  useEffect(() => {
+    localStorage.setItem('worklog-view-mode', viewMode);
+  }, [viewMode]);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -433,15 +538,51 @@ export function WorkLogPage() {
               );
             })}
           </div>
+
+          {/* View mode toggle */}
+          <div className="flex gap-0.5 rounded-xl bg-surface-100 dark:bg-surface-800 p-1 ml-auto" role="group" aria-label="View mode">
+            <button
+              onClick={() => setViewMode('grid')}
+              aria-pressed={viewMode === 'grid'}
+              title="Grid view"
+              className={`p-2 rounded-lg transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+              }`}
+            >
+              <LayoutGrid size={15} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              aria-pressed={viewMode === 'list'}
+              title="List view"
+              className={`p-2 rounded-lg transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
+                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+              }`}
+            >
+              <Rows3 size={15} />
+            </button>
+          </div>
         </div>
       </motion.div>
 
-      {/* ═══ Compact card grid ═══ */}
-      {filteredActive.length > 0 && (
+      {/* ═══ Logs (grid or list) ═══ */}
+      {filteredActive.length > 0 && viewMode === 'grid' && (
         <motion.div variants={stagger} initial="hidden" animate="show"
           className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredActive.map(log => (
             <WorkLogGridCard key={log._id} log={log} onClick={() => navigate(`/worklog/logs/${log._id}`)} />
+          ))}
+        </motion.div>
+      )}
+
+      {filteredActive.length > 0 && viewMode === 'list' && (
+        <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
+          {filteredActive.map(log => (
+            <WorkLogListRow key={log._id} log={log} onClick={() => navigate(`/worklog/logs/${log._id}`)} />
           ))}
         </motion.div>
       )}

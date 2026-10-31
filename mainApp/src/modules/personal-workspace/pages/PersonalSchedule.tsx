@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Calendar, ChevronLeft, ChevronRight, Plus,
   AlertTriangle, Clock, ArrowRight, FileText,
-  Flame, LayoutGrid, List, CheckCircle,
+  LayoutGrid, List, CheckCircle,
 } from 'lucide-react';
 import { Button } from '@shared/components/ui/Button';
 import { PersonalScheduleDayView } from '@personal/components/schedule/PersonalScheduleDayView';
@@ -14,38 +14,15 @@ import { ScheduleTaskModal } from '@personal/components/schedule/ScheduleTaskMod
 import { ScheduleSidebar } from '@personal/components/schedule/ScheduleSidebar';
 import { CollapsibleSection } from '@personal/components/schedule/CollapsibleSection';
 import { Pagination } from '@shared/components/ui/Pagination';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
+import { NothingScheduledToday } from '@shared/components/illustrations';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { getWeekDates, getScheduledState, formatScheduledDate } from '@personal/services/personalTaskSchedule';
 import { cn } from '@shared/utils/cn';
 import type { Task } from '@shared/types';
 
-const fadeUp = { hidden: { opacity: 0, y: -8 }, show: { opacity: 1, y: 0 } };
-
 type ViewMode = 'day' | 'week' | 'month';
-
-function KpiCard({ icon, label, value, color }: {
-  icon: React.ReactNode; label: string; value: number; color: string;
-}) {
-  return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-4 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
-      style={{
-        background: `linear-gradient(135deg, ${color}12 0%, ${color}06 100%)`,
-        border: `1px solid ${color}30`,
-      }}>
-      <div className="absolute top-0 right-0 w-20 h-20 opacity-15 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
-          {icon}
-        </div>
-      </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 leading-none">{value}</p>
-      <p className="text-[11px] font-semibold mt-1" style={{ color: `${color}cc` }}>{label}</p>
-    </motion.div>
-  );
-}
 
 function TaskRow({ task, roadmapTitle }: { task: Task; roadmapTitle?: string }) {
   const navigate = useNavigate();
@@ -177,6 +154,58 @@ function TaskCard({ task, roadmapTitle }: { task: Task; roadmapTitle?: string })
   );
 }
 
+/**
+ * Decorative schedule-themed vector illustration used in the page header
+ * (replaces the static calender.png asset). Colors follow the app's
+ * semantic palette so it adapts to theme changes.
+ */
+function ScheduleIllustration() {
+  return (
+    <svg viewBox="0 0 190 120" fill="none" aria-hidden="true"
+      className="w-full h-full object-contain select-none">
+      {/* Soft blobs behind the card */}
+      <circle cx="36" cy="98" r="24" className="fill-success-500/10" />
+      <circle cx="162" cy="26" r="20" className="fill-info-500/10" />
+      <circle cx="150" cy="104" r="12" className="fill-brand-500/10" />
+
+      {/* Floating badge: big check */}
+      <circle cx="148" cy="88" r="17" className="fill-success-500 stroke-success-400" strokeWidth="2" />
+      <path d="M140 88 L146 94 L157 82" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
+        strokeLinejoin="round" className="text-white" />
+
+      {/* Calendar body */}
+      <rect x="45" y="26" width="100" height="88" rx="12"
+        className="fill-surface-900 stroke-surface-700" strokeWidth="2" />
+      {/* Header strip */}
+      <path d="M45 38 a12 12 0 0 1 12 -12 h76 a12 12 0 0 1 12 12 v12 h-100 z"
+        className="fill-brand-500/15" />
+      {/* Binder rings */}
+      <rect x="65" y="18" width="6" height="17" rx="3" className="fill-brand-400" />
+      <rect x="119" y="18" width="6" height="17" rx="3" className="fill-brand-400" />
+
+      {/* Date dots in header */}
+      <circle cx="85" cy="32" r="3" className="fill-surface-500" />
+      <circle cx="98" cy="32" r="3" className="fill-surface-500" />
+      <circle cx="111" cy="32" r="3" className="fill-brand-400" />
+
+      {/* Checklist rows */}
+      <rect x="58" y="58" width="11" height="11" rx="3.5"
+        className="fill-success-500/20 stroke-success-400" strokeWidth="1.5" />
+      <rect x="76" y="61" width="44" height="6" rx="3" className="fill-surface-700/80" />
+      <rect x="58" y="78" width="11" height="11" rx="3.5"
+        className="fill-success-500/20 stroke-success-400" strokeWidth="1.5" />
+      <rect x="76" y="81" width="32" height="6" rx="3" className="fill-surface-700/60" />
+      <rect x="58" y="98" width="11" height="11" rx="3.5"
+        className="fill-surface-800 stroke-surface-600" strokeWidth="1.5" />
+      <rect x="76" y="101" width="38" height="6" rx="3" className="fill-surface-700/40" />
+
+      {/* Sparkles */}
+      <path d="M30 40 L33 46 L39 49 L33 52 L30 58 L27 52 L21 49 L27 46 Z" className="fill-brand-400/40" />
+      <path d="M172 62 L173.5 65 L176.5 66.5 L173.5 68 L172 71 L170.5 68 L167.5 66.5 L170.5 65 Z" className="fill-info-400/40" />
+    </svg>
+  );
+}
+
 export function PersonalSchedule() {
   const { tasks } = usePersonalTaskStore();
   const { roadmaps } = useRoadmapStore();
@@ -186,6 +215,8 @@ export function PersonalSchedule() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [upcomingPage, setUpcomingPage] = useState(1);
+  const [missedPage, setMissedPage] = useState(1);
+  const [todayPage, setTodayPage] = useState(1);
 
   const today = useMemo(() => new Date(), []);
 
@@ -236,6 +267,23 @@ export function PersonalSchedule() {
     return upcomingTasks.slice(start, start + UPCOMING_PAGE_SIZE);
   }, [upcomingPage, upcomingTasks]);
 
+  // Pagination for missed (overdue) + today tasks
+  const MISSED_PAGE_SIZE = 8;
+  const TODAY_PAGE_SIZE = 8;
+  const missedTotalPages = Math.ceil(overdueTasks.length / MISSED_PAGE_SIZE);
+  const todayTotalPages = Math.ceil(todayTasks.length / TODAY_PAGE_SIZE);
+  // Clamp current page so a shrinking list never lands on an empty page
+  const safeMissedPage = Math.min(missedPage, Math.max(1, missedTotalPages));
+  const safeTodayPage = Math.min(todayPage, Math.max(1, todayTotalPages));
+  const paginatedOverdueTasks = useMemo(() => {
+    const start = (safeMissedPage - 1) * MISSED_PAGE_SIZE;
+    return overdueTasks.slice(start, start + MISSED_PAGE_SIZE);
+  }, [safeMissedPage, overdueTasks]);
+  const paginatedTodayTasks = useMemo(() => {
+    const start = (safeTodayPage - 1) * TODAY_PAGE_SIZE;
+    return todayTasks.slice(start, start + TODAY_PAGE_SIZE);
+  }, [safeTodayPage, todayTasks]);
+
   const navigateDate = useCallback((dir: number) => {
     setSelectedDate(d => {
       const nd = new Date(d);
@@ -278,8 +326,8 @@ export function PersonalSchedule() {
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
         className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 z-10 relative">
         <div className="flex items-center gap-4">
-          <div className="hidden md:block w-[180px] h-[120px] flex-shrink-0 overflow-hidden rounded-2xl">
-            <img src="/SVG/calender.png" alt="" aria-hidden="true" loading="lazy" className="w-full h-full object-contain" />
+          <div className="hidden md:block w-[180px] h-[120px] flex-shrink-0">
+            <ScheduleIllustration />
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">Schedule</h1>
@@ -294,10 +342,50 @@ export function PersonalSchedule() {
       {/* ═══════════════ KPI CARDS ═══════════════ */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
         className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
-        <KpiCard icon={<Calendar size={18} />} label="Events Today" value={counts.today} color="#3b82f6" />
-        <KpiCard icon={<ArrowRight size={18} />} label="Upcoming" value={counts.upcoming} color="#8b5cf6" />
-        <KpiCard icon={<Flame size={18} />} label="Overdue" value={counts.overdue} color="#ef4444" />
-        <KpiCard icon={<FileText size={18} />} label="Unscheduled" value={counts.unscheduled} color="#94a3b8" />
+        <StatisticsCard
+          title="Events Today"
+          value={counts.today}
+          description="Scheduled for today"
+          icon={<Calendar size={14} />}
+          accent="info"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/PLAN.svg"
+          backgroundPosition="bottom-right"
+        />
+        <StatisticsCard
+          title="Upcoming"
+          value={counts.upcoming}
+          description="Coming up next"
+          icon={<ArrowRight size={14} />}
+          accent="brand"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/next task.svg"
+          backgroundPosition="bottom-left"
+        />
+        <StatisticsCard
+          title="Overdue"
+          value={counts.overdue}
+          description="Needs attention"
+          icon={<AlertTriangle size={14} />}
+          accent="danger"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/tight deadline.svg"
+          backgroundPosition="top"
+        />
+        <StatisticsCard
+          title="Unscheduled"
+          value={counts.unscheduled}
+          description="No date set"
+          icon={<FileText size={14} />}
+          accent="neutral"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/organizing work.svg"
+          backgroundPosition="bottom-right"
+        />
       </motion.div>
 
       {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
@@ -384,17 +472,28 @@ export function PersonalSchedule() {
               defaultOpen={overdueTasks.length > 0}
             >
               {overdueTasks.length > 0 ? (
-                viewType === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {overdueTasks.map(t => (
-                      <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                    ))}
-                  </div>
-                ) : (
-                  overdueTasks.map(t => (
-                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                  ))
-                )
+                <div className="space-y-2">
+                  {viewType === 'grid' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {paginatedOverdueTasks.map(t => (
+                        <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                      ))}
+                    </div>
+                  ) : (
+                    paginatedOverdueTasks.map(t => (
+                      <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))
+                  )}
+                  {missedTotalPages > 1 && (
+                    <Pagination
+                      currentPage={Math.min(missedPage, missedTotalPages)}
+                      totalPages={missedTotalPages}
+                      totalItems={overdueTasks.length}
+                      pageSize={MISSED_PAGE_SIZE}
+                      onPageChange={setMissedPage}
+                    />
+                  )}
+                </div>
               ) : (
                 <p className="text-xs text-surface-500 text-center py-2">No overdue tasks</p>
               )}
@@ -410,20 +509,31 @@ export function PersonalSchedule() {
               defaultOpen={true}
             >
               {todayTasks.length > 0 ? (
-                viewType === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {todayTasks.map(t => (
-                      <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                    ))}
-                  </div>
-                ) : (
-                  todayTasks.map(t => (
-                    <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
-                  ))
-                )
+                <div className="space-y-2">
+                  {viewType === 'grid' ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {paginatedTodayTasks.map(t => (
+                        <TaskCard key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                      ))}
+                    </div>
+                  ) : (
+                    paginatedTodayTasks.map(t => (
+                      <TaskRow key={t.id} task={t} roadmapTitle={roadmapMap.get(t.roadmapRef || '')} />
+                    ))
+                  )}
+                  {todayTotalPages > 1 && (
+                    <Pagination
+                      currentPage={Math.min(todayPage, todayTotalPages)}
+                      totalPages={todayTotalPages}
+                      totalItems={todayTasks.length}
+                      pageSize={TODAY_PAGE_SIZE}
+                      onPageChange={setTodayPage}
+                    />
+                  )}
+                </div>
               ) : (
                 <div className="py-6 flex flex-col items-center">
-                  <img src="/SVG/calender.png" alt="" className="w-32 h-20 object-contain opacity-40 mb-3" />
+                  <NothingScheduledToday size={96} className="opacity-70 text-surface-500 mb-3" />
                   <p className="text-sm font-medium text-surface-300 mb-1">No tasks scheduled for today</p>
                   <p className="text-xs text-surface-500 mb-3">Take it easy or schedule something productive!</p>
                   <Button size="sm" leftIcon={<Plus size={14} />} onClick={() => setModalOpen(true)}>

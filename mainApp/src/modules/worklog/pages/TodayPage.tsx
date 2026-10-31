@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Play, Plus, AlertTriangle, Clock, CheckCircle, Zap,
   Target, ListTodo, BellRing, ArrowRight, Map, TrendingUp, Sparkles, CalendarDays, AlertOctagon,
+  Calendar,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -186,8 +187,8 @@ export function TodayPage() {
 
       {/* ═══════════════ HEADER ═══════════════ */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
-        className="relative -mx-6 lg:-mx-8 overflow-hidden
-                   px-6 sm:px-8 lg:px-10 pt-0 pb-6 sm:pb-8 lg:pb-10">
+        className="hidden lg:block relative -mx-8 overflow-hidden
+                   px-8 pt-0 pb-5">
         {/* ── Hero card decorative spots ── */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           {/* Spot — top left corner */}
@@ -199,7 +200,7 @@ export function TodayPage() {
           <div className="absolute top-[35%] -right-10 w-36 h-44 rounded-full
             bg-brand-300/[0.14] dark:bg-brand-400/[0.05] blur-2xl" />
         </div>
-        <div className="flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-5">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
               <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">
@@ -212,39 +213,31 @@ export function TodayPage() {
               )}
             </div>
 
-            <h1 className="mt-4 text-3xl lg:text-[2.25rem] font-display font-extrabold tracking-tight leading-tight">
+            <h1 className="mt-2 text-xl lg:text-[2.125rem] font-display font-extrabold tracking-tight leading-tight">
               <span className="text-surface-50">{greeting}</span>,{' '}
               <span className="text-brand-500">{firstName}</span>
             </h1>
-
-            <p className="text-surface-300 text-sm mt-2.5 max-w-lg leading-relaxed">
-              {activeTask
-                ? `You're focusing on "${activeTask.title}"`
-                : 'What should you do now?'}
-            </p>
-
-            
           </div>
 
           {/* CENTER — decorative productivity illustration */}
           <div className="relative mx-auto shrink-0">
             {/* Localized horizontal glow behind illustration */}
             <div aria-hidden="true"
-              className="absolute top-1/2 -translate-y-1/2 -inset-x-16 h-40 pointer-events-none
+              className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-20 pointer-events-none
                          bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent
                          dark:via-brand-400/[0.04] blur-2xl" />
             <motion.img
               variants={fadeUp}
-              src="/SVG/deep-focus.png"
+              src="/SVG/focus.svg.png"
               alt=""
               aria-hidden="true"
               loading="eager"
               draggable={false}
-              className="relative w-auto max-w-[220px] sm:max-w-[260px] lg:max-w-[300px] xl:max-w-[340px] h-auto object-contain select-none pointer-events-none"
+              className="relative w-auto max-w-[110px] sm:max-w-[130px] lg:max-w-[235px] xl:max-w-[245px] h-auto object-contain select-none pointer-events-none"
             />
             {/* Subtle accent gradient flowing left → right across the image */}
             <div aria-hidden="true"
-              className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-24 pointer-events-none
+              className="absolute top-1/2 -translate-y-1/2 -inset-x-4 h-12 pointer-events-none
                          bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06]
                          dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03]
                          blur-xl" />
@@ -252,17 +245,17 @@ export function TodayPage() {
 
           {/* RIGHT — compact Daily Goal card */}
           <div className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0">
-            <div className="w-full rounded-2xl border border-surface-800 bg-surface-850 dark:border-brand-500/[0.08] shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] p-5 text-center">
+            <div className="w-full rounded-2xl border border-surface-800 bg-transparent dark:border-brand-500/[0.08] shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] p-3 text-center">
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
               {view.stats.progressPct === null ? (
                 <>
-                  <div className="text-4xl font-display font-extrabold text-surface-50 leading-none mt-3">—</div>
+                  <div className="text-3xl font-display font-extrabold text-surface-50 leading-none mt-2">—</div>
                   <p className="text-xs text-surface-500 mt-2">Set a daily goal in Settings to track progress.</p>
                 </>
               ) : (
                 <>
                   {/* Circular Progress */}
-                  <div className="relative w-24 h-24 mx-auto mt-4">
+                  <div className="relative w-16 h-16 mx-auto mt-2">
                     <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                       <circle
                         cx="50" cy="50" r="42"
@@ -282,10 +275,10 @@ export function TodayPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-2xl font-display font-extrabold text-surface-50">{view.stats.progressPct}%</span>
+                      <span className="text-lg font-display font-extrabold text-surface-50">{view.stats.progressPct}%</span>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold text-surface-200 mt-3">
+                  <p className="text-sm font-semibold text-surface-200 mt-2">
                     {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.dailyGoal}h
                   </p>
                   {remainingMs != null && remainingMs > 0 && view.stats.progressPct < 100 && (
@@ -295,6 +288,62 @@ export function TodayPage() {
               )}
             </div>
           </div>
+        </div>
+      </motion.section>
+
+      {/* HERO — mobile (hidden on lg+) */}
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
+        className="lg:hidden flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          {activeTask && (
+            <Badge tone="warning" className="mb-2 text-[10px] font-bold uppercase tracking-wider animate-pulse">Timer Running</Badge>
+          )}
+          <p className="text-[11px] font-extrabold uppercase tracking-widest text-surface-500">{greeting},</p>
+          <h1 className="mt-1 text-[2rem] leading-none font-display font-extrabold tracking-tight">
+            <span className="bg-gradient-to-r from-success-500 to-info-500 bg-clip-text text-transparent">{firstName}</span>
+            <span className="ml-2 text-xl align-middle">👋</span>
+          </h1>
+          <p className="mt-2 text-xs text-surface-500">Keep going, you're doing great!</p>
+        </div>
+        <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
+          className="w-28 sm:w-36 shrink-0 h-28 sm:h-36 object-contain select-none pointer-events-none" />
+      </motion.section>
+
+      {/* GOAL + STATS — mobile (combined card, hidden on lg+) */}
+      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Today's goal and progress"
+        className="lg:hidden rounded-3xl border border-surface-800/60 bg-gradient-to-r from-success-500/15 via-surface-900 to-info-500/15 p-4 flex items-center gap-4">
+        <div className="flex flex-col items-center shrink-0">
+          <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
+                className="text-surface-200 dark:text-surface-700" />
+              {view.stats.progressPct !== null && (
+                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
+                  strokeDasharray={`${(view.stats.progressPct / 100) * 264} 264`} strokeLinecap="round"
+                  className={view.stats.progressPct >= 100 ? 'text-success-400' : 'text-brand-400'} />
+              )}
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="text-lg font-display font-extrabold text-surface-50">{view.stats.progressPct === null ? '—' : `${view.stats.progressPct}%`}</span>
+            </div>
+          </div>
+          <p className="mt-1.5 text-xs font-semibold text-surface-200">
+            {formatHours(todayMs)} <span className="text-surface-500 font-normal">/ {profile.dailyGoal}h</span>
+          </p>
+          <p className="text-[10px] text-surface-500">Today's Goal</p>
+        </div>
+        <div className="flex-1 min-w-0 grid grid-cols-3 gap-1">
+          {[
+            { label: 'Completed', value: view.stats.completedToday, icon: CheckCircle, cls: 'text-success-500' },
+            { label: 'Scheduled', value: view.stats.activeCount, icon: Calendar, cls: 'text-purple-500' },
+            { label: 'Overdue', value: view.stats.overdueCount, icon: AlertTriangle, cls: 'text-danger-500' },
+          ].map(({ label, value, icon: Icon, cls }) => (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <Icon size={18} className={cls} />
+              <span className="text-[10px] text-surface-500">{label}</span>
+              <span className="text-lg font-display font-bold text-surface-50">{value}</span>
+            </div>
+          ))}
         </div>
       </motion.section>
 

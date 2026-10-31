@@ -9,7 +9,7 @@ const scheduleSchema = new mongoose.Schema(
     endTime: { type: String, required: true },   // Format: "HH:mm" (24-hr e.g. "10:30")
     status: {
       type: String,
-      enum: ['scheduled', 'in-progress', 'completed', 'missed', 'cancelled'],
+      enum: ['scheduled', 'in-progress', 'completed', 'missed', 'cancelled', 'skipped'],
       default: 'scheduled',
     },
     notes: { type: String, default: '' },
@@ -18,6 +18,24 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['none', 'daily', 'weekly', 'custom'],
       default: 'none',
     },
+    // Execution-aware fields (all optional — existing documents default safely,
+    // no migration required since MongoDB is schemaless at the storage layer)
+    // Fixed slots (meetings/appointments) must not be moved by rescheduling ops
+    locked: { type: Boolean, default: false },
+    // Actual execution timestamps written when the task is started/completed
+    // from the schedule link. Epoch-ms for timezone-agnostic comparisons.
+    actualStartAt: { type: Number, default: null },
+    actualEndAt: { type: Number, default: null },
+    // Total minutes this slot has been extended via rescheduling
+    extendedMins: { type: Number, default: 0 },
+    // Rescheduling audit trail (newest last). Pushed by PATCH when the client
+    // sends revisionMeta; hard-capped at 200 entries per document.
+    revisions: [{
+      strategy: { type: String, enum: ['shift-all', 'relocate', 'shrink', 'keep-as-is', 'manual', 'skip'] },
+      reason: { type: String, default: '' },
+      items: { type: mongoose.Schema.Types.Mixed, default: null },
+      at: { type: Date, default: Date.now },
+    }],
     // Workspace scheduling fields
     workspaceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Workspace', default: null, index: true },
     projectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', default: null, index: true },

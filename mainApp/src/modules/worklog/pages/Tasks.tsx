@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Search, AlertTriangle,
-  X, ArrowUpDown, ListTodo, Clock, CheckCircle, Flame,
-  Eye, EyeOff, LayoutGrid, List,
+  X, Eye, EyeOff, LayoutGrid, List,
+  Filter, ChevronDown, Calendar,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useStore } from '@worklog/services/useStore';
 import { cn } from '@shared/utils/cn';
 import { TaskCard } from '@worklog/components/tasks/TaskCard';
@@ -14,20 +13,19 @@ import { TaskListView } from '@worklog/components/tasks/TaskListView';
 import { BulkActionBar } from '@worklog/components/tasks/BulkActionBar';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { Priority, TaskStatus } from '@shared/types';
+import { TaskStatus, Task } from '@shared/types';
 import { CATEGORIES } from '@shared/utils/colors';
 import { isOverdue } from '@shared/utils/time';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { Card } from '@shared/components/ui/Card';
 import { Pagination } from '@shared/components/ui/Pagination';
-import { TodayPlanWidget } from '@personal/components/schedule/TodayPlanWidget';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
-const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
+/** localStorage key for the remembered grid/list view choice */
+const VIEW_PREF_KEY = 'ff_worklog_tasks_view';
 
 export function Tasks() {
   const navigate = useNavigate();
@@ -39,31 +37,68 @@ export function Tasks() {
   const [showCreate, setShowCreate] = useState(false);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<TaskStatus | 'all'>('all');
-  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterCombined, setFilterCombined] = useState<string>('all');
+  const [filterSchedule, setFilterSchedule] = useState<string>('');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'default' | 'deadline' | 'priority'>('default');
   const [showCompleted, setShowCompleted] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
-  const [view, setView] = useState<'grid' | 'list'>('grid');
+  // Task view choice persists across reloads ("remember my choice") — grid is
+  // the fallback for first visits / missing or corrupted storage.
+  const [view, setView] = useState<'grid' | 'list'>(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_PREF_KEY);
+      return saved === 'list' || saved === 'grid' ? saved : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+  const updateView = useCallback((next: 'grid' | 'list') => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_PREF_KEY, next);
+    } catch {
+      // Storage unavailable (private mode, quota) — view just won't persist
+    }
+  }, []);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
 
-  const filtered = useMemo(() => tasks.filter(task => {
-    if (!showCompleted && task.status === 'completed') return false;
-    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
-    if (filterPriority !== 'all' && task.priority !== filterPriority) return false;
-    if (filterCategory !== 'all' && task.category !== filterCategory) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
-    }
-    if (showOverdueOnly && task.status !== 'completed' && !isOverdue(task.deadline)) return false;
-    return true;
-  }), [tasks, filterStatus, filterPriority, filterCategory, search, showOverdueOnly, showCompleted]);
+  const filtered = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
+    return tasks.filter(task => {
+      if (!showCompleted && task.status === 'completed') return false;
+      if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && task.priority !== filterCombined) return false;
+        if (categories.includes(filterCombined) && task.category?.toLowerCase() !== filterCombined) return false;
+      }
+      if (filterSchedule) {
+        if (filterSchedule === 'no-date') {
+          if (task.deadline) return false;
+        } else {
+          // Local date key (toISOString would be UTC and shift the day for
+          // non-UTC users, making the picked date mismatch nearby deadlines)
+          const d = task.deadline ? new Date(task.deadline) : null;
+          const taskDate = d
+            ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            : null;
+          if (taskDate !== filterSchedule) return false;
+        }
+      }
+      if (search) {
+        const q = search.toLowerCase();
+        if (!task.title.toLowerCase().includes(q) && !task.description?.toLowerCase().includes(q)) return false;
+      }
+      if (showOverdueOnly && (task.status === 'completed' || !isOverdue(task.deadline))) return false;
+      return true;
+    });
+  }, [tasks, filterStatus, filterCombined, filterSchedule, search, showOverdueOnly, showCompleted]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -80,7 +115,7 @@ export function Tasks() {
     return sorted.slice(start, start + PAGE_SIZE);
   }, [sorted, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterPriority, filterCategory, showOverdueOnly, sortBy, showCompleted]);
+  useEffect(() => { setCurrentPage(1); }, [search, filterStatus, filterCombined, filterSchedule, showOverdueOnly, sortBy, showCompleted]);
 
   const filteredIds = useMemo(() => sorted.map(t => t.id), [sorted]);
 
@@ -89,27 +124,15 @@ export function Tasks() {
     [tasks],
   );
 
-  const kpiCounts = useMemo(() => ({
-    todo: tasks.filter(t => t.status === 'todo').length,
-    inProgress: tasks.filter(t => t.status === 'active' || t.status === 'paused').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    overdue: overdueCount,
-  }), [tasks, overdueCount]);
-
-  const donutData = useMemo(() => [
-    { name: 'Completed', value: kpiCounts.completed },
-    { name: 'In Progress', value: kpiCounts.inProgress },
-    { name: 'To Do', value: kpiCounts.todo },
-    { name: 'Overdue', value: kpiCounts.overdue },
-  ], [kpiCounts]);
-
-  const completionPct = tasks.length > 0 ? Math.round((kpiCounts.completed / tasks.length) * 100) : 0;
-
   const statusCounts = useMemo(() => {
+    const priorities: string[] = ['urgent', 'high', 'medium', 'low'];
+    const categories: string[] = CATEGORIES.map(c => c.toLowerCase());
     const counts: Record<TaskStatus | 'all', number> = { all: 0, todo: 0, active: 0, paused: 0, completed: 0 };
     for (const t of tasks) {
-      if (filterPriority !== 'all' && t.priority !== filterPriority) continue;
-      if (filterCategory !== 'all' && t.category !== filterCategory) continue;
+      if (filterCombined !== 'all') {
+        if (priorities.includes(filterCombined) && t.priority !== filterCombined) continue;
+        if (categories.includes(filterCombined) && t.category?.toLowerCase() !== filterCombined) continue;
+      }
       if (search) {
         const q = search.toLowerCase();
         if (!t.title.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) continue;
@@ -119,21 +142,21 @@ export function Tasks() {
       counts[t.status]++;
     }
     return counts;
-  }, [tasks, search, filterPriority, filterCategory, showOverdueOnly]);
+  }, [tasks, search, filterCombined, showOverdueOnly]);
 
-  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterPriority !== 'all'
-    || filterCategory !== 'all' || showOverdueOnly || showCompleted;
+  const hasActiveFilters = Boolean(search) || filterStatus !== 'all' || filterCombined !== 'all'
+    || Boolean(filterSchedule) || showOverdueOnly || showCompleted;
 
   const clearFilters = useCallback(() => {
     setSearch('');
     setFilterStatus('all');
-    setFilterPriority('all');
-    setFilterCategory('all');
+    setFilterCombined('all');
+    setFilterSchedule('');
     setShowOverdueOnly(false);
     setShowCompleted(false);
   }, []);
 
-  const isUnfiltered = !hasActiveFilters && filterCategory === 'all' && !showCompleted;
+  const isUnfiltered = !hasActiveFilters && filterCombined === 'all' && !filterSchedule && !showCompleted;
 
   const selectedArray = useMemo(() => [...selectedTaskIds], [selectedTaskIds]);
   const hasSelection = selectedArray.length > 0;
@@ -239,33 +262,31 @@ export function Tasks() {
       </div>
 
       {/* ═══════════════ HEADER ═══════════════ */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 z-10 relative">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-display font-extrabold text-surface-50">My Tasks</h1>
-          <p className="text-sm text-surface-400 mt-0.5">Break it down. Do it. Grow everyday.</p>
+      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between gap-3 sm:gap-4 z-10 relative">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-display font-extrabold text-surface-50">My Tasks</h1>
+          <p className="text-sm text-surface-400 mt-0.5 truncate">Break it down. Do it. Grow everyday.</p>
         </div>
-        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
+        <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />} className="hidden lg:inline-flex flex-shrink-0">
           Add Task
         </Button>
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="lg:hidden flex-shrink-0 h-10 px-4 rounded-2xl bg-gradient-to-r from-success-500 to-teal-500 text-white text-sm font-bold inline-flex items-center gap-1.5 shadow-md shadow-success-500/25 transition-all hover:from-success-400 hover:to-teal-400 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-500/40"
+        >
+          <Plus size={16} /> Add Task
+        </button>
       </motion.div>
 
-      {/* ═══════════════ KPI CARDS ═══════════════ */}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
-        <KpiCard icon={<ListTodo size={18} />} label="To Do" value={kpiCounts.todo} color="#3b82f6" />
-        <KpiCard icon={<Clock size={18} />} label="In Progress" value={kpiCounts.inProgress} color="#f59e0b" />
-        <KpiCard icon={<CheckCircle size={18} />} label="Completed" value={kpiCounts.completed} color="#22c55e" />
-        <KpiCard icon={<Flame size={18} />} label="Overdue" value={kpiCounts.overdue} color="#ef4444" />
-      </motion.div>
+      {/* ═══════════════ TASKS CONTENT ═══════════════ */}
+      <div className="z-10 relative">
 
-      {/* ═══════════════ MAIN 2-COL LAYOUT ═══════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6 z-10 relative">
-
-        {/* ── LEFT: Filters + Task List ── */}
+        {/* ── Filters + Task List ── */}
         <div className="space-y-4 min-w-0">
-          {/* Filters Row 1: Search + Dropdowns */}
+          {/* Filters Row 1: Search + Merged Filter + Sort (desktop) */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="flex flex-wrap gap-3 items-center">
+            className="hidden lg:flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
               <Input
@@ -274,7 +295,7 @@ export function Tasks() {
                 onChange={e => setSearch(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
                 aria-label="Search tasks"
-                className="h-10 pl-10 pr-9"
+                className="h-18 pl-10 pr-9"
               />
               {search && (
                 <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
@@ -283,36 +304,32 @@ export function Tasks() {
                 </button>
               )}
             </div>
-            <select value={filterPriority} onChange={e => setFilterPriority(e.target.value as Priority | 'all')}
-              aria-label="Filter by priority"
-              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-              <option value="all">All Priority</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
+            <select value={filterCombined} onChange={e => setFilterCombined(e.target.value)}
+              aria-label="Filter by priority or category"
+              className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              <option value="all">All</option>
+              <optgroup label="Priority">
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </optgroup>
+              <optgroup label="Category">
+                {CATEGORIES.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+              </optgroup>
             </select>
-            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)}
-              aria-label="Filter by category"
-              className="h-10 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
-              <option value="all">All Categories</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+              aria-label="Sort tasks"
+              className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+              <option value="default">Default Order</option>
+              <option value="deadline">Deadline</option>
+              <option value="priority">Priority</option>
             </select>
-            <div className="relative">
-              <ArrowUpDown size={14} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
-              <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                aria-label="Sort tasks"
-                className="h-10 pl-9 pr-8 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 appearance-none">
-                <option value="default">Default Order</option>
-                <option value="deadline">Deadline</option>
-                <option value="priority">Priority</option>
-              </select>
-            </div>
             <div className="flex-1" />
             <div className="inline-flex bg-surface-800 border border-surface-700 rounded-lg overflow-hidden">
               <button
                 type="button"
-                onClick={() => setView('grid')}
+                onClick={() => updateView('grid')}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
                   view === 'grid' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
@@ -323,7 +340,7 @@ export function Tasks() {
               </button>
               <button
                 type="button"
-                onClick={() => setView('list')}
+                onClick={() => updateView('list')}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
                   view === 'list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
@@ -335,36 +352,42 @@ export function Tasks() {
             </div>
           </motion.div>
 
-          {/* Filters Row 2: Status tabs */}
+          {/* Filters Row 2: Status + Date (desktop) */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-            className="flex flex-wrap items-center gap-1.5">
-            {([
-              ['all', 'All'],
-              ['todo', 'To Do'],
-              ['active', 'In Progress'],
-              ['paused', 'Paused'],
-              ['completed', 'Completed'],
-            ] as const).map(([value, label]) => {
-              const active = filterStatus === value;
-              const count = statusCounts[value];
-              return (
-                <button key={value} type="button" aria-pressed={active}
-                  onClick={() => setFilterStatus(value)}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border text-xs font-bold transition-all',
-                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40',
-                    active
-                      ? 'bg-brand-500/15 border-brand-500/40 text-brand-300'
-                      : 'bg-surface-900 border-surface-700/70 text-surface-400 hover:text-surface-200 hover:border-surface-600',
-                  )}>
-                  {label}
-                  <span className={cn(
-                    'inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold',
-                    active ? 'bg-brand-500/20 text-brand-300' : 'bg-surface-800 text-surface-500',
-                  )}>{count}</span>
+            className="hidden lg:flex flex-wrap items-center gap-1.5">
+            <div className="relative">
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
+                aria-label="Filter by status"
+                className="appearance-none h-8 pl-3 pr-8 rounded-full bg-success-500/10 border border-success-500/25 text-success-600 dark:text-success-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-success-500/40">
+                {([
+                  ['all', 'All', statusCounts.all],
+                  ['todo', 'To Do', statusCounts.todo],
+                  ['active', 'In Progress', statusCounts.active],
+                  ['paused', 'Paused', statusCounts.paused],
+                  ['completed', 'Completed', statusCounts.completed],
+                ] as const).map(([value, label, count]) => (
+                  <option key={value} value={value} className="text-surface-50 bg-surface-900">{label} ({count})</option>
+                ))}
+              </select>
+              <ChevronDown size={13} aria-hidden="true"
+                className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-success-600 dark:text-success-400" />
+            </div>
+            <span className="w-px h-5 bg-surface-700 mx-1" aria-hidden="true" />
+            <div className="relative">
+              <input
+                type="date"
+                value={filterSchedule === 'no-date' ? '' : filterSchedule}
+                onChange={e => setFilterSchedule(e.target.value)}
+                aria-label="Filter by date"
+                className="h-8 px-3 rounded-xl bg-surface-800 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 [color-scheme:dark]"
+              />
+              {filterSchedule && filterSchedule !== 'no-date' && (
+                <button type="button" onClick={() => setFilterSchedule('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-700 transition-colors">
+                  <X size={12} />
                 </button>
-              );
-            })}
+              )}
+            </div>
             <Button
               variant={showOverdueOnly ? 'primary' : 'ghost'}
               size="sm"
@@ -387,12 +410,164 @@ export function Tasks() {
               className="gap-1.5 h-9">
               {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
               {showCompleted ? 'Hide Completed' : 'Show Completed'}
-              {kpiCounts.completed > 0 && (
+              {statusCounts.completed > 0 && (
                 <span className={`ml-0.5 inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold ${showCompleted ? 'bg-white/25 text-white' : 'bg-emerald-500/15 text-emerald-400'}`}>
-                  {kpiCounts.completed}
+                  {statusCounts.completed}
                 </span>
               )}
             </Button>
+          </motion.div>
+
+          {/* ══════════ MOBILE FILTERS (below lg) ══════════ */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }}
+            className="lg:hidden space-y-3">
+            {/* Search + Funnel */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500" />
+                <Input
+                  placeholder="Search tasks..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape' && search) { e.stopPropagation(); setSearch(''); } }}
+                  aria-label="Search tasks"
+                  className="h-11 pl-10 pr-9 rounded-xl"
+                />
+                {search && (
+                  <button type="button" onClick={() => setSearch('')} aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-colors">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMobileFilters(v => !v)}
+                aria-expanded={showMobileFilters}
+                aria-controls="mobile-task-filters"
+                aria-label="Toggle filters"
+                className={`h-11 w-11 flex items-center justify-center rounded-xl border transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 ${
+                  showMobileFilters
+                    ? 'bg-brand-500/15 border-brand-500/30 text-brand-500'
+                    : 'bg-surface-850 border-surface-800 text-surface-300'
+                }`}
+              >
+                <Filter size={16} />
+              </button>
+            </div>
+
+            {/* Status pill + Date + Sort */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-shrink-0">
+                <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as TaskStatus | 'all')}
+                  aria-label="Filter by status"
+                  className="appearance-none h-10 pl-3 pr-8 rounded-full bg-success-500/10 border border-success-500/25 text-success-600 dark:text-success-400 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-success-500/40">
+                  {([
+                    ['all', 'All', statusCounts.all],
+                    ['todo', 'To Do', statusCounts.todo],
+                    ['active', 'In Progress', statusCounts.active],
+                    ['paused', 'Paused', statusCounts.paused],
+                    ['completed', 'Completed', statusCounts.completed],
+                  ] as const).map(([value, label, count]) => (
+                    <option key={value} value={value} className="text-surface-50 bg-surface-900">{label} ({count})</option>
+                  ))}
+                </select>
+                <ChevronDown size={13} aria-hidden="true"
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-success-600 dark:text-success-400" />
+              </div>
+              <div className="relative flex-1 min-w-0">
+                <Calendar size={14} aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
+                <input
+                  type="date"
+                  value={filterSchedule === 'no-date' ? '' : filterSchedule}
+                  onChange={e => setFilterSchedule(e.target.value)}
+                  aria-label="Filter by date"
+                  className="h-10 w-full pl-9 pr-8 rounded-xl bg-surface-850 border border-surface-800 text-surface-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 dark:[color-scheme:dark]"
+                />
+                {filterSchedule && filterSchedule !== 'no-date' && (
+                  <button type="button" onClick={() => setFilterSchedule('')} aria-label="Clear date filter"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-colors">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Overdue + Completed chips */}
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+                aria-pressed={showOverdueOnly}
+                className={`h-10 px-3 rounded-full border flex items-center justify-center gap-1.5 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 ${
+                  showOverdueOnly
+                    ? 'bg-red-500/15 border-red-500/30 text-red-500 dark:text-red-400'
+                    : 'bg-red-500/5 border-red-500/15 text-red-500/90 dark:text-red-400/90'
+                }`}
+              >
+                <AlertTriangle size={14} />
+                Overdue
+                {overdueCount > 0 && (
+                  <span className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold bg-red-500/20 text-red-500 dark:text-red-300">
+                    {overdueCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCompleted(!showCompleted)}
+                aria-pressed={showCompleted}
+                className={`h-10 px-3 rounded-full border flex items-center justify-center gap-1.5 text-xs font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
+                  showCompleted
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-emerald-500/5 border-emerald-500/15 text-emerald-600/90 dark:text-emerald-400/90'
+                }`}
+              >
+                {showCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
+                Completed
+                {statusCounts.completed > 0 && (
+                  <span className="inline-flex items-center justify-center h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-600 dark:text-emerald-300">
+                    {statusCounts.completed}
+                  </span>
+                )}
+              </button>
+              <select value={sortBy} onChange={e => setSortBy(e.target.value as typeof sortBy)}
+                aria-label="Sort tasks"
+                className="col-span-2 h-10 px-3 rounded-xl bg-surface-850 border border-surface-800 text-surface-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+                <option value="default">Default Order</option>
+                <option value="deadline">Sort by Deadline</option>
+                <option value="priority">Sort by Priority</option>
+              </select>
+            </div>
+
+            {/* Collapsible extra filters */}
+            {showMobileFilters && (
+              <div id="mobile-task-filters" className="rounded-2xl border border-surface-800 bg-surface-900 p-3 space-y-2.5">
+                <select value={filterCombined} onChange={e => setFilterCombined(e.target.value)}
+                  aria-label="Filter by priority or category"
+                  className="w-full h-10 px-3 rounded-xl bg-surface-850 border border-surface-700 text-surface-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+                  <option value="all">All priorities &amp; categories</option>
+                  <optgroup label="Priority">
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </optgroup>
+                  <optgroup label="Category">
+                    {CATEGORIES.map(c => <option key={c} value={c.toLowerCase()}>{c}</option>)}
+                  </optgroup>
+                </select>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  disabled={!hasActiveFilters}
+                  className="w-full h-9 rounded-xl border border-surface-700 text-xs font-bold text-surface-300 hover:bg-surface-850 disabled:opacity-40 disabled:pointer-events-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                >
+                  Clear filters
+                </button>
+              </div>
+            )}
           </motion.div>
 
           {/* Active filters summary */}
@@ -416,47 +591,49 @@ export function Tasks() {
           {/* Task List */}
           {sorted.length > 0 ? (
             view === 'list' ? (
-              <TaskListView
-                tasks={sorted}
-                onTaskClick={(id) => navigate(`/worklog/tasks/${id}`)}
-              />
+              <>
+                <div className="hidden lg:block">
+                  <TaskListView
+                    tasks={sorted}
+                    onTaskClick={(id) => navigate(`/worklog/tasks/${id}`)}
+                  />
+                </div>
+                <div className="lg:hidden">
+                  <CardsContent
+                    paginatedTasks={paginatedTasks}
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    totalCount={sorted.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setCurrentPage}
+                    selectedTaskIds={selectedTaskIds}
+                    toggleTaskSelection={toggleTaskSelection}
+                    dragOverId={dragOverId}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                    onDragLeave={handleDragLeave}
+                  />
+                </div>
+              </>
             ) : (
-            <>
-              <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
-                <AnimatePresence mode="popLayout">
-                  {paginatedTasks.map(task => (
-                    <motion.div
-                      key={task.id}
-                      variants={fadeUp}
-                      layout
-                      onDragOver={(e) => handleDragOver(e as any, task.id)}
-                      onDrop={(e) => handleDrop(e as any, task.id)}
-                      onDragLeave={handleDragLeave}
-                      className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
-                    >
-                      <TaskCard
-                        task={task}
-                        selected={selectedTaskIds.has(task.id)}
-                        onToggleSelect={toggleTaskSelection}
-                        dragHandleProps={{
-                          draggable: true,
-                          onDragStart: (e: React.DragEvent) => handleDragStart(e, task.id),
-                          onDragEnd: handleDragEnd,
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </motion.div>
-
-              <Pagination
+              <CardsContent
+                paginatedTasks={paginatedTasks}
                 currentPage={currentPage}
                 totalPages={totalPages}
-                totalItems={sorted.length}
+                totalCount={sorted.length}
                 pageSize={PAGE_SIZE}
                 onPageChange={setCurrentPage}
+                selectedTaskIds={selectedTaskIds}
+                toggleTaskSelection={toggleTaskSelection}
+                dragOverId={dragOverId}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onDragLeave={handleDragLeave}
               />
-            </>
             )
           ) : (
             <EmptyState
@@ -468,73 +645,6 @@ export function Tasks() {
               )}
             />
           )}
-        </div>
-
-        {/* ── RIGHT SIDEBAR ── */}
-        <div className="space-y-5 hidden lg:block">
-          {/* Illustration */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="p-5 overflow-hidden relative">
-              <div className="absolute -top-8 -right-8 w-32 h-32 rounded-full bg-brand-400/10 blur-2xl pointer-events-none" />
-              <img src="/SVG/deep-focus.png" alt="" aria-hidden="true" loading="lazy" draggable={false}
-                className="w-full h-auto max-h-[180px] object-contain select-none pointer-events-none" />
-              <p className="text-center text-xs text-surface-400 mt-3 font-medium">Same Focus, Bigger Future</p>
-            </Card>
-          </motion.div>
-
-          {/* Today's Focus */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-            <TodayPlanWidget />
-          </motion.div>
-
-          {/* Motivational Quote */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
-            <Card className="p-5 relative overflow-hidden min-h-[160px]">
-              <div className="absolute inset-0 opacity-20">
-                <img src="/SVG/roadmap-mountain.svg" alt="" aria-hidden="true" className="w-full h-full object-cover" />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-surface-900/90 via-surface-900/60 to-transparent" />
-              <div className="relative z-10">
-                <div className="text-4xl text-brand-500/30 font-display select-none pointer-events-none leading-none">&ldquo;</div>
-                <p className="text-sm font-semibold text-surface-100 leading-relaxed italic -mt-2">
-                  Discipline today builds the freedom tomorrow.
-                </p>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Task Completion Donut */}
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.35 }}>
-            <Card className="p-5">
-              <h3 className="text-sm font-semibold text-surface-50 mb-4">Task Completion</h3>
-              <div className="relative">
-                <ResponsiveContainer width="100%" height={160}>
-                  <PieChart>
-                    <Pie data={donutData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={3} dataKey="value">
-                      {donutData.map((_, i) => (
-                        <Cell key={i} fill={DONUT_COLORS[i]} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center">
-                    <p className="text-xl font-display font-extrabold text-surface-50">{completionPct}%</p>
-                    <p className="text-[9px] text-surface-400 uppercase tracking-wider">Done</p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                {donutData.map((item, i) => (
-                  <div key={item.name} className="flex items-center gap-2 text-xs text-surface-400">
-                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: DONUT_COLORS[i] }} />
-                    <span className="truncate">{item.name}</span>
-                    <span className="ml-auto font-bold text-surface-300">{item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
         </div>
       </div>
 
@@ -561,30 +671,65 @@ export function Tasks() {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Sub-components
-// ══════════════════════════════════════════════════════════════════════════════
+interface CardsContentProps {
+  paginatedTasks: Task[];
+  currentPage: number;
+  totalPages: number;
+  totalCount: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  selectedTaskIds: Set<string>;
+  toggleTaskSelection: (id: string) => void;
+  dragOverId: string | null;
+  onDragStart: (e: React.DragEvent, id: string) => void;
+  onDragEnd: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent, id: string) => void;
+  onDrop: (e: React.DragEvent, id: string) => void;
+  onDragLeave: () => void;
+}
 
-function KpiCard({ icon, label, value, color }: {
-  icon: React.ReactNode; label: string; value: number; color: string;
-}) {
+function CardsContent({
+  paginatedTasks, currentPage, totalPages, totalCount, pageSize, onPageChange,
+  selectedTaskIds, toggleTaskSelection,
+  dragOverId, onDragStart, onDragEnd, onDragOver, onDrop, onDragLeave,
+}: CardsContentProps) {
   return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-4 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
-      style={{
-        background: `linear-gradient(135deg, ${color}12 0%, ${color}06 100%)`,
-        border: `1px solid ${color}30`,
-      }}>
-      <div className="absolute top-0 right-0 w-20 h-20 opacity-15 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
-          {icon}
-        </div>
-      </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 leading-none">{value}</p>
-      <p className="text-[11px] font-semibold mt-1" style={{ color: `${color}cc` }}>{label}</p>
-    </motion.div>
+    <>
+      <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-3">
+        <AnimatePresence mode="popLayout">
+          {paginatedTasks.map(task => (
+            <motion.div
+              key={task.id}
+              variants={fadeUp}
+              layout
+              onDragOver={(e) => onDragOver(e as any, task.id)}
+              onDrop={(e) => onDrop(e as any, task.id)}
+              onDragLeave={onDragLeave}
+              className={`relative ${dragOverId === task.id ? 'before:absolute before:inset-x-0 before:-top-1.5 before:h-0.5 before:rounded-full before:bg-brand-400' : ''}`}
+            >
+              <TaskCard
+                task={task}
+                selected={selectedTaskIds.has(task.id)}
+                onToggleSelect={toggleTaskSelection}
+                dragHandleProps={{
+                  draggable: true,
+                  onDragStart: (e: React.DragEvent) => onDragStart(e, task.id),
+                  onDragEnd,
+                }}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </motion.div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalItems={totalCount}
+        pageSize={pageSize}
+        onPageChange={onPageChange}
+      />
+    </>
   );
 }
 

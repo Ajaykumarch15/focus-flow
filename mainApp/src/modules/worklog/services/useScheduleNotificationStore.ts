@@ -76,11 +76,20 @@ export const useScheduleNotificationStore = create<ScheduleNotificationState>((s
     // Browser notification if permitted
     if (get().browserPermission === 'granted') {
       try {
-        const bn = new Notification(notif.type === 'five-minute' ? '🔔 Upcoming Task' : '🚀 Task Starting Now', {
-          body: `"${notif.taskTitle}" — ${notif.type === 'five-minute' ? 'Starts in 5 minutes' : 'Your scheduled task is starting now'}`,
-          tag: key,
-          requireInteraction: notif.type === 'start-now',
-        });
+        const bn = new Notification(
+          notif.type === 'five-minute' ? '🔔 Upcoming Task'
+            : notif.type === 'overtime' ? '⏰ Task Overtime'
+            : '🚀 Task Starting Now',
+          {
+            body: `"${notif.taskTitle}" — ${
+              notif.type === 'five-minute' ? 'Starts in 5 minutes'
+                : notif.type === 'overtime' ? 'Has passed its scheduled end time — still running'
+                : 'Your scheduled task is starting now'
+            }`,
+            tag: key,
+            requireInteraction: notif.type === 'start-now' || notif.type === 'overtime',
+          },
+        );
         bn.onclick = () => { window.focus(); bn.close(); };
       } catch { /* Notification API unavailable */ }
     }

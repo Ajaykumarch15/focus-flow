@@ -132,7 +132,7 @@ export interface AppState {
   activeTaskIds: string[];                    // list of all running task IDs
 }
 
-export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'missed' | 'cancelled';
+export type ScheduleStatus = 'scheduled' | 'in-progress' | 'completed' | 'missed' | 'cancelled' | 'skipped';
 export type ScheduleRecurrence = 'none' | 'daily' | 'weekly' | 'custom';
 
 // Derived schedule state (computed from current time + schedule data)
@@ -143,10 +143,12 @@ export interface ScheduleNotification {
   scheduleId: string;
   taskId: string;
   taskTitle: string;
-  type: 'five-minute' | 'start-now';
+  type: 'five-minute' | 'start-now' | 'overtime';
   deliveredAt: number;
   dismissed: boolean;
   scheduledStartTime: number;
+  /** Absolute end of the scheduled slot (overtime bookkeeping) */
+  scheduledEndTime?: number;
 }
 
 export interface ScheduleItem {
@@ -160,6 +162,14 @@ export interface ScheduleItem {
   notes?: string;
   recurrence?: ScheduleRecurrence;
   actualTimeMs?: number;
+  /** True when the slot is fixed (meeting/appointment) and must not be moved by rescheduling */
+  locked?: boolean;
+  /** Epoch-ms timestamp of the actual execution start (null until started) */
+  actualStartAt?: number | null;
+  /** Epoch-ms timestamp of actual completion (null until completed) */
+  actualEndAt?: number | null;
+  /** Total minutes the slot has been extended via rescheduling */
+  extendedMins?: number;
   workspaceId?: string | null;
   projectId?: string | null;
   assignedBy?: string | null;
@@ -176,6 +186,10 @@ export interface ScheduleCreatePayload {
   notes?: string;
   status?: ScheduleStatus;
   recurrence?: ScheduleRecurrence;
+  locked?: boolean;
+  actualStartAt?: number | null;
+  actualEndAt?: number | null;
+  extendedMins?: number;
   workspaceId?: string | null;
   projectId?: string | null;
 }
@@ -189,5 +203,58 @@ export interface ScheduleUpdatePayload {
   notes?: string;
   status?: ScheduleStatus;
   recurrence?: ScheduleRecurrence;
+  locked?: boolean;
+  actualStartAt?: number | null;
+  actualEndAt?: number | null;
+  extendedMins?: number;
+  /** Server-side audit metadata, attached to schedule.revisions (never applied to fields) */
+  revisionMeta?: {
+    strategy?: 'shift-all' | 'relocate' | 'shrink' | 'keep-as-is' | 'manual' | 'skip';
+    reason?: string;
+    items?: Record<string, unknown> | null;
+  };
 }
 
+// ---------------------------------------------------------------------------
+// Intelligent rescheduling (execution-aware)
+// ---------------------------------------------------------------------------
+
+export type RescheduleStrategy = 'shift-all' | 'relocate' | 'shrink' | 'keep-as-is';
+
+export interface RescheduleSlot {
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+export type RescheduleChangeKind = 'extended' | 'shifted' | 'moved' | 'shrunk' | 'unchanged';
+
+export interface RescheduleItemChange {
+  scheduleId: string;
+  taskTitle: string;
+  kind: RescheduleChangeKind;
+  from: RescheduleSlot;
+  to: RescheduleSlot;
+  /** For shrunk items: original and reduced duration in minutes */
+  originalMins?: number;
+  reducedMins?: number;
+}
+
+export interface RescheduleProposal {
+  strategy: RescheduleStrategy;
+  scheduleId: string;
+  extraMinutes: number;
+  changes: RescheduleItemChange[];
+  /** Human-readable conflicts (e.g. with locked/fixed events). Must be resolved or acknowledged */
+  conflicts: string[];
+  /** Non-blocking warnings (working-hours overflow, absorbed/unabsorbed minutes, etc.) */
+  warnings: string[];
+  /** Minutes of extra schedule time added by the extension itself */
+  totalExtraMins: number;
+  /** True when any resulting slot crosses beyond working hours */
+  beyondWorkHours: boolean;
+  /** Shrink strategy: minutes absorbed by shrinking other tasks */
+  absorbedMins?: number;
+  /** Shrink strategy: minutes that could not be absorbed */
+  unabsorbedMins?: number;
+}

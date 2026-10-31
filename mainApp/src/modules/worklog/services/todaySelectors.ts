@@ -333,9 +333,15 @@ export function selectToday(input: TodayInput): TodayView {
   const nowKey = dayKey(now);
   const active = input.tasks.filter((t) => t.status !== 'completed');
   const overdueCount = active.filter((t) => t.deadline && daysBetweenKeys(nowKey, dayKey(t.deadline)) < 0).length;
-  const completedToday = input.tasks.filter(
-    (t) => t.status === 'completed' && daysBetweenKeys(nowKey, dayKey(t.updatedAt)) === 0,
-  ).length;
+  // "Completed today" counts tasks completed today — keyed on completedAt when
+  // the task records it, falling back to updatedAt only for legacy docs without
+  // a completion timestamp. (updatedAt changes on ANY edit and previously
+  // inflated the count whenever an old completed task was modified today.)
+  const completedToday = input.tasks.filter((t) => {
+    if (t.status !== 'completed') return false;
+    const at = t.completedAt ?? t.updatedAt;
+    return at != null && daysBetweenKeys(nowKey, dayKey(at)) === 0;
+  }).length;
   const progressPct = input.dailyGoalMs > 0
     ? Math.min(100, Math.round((input.todayMs / input.dailyGoalMs) * 100))
     : null;

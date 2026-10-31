@@ -566,8 +566,15 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         const docs = await api.tasks.list();
         const mapped = docs.map(mapTask);
-        saveCache(TASKS_KEY, mapped);
-        set({ tasks: mapped });
+        // fetchTasks only sees the *personal* task list (no workspaceId). loadAll
+        // also merges in workspace-scoped (collab) tasks — replacing `tasks` here
+        // with the personal list alone would silently drop them after bulk ops
+        // or any refresh. Preserve and dedupe collab tasks instead.
+        const workspaceTasks = get().tasks.filter(t => t.workspaceContext === 'collab');
+        const seen = new Set(mapped.map(t => t.id));
+        const merged = [...mapped, ...workspaceTasks.filter(t => !seen.has(t.id))];
+        saveCache(TASKS_KEY, merged);
+        set({ tasks: merged });
       } catch (err) {
         console.error('❌ fetchTasks failed:', err);
       }
@@ -1034,15 +1041,21 @@ export const useStore = create<StoreState>((set, get) => {
 
     // ── Profile + Theme ────────────────────────────────────────────────────────
     updateProfile: (updates) => {
-      set(s => ({ profile: { ...s.profile, ...updates } }));
+      // Goal fields (hours): guard against NaN / out-of-range values ever being
+      // stored (e.g. numbers typed past the input bounds) — clamp to 0-24.
+      const clampGoal = (n: unknown, fallback: number) =>
+        typeof n === 'number' && Number.isFinite(n) ? Math.max(0, Math.min(24, n)) : fallback;
+      const nextDailyGoal = updates.dailyGoal !== undefined ? clampGoal(updates.dailyGoal, get().profile.dailyGoal) : undefined;
+      const nextPersonalGoal = updates.personalDailyGoal !== undefined ? clampGoal(updates.personalDailyGoal, get().profile.personalDailyGoal) : undefined;
+      set(s => ({ profile: { ...s.profile, ...updates, ...(nextDailyGoal !== undefined ? { dailyGoal: nextDailyGoal } : {}), ...(nextPersonalGoal !== undefined ? { personalDailyGoal: nextPersonalGoal } : {}) } }));
       const current = get().profile;
       saveCache(PROFILE_KEY, current);
       api.profile.update({
         name: updates.name ?? current.name,
         leaderboardOptIn: updates.leaderboardOptIn ?? current.leaderboardOptIn,
         settings: {
-          dailyGoal: updates.dailyGoal ?? current.dailyGoal,
-          personalDailyGoal: updates.personalDailyGoal ?? current.personalDailyGoal,
+          dailyGoal: current.dailyGoal,
+          personalDailyGoal: current.personalDailyGoal,
           timezone: updates.timezone ?? current.timezone,
         },
       }).catch((err) => {
