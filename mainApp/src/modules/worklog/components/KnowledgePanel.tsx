@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import {
   BookOpen, Lightbulb, GraduationCap, Link2, Search, X,
-  RefreshCw, ArrowRight, FileText,
+  RefreshCw, ArrowRight, FileText, NotebookPen,
 } from 'lucide-react';
 import type { KnowledgeDoc } from '@collab/types/collaboration';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
@@ -15,6 +15,7 @@ import { EmptyState } from '@shared/components/ui/EmptyState';
 import { NoKnowledge, NoSearchResults } from '@shared/components/illustrations';
 import { Skeleton } from '@shared/components/ui/Skeleton';
 import { Input } from '@shared/components/ui/Input';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
 
 // ── KnowledgePanel (S3-T2) ────────────────────────────────────────────────────
 // The read-only Knowledge surface (ECIS §B.5 · IA §8.9-5): "What do we already
@@ -36,11 +37,17 @@ function formatDay(ts: number): string {
 
 function DecisionRow({ item, onOpenWorkLog }: { item: KnowledgeDecision; onOpenWorkLog?: (logId: string) => void }) {
   return (
-    <div className="rounded-xl border border-surface-800 bg-surface-900 p-4 space-y-2">
+    <div className="relative overflow-hidden rounded-xl border border-surface-800 bg-transparent p-4 space-y-2 hover:border-amber-500/30 hover:bg-amber-500/[0.03] transition-all duration-200">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-amber-400/60" aria-hidden="true" />
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-surface-50">{item.title}</p>
-          <p className="text-[11px] text-surface-500 mt-0.5">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="w-5 h-5 rounded-md bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+              <Lightbulb size={11} />
+            </span>
+            <p className="text-sm font-semibold text-surface-50 truncate">{item.title}</p>
+          </div>
+          <p className="text-[11px] text-surface-500 mt-0.5 pl-7">
             {item.logTitle} · {formatDay(item.timestamp)}
           </p>
         </div>
@@ -69,10 +76,16 @@ function DecisionRow({ item, onOpenWorkLog }: { item: KnowledgeDecision; onOpenW
 
 function LessonRow({ item, onOpenWorkLog }: { item: KnowledgeLesson; onOpenWorkLog?: (logId: string) => void }) {
   return (
-    <div className="rounded-xl border border-surface-800 bg-surface-900 p-4 flex items-start justify-between gap-3">
+    <div className="relative overflow-hidden rounded-xl border border-surface-800 bg-transparent p-4 flex items-start justify-between gap-3 hover:border-emerald-500/30 hover:bg-emerald-500/[0.03] transition-all duration-200">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-emerald-400/60" aria-hidden="true" />
       <div className="min-w-0">
-        <p className="text-sm text-surface-200 leading-relaxed">{item.lesson}</p>
-        <p className="text-[11px] text-surface-500 mt-1.5">{item.logTitle} · {formatDay(item.timestamp)}</p>
+        <div className="flex items-start gap-2">
+          <span className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0 mt-0.5" aria-hidden="true">
+            <GraduationCap size={11} />
+          </span>
+          <p className="text-sm text-surface-200 leading-relaxed">{item.lesson}</p>
+        </div>
+        <p className="text-[11px] text-surface-500 mt-1.5 pl-7">{item.logTitle} · {formatDay(item.timestamp)}</p>
       </div>
       {onOpenWorkLog && (
         <Button
@@ -92,13 +105,17 @@ function LessonRow({ item, onOpenWorkLog }: { item: KnowledgeLesson; onOpenWorkL
 
 function LinkRow({ item, onOpenWorkLog }: { item: KnowledgeLink; onOpenWorkLog?: (logId: string) => void }) {
   return (
-    <div className="rounded-xl border border-surface-800 bg-surface-900 p-4 flex items-start justify-between gap-3">
+    <div className="relative overflow-hidden rounded-xl border border-surface-800 bg-transparent p-4 flex items-start justify-between gap-3 hover:border-cyan-500/30 hover:bg-cyan-500/[0.03] transition-all duration-200">
+      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-cyan-400/60" aria-hidden="true" />
       <div className="min-w-0">
         <a href={item.url} target="_blank" rel="noreferrer"
-          className="text-sm font-semibold text-brand-500 hover:text-brand-400 underline decoration-brand-500/40 underline-offset-2 break-all">
+          className="text-sm font-semibold text-brand-500 hover:text-brand-400 underline decoration-brand-500/40 underline-offset-2 break-all transition-colors">
           {item.label}
         </a>
-        <p className="text-[11px] text-surface-500 mt-1">
+        <p className="text-[11px] text-surface-500 mt-1 flex items-center gap-1.5">
+          <span className="w-5 h-5 rounded-md bg-cyan-500/10 text-cyan-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+            <Link2 size={10} />
+          </span>
           {item.category} · {item.logTitle}
         </p>
       </div>
@@ -147,19 +164,22 @@ export function KnowledgePanel({
   const showError = !!error && view.total === 0;
   const hasData = view.total > 0;
 
-  const stats = [
-    { label: 'Docs', value: view.docs.length, color: 'text-purple-400' },
-    { label: 'Decisions', value: view.decisions.length, color: 'text-amber-400' },
-    { label: 'Lessons', value: view.lessons.length, color: 'text-emerald-400' },
-    { label: 'Links', value: view.links.length, color: 'text-cyan-400' },
-    { label: 'Journals', value: view.journalCount, color: 'text-sky-400' },
+  const stats: Array<{
+    label: string; value: number; accent: 'info' | 'warning' | 'success' | 'brand' | 'neutral';
+    icon: ReactNode; bg: string; description: string;
+  }> = [
+    { label: 'Docs', value: view.docs.length, accent: 'info', icon: <FileText size={14} />, bg: '/SVG/svg/DOCUMENT.svg', description: 'Knowledge base' },
+    { label: 'Decisions', value: view.decisions.length, accent: 'warning', icon: <Lightbulb size={14} />, bg: '/SVG/svg/idea%20to%20plan.svg', description: 'From work logs' },
+    { label: 'Lessons', value: view.lessons.length, accent: 'success', icon: <GraduationCap size={14} />, bg: '/SVG/svg/learning.svg', description: 'Captured insights' },
+    { label: 'Links', value: view.links.length, accent: 'brand', icon: <Link2 size={14} />, bg: '/SVG/svg/navigation.svg', description: 'Saved references' },
+    { label: 'Journals', value: view.journalCount, accent: 'neutral', icon: <NotebookPen size={14} />, bg: '/SVG/svg/BOOK.svg', description: 'Reflection entries' },
   ];
 
   if (isLoading) {
     return (
       <div role="status" aria-live="polite" className="space-y-6">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-surface-800 bg-surface-900 p-5 space-y-3">
+          <div key={i} className="rounded-2xl border border-surface-800 bg-transparent p-5 space-y-3">
             <Skeleton className="h-4 w-36 rounded" />
             <Skeleton className="h-14 w-full rounded-xl" />
             <Skeleton className="h-14 w-full rounded-xl" />
@@ -176,7 +196,10 @@ export function KnowledgePanel({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 tracking-tight flex items-center gap-3">
-              <BookOpen size={24} className="text-purple-400" /> {title}
+              <span className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <BookOpen size={20} />
+              </span>
+              {title}
             </h1>
             <p className="text-surface-400 text-sm mt-1">{description}</p>
           </div>
@@ -203,11 +226,19 @@ export function KnowledgePanel({
 
         {hasData && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
-            {stats.map(({ label, value, color }) => (
-              <div key={label} className="rounded-xl border border-surface-800 bg-surface-900 p-4">
-                <p className={`text-xl font-display font-bold ${color}`}>{value}</p>
-                <p className="text-[11px] text-surface-400 font-medium mt-0.5 uppercase tracking-wider">{label}</p>
-              </div>
+            {stats.map(({ label, value, accent, icon, bg, description }) => (
+              <StatisticsCard
+                key={label}
+                title={label}
+                value={value}
+                description={description}
+                icon={icon}
+                accent={accent}
+                transparent
+                alwaysShowBorder
+                backgroundImage={bg}
+                backgroundPosition="bottom-right"
+              />
             ))}
           </div>
         )}
@@ -228,7 +259,7 @@ export function KnowledgePanel({
 
       {/* ═══ Empty state (ECIS §B.5 copy) ═══ */}
       {!showError && !hasData && !searching && (
-        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
+        <div className="rounded-2xl border border-dashed border-surface-700 bg-transparent overflow-hidden">
           <EmptyState
             illustration={<NoKnowledge />}
             title="No knowledge captured yet"
@@ -239,7 +270,7 @@ export function KnowledgePanel({
 
       {/* ═══ Search no-results ═══ */}
       {!showError && searching && filtered.total === 0 && (
-        <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900/50 overflow-hidden">
+        <div className="rounded-2xl border border-dashed border-surface-700 bg-transparent overflow-hidden">
           <EmptyState
             illustration={<NoSearchResults />}
             title="No knowledge matches"
@@ -258,10 +289,12 @@ export function KnowledgePanel({
         <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
           {/* ── 2. Knowledge docs ── */}
           <motion.section variants={fadeUp} role="region" aria-label="Knowledge docs" className="space-y-3">
-            <div className="flex items-center gap-2">
-              <FileText size={15} className="text-purple-400" />
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <FileText size={14} />
+              </span>
               <h2 className="text-sm font-bold text-surface-100">Knowledge Docs</h2>
-              <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">{filtered.docs.length}</span>
+              <span className="text-[10px] font-bold text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md">{filtered.docs.length}</span>
             </div>
             {filtered.docs.length === 0 ? (
               <p className="text-xs text-surface-600 italic py-3 px-1">
@@ -269,8 +302,9 @@ export function KnowledgePanel({
               </p>
             ) : (
               filtered.docs.map((doc) => (
-                <div key={doc.id} className="rounded-xl border border-surface-800 bg-surface-900 p-4 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
+                <div key={doc.id} className="relative overflow-hidden rounded-xl border border-surface-800 bg-transparent p-4 space-y-2 hover:border-purple-500/30 hover:bg-purple-500/[0.03] transition-all duration-200">
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-purple-400/60" aria-hidden="true" />
+                  <div className="flex items-center justify-between gap-2 pl-1">
                     <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider">
                       {doc.category} · v{doc.version}
                     </Badge>
@@ -294,10 +328,12 @@ export function KnowledgePanel({
 
           {/* ── 3. Decision ledger ── */}
           <motion.section variants={fadeUp} role="region" aria-label="Decision ledger" className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Lightbulb size={15} className="text-amber-400" />
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <Lightbulb size={14} />
+              </span>
               <h2 className="text-sm font-bold text-surface-100">Decision Ledger</h2>
-              <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">{filtered.decisions.length}</span>
+              <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">{filtered.decisions.length}</span>
             </div>
             {filtered.decisions.length === 0 ? (
               <p className="text-xs text-surface-600 italic py-3 px-1">
@@ -312,10 +348,12 @@ export function KnowledgePanel({
 
           {/* ── 4. Lessons learned ── */}
           <motion.section variants={fadeUp} role="region" aria-label="Lessons learned" className="space-y-3">
-            <div className="flex items-center gap-2">
-              <GraduationCap size={15} className="text-emerald-400" />
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <GraduationCap size={14} />
+              </span>
               <h2 className="text-sm font-bold text-surface-100">Lessons Learned</h2>
-              <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">{filtered.lessons.length}</span>
+              <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">{filtered.lessons.length}</span>
             </div>
             {filtered.lessons.length === 0 ? (
               <p className="text-xs text-surface-600 italic py-3 px-1">
@@ -330,10 +368,12 @@ export function KnowledgePanel({
 
           {/* ── 5. Saved links ── */}
           <motion.section variants={fadeUp} role="region" aria-label="Saved links" className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Link2 size={15} className="text-cyan-400" />
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                <Link2 size={14} />
+              </span>
               <h2 className="text-sm font-bold text-surface-100">Saved Links</h2>
-              <span className="text-[10px] font-bold text-surface-500 bg-surface-800 px-2 py-0.5 rounded-md">{filtered.links.length}</span>
+              <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-md">{filtered.links.length}</span>
             </div>
             {filtered.links.length === 0 ? (
               <p className="text-xs text-surface-600 italic py-3 px-1">

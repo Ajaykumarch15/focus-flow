@@ -347,27 +347,6 @@ export function TodayPage() {
         </div>
       </motion.section>
 
-      {/* Overdue banner */}
-      <AnimatePresence>
-        {view.stats.overdueCount > 0 && (
-          <motion.div variants={fadeUp} initial="hidden" animate="show" exit={{ opacity: 0, height: 0 }}
-            className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
-            <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle size={16} className="text-danger-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-danger-500">
-                {view.stats.overdueCount} Overdue Task{view.stats.overdueCount !== 1 ? 's' : ''} Requiring Attention
-              </p>
-              <p className="text-xs text-danger-400/80 mt-0.5">Prioritize these to stay on track.</p>
-            </div>
-            <Button variant="ghost" size="xs" className="text-danger-400 hover:text-danger-300 hover:bg-danger-500/10 font-bold" onClick={() => navigate('/worklog/tasks')}>
-              Resolve Now →
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ═══════════════ KEY METRICS - Stat Cards ═══════════════ */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3 z-10 relative">
         {(([

@@ -334,232 +334,293 @@ function HabitCard({ habit }: { habit: Habit }) {
     ? Math.min(100, Math.round((liveMinutes / habit.targetMinutes) * 100))
     : 0;
 
+  const minutesRingR = 26;
+  const minutesRingC = 2 * Math.PI * minutesRingR;
+
   return (
     <motion.div
       layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      className="card p-5"
-    >
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: habit.color }} />
-            <h2 className="font-display font-semibold text-surface-50 truncate">{habit.title}</h2>
-          </div>
-          {habit.description && <p className="text-sm text-surface-400 line-clamp-2">{habit.description}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {!isThisActive && (
-            <Button
-              onClick={() => startTimer(habit._id)}
-              disabled={!!activeHabitId}
-              className="disabled:opacity-40 disabled:cursor-not-allowed"
-              leftIcon={<Play size={14} fill="currentColor" />}
-            >
-              Start
-            </Button>
-          )}
-          {isRunning && (
-            <Button
-              variant="secondary"
-              onClick={() => pauseTimer(habit._id)}
-              className="text-yellow-300"
-              leftIcon={<Pause size={14} />}
-            >
-              Pause
-            </Button>
-          )}
-          {isPaused && (
-            <Button
-              onClick={() => resumeTimer(habit._id)}
-              leftIcon={<Play size={14} fill="currentColor" />}
-            >
-              Resume
-            </Button>
-          )}
-          {isThisActive && (
-            <Button
-              variant="secondary"
-              onClick={() => stopTimer(habit._id)}
-              className="text-red-300"
-              leftIcon={<Square size={13} fill="currentColor" />}
-            >
-              Stop
-            </Button>
-          )}
-          <button
-            onClick={() => deleteHabit(habit._id)}
-            className="p-2 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
-            aria-label="Delete habit"
-          >
-            <Trash2 size={15} />
-          </button>
-          <button
-            onClick={() => setShowAnalytics(!showAnalytics)}
-            className={`p-2 rounded-lg transition-all ${showAnalytics ? 'text-brand-400 bg-brand-500/10' : 'text-surface-500 hover:text-surface-300 hover:bg-surface-800'}`}
-            aria-label="Toggle analytics"
-            title="View analytics"
-          >
-            <TrendingUp size={15} />
-          </button>
-          {streak > 0 && (
-            <span className="flex items-center gap-1 text-xs font-bold text-orange-400">
-              <Flame size={12} /> {streak}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {showAnalytics && <HabitAnalytics habit={habit} />}
-      </AnimatePresence>
-
-      <div className={`rounded-xl border p-4 mb-5 ${
+      className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${
         isRunning
-          ? 'border-emerald-400/30 bg-emerald-400/10'
+          ? 'border-emerald-400/40 bg-emerald-400/[0.04] shadow-lg shadow-emerald-500/10'
           : isPaused
-          ? 'border-yellow-400/30 bg-yellow-400/10'
-          : 'border-surface-800 bg-surface-900/50'
-      }`}>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <div className="text-xs text-surface-400 mb-1">
-              {isRunning ? 'Running' : isPaused ? 'Paused' : 'Ready to track'}
+          ? 'border-yellow-400/40 bg-yellow-400/[0.04] shadow-lg shadow-yellow-500/10'
+          : 'border-surface-800 bg-transparent hover:border-surface-700'
+      }`}
+    >
+      {/* Habit-colored top accent strip */}
+      <div className="absolute top-0 inset-x-0 h-[3px] z-10" style={{ background: habit.color }} />
+
+      <div className="p-5">
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-base font-bold flex-shrink-0"
+              style={{ background: `${habit.color}1f`, color: habit.color }}
+              aria-hidden="true"
+            >
+              {habit.title.charAt(0).toUpperCase()}
             </div>
-            <div className={`timer-display text-3xl font-bold ${
-              isRunning ? 'text-emerald-300' : isPaused ? 'text-yellow-300' : 'text-surface-300'
-            }`}>
-              {isThisActive ? formatClock(liveElapsedMs) : formatClock(0)}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-surface-400 mb-1">Today total</div>
-            <div className="text-lg font-display font-bold text-surface-50">
-              {formatMinutes(liveMinutes)}m / {habit.targetMinutes}m
-            </div>
-            {extraMinutes > 0 && (
-              <div className="text-xs text-emerald-300 mt-1">
-                +{formatMinutes(extraMinutes)}m more time worked
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="font-display font-semibold text-surface-50 truncate">{habit.title}</h2>
+                {isRunning && (
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-400 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> RUNNING
+                  </span>
+                )}
+                {streak > 0 && (
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-orange-400 px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+                    <Flame size={11} /> {streak} day{streak !== 1 ? 's' : ''} streak
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-        </div>
-        {!!activeHabitId && !isThisActive && (
-          <div className="text-xs text-yellow-300 mt-3">
-            Another habit timer is running. Stop it before starting this one.
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 mb-5">
-        <div className="bg-surface-900/60 border border-surface-800 rounded-xl p-3">
-          <div className="flex items-center justify-between text-xs text-surface-400 mb-2">
-            <span>Checklist</span>
-            <span>{percent}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${percent}%`, background: habit.color }} />
-          </div>
-        </div>
-        <div className="bg-surface-900/60 border border-surface-800 rounded-xl p-3">
-          <div className="flex items-center justify-between text-xs text-surface-400 mb-2">
-            <span>Time</span>
-            <span>{formatMinutes(liveMinutes)}/{habit.targetMinutes}m</span>
-          </div>
-          <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
-            <div className="h-full rounded-full bg-brand-400" style={{ width: `${minutesPercent}%` }} />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2 mb-4">
-        {habit.checklist.map(item => {
-          const checked = entry.completedItems.includes(item._id);
-          return (
-            <div key={item._id} className="flex items-center gap-2 group">
-              <button
-                onClick={() => toggleItem(item._id)}
-                className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-all ${
-                  checked ? 'text-surface-50' : 'border-surface-600 text-transparent hover:text-surface-400'
-                }`}
-                style={checked ? { background: habit.color, borderColor: habit.color } : undefined}
-                aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
-              >
-                <Check size={14} />
-              </button>
-              <span className={`flex-1 text-sm ${checked ? 'text-surface-400 line-through' : 'text-surface-200'}`}>
-                {item.text}
-              </span>
-              <button
-                onClick={() => deleteChecklistItem(habit._id, item._id)}
-                className="opacity-0 group-hover:opacity-100 p-1 text-surface-600 hover:text-red-400 transition-all"
-                aria-label="Delete checklist item"
-              >
-                <X size={13} />
-              </button>
+              {habit.description && (
+                <p className="text-sm text-surface-400 line-clamp-2 mt-1">{habit.description}</p>
+              )}
             </div>
-          );
-        })}
-      </div>
-
-      <form onSubmit={addItem} className="flex gap-2 mb-5">
-        <Input
-          className="text-sm py-2"
-          value={newItem}
-          onChange={e => setNewItem(e.target.value)}
-          placeholder="Add checklist item"
-        />
-        <Button type="submit" variant="secondary" size="icon-sm" aria-label="Add checklist item">
-          <Plus size={15} />
-        </Button>
-      </form>
-
-      <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4">
-        <div>
-          <label className="text-xs text-surface-400 flex items-center gap-1.5 mb-2">
-            <Clock size={12} /> Time count
-          </label>
-          <Input
-            type="number"
-            min={0}
-            step={0.1}
-            value={liveMinutes}
-            disabled={isThisActive}
-            onChange={e => updateToday(habit._id, { minutes: Number(e.target.value) })}
-          />
-        </div>
-        <div>
-          <label className="text-xs text-surface-400 flex items-center gap-1.5 mb-2">
-            <SmilePlus size={12} /> How I felt
-          </label>
-          <div className="flex gap-2 flex-wrap">
-            {FEELINGS.map(feeling => (
-              <button
-                key={feeling.value}
-                onClick={() => updateToday(habit._id, { feeling: feeling.value })}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  entry.feeling === feeling.value
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-surface-800 text-surface-300 hover:text-surface-50'
-                }`}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {!isThisActive && (
+              <Button
+                onClick={() => startTimer(habit._id)}
+                disabled={!!activeHabitId}
+                size="sm"
+                className="disabled:opacity-40 disabled:cursor-not-allowed"
+                leftIcon={<Play size={13} fill="currentColor" />}
               >
-                {feeling.label}
-              </button>
-            ))}
+                Start
+              </Button>
+            )}
+            {isRunning && (
+              <Button variant="secondary" size="sm" onClick={() => pauseTimer(habit._id)}
+                className="text-yellow-300" leftIcon={<Pause size={13} />}>
+                Pause
+              </Button>
+            )}
+            {isPaused && (
+              <Button size="sm" onClick={() => resumeTimer(habit._id)}
+                leftIcon={<Play size={13} fill="currentColor" />}>
+                Resume
+              </Button>
+            )}
+            {isThisActive && (
+              <Button variant="secondary" size="sm" onClick={() => stopTimer(habit._id)}
+                className="text-red-300" leftIcon={<Square size={12} fill="currentColor" />}>
+                Stop
+              </Button>
+            )}
+            <button
+              onClick={() => setShowAnalytics(!showAnalytics)}
+              className={`p-2 rounded-lg transition-all ${showAnalytics ? 'text-brand-400 bg-brand-500/10' : 'text-surface-500 hover:text-surface-300 hover:bg-surface-800'}`}
+              aria-label="Toggle analytics"
+              title="View analytics"
+            >
+              <TrendingUp size={15} />
+            </button>
+            <button
+              onClick={() => deleteHabit(habit._id)}
+              className="p-2 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-400/10 transition-all"
+              aria-label="Delete habit"
+            >
+              <Trash2 size={15} />
+            </button>
           </div>
         </div>
-      </div>
 
-      <Textarea
-        className="resize-none mt-4 text-sm"
-        rows={2}
-        value={note}
-        onChange={e => setNote(e.target.value)}
-        onBlur={() => updateToday(habit._id, { note })}
-        placeholder="Add a note about today's habit session"
-      />
+        <AnimatePresence>
+          {showAnalytics && <HabitAnalytics habit={habit} />}
+        </AnimatePresence>
+
+        {/* ── Timer panel ── */}
+        <div className={`rounded-xl border p-4 mb-4 ${
+          isRunning
+            ? 'border-emerald-400/30 bg-emerald-400/10'
+            : isPaused
+            ? 'border-yellow-400/30 bg-yellow-400/10'
+            : 'border-surface-800 bg-surface-900/30'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* Status + big clock */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 text-xs font-semibold mb-1">
+                <span className={`w-2 h-2 rounded-full ${
+                  isRunning ? 'bg-emerald-400 animate-pulse' : isPaused ? 'bg-yellow-400' : 'bg-surface-600'
+                }`} />
+                <span className={isRunning ? 'text-emerald-300' : isPaused ? 'text-yellow-300' : 'text-surface-400'}>
+                  {isRunning ? 'Running' : isPaused ? 'Paused' : 'Ready to track'}
+                </span>
+              </div>
+              <div className={`timer-display text-3xl sm:text-4xl font-bold tabular-nums tracking-tight ${
+                isRunning ? 'text-emerald-300' : isPaused ? 'text-yellow-300' : 'text-surface-300'
+              }`}>
+                {isThisActive ? formatClock(liveElapsedMs) : formatClock(0)}
+              </div>
+              {!!activeHabitId && !isThisActive && (
+                <p className="text-xs text-yellow-300 mt-2">
+                  Another habit timer is running. Stop it before starting this one.
+                </p>
+              )}
+            </div>
+
+            {/* Minutes ring */}
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <div className="relative w-16 h-16">
+                <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+                  <circle cx="32" cy="32" r={minutesRingR} fill="none" stroke="currentColor"
+                    strokeWidth="5" className="text-surface-800" />
+                  <circle cx="32" cy="32" r={minutesRingR} fill="none" stroke="currentColor"
+                    strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${(minutesPercent / 100) * minutesRingC} ${minutesRingC}`}
+                    className={minutesPercent >= 100 ? 'text-success-400' : 'text-brand-400'} />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-bold text-surface-100">{minutesPercent}%</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[11px] text-surface-400 font-semibold uppercase tracking-wider mb-0.5">Today total</div>
+                <div className="text-lg font-display font-bold text-surface-50">
+                  {formatMinutes(liveMinutes)}m <span className="text-surface-500 font-normal">/ {habit.targetMinutes}m</span>
+                </div>
+                {extraMinutes > 0 && (
+                  <div className="text-xs text-emerald-300 mt-1">
+                    +{formatMinutes(extraMinutes)}m extra
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Checklist progress ── */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-xl border border-surface-800 bg-transparent p-3">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-surface-400 mb-2">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: habit.color }} />
+                Checklist
+              </span>
+              <span className="font-bold text-surface-100">{percent}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-surface-800 overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percent}%`, background: habit.color }} />
+            </div>
+          </div>
+          <div className="rounded-xl border border-surface-800 bg-transparent p-3">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-surface-400 mb-2">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full flex-shrink-0 bg-brand-400" />
+                Time
+              </span>
+              <span className="font-bold text-surface-100">{formatMinutes(liveMinutes)}/{habit.targetMinutes}m</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-surface-800 overflow-hidden">
+              <div className="h-full rounded-full bg-brand-400 transition-all duration-500" style={{ width: `${minutesPercent}%` }} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Checklist ── */}
+        <div className="space-y-1.5 mb-4">
+          {habit.checklist.length > 0 && (
+            <div className="flex items-center justify-between text-[11px] font-semibold text-surface-400 uppercase tracking-wider mb-1">
+              <span>Checklist</span>
+              <span>{entry.completedItems.length}/{habit.checklist.length} done</span>
+            </div>
+          )}
+          {habit.checklist.map(item => {
+            const checked = entry.completedItems.includes(item._id);
+            return (
+              <div key={item._id} className="flex items-center gap-3 p-2 -mx-1.5 rounded-lg group hover:bg-surface-800/50 transition-colors">
+                <button
+                  onClick={() => toggleItem(item._id)}
+                  className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                    checked ? 'text-surface-50' : 'border-surface-600 text-transparent hover:text-surface-400'
+                  }`}
+                  style={checked ? { background: habit.color, borderColor: habit.color } : undefined}
+                  aria-label={checked ? 'Mark incomplete' : 'Mark complete'}
+                >
+                  <Check size={13} strokeWidth={3} />
+                </button>
+                <span className={`flex-1 text-sm transition-colors ${
+                  checked ? 'text-surface-500 line-through' : 'text-surface-200 group-hover:text-surface-50'
+                }`}>
+                  {item.text}
+                </span>
+                <button
+                  onClick={() => deleteChecklistItem(habit._id, item._id)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-surface-600 hover:text-red-400 transition-all"
+                  aria-label="Delete checklist item"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <form onSubmit={addItem} className="flex gap-2 mb-4">
+          <Input
+            className="text-sm py-2 rounded-xl"
+            value={newItem}
+            onChange={e => setNewItem(e.target.value)}
+            placeholder="Add checklist item"
+          />
+          <Button type="submit" variant="secondary" size="icon-sm" aria-label="Add checklist item">
+            <Plus size={15} />
+          </Button>
+        </form>
+
+        <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-4 rounded-xl border border-surface-800 bg-surface-900/30 p-4 mb-4">
+          <div>
+            <label className="text-[11px] text-surface-400 flex items-center gap-1.5 font-semibold uppercase tracking-wider mb-2">
+              <Clock size={11} /> Time count
+            </label>
+            <Input
+              type="number"
+              min={0}
+              step={0.1}
+              value={liveMinutes}
+              disabled={isThisActive}
+              onChange={e => updateToday(habit._id, { minutes: Number(e.target.value) })}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] text-surface-400 flex items-center gap-1.5 font-semibold uppercase tracking-wider mb-2">
+              <SmilePlus size={11} /> How I felt
+            </label>
+            <div className="flex gap-2 flex-wrap">
+              {FEELINGS.map(feeling => (
+                <button
+                  key={feeling.value}
+                  onClick={() => updateToday(habit._id, { feeling: feeling.value })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    entry.feeling === feeling.value
+                      ? 'bg-brand-500 text-white shadow-sm'
+                      : 'bg-surface-800 text-surface-300 hover:text-surface-50 hover:bg-surface-700'
+                  }`}
+                >
+                  {feeling.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <Textarea
+          className="resize-none text-sm"
+          rows={2}
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          onBlur={() => updateToday(habit._id, { note })}
+          placeholder="Add a note about today's habit session"
+        />
+      </div>
     </motion.div>
   );
 }
@@ -578,7 +639,7 @@ export function Habits() {
   return (
     <div className="p-8 lg:p-10 max-w-7xl mx-auto space-y-8">
       <PageHeader title="Habits" description={`${habits.length} Habits · ${completedToday} Completed Today · ${todayMinutes}m Logged`}
-        icon={<span className="text-xl">⚡</span>} iconColor="#10b981"
+        
         actions={<Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={18} />}>New Habit</Button>} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">

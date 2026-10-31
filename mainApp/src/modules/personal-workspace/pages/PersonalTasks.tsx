@@ -18,11 +18,64 @@ import { isOverdue } from '@shared/utils/time';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingHereYet, NoSearchResults } from '@shared/components/illustrations';
 import { Pagination } from '@shared/components/ui/Pagination';
 import { cn } from '@shared/utils/cn';
 
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
+
+/** Header illustration: a task clipboard with progress checks + priority flag. */
+function TasksIllustration() {
+  return (
+    <svg viewBox="0 0 190 120" fill="none" aria-hidden="true"
+      className="w-full h-full object-contain select-none">
+      {/* Soft blobs behind the card */}
+      <circle cx="38" cy="100" r="24" className="fill-success-500/10" />
+      <circle cx="164" cy="24" r="20" className="fill-info-500/10" />
+      <circle cx="28" cy="32" r="12" className="fill-brand-500/10" />
+
+      {/* Floating badge: priority flag */}
+      <circle cx="150" cy="88" r="17" className="fill-warning-500 stroke-warning-400" strokeWidth="2" />
+      <path d="M150 79 V97" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-white" />
+      <path d="M150 79 H160 L156.5 83 L160 87 H150 Z" className="fill-white" />
+
+      {/* Clipboard body */}
+      <rect x="45" y="20" width="100" height="94" rx="12"
+        className="fill-surface-900 stroke-surface-700" strokeWidth="2" />
+      {/* Clip head */}
+      <rect x="76" y="12" width="38" height="16" rx="8"
+        className="fill-success-500/20 stroke-success-400" strokeWidth="2" />
+      <rect x="88" y="16" width="14" height="8" rx="3" className="fill-success-500/30" />
+
+      {/* Checklist rows */}
+      <rect x="58" y="44" width="11" height="11" rx="3.5"
+        className="fill-success-500 stroke-success-400" strokeWidth="1.5" />
+      <path d="M60.5 49.5 L63 52 L67 47" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+        strokeLinejoin="round" className="text-surface-950" />
+      <rect x="76" y="47" width="48" height="6" rx="3" className="fill-surface-700/80" />
+
+      <rect x="58" y="64" width="11" height="11" rx="3.5"
+        className="fill-success-500 stroke-success-400" strokeWidth="1.5" />
+      <path d="M60.5 69.5 L63 72 L67 67" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+        strokeLinejoin="round" className="text-surface-950" />
+      <rect x="76" y="67" width="34" height="6" rx="3" className="fill-surface-700/60" />
+
+      {/* In-progress row */}
+      <rect x="58" y="84" width="11" height="11" rx="3.5"
+        className="fill-surface-800 stroke-brand-400" strokeWidth="1.5" strokeDasharray="3 2" />
+      <rect x="76" y="87" width="42" height="6" rx="3" className="fill-surface-700/40" />
+
+      {/* Progress bar footer */}
+      <rect x="58" y="103" width="74" height="5" rx="2.5" className="fill-surface-800" />
+      <rect x="58" y="103" width="46" height="5" rx="2.5" className="fill-success-400" />
+
+      {/* Sparkles */}
+      <path d="M32 52 L35 58 L41 61 L35 64 L32 70 L29 64 L23 61 L29 58 Z" className="fill-brand-400/40" />
+      <path d="M174 52 L175.5 55 L178.5 56.5 L175.5 58 L174 61 L172.5 58 L169.5 56.5 L172.5 55 Z" className="fill-success-400/40" />
+    </svg>
+  );
+}
 
 /** localStorage key for the remembered grid/list view choice */
 const VIEW_PREF_KEY = 'ff_personal_tasks_view';
@@ -213,9 +266,14 @@ export function PersonalTasks() {
 
       {/* ═══════════════ HEADER ═══════════════ */}
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between gap-3 sm:gap-4 z-10 relative">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-display font-extrabold text-surface-50">My Tasks</h1>
-          <p className="text-sm text-surface-400 mt-0.5 truncate">Break it down. Do it. Grow everyday.</p>
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="hidden md:block w-[180px] h-[120px] flex-shrink-0">
+            <TasksIllustration />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-display font-extrabold text-surface-50">My Tasks</h1>
+            <p className="text-sm text-surface-400 mt-0.5 truncate">Break it down. Do it. Grow everyday.</p>
+          </div>
         </div>
         <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />} className="hidden lg:inline-flex flex-shrink-0">
           Add Task
@@ -577,7 +635,7 @@ export function PersonalTasks() {
             )
           ) : (
             <EmptyState
-              illustration={isUnfiltered ? '/SVG/empty-tasks.png' : '/SVG/task-list.png'}
+              illustration={isUnfiltered ? <NothingHereYet /> : <NoSearchResults />}
               title={isUnfiltered ? 'No tasks yet' : 'No matching tasks'}
               description={isUnfiltered ? 'Create your first task to get started with focused work.' : 'Try adjusting your filters or search query.'}
               action={isUnfiltered ? <Button onClick={() => setShowCreate(true)}>Add Task</Button> : (
