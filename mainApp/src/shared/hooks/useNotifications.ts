@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@worklog/services/useStore';
 import { useHabitStore } from '@worklog/services/useHabitStore';
+import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
+import { fetchPersonalSessions, sumClosedSessionMs, computeLivePersonalMs } from '@personal/services/personalFocusTime';
 import { isOverdue, isDueToday, getTodayKey } from '@shared/utils/time';
 import { toast } from '@shared/services/useToastStore';
 
@@ -62,7 +64,7 @@ function sendBrowserNotification(title: string, body: string, tag?: string): voi
  */
 export function useNotifications() {
   const firedRef = useRef<Set<string>>(new Set());
-  const dailyGoalFiredRef = useRef(false);
+  const dailyGoalFiredRef = useRef<{ day: string } | null>(null);
 
   useEffect(() => {
     if (Notification.permission === 'default') {
@@ -156,22 +158,52 @@ export function useNotifications() {
         }
       }
 
-      // Daily goal reminder
-      if (prefs.dailyGoalReminder && !dailyGoalFiredRef.current) {
+      // Daily goal reminder — fires once per DAY (ref re-arms when the date
+      // changes), after 6pm, and evaluates BOTH goals: the work goal vs work
+      // focus time and the personal goal vs personal focus time.
+      const goalKey = getTodayKey();
+      if (prefs.dailyGoalReminder && dailyGoalFiredRef.current?.day !== goalKey) {
         const hour = new Date().getHours();
         if (hour >= 18) {
+          // Work focus time today: the shared day cache (includes the live timers)
           const todayMs = getTodayTime();
-          const goalMs = profile.dailyGoal * 3600000;
-          if (todayMs < goalMs) {
-            dailyGoalFiredRef.current = true;
-            const remaining = Math.ceil((goalMs - todayMs) / 3600000 * 10) / 10;
-            sendBrowserNotification(
-              'Daily Goal Not Met',
-              `You've focused ${Math.round(todayMs / 3600000 * 10) / 10}h today. ${remaining}h remaining to reach your goal.`,
-              'daily-goal'
-            );
-            toast.warning('Daily Goal', `You need ${remaining}h more to reach your daily goal.`);
-          }
+          const workGoalHrs = profile.dailyGoal;
+
+          // Evaluate in the background: the personal total needs an API fetch
+          // (personal sessions live server-side, not on the task docs).
+          void (async () => {
+            try {
+              const nowMs = Date.now();
+              const sodMs = new Date(); sodMs.setHours(0, 0, 0, 0);
+              const sessions = await fetchPersonalSessions();
+              const personalSessionMs = sumClosedSessionMs(sessions, sodMs.getTime(), nowMs);
+              const { tasks: personalTasks } = usePersonalTaskStore.getState();
+              const personalMs = personalSessionMs + computeLivePersonalMs(personalTasks.map(t => t.id), nowMs);
+
+              const unmet: { label: string; focusMs: number; goalHrs: number }[] = [];
+              if (workGoalHrs > 0 && todayMs < workGoalHrs * 3600000) {
+                unmet.push({ label: 'Work', focusMs: todayMs, goalHrs: workGoalHrs });
+              }
+              const personalGoalHrs = profile.personalDailyGoal;
+              if (personalGoalHrs > 0 && personalMs < personalGoalHrs * 3600000) {
+                unmet.push({ label: 'Personal', focusMs: personalMs, goalHrs: personalGoalHrs });
+              }
+
+              if (unmet.length > 0) {
+                dailyGoalFiredRef.current = { day: goalKey };
+                for (const g of unmet) {
+                  const focusH = Math.round(g.focusMs / 3600000 * 10) / 10;
+                  const remaining = Math.ceil((g.goalHrs * 3600000 - g.focusMs) / 3600000 * 10) / 10;
+                  sendBrowserNotification(
+                    `${g.label} Daily Goal Not Met`,
+                    `You've focused ${focusH}h today. ${remaining}h remaining to reach your ${g.label.toLowerCase()} goal.`,
+                    `daily-goal-${g.label.toLowerCase()}`
+                  );
+                  toast.warning(`${g.label} Daily Goal`, `You need ${remaining}h more to reach your ${g.label.toLowerCase()} daily goal.`);
+                }
+              }
+            } catch { /* goal check is best-effort — retry on the next interval */ }
+          })();
         }
       }
     };

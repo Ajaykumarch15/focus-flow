@@ -226,24 +226,29 @@ export function InsightsPage() {
     });
   }, [todayLog, activeLogs, closedLogs]);
 
+  // Convert the profile's goal (stored in HOURS) to milliseconds — matching the
+  // conversion used in TodayPage/useNotifications (fixes insights treating the
+  // hour value as milliseconds, which made every goal report "reached")
+  const dailyGoalMs = (profile?.dailyGoal ?? 0) * 3600000;
+
   const view = useMemo(
-    () => selectDailyInsights({ sessions, tasks, journals, workLogs, dailyGoalMs: profile?.dailyGoal ?? 0 }),
-    [sessions, tasks, journals, workLogs, profile?.dailyGoal],
+    () => selectDailyInsights({ sessions, tasks, journals, workLogs, dailyGoalMs }),
+    [sessions, tasks, journals, workLogs, dailyGoalMs],
   );
 
   const week = useMemo(
-    () => selectWeeklyInsights({ sessions, tasks, journals, workLogs, dailyGoalMs: profile?.dailyGoal ?? 0 }),
-    [sessions, tasks, journals, workLogs, profile?.dailyGoal],
+    () => selectWeeklyInsights({ sessions, tasks, journals, workLogs, dailyGoalMs }),
+    [sessions, tasks, journals, workLogs, dailyGoalMs],
   );
 
   const pattern = useMemo(
-    () => selectWorkPatternInsights({ sessions, tasks, journals, workLogs, dailyGoalMs: profile?.dailyGoal ?? 0 }),
-    [sessions, tasks, journals, workLogs, profile?.dailyGoal],
+    () => selectWorkPatternInsights({ sessions, tasks, journals, workLogs, dailyGoalMs }),
+    [sessions, tasks, journals, workLogs, dailyGoalMs],
   );
 
   const task = useMemo(
-    () => selectTaskInsights({ sessions, tasks, journals, workLogs, dailyGoalMs: profile?.dailyGoal ?? 0 }),
-    [tasks],
+    () => selectTaskInsights({ sessions, tasks, journals, workLogs, dailyGoalMs }),
+    [sessions, tasks, journals, workLogs, dailyGoalMs],
   );
 
   const knowledge = useMemo(

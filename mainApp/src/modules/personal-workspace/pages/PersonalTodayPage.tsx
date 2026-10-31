@@ -25,6 +25,7 @@ import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidge
 import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
 
 import type { Task } from '@shared/types';
+import { fetchPersonalSessions, sumClosedSessionMs, computeLivePersonalMs, type PersonalSessionLite } from '@personal/services/personalFocusTime';
 
 // Framer Motion animation variants
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -40,9 +41,36 @@ export function PersonalTodayPage() {
   // Personal task store: tasks list and fetch function
   const { tasks: personalTasks, fetchTasks: fetchPersonalTasks } = usePersonalTaskStore();
   // Active timer hook: current timer state, active task, formatted display, elapsed ms
-  const { activeTimerState, activeTask, display, elapsedMs } = useActiveTimer();
+  const {
+    activeTimerState, activeTask: activeTimerTask, display, elapsedMs, sessionKind,
+  } = useActiveTimer();
+
+  // The focus card is personal-workspace scoped: a running WORKLOG session is
+  // the worklog's focus and must not surface here (clicking "Open Task" on a
+  // work task would even navigate to a personal route with a work task id).
+  const activeTask = useMemo(() => {
+    if (!activeTimerTask) return undefined;
+    if (sessionKind === 'work') return undefined;
+    if (sessionKind === 'personal') return activeTimerTask;
+    // Unknown/legacy kind without a workspace marker: resolve by membership
+    return personalTasks.some(t => t.id === activeTimerTask.id) ? activeTimerTask : undefined;
+  }, [activeTimerTask, sessionKind, personalTasks]);
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+
+  // Personal work sessions (server-tracked — task docs never embed sessions).
+  // Refreshed every 60s so freshly closed sessions fold into the goal time.
+  const [personalSessions, setPersonalSessions] = useState<PersonalSessionLite[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const list = await fetchPersonalSessions();
+      if (!cancelled) setPersonalSessions(list);
+    };
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
 
   // Fetch personal tasks on mount
   useEffect(() => { fetchPersonalTasks(); }, [fetchPersonalTasks]);
@@ -50,18 +78,15 @@ export function PersonalTodayPage() {
   // Derived: tasks scheduled for today
   const todayTasks = useMemo(() => getTodayTasks(personalTasks), [personalTasks]);
 
-  // Total milliseconds worked today (from sessions + active timer)
+  // Total milliseconds worked today: closed sessions from the API + live timers
   const todayMs = useMemo(() => {
-    const now = new Date();
-    const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    let total = 0;
-    for (const task of personalTasks) {
-      for (const s of task.sessions ?? []) {
-        if (s.startTime >= sod) total += s.activeTime ?? 0;
-      }
-    }
-    return total + elapsedMs;
-  }, [personalTasks, elapsedMs]);
+    const now = Date.now();
+    const sod = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime();
+    return sumClosedSessionMs(personalSessions, sod, now)
+      + computeLivePersonalMs(personalTasks.map(t => t.id), now);
+    // elapsedMs keeps this fresh every tick while a personal timer runs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalSessions, personalTasks, elapsedMs]);
 
   // Count of tasks completed today (since start of day)
   const completedToday = useMemo(() => {

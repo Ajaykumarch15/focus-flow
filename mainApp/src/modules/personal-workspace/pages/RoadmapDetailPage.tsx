@@ -171,7 +171,7 @@ export function RoadmapDetailPage() {
 
   if (detailLoading) {
     return (
-      <div className="p-6 lg:p-8 max-w-[900px] mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
         <div className="h-4 w-32 bg-surface-800 rounded animate-pulse" />
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-surface-800 animate-pulse" />
@@ -190,7 +190,7 @@ export function RoadmapDetailPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8 max-w-[900px] mx-auto">
+      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
         <Card className="p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-red-400" size={32} />
           <p className="text-surface-300 mb-1 font-medium">Something went wrong</p>
@@ -235,7 +235,7 @@ export function RoadmapDetailPage() {
   const progress = safeProgress(roadmap.progress);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}

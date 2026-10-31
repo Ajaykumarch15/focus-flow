@@ -14,6 +14,7 @@ import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
 import { NoHabits } from '@shared/components/illustrations';
 
 const COLORS = ['#22c55e', '#0ea5e9', '#a855f7', '#f97316', '#ef4444'];
@@ -580,30 +581,40 @@ export function Habits() {
         icon={<span className="text-xl">⚡</span>} iconColor="#10b981"
         actions={<Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={18} />}>New Habit</Button>} />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
-          <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3">
-            <Target size={18} />
-          </div>
-          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{completedToday}</div>
-          <div className="text-sm font-medium text-surface-300">Fully checked today</div>
-        </Card>
-        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
-          <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
-            <Clock size={18} />
-          </div>
-          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">{todayMinutes}m</div>
-          <div className="text-sm font-medium text-surface-300">Habit time today</div>
-        </Card>
-        <Card className="p-5 rounded-[22px] shadow-sm hover:-translate-y-1 transition-all">
-          <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3">
-            <Check size={18} />
-          </div>
-          <div className="text-2xl lg:text-3xl font-display font-bold text-surface-50 mb-0.5">
-            {habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).completedItems.length, 0)}
-          </div>
-          <div className="text-sm font-medium text-surface-300">Checklist items done</div>
-        </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-8">
+        <StatisticsCard
+          title="Completed Today"
+          value={completedToday}
+          description="Habits fully checked"
+          icon={<Target size={14} />}
+          accent="success"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/thumbs%20up.svg"
+          backgroundPosition="bottom-right"
+        />
+        <StatisticsCard
+          title="Habit Time Today"
+          value={`${todayMinutes}m`}
+          description="Total minutes tracked"
+          icon={<Clock size={14} />}
+          accent="info"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/time-management_4ss6.svg"
+          backgroundPosition="bottom-left"
+        />
+        <StatisticsCard
+          title="Checklist Items Done"
+          value={habits.reduce((sum, habit) => sum + getTodayHabitEntry(habit).completedItems.length, 0)}
+          description="Across all habits"
+          icon={<Check size={14} />}
+          accent="brand"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/PLAN.svg"
+          backgroundPosition="top-right"
+        />
       </div>
 
       <AnimatePresence>

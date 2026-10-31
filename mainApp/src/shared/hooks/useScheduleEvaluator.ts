@@ -3,6 +3,8 @@ import { useScheduleStore } from '@worklog/services/useScheduleStore';
 import { useScheduleNotificationStore } from '@worklog/services/useScheduleNotificationStore';
 import { useStore } from '@worklog/services/useStore';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
+import { timerEngine } from '@worklog/services/timerEngine';
 import { ScheduleItem, DerivedScheduleState, Task } from '@shared/types';
 import { timeToMinutes } from '@worklog/services/scheduleAnalytics';
 
@@ -65,8 +67,12 @@ export function deriveScheduleState(item: ScheduleItem, taskObj: Task | undefine
   // Ongoing: past start time but not yet past end time (or still active)
   if (nowMs >= startMs && nowMs <= endMs) return 'ongoing';
 
-  // Past end time → missed (completed/cancelled already handled above)
-  if (nowMs > endMs) return 'missed';
+  // Past end time → missed — unless the session is still executing (running
+  // overtime): the task keeps its live "ongoing" posture until the user acts.
+  if (nowMs > endMs) {
+    const isExecuting = taskObj?.status === 'active' || taskObj?.status === 'paused';
+    return isExecuting ? 'ongoing' : 'missed';
+  }
 
   // Before the 5-minute window → upcoming
   if (nowMs < startMs - fiveMinMs) return 'upcoming';
@@ -113,6 +119,16 @@ export function useScheduleEvaluator() {
     const todaySchedules = schedules.filter(s => s.date === todayStr && s.status !== 'cancelled');
     const autoStartEnabled = getAutoStartPreference();
 
+    // Current timer state per task (parallel engine first, legacy single-timer fallback)
+    const parallelTimers = parallelTimerEngine.getAllSnapshots();
+    const legacyTimer = timerEngine.getSnapshot();
+    const timerStateOf = (taskId: string): 'idle' | 'running' | 'paused' => {
+      const p = parallelTimers.get(taskId);
+      if (p) return p.timerState;
+      if (legacyTimer.taskId === taskId) return legacyTimer.timerState;
+      return 'idle';
+    };
+
     for (const schedule of todaySchedules) {
       const taskObj = resolveTask(schedule, tasks);
       const derived = deriveScheduleState(schedule, taskObj, nowMs);
@@ -125,6 +141,21 @@ export function useScheduleEvaluator() {
           taskTitle: taskObj?.title || 'Untitled Task',
           type: 'five-minute',
           scheduledStartTime: getScheduleStartTimeMs(schedule),
+          scheduledEndTime: getScheduleEndTimeMs(schedule),
+        });
+      }
+
+      // Overtime: the session is still running past the scheduled end time.
+      // Dedup is keyed on schedule+type+start; it re-arms after a reschedule
+      // (updateSchedule calls resetForSchedule), so a new overrun re-alerts.
+      if (timerStateOf(taskId) === 'running' && nowMs > getScheduleEndTimeMs(schedule)) {
+        pushNotification({
+          scheduleId: schedule._id,
+          taskId,
+          taskTitle: taskObj?.title || 'Untitled Task',
+          type: 'overtime',
+          scheduledStartTime: getScheduleStartTimeMs(schedule),
+          scheduledEndTime: getScheduleEndTimeMs(schedule),
         });
       }
 
@@ -135,12 +166,17 @@ export function useScheduleEvaluator() {
           taskTitle: taskObj?.title || 'Untitled Task',
           type: 'start-now',
           scheduledStartTime: getScheduleStartTimeMs(schedule),
+          scheduledEndTime: getScheduleEndTimeMs(schedule),
         });
 
         // Auto-start timer if enabled and no timer is running
         if (autoStartEnabled && !activeTaskId && !autoStartedRef.current.has(schedule._id)) {
           autoStartedRef.current.add(schedule._id);
           void startTaskTimer(taskId);
+          void useScheduleStore.getState().setScheduleExecution(schedule._id, {
+            actualStartAt: nowMs,
+            status: 'in-progress',
+          });
         }
       }
     }

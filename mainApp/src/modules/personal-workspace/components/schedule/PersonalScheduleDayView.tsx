@@ -69,8 +69,12 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
   const { tasks, updateTask } = usePersonalTaskStore();
   const { roadmaps } = useRoadmapStore();
   const [upcomingPage, setUpcomingPage] = useState(1);
+  const [missedPage, setMissedPage] = useState(1);
+  const [todayPage, setTodayPage] = useState(1);
 
   const UPCOMING_PAGE_SIZE = 8;
+  const MISSED_PAGE_SIZE = 8;
+  const TODAY_PAGE_SIZE = 8;
 
   const roadmapTitleMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -94,7 +98,22 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
     return upcomingTasks.slice(start, start + UPCOMING_PAGE_SIZE);
   }, [upcomingPage, upcomingTasks]);
 
-  useEffect(() => { setUpcomingPage(1); }, [selectedDate]);
+  // Pagination for missed (overdue) + today tasks — same pattern as upcoming
+  const missedTotalPages = Math.ceil(missedTasks.length / MISSED_PAGE_SIZE);
+  const todayTotalPages = Math.ceil(todayTasks.length / TODAY_PAGE_SIZE);
+  // Clamp so a shrinking list can never land on an empty page
+  const safeMissedPage = Math.min(missedPage, Math.max(1, missedTotalPages));
+  const safeTodayPage = Math.min(todayPage, Math.max(1, todayTotalPages));
+  const paginatedMissedTasks = useMemo(() => {
+    const start = (safeMissedPage - 1) * MISSED_PAGE_SIZE;
+    return missedTasks.slice(start, start + MISSED_PAGE_SIZE);
+  }, [safeMissedPage, missedTasks]);
+  const paginatedTodayTasks = useMemo(() => {
+    const start = (safeTodayPage - 1) * TODAY_PAGE_SIZE;
+    return todayTasks.slice(start, start + TODAY_PAGE_SIZE);
+  }, [safeTodayPage, todayTasks]);
+
+  useEffect(() => { setUpcomingPage(1); setMissedPage(1); setTodayPage(1); }, [selectedDate]);
 
   return (
     <div className="space-y-6">
@@ -119,7 +138,7 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
             <Badge tone="danger">{missedTasks.length}</Badge>
           </h2>
           <div className="space-y-2">
-            {missedTasks.map(task => (
+            {paginatedMissedTasks.map(task => (
               <TaskScheduleCard
                 key={task.id}
                 task={task}
@@ -128,6 +147,15 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
                 roadmapTitle={getRoadmapTitle(task)}
               />
             ))}
+            {missedTotalPages > 1 && (
+              <Pagination
+                currentPage={Math.min(missedPage, missedTotalPages)}
+                totalPages={missedTotalPages}
+                totalItems={missedTasks.length}
+                pageSize={MISSED_PAGE_SIZE}
+                onPageChange={setMissedPage}
+              />
+            )}
           </div>
         </motion.section>
       )}
@@ -151,7 +179,7 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
           </Card>
         ) : (
           <div className="space-y-2">
-            {todayTasks.map(task => (
+            {paginatedTodayTasks.map(task => (
               <TaskScheduleCard
                 key={task.id}
                 task={task}
@@ -160,6 +188,15 @@ export function PersonalScheduleDayView({ selectedDate }: PersonalScheduleDayVie
                 roadmapTitle={getRoadmapTitle(task)}
               />
             ))}
+            {todayTotalPages > 1 && (
+              <Pagination
+                currentPage={Math.min(todayPage, todayTotalPages)}
+                totalPages={todayTotalPages}
+                totalItems={todayTasks.length}
+                pageSize={TODAY_PAGE_SIZE}
+                onPageChange={setTodayPage}
+              />
+            )}
           </div>
         )}
       </motion.section>

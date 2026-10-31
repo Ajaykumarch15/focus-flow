@@ -24,6 +24,9 @@ import { cn } from '@shared/utils/cn';
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
 
+/** localStorage key for the remembered grid/list view choice */
+const VIEW_PREF_KEY = 'ff_personal_tasks_view';
+
 export function PersonalTasks() {
   const navigate = useNavigate();
   const {
@@ -42,7 +45,24 @@ export function PersonalTasks() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [view, setView] = useState<'grid' | 'list'>('grid');
+  // Task view choice persists across reloads ("remember my choice") — grid is
+  // the fallback for first visits / missing or corrupted storage.
+  const [view, setView] = useState<'grid' | 'list'>(() => {
+    try {
+      const saved = localStorage.getItem(VIEW_PREF_KEY);
+      return saved === 'list' || saved === 'grid' ? saved : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+  const updateView = useCallback((next: 'grid' | 'list') => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_PREF_KEY, next);
+    } catch {
+      // Storage unavailable (private mode, quota) — view just won't persist
+    }
+  }, []);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -260,7 +280,7 @@ export function PersonalTasks() {
             <div className="inline-flex bg-surface-800 border border-surface-700 rounded-lg overflow-hidden">
               <button
                 type="button"
-                onClick={() => setView('grid')}
+                onClick={() => updateView('grid')}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
                   view === 'grid' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',
@@ -271,7 +291,7 @@ export function PersonalTasks() {
               </button>
               <button
                 type="button"
-                onClick={() => setView('list')}
+                onClick={() => updateView('list')}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors',
                   view === 'list' ? 'bg-brand-500 text-white' : 'text-surface-400 hover:text-surface-300',

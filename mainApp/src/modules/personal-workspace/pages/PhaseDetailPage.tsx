@@ -256,7 +256,7 @@ export function PhaseDetailPage() {
 
   if (detailLoading || !phase) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-4">
         <div className="h-4 w-48 bg-surface-800 rounded animate-pulse" />
         <div className="h-6 w-64 bg-surface-800 rounded animate-pulse" />
         <div className="space-y-2">
@@ -267,7 +267,7 @@ export function PhaseDetailPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[900px] mx-auto space-y-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-4">
       {/* Phase header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="space-y-1.5">
         <h1 className="text-lg sm:text-xl font-display font-extrabold text-surface-50">{phase.title}</h1>

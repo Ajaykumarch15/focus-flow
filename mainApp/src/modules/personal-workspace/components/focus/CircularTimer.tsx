@@ -8,6 +8,14 @@ interface CircularTimerProps {
   display: string;
   totalTime: number;
   isReducedMotion?: boolean;
+  /**
+   * Optional action overrides so other modules (e.g. worklog TaskDetail) can
+   * wire their own store — defaults to the personal task store actions.
+   */
+  onStart?: (taskId: string) => void;
+  onPause?: (taskId: string) => void;
+  onResume?: (taskId: string) => void;
+  onStop?: (taskId: string) => void;
 }
 
 const SIZE = 110;
@@ -21,9 +29,18 @@ export function CircularTimer({
   display,
   totalTime,
   isReducedMotion = false,
+  onStart: onStartOverride,
+  onPause: onPauseOverride,
+  onResume: onResumeOverride,
+  onStop: onStopOverride,
 }: CircularTimerProps) {
   const { startParallelTimer, pauseParallelTimer, resumeParallelTimer, stopParallelTimer } =
     usePersonalTaskStore();
+
+  const handleStart = (id: string) => (onStartOverride ?? startParallelTimer)(id);
+  const handlePause = (id: string) => (onPauseOverride ?? pauseParallelTimer)(id);
+  const handleResume = (id: string) => (onResumeOverride ?? resumeParallelTimer)(id);
+  const handleStop = (id: string) => (onStopOverride ?? stopParallelTimer)(id);
 
   const isRunning = state === 'running';
   const isPaused = state === 'paused';
@@ -123,7 +140,7 @@ export function CircularTimer({
             type="button"
             whileHover={isReducedMotion ? {} : { scale: 1.03 }}
             whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-            onClick={() => startParallelTimer(taskId)}
+            onClick={() => handleStart(taskId)}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all shadow-lg shadow-blue-500/25 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <Play size={13} fill="white" /> Start Focus
@@ -134,7 +151,7 @@ export function CircularTimer({
             <motion.button
               type="button"
               whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-              onClick={() => pauseParallelTimer(taskId)}
+              onClick={() => handlePause(taskId)}
               className="px-4 py-2 bg-surface-800 hover:bg-surface-750 text-surface-200 rounded-lg font-semibold text-xs transition-all border border-surface-700 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               <Pause size={13} /> Pause
@@ -142,7 +159,7 @@ export function CircularTimer({
             <motion.button
               type="button"
               whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-              onClick={() => stopParallelTimer(taskId)}
+              onClick={() => handleStop(taskId)}
               className="px-4 py-2 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg font-semibold text-xs transition-all border border-red-400/20 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Square size={12} fill="currentColor" /> Stop
@@ -155,7 +172,7 @@ export function CircularTimer({
               type="button"
               whileHover={isReducedMotion ? {} : { scale: 1.03 }}
               whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-              onClick={() => resumeParallelTimer(taskId)}
+              onClick={() => handleResume(taskId)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all shadow-lg shadow-blue-500/25 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Play size={13} fill="white" /> Resume
@@ -163,7 +180,7 @@ export function CircularTimer({
             <motion.button
               type="button"
               whileTap={isReducedMotion ? {} : { scale: 0.97 }}
-              onClick={() => stopParallelTimer(taskId)}
+              onClick={() => handleStop(taskId)}
               className="px-4 py-2 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg font-semibold text-xs transition-all border border-red-400/20 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Square size={12} fill="currentColor" /> Stop

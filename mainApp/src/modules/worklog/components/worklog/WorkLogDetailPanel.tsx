@@ -1,21 +1,22 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle, AlertCircle,
   ExternalLink, BookMarked, Timer, FolderOpen,
-  Flame, TrendingUp, Calendar, Zap,
-  FileText, Download, Plus, X,
+  TrendingUp, Calendar, Zap, FileText, Download, Plus, X,
   LayoutList, Lightbulb, AlertOctagon,
   Paperclip, Eye, MapPin, Play, Pause, Square,
 } from 'lucide-react';
 
-const DocumentationPreview = lazy(() => import('@shared/components/DocumentationPreview').then(m => ({ default: m.DocumentationPreview })));
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Markdown } from '@shared/utils/MarkdownView';
 import { Button } from '@shared/components/ui/Button';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import { Input } from '@shared/components/ui/Input';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
+import { EmptyState } from '@shared/components/ui/EmptyState';
+import { NothingHereYet } from '@shared/components/illustrations';
 import { AutoProEditor } from '@shared/components/ui/proEditor';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
@@ -24,8 +25,6 @@ import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { TimelineView } from './TimelineView';
 import { TechnicalDecisionsView } from './TechnicalDecisionsView';
 import { StructuredBlockersView } from './StructuredBlockersView';
-import { TomorrowPlanView } from './TomorrowPlanView';
-import { ReflectionView } from './ReflectionView';
 import { AttachmentsView } from './AttachmentsView';
 import { ReadingModeView } from './ReadingModeView';
 import { WorkLogExporterModal } from './WorkLogExporterModal';
@@ -229,7 +228,6 @@ function WorkLogToolbar({ log, onBack, onComplete }: { log: WorkLog; onBack: () 
 export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog; onBack?: () => void }) {
   const navigate = useNavigate();
   const { updateField, addCompleted, deleteCompleted } = useWorkLogStore();
-  const [showDocPreview, setShowDocPreview] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [newItem, setNewItem] = useState('');
@@ -271,7 +269,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
       )}
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-surface-800 bg-surface-900 p-6">
+        className="rounded-2xl border border-surface-800 bg-transparent p-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-start gap-4 flex-1 min-w-0">
             <div className={`w-10 h-10 rounded-xl ${status.bg} flex items-center justify-center flex-shrink-0 text-lg`}>
@@ -329,25 +327,40 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
       </motion.div>
 
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { icon: Clock, label: 'Total Time', value: formatMs(log.totalActiveMs), color: 'text-brand-400', bg: 'bg-brand-500/10' },
-          { icon: Calendar, label: 'Days Active', value: String(totalDays), color: 'text-purple-400', bg: 'bg-purple-500/10' },
-          { icon: TrendingUp, label: 'Avg / Day', value: `${avgPerDay}h`, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
-          { icon: CheckCircle2, label: 'Completed', value: `${metrics.completedCount}/${metrics.totalItemsCount}`, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-        ].map(({ icon: Icon, label, value, color, bg }) => (
-          <motion.div key={label} variants={fadeUp}
-            className="rounded-xl border border-surface-800 bg-surface-900 p-4">
-            <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mb-2`}>
-              <Icon size={14} className={color} />
-            </div>
-            <p className="text-lg font-display font-bold text-surface-50">{value}</p>
-            <p className="text-[11px] text-surface-400 font-medium">{label}</p>
+        {([
+          { label: 'Total Time', value: formatMs(log.totalActiveMs), icon: Clock, accent: 'brand', bg: '/SVG/svg/time-management_4ss6.svg', bgPos: 'bottom-left' },
+          { label: 'Days Active', value: String(totalDays), icon: Calendar, accent: 'info', bg: '/SVG/svg/inprogress.svg', bgPos: 'bottom-right' },
+          { label: 'Avg / Day', value: `${avgPerDay}h`, icon: TrendingUp, accent: 'warning', bg: '/SVG/svg/career%20growth.svg', bgPos: 'top-right' },
+          { label: 'Completed', value: `${metrics.completedCount}/${metrics.totalItemsCount}`, icon: CheckCircle2, accent: 'success', bg: '/SVG/svg/check%20boxes.svg', bgPos: 'top' },
+        ] as const).map(({ label, value, icon: Icon, accent, bg, bgPos }) => (
+          <motion.div key={label} variants={fadeUp}>
+            <StatisticsCard
+              title={label}
+              value={value}
+              icon={<Icon size={14} />}
+              accent={accent}
+              description=""
+              transparent
+              alwaysShowBorder
+              backgroundImage={bg}
+              backgroundPosition={bgPos}
+            />
           </motion.div>
         ))}
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-surface-900 p-5">
+        className="relative overflow-hidden rounded-2xl border border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-transparent p-5">
+        {/* Decorative on-the-way illustration */}
+        <img
+          src="/SVG/svg/on-the-way_zwi3.svg"
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          draggable={false}
+          className="pointer-events-none absolute z-0 -right-2 bottom-0 h-20 w-auto max-w-[40%] object-contain opacity-25 dark:opacity-[0.16] select-none"
+        />
+        <div className="relative z-10">
         <div className="flex items-center gap-2 mb-1.5">
           <div className="w-7 h-7 rounded-lg bg-brand-500/15 flex items-center justify-center flex-shrink-0">
             <MapPin size={14} className="text-brand-400" />
@@ -376,6 +389,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         ) : (
           <p className="text-sm text-surface-400">No activity captured on this work log yet.</p>
         )}
+        </div>
       </motion.div>
 
       <div className="overflow-x-auto scrollbar-none">
@@ -410,9 +424,12 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
             className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-3 space-y-4">
               {!log.problem && !log.currentWork && !log.plan && !log.designNotes && (
-                <div className="rounded-2xl border border-dashed border-surface-700 bg-surface-900 overflow-hidden p-8 text-center">
-                  <BookMarked size={28} className="text-surface-600 mx-auto mb-2" />
-                  <p className="text-sm text-surface-400">No context fields filled in yet. Use the Context and Planning tabs to add details.</p>
+                <div className="rounded-2xl border border-dashed border-surface-700 bg-transparent overflow-hidden">
+                  <EmptyState
+                    illustration={<NothingHereYet />}
+                    title="No context fields filled in yet"
+                    description="Use the Context and Planning tabs to add the problem you're solving, your plan, and design notes."
+                  />
                 </div>
               )}
               {log.problem && (
@@ -427,7 +444,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                 </motion.div>
               )}
               {log.currentWork && (
-                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+                <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-transparent p-5">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-7 h-7 rounded-lg bg-brand-500/10 flex items-center justify-center">
                       <Zap size={13} className="text-brand-400" />
@@ -451,16 +468,12 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
             </motion.div>
 
             <motion.div variants={stagger} initial="hidden" animate="show" className="lg:col-span-2 space-y-4">
-              <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
+              <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-transparent p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <FileText size={14} className="text-brand-400" />
                   <span className="text-[11px] text-surface-400 font-semibold uppercase tracking-wider">Export</span>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" className="flex-1" onClick={() => setShowDocPreview(true)}
-                    leftIcon={<FileText size={12} />}>
-                    Preview
-                  </Button>
                   <Button variant="secondary" size="sm" className="flex-1" onClick={() => setShowExport(true)}
                     leftIcon={<Download size={12} />}>
                     .MD / JSON
@@ -468,7 +481,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                 </div>
               </motion.div>
 
-              <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+              <motion.div variants={fadeUp} className="rounded-2xl border border-surface-800 bg-transparent p-5">
                 <div className="flex items-center gap-2 mb-4">
                   <Calendar size={14} className="text-brand-400" />
                   <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">Work History</span>
@@ -514,7 +527,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         {activeTab === 'context' && (
           <motion.div key="context" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="space-y-4">
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-transparent p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center">
                   <AlertTriangle size={13} className="text-red-400" />
@@ -526,27 +539,14 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                 placeholder="What ticket/feature/bug? What user pain?" minRows={3}
                 updateFn={handleUpdateField} />
             </motion.div>
-
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-brand-500/10 flex items-center justify-center">
-                  <Zap size={13} className="text-brand-400" />
-                </div>
-                <span className="text-[11px] text-brand-400 font-semibold uppercase tracking-wider">What I'm Working On</span>
-              </div>
-              <AutoProEditor
-                logId={log._id} field="currentWork" value={log.currentWork}
-                placeholder="Specific function, component, API..." minRows={3}
-                updateFn={handleUpdateField} />
-            </motion.div>
           </motion.div>
         )}
 
-        {/* ── Planning (Plan/Design/GitBranch + TomorrowPlan) ── */}
+        {/* ── Planning (Plan/GitBranch) ── */}
         {activeTab === 'planning' && (
           <motion.div key="planning" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="space-y-4">
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-transparent p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
                   <BookMarked size={13} className="text-amber-400" />
@@ -555,24 +555,11 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
               </div>
               <AutoProEditor
                 logId={log._id} field="plan" value={log.plan}
-                placeholder={"1. First...\n2. Then..."} minRows={4}
+                placeholder={"1. First...\n2. Then...\n\nDesign notes: schema, components, tradeoffs..."} minRows={6}
                 updateFn={handleUpdateField} />
             </motion.div>
 
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <Flame size={13} className="text-purple-400" />
-                </div>
-                <span className="text-[11px] text-purple-400 font-semibold uppercase tracking-wider">Design & Architecture</span>
-              </div>
-              <AutoProEditor
-                logId={log._id} field="designNotes" value={log.designNotes}
-                placeholder="Schema, components, tradeoffs..." minRows={3}
-                updateFn={handleUpdateField} />
-            </motion.div>
-
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-transparent p-5">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <GitBranch size={13} className="text-emerald-400" />
@@ -584,11 +571,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                 placeholder="feature/branch-name" minRows={1}
                 updateFn={handleUpdateField} />
             </motion.div>
-
-            <motion.div variants={fadeUp} initial="hidden" animate="show"
-              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-              <TomorrowPlanView workLog={log} />
-            </motion.div>
           </motion.div>
         )}
 
@@ -596,7 +578,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         {activeTab === 'progress' && (
           <motion.div key="progress" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="space-y-4">
-            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-surface-900 p-5">
+            <motion.div variants={fadeUp} initial="hidden" animate="show" className="rounded-2xl border border-surface-800 bg-transparent p-5">
               <div className="flex items-center gap-2 mb-3">
                 <CheckCircle2 size={14} className="text-emerald-400" />
                 <span className="text-[11px] text-emerald-400 font-semibold uppercase tracking-wider">Completed</span>
@@ -632,7 +614,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
             </motion.div>
 
             <motion.div variants={fadeUp} initial="hidden" animate="show"
-              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              className="card p-6 rounded-2xl border border-surface-800 bg-transparent">
               <TechnicalDecisionsView workLog={log} />
             </motion.div>
           </motion.div>
@@ -641,22 +623,18 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         {/* ── Blockers (kept as-is) ── */}
         {activeTab === 'blockers' && (
           <motion.div key="blockers" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+            className="card p-6 rounded-2xl border border-surface-800 bg-transparent">
             <StructuredBlockersView workLog={log} />
           </motion.div>
         )}
 
-        {/* ── Timeline (TimelineView + ReflectionView) ── */}
+        {/* ── Timeline ── */}
         {activeTab === 'timeline' && (
           <motion.div key="timeline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
             className="space-y-4">
             <motion.div variants={fadeUp} initial="hidden" animate="show"
-              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+              className="card p-6 rounded-2xl border border-surface-800 bg-transparent">
               <TimelineView workLog={log} />
-            </motion.div>
-            <motion.div variants={fadeUp} initial="hidden" animate="show"
-              className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
-              <ReflectionView workLog={log} />
             </motion.div>
           </motion.div>
         )}
@@ -664,7 +642,7 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
         {/* ── Resources ── */}
         {activeTab === 'resources' && (
           <motion.div key="resources" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
-            className="card p-6 rounded-2xl border border-surface-800 bg-surface-900">
+            className="card p-6 rounded-2xl border border-surface-800 bg-transparent">
             <AttachmentsView workLog={log} />
           </motion.div>
         )}
@@ -676,14 +654,6 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
           </motion.div>
         )}
       </AnimatePresence>
-
-      <Suspense fallback={null}>
-        <DocumentationPreview
-          log={log}
-          open={showDocPreview}
-          onClose={() => setShowDocPreview(false)}
-        />
-      </Suspense>
 
       <WorkLogExporterModal
         workLog={log}

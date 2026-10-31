@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+﻿import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -12,13 +12,10 @@ import {
   LayoutGrid,
   Bell,
   Sparkles,
-  Inbox,
-  Wand2,
   X,
   Settings,
-  Trash2,
 } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
@@ -32,13 +29,13 @@ import { Card } from '@shared/components/ui/Card';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { NoScheduledTasks, NoScheduledThisWeek } from '@shared/components/illustrations';
 import { calculateScheduleMetrics, formatMinutes, timeToMinutes } from '@worklog/services/scheduleAnalytics';
-import type { DerivedScheduleState, Task } from '@shared/types';
+import type { DerivedScheduleState } from '@shared/types';
 import { deriveScheduleState as deriveState } from '@shared/hooks/useScheduleEvaluator';
 import { useScheduleNotificationStore } from '@worklog/services/useScheduleNotificationStore';
-import { mlApi } from '@worklog/services/mlApi';
 import { getAutoStartPreference, setAutoStartPreference } from '@shared/hooks/useScheduleEvaluator';
 import { RecoveryDrawer } from '@worklog/components/schedule/RecoveryDrawer';
-import { useScheduleTemplateStore } from '@worklog/services/useScheduleTemplateStore';
+import { ExtendRescheduleDialog } from '@worklog/components/schedule/ExtendRescheduleDialog';
+import { toast } from '@shared/services/useToastStore';
 
 // Helper to format date label (e.g. "Monday, August 17")
 function formatDateLabel(dateStr: string): string {
@@ -92,22 +89,17 @@ function SectionHeader({ icon: Icon, label, color, count }: { icon: any; label: 
 }
 
 // Format "HH:mm" to 12-hr label
-function formatTime12(timeStr: string): string {
-  if (!timeStr) return '';
-  const [h, m] = timeStr.split(':').map(Number);
-  const period = h >= 12 ? 'PM' : 'AM';
-  const displayH = h % 12 === 0 ? 12 : h % 12;
-  return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
-}
-
 function minutesToTimeStr(mins: number): string {
-  const h = Math.floor(mins / 60) % 24;
-  const m = mins % 60;
+  // Clamp to valid intra-day range [0, 1439] to prevent silent midnight wrap-around.
+  // Used for values that get written back to the API (must stay within 00:00-23:59).
+  const clamped = Math.max(0, Math.min(1439, mins));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 export function SchedulePage() {
-  const { tasks } = useStore();
+  const tasks = useStore(s => s.tasks);
   const {
     schedules,
     selectedDate,
@@ -118,28 +110,36 @@ export function SchedulePage() {
     openModal,
     closeModal,
     fetchSchedules,
-    createSchedule,
     updateSchedule,
   } = useScheduleStore();
   const { requestBrowserPermission, browserPermission } = useScheduleNotificationStore();
-  const { workHours, setWorkHours, totalWorkingMinutes, startMinutes, endMinutes } = useWorkHours();
+  const { workHours, setWorkHours, totalWorkingMinutes, endMinutes } = useWorkHours();
   const [now, setNow] = useState(Date.now());
   const [showWorkHoursSettings, setShowWorkHoursSettings] = useState(false);
   const [autoStartEnabled, setAutoStartEnabled] = useState(getAutoStartPreference);
   const [showRecovery, setShowRecovery] = useState(false);
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [templateName, setTemplateName] = useState('');
-  const { templates, saveTemplate, deleteTemplate } = useScheduleTemplateStore();
 
-  // Interactive modes
-  const [showPlanMyDay, setShowPlanMyDay] = useState(false);
-  const [proposedPlan, setProposedPlan] = useState<{ task: Task; start: string; end: string; predMins: number; slotScore?: number; reason?: string }[]>([]);
+  // Refs for outside-click dismissal of popovers
+  const workHoursRef = useRef<HTMLDivElement>(null);
 
   // Refresh clock every 10s for live current-time indicator
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(timer);
   }, []);
+
+  // Dismiss popovers when clicking outside them
+  useEffect(() => {
+    if (!showWorkHoursSettings) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (workHoursRef.current && !workHoursRef.current.contains(target)) {
+        setShowWorkHoursSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [showWorkHoursSettings]);
 
   // Determine date range based on view mode
   const dateRange = useMemo(() => {
@@ -152,7 +152,7 @@ export function SchedulePage() {
 
   useEffect(() => {
     void fetchSchedules(dateRange);
-  }, [dateRange.from, dateRange.to]);
+  }, [dateRange.from, dateRange.to, fetchSchedules]);
 
   // Filter and sort schedules for the selected date
   const daySchedules = useMemo(() => {
@@ -161,64 +161,35 @@ export function SchedulePage() {
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   }, [schedules, selectedDate]);
 
-  // Available Capacity Calculation
+  // Available Capacity Calculation (merges overlapping intervals so double-booked
+  // time isn't counted twice, which previously caused false over-capacity warnings)
   const capacityMetrics = useMemo(() => {
+    const intervals = daySchedules
+      .map(s => ({ start: timeToMinutes(s.startTime), end: timeToMinutes(s.endTime) }))
+      .filter(iv => iv.end > iv.start)
+      .sort((a, b) => a.start - b.start);
+
     let scheduledMins = 0;
-    for (const s of daySchedules) {
-      const startMins = timeToMinutes(s.startTime);
-      const endMins = timeToMinutes(s.endTime);
-      if (endMins > startMins) scheduledMins += (endMins - startMins);
+    let mergedStart = -1;
+    let mergedEnd = -1;
+    for (const iv of intervals) {
+      if (mergedEnd === -1 || iv.start > mergedEnd) {
+        if (mergedEnd !== -1) scheduledMins += mergedEnd - mergedStart;
+        mergedStart = iv.start;
+        mergedEnd = iv.end;
+      } else {
+        mergedEnd = Math.max(mergedEnd, iv.end);
+      }
     }
+    if (mergedEnd !== -1) scheduledMins += mergedEnd - mergedStart;
+
     const freeMins = Math.max(0, totalWorkingMinutes - scheduledMins);
-    const capacityPercent = Math.min(100, Math.round((scheduledMins / totalWorkingMinutes) * 100));
-    const isOverCapacity = scheduledMins > totalWorkingMinutes;
+    // Guard against division-by-zero when work hours are misconfigured (start === end).
+    const capacityPercent = totalWorkingMinutes > 0 ? Math.min(100, Math.round((scheduledMins / totalWorkingMinutes) * 100)) : 0;
+    const isOverCapacity = totalWorkingMinutes > 0 && scheduledMins > totalWorkingMinutes;
 
     return { totalWorkingMinutes, scheduledMins, freeMins, capacityPercent, isOverCapacity };
   }, [daySchedules, totalWorkingMinutes]);
-
-  // Available Slots calculation
-  const availableSlots = useMemo(() => {
-    const dayIntervals = daySchedules.map(s => ({
-      start: timeToMinutes(s.startTime),
-      end: timeToMinutes(s.endTime),
-    })).sort((a, b) => a.start - b.start);
-
-    const slots: { start: number; end: number; startStr: string; endStr: string; durationMins: number }[] = [];
-
-    let current = startMinutes;
-    for (const b of dayIntervals) {
-      if (b.start > current && (b.start - current) >= 30) {
-        slots.push({
-          start: current,
-          end: b.start,
-          startStr: minutesToTimeStr(current),
-          endStr: minutesToTimeStr(b.start),
-          durationMins: b.start - current,
-        });
-      }
-      current = Math.max(current, b.end);
-    }
-    if (endMinutes > current && (endMinutes - current) >= 30) {
-      slots.push({
-        start: current,
-        end: endMinutes,
-        startStr: minutesToTimeStr(current),
-        endStr: minutesToTimeStr(endMinutes),
-        durationMins: endMinutes - current,
-      });
-    }
-    return slots;
-  }, [daySchedules, startMinutes, endMinutes]);
-
-  // Unscheduled tasks pool
-  const unscheduledTasks = useMemo(() => {
-    const scheduledTaskIds = new Set(
-      schedules
-        .filter(s => s.status !== 'cancelled')
-        .map(s => typeof s.taskId === 'object' ? (s.taskId as any).id || (s.taskId as any)._id : s.taskId)
-    );
-    return tasks.filter(t => t.status !== 'completed' && !scheduledTaskIds.has(t.id));
-  }, [tasks, schedules]);
 
   // Next up schedule item
   const nextUpSchedule = useMemo(() => {
@@ -227,56 +198,6 @@ export function SchedulePage() {
     const nowMins = new Date(now).getHours() * 60 + new Date(now).getMinutes();
     return daySchedules.find(s => timeToMinutes(s.startTime) > nowMins && s.status !== 'completed');
   }, [daySchedules, selectedDate, now]);
-
-  // Generate Plan My Day proposal using Python ML API
-  const handleGeneratePlanMyDay = async () => {
-    try {
-      const examples = await mlApi.getExamples();
-      const hourlyStats = await mlApi.getHourlyStats(examples);
-      const explicitPrefs = await mlApi.getPreferences();
-
-      const eligibleTasks = [...unscheduledTasks].sort((a, b) => {
-        const pOrder: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
-        return (pOrder[b.priority] || 2) - (pOrder[a.priority] || 2);
-      });
-
-      const proposal: { task: Task; start: string; end: string; predMins: number; slotScore: number; reason: string }[] = [];
-      let currentMins = availableSlots[0] ? availableSlots[0].start : 9 * 60;
-
-      for (const task of eligibleTasks) {
-        if (proposal.length >= 4) break;
-        const pred = await mlApi.predictDuration(task, examples);
-        const duration = pred.predicted_minutes;
-        const startStr = minutesToTimeStr(currentMins);
-        const endStr = minutesToTimeStr(currentMins + duration);
-        const slotRating = await mlApi.scoreSlot(startStr, endStr, task, examples, hourlyStats, explicitPrefs);
-        if (slotRating.score === 0) {
-          currentMins += 60;
-          continue;
-        }
-        proposal.push({ task, start: startStr, end: endStr, predMins: duration, slotScore: slotRating.score, reason: slotRating.reason });
-        currentMins += duration + 15;
-      }
-
-      setProposedPlan(proposal);
-      setShowPlanMyDay(true);
-    } catch (e: any) {
-      console.error('Plan My Day failed:', e);
-    }
-  };
-
-  const handleApplyProposedPlan = async () => {
-    for (const item of proposedPlan) {
-      await createSchedule({
-        taskId: item.task.id,
-        date: selectedDate,
-        startTime: item.start,
-        endTime: item.end,
-      });
-    }
-    setShowPlanMyDay(false);
-    setProposedPlan([]);
-  };
 
   // DnD sensors
   const sensors = useSensors(
@@ -320,20 +241,34 @@ export function SchedulePage() {
 
     const reordered = arrayMove(upcomingItems, oldIndex, newIndex);
 
+    // Anchor the sequence to the earliest start time in the original list.
+    // This prevents the first item from inheriting its own (potentially wrong) start time
+    // after the reorder changes which item is first.
+    const anchorMins = Math.min(...upcomingItems.map(s => timeToMinutes(s.startTime)));
+    let runningEnd = anchorMins;
+
     for (let i = 0; i < reordered.length; i++) {
       const item = reordered[i];
-      const duration = timeToMinutes(item.endTime) - timeToMinutes(item.startTime);
-      const prevEnd = i > 0 ? timeToMinutes(reordered[i - 1].endTime) : timeToMinutes(item.startTime);
-      const newStart = prevEnd;
+      const duration = Math.max(0, timeToMinutes(item.endTime) - timeToMinutes(item.startTime));
+      const newStart = runningEnd;
       const newEnd = newStart + duration;
+      // Don't push tasks past the end of working hours.
+      if (newEnd > endMinutes) break;
       if (newStart !== timeToMinutes(item.startTime)) {
-        await updateSchedule(item._id, {
+        const updated = await updateSchedule(item._id, {
           startTime: minutesToTimeStr(newStart),
           endTime: minutesToTimeStr(newEnd),
         });
+        // Stop shifting if the update failed, so we don't compute later times
+        // from a stale anchor (which left the list half-rescheduled).
+        if (!updated) {
+          toast.error('Reorder failed', `Could not reschedule "${item.taskId && typeof item.taskId === 'object' ? (item.taskId as any).title : 'task'}".`);
+          break;
+        }
       }
+      runningEnd = newEnd;
     }
-  }, [categorized.upcoming, updateSchedule]);
+  }, [categorized.upcoming, updateSchedule, endMinutes]);
 
   // Week schedules for week view
   const weekSchedules = useMemo(() => {
@@ -385,91 +320,6 @@ export function SchedulePage() {
           >
             <Timer size={14} /> Auto-Start {autoStartEnabled ? 'On' : 'Off'}
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleGeneratePlanMyDay} className="gap-1.5 text-xs">
-            <Wand2 size={14} className="text-brand-400" /> Plan My Day
-          </Button>
-          <div className="relative">
-            <Button variant="secondary" size="sm" onClick={() => setShowTemplates(!showTemplates)} className="gap-1.5 text-xs">
-              <LayoutGrid size={14} /> Templates
-            </Button>
-            {showTemplates && (
-              <div className="absolute right-0 top-full mt-1 z-30 w-72 bg-surface-900 border border-surface-700 rounded-xl shadow-xl p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-surface-200">Schedule Templates</span>
-                  <button onClick={() => setShowTemplates(false)} className="text-surface-400 hover:text-surface-200">
-                    <X size={14} />
-                  </button>
-                </div>
-                {templates.length > 0 && (
-                  <div className="space-y-1 max-h-40 overflow-y-auto">
-                    {templates.map((tpl) => (
-                      <div key={tpl.id} className="flex items-center justify-between p-2 bg-surface-950 rounded-lg border border-surface-800">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-surface-200 truncate">{tpl.name}</p>
-                          <p className="text-[10px] text-surface-500">{tpl.slots.length} tasks</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              for (const slot of tpl.slots) {
-                                createSchedule({
-                                  taskId: slot.taskId,
-                                  date: selectedDate,
-                                  startTime: slot.startTime,
-                                  endTime: slot.endTime,
-                                });
-                              }
-                              setShowTemplates(false);
-                            }}
-                            className="text-[10px] px-2 py-1 h-auto text-brand-400"
-                          >
-                            Apply
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteTemplate(tpl.id)}
-                            className="text-[10px] px-2 py-1 h-auto text-red-400"
-                          >
-                            <Trash2 size={10} />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {daySchedules.length > 0 && (
-                  <div className="border-t border-surface-800 pt-2">
-                    <p className="text-[10px] text-surface-400 mb-1">Save current schedule as template:</p>
-                    <div className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={templateName}
-                        onChange={(e) => setTemplateName(e.target.value)}
-                        placeholder="Template name..."
-                        className="flex-1 bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-xs text-surface-200 outline-none placeholder:text-surface-600"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          if (templateName.trim()) {
-                            saveTemplate(templateName.trim(), daySchedules, tasks);
-                            setTemplateName('');
-                          }
-                        }}
-                        disabled={!templateName.trim()}
-                        className="text-[10px] px-2 py-1 h-auto"
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
           <Button onClick={() => openModal()} className="gap-2">
             <Plus size={16} /> Schedule
           </Button>
@@ -494,13 +344,66 @@ export function SchedulePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowWorkHoursSettings(!showWorkHoursSettings)}
-            className="text-surface-500 hover:text-surface-300 transition-colors"
-            title="Work hours settings"
-          >
-            <Settings size={14} />
-          </button>
+          <div className="relative" ref={workHoursRef}>
+            <button
+              onClick={() => setShowWorkHoursSettings(!showWorkHoursSettings)}
+              className="text-surface-500 hover:text-surface-300 transition-colors"
+              title="Work hours settings"
+            >
+              <Settings size={14} />
+            </button>
+            {showWorkHoursSettings && (
+              <div className="absolute right-0 top-full mt-2 z-40 w-80 p-3 bg-surface-900 border border-surface-800 rounded-xl text-xs space-y-3 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-surface-200">Work Hours</span>
+                  <button onClick={() => setShowWorkHoursSettings(false)} className="text-surface-500 hover:text-surface-300">
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-surface-400">From</span>
+                    <select
+                      value={workHours.startHour}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (val >= workHours.endHour) {
+                          toast.warning('Invalid hours', 'Start hour must be before the end hour.');
+                          return;
+                        }
+                        setWorkHours(val, workHours.endHour);
+                      }}
+                      className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-surface-500">to</span>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={workHours.endHour}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        if (val <= workHours.startHour) {
+                          toast.warning('Invalid hours', 'End hour must be after the start hour.');
+                          return;
+                        }
+                        setWorkHours(workHours.startHour, val);
+                      }}
+                      className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-surface-500 ml-2">({formatMinutes(Math.max(0, workHours.endHour - workHours.startHour) * 60)})</span>
+                </div>
+              </div>
+            )}
+          </div>
           <div className="text-right">
             <span className="text-[10px] uppercase font-bold text-surface-400 block">Capacity</span>
             <span className={`font-bold ${capacityMetrics.isOverCapacity ? 'text-red-400' : 'text-surface-100'}`}>
@@ -516,45 +419,6 @@ export function SchedulePage() {
         </div>
       </div>
 
-      {/* Work Hours Settings Popover */}
-      {showWorkHoursSettings && (
-        <div className="p-3 bg-surface-900 border border-surface-800 rounded-xl text-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-surface-200">Work Hours</span>
-            <button onClick={() => setShowWorkHoursSettings(false)} className="text-surface-500 hover:text-surface-300">
-              <X size={14} />
-            </button>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-surface-400">From</span>
-              <select
-                value={workHours.startHour}
-                onChange={(e) => setWorkHours(Number(e.target.value), workHours.endHour)}
-                className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
-                ))}
-              </select>
-            </div>
-            <span className="text-surface-500">to</span>
-            <div className="flex items-center gap-2">
-              <select
-                value={workHours.endHour}
-                onChange={(e) => setWorkHours(workHours.startHour, Number(e.target.value))}
-                className="bg-surface-950 border border-surface-700 rounded-lg px-2 py-1 text-surface-200 outline-none"
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`}</option>
-                ))}
-              </select>
-            </div>
-            <span className="text-surface-500 ml-2">({formatMinutes((workHours.endHour - workHours.startHour) * 60)})</span>
-          </div>
-        </div>
-      )}
-
       {/* Over Capacity Warning Alert */}
       {capacityMetrics.isOverCapacity && (
         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center justify-between gap-2">
@@ -565,57 +429,6 @@ export function SchedulePage() {
           <Button size="sm" variant="ghost" onClick={() => setShowRecovery(true)} className="text-xs text-red-200 hover:text-white">
             Recovery Mode
           </Button>
-        </div>
-      )}
-
-      {/* Plan My Day Modal Drawer */}
-      {showPlanMyDay && proposedPlan.length > 0 && (
-        <div className="p-4 bg-brand-500/10 border border-brand-500/30 rounded-2xl space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wand2 size={16} className="text-brand-400" />
-              <h3 className="text-xs font-bold text-brand-200 uppercase tracking-wider">Proposed Day Plan</h3>
-            </div>
-            <button onClick={() => setShowPlanMyDay(false)} className="text-surface-400 hover:text-surface-200">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="space-y-2">
-            {proposedPlan.map((item, idx) => (
-              <div key={idx} className="p-2.5 bg-surface-950 rounded-xl border border-surface-800 space-y-1.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-brand-400 font-semibold">{item.start} – {item.end}</span>
-                    <span className="font-medium text-surface-100">{item.task.title}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {item.slotScore !== undefined && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                        item.slotScore >= 0.75 ? 'bg-emerald-500/20 text-emerald-300' :
-                        item.slotScore >= 0.5 ? 'bg-amber-500/20 text-amber-300' :
-                        'bg-surface-800 text-surface-400'
-                      }`}>
-                        {Math.round(item.slotScore * 100)}%
-                      </span>
-                    )}
-                    <span className="text-[10px] bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full">{item.task.priority}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-surface-500">{item.predMins}m estimated</span>
-                  {item.reason && <span className="text-[10px] text-surface-500 italic truncate max-w-[60%]">{item.reason}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button size="sm" variant="ghost" onClick={() => setShowPlanMyDay(false)}>
-              Adjust
-            </Button>
-            <Button size="sm" onClick={handleApplyProposedPlan}>
-              Apply Plan
-            </Button>
-          </div>
         </div>
       )}
 
@@ -681,7 +494,15 @@ export function SchedulePage() {
               </span>
             </div>
           </div>
-          <Button size="sm" onClick={() => openModal(typeof nextUpSchedule.taskId === 'string' ? nextUpSchedule.taskId : (nextUpSchedule.taskId as any).id)} className="text-xs py-1 h-auto">
+          <Button
+            size="sm"
+            onClick={() => {
+              const t = nextUpSchedule.taskId;
+              const tid = typeof t === 'string' ? t : ((t as any).id ?? (t as any)._id);
+              openModal(tid);
+            }}
+            className="text-xs py-1 h-auto"
+          >
             View / Edit
           </Button>
         </div>
@@ -703,30 +524,30 @@ export function SchedulePage() {
             />
           ) : (
             <div className="space-y-1">
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence>
                 {/* Starting Soon */}
                 {categorized['starting-soon'].length > 0 && (
-                  <div key="group-starting-soon">
+                  <motion.div key="group-starting-soon" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <SectionHeader icon={Timer} label="Starting Soon" color="text-amber-400" count={categorized['starting-soon'].length} />
                     {categorized['starting-soon'].map(s => (
                       <ScheduleCard key={s._id} schedule={s} derivedState="starting-soon" />
                     ))}
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Ongoing */}
                 {categorized['ongoing'].length > 0 && (
-                  <div key="group-ongoing">
+                  <motion.div key="group-ongoing" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <SectionHeader icon={Rocket} label="Ongoing" color="text-brand-400" count={categorized['ongoing'].length} />
                     {categorized['ongoing'].map(s => (
                       <ScheduleCard key={s._id} schedule={s} derivedState="ongoing" />
                     ))}
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Upcoming */}
                 {categorized.upcoming.length > 0 && (
-                  <div key="group-upcoming">
+                  <motion.div key="group-upcoming" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <SectionHeader icon={Clock} label="Upcoming" color="text-sky-400" count={categorized.upcoming.length} />
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                       <SortableContext items={categorized.upcoming.map((s) => s._id)} strategy={verticalListSortingStrategy}>
@@ -737,73 +558,29 @@ export function SchedulePage() {
                         ))}
                       </SortableContext>
                     </DndContext>
-                  </div>
-                )}
-
-                {/* Available Slots Bar */}
-                {availableSlots.length > 0 && (
-                  <div key="group-available-slots" className="my-3 p-2.5 bg-surface-900/60 border border-surface-800/80 rounded-xl space-y-1.5">
-                    <span className="text-[10px] uppercase font-bold text-surface-400 tracking-wider flex items-center gap-1">
-                      <Clock size={12} className="text-brand-400" /> Available Free Time
-                    </span>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {availableSlots.map((slot, idx) => (
-                        <button
-                          key={`${slot.start}-${slot.end}-${idx}`}
-                          onClick={() => openModal()}
-                          className="text-[11px] bg-surface-950 hover:bg-surface-800 border border-surface-700/60 px-2.5 py-1 rounded-lg text-surface-300 hover:text-surface-100 transition-colors flex items-center gap-1.5"
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          <span>AVAILABLE {formatTime12(slot.startStr)} – {formatTime12(slot.endStr)} ({formatMinutes(slot.durationMins)})</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Completed */}
                 {categorized['completed'].length > 0 && (
-                  <div key="group-completed">
+                  <motion.div key="group-completed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <SectionHeader icon={CheckCircle2} label="Completed" color="text-emerald-400" count={categorized['completed'].length} />
                     {categorized['completed'].map(s => (
                       <ScheduleCard key={s._id} schedule={s} derivedState="completed" />
                     ))}
-                  </div>
+                  </motion.div>
                 )}
 
                 {/* Missed */}
                 {categorized['missed'].length > 0 && (
-                  <div key="group-missed">
+                  <motion.div key="group-missed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
                     <SectionHeader icon={AlertTriangle} label="Missed" color="text-red-400" count={categorized['missed'].length} />
                     {categorized['missed'].map(s => (
                       <ScheduleCard key={s._id} schedule={s} derivedState="missed" />
                     ))}
-                  </div>
+                  </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-          )}
-
-          {/* Unscheduled Pool */}
-          {unscheduledTasks.length > 0 && (
-            <div className="p-4 bg-surface-900/80 border border-surface-800 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Inbox size={16} className="text-brand-400" />
-                  <h3 className="text-xs font-bold text-surface-200 uppercase tracking-wider">Needs Scheduling</h3>
-                  <span className="text-[10px] bg-surface-800 text-surface-400 px-2 py-0.5 rounded-full">{unscheduledTasks.length} tasks</span>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {unscheduledTasks.slice(0, 4).map(t => (
-                  <div key={t.id} className="p-2.5 bg-surface-950/80 border border-surface-800/80 rounded-xl flex items-center justify-between text-xs">
-                    <span className="font-medium text-surface-200 truncate pr-2">{t.title}</span>
-                    <Button size="sm" variant="ghost" onClick={() => openModal(t.id)} className="text-xs px-2 py-1 h-auto text-brand-400 hover:text-brand-300">
-                      + Schedule
-                    </Button>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
@@ -926,7 +703,11 @@ export function SchedulePage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => openModal()}
+                          onClick={() => {
+                            // Select this card's date first, so the modal opens for the right day.
+                            setSelectedDate(date);
+                            openModal();
+                          }}
                           className="text-[10px] px-2 py-0.5 h-auto text-brand-400 hover:text-brand-300"
                         >
                           + Schedule
@@ -949,6 +730,7 @@ export function SchedulePage() {
       )}
 
       <ScheduleModal isOpen={isModalOpen} onClose={closeModal} />
+      <ExtendRescheduleDialog />
       <RecoveryDrawer
         isOpen={showRecovery}
         onClose={() => setShowRecovery(false)}

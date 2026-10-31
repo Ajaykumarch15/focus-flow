@@ -58,6 +58,20 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
   const [recurrence, setRecurrence] = useState<ScheduleRecurrence>('none');
   const [recurrenceDays, setRecurrenceDays] = useState<number[]>([]);
 
+  // Live clock while the modal is open, so "already passed" validation stays accurate
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, [isOpen]);
+
+  // Current minute-of-day derived from the live clock
+  const nowMins = useMemo(() => {
+    const dt = new Date(nowTick);
+    return dt.getHours() * 60 + dt.getMinutes();
+  }, [nowTick]);
+
   // Form state for New Task mode
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('medium');
@@ -97,14 +111,29 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
         setNotes(editingSchedule.notes || '');
       } else {
         setMode('existing');
-        setDate(selectedDate || getTodayDateString());
+        // Browsing a past day and clicking "+ Schedule" still lands on today —
+        // past dates are not schedulable (the date input enforces min=today).
+        const rawTarget = selectedDate || getTodayDateString();
+        const targetDate = rawTarget < getTodayDateString() ? getTodayDateString() : rawTarget;
+        setDate(targetDate);
         if (preselectedTaskId) {
           setSelectedTaskId(preselectedTaskId);
         } else if (incompleteTasks.length > 0) {
           setSelectedTaskId(incompleteTasks[0].id);
         }
-        setStartTime('09:00');
-        setEndTime('10:30');
+        if (targetDate === getTodayDateString()) {
+          // Default to the next 5-min step from "now" so today's default slot
+          // is never a time that has already passed (clamped to work hours).
+          const dt = new Date();
+          const cur = dt.getHours() * 60 + dt.getMinutes();
+          let defStart = Math.max(workStartMinutes, Math.ceil(cur / 5) * 5);
+          if (defStart > workEndMinutes - 15) defStart = workStartMinutes; // nothing left today; validation will warn
+          setStartTime(minutesToTime(defStart));
+          setEndTime(minutesToTime(Math.min(defStart + 90, workEndMinutes)));
+        } else {
+          setStartTime('09:00');
+          setEndTime('10:30');
+        }
         setNotes('');
       }
       setConflictData(null);
@@ -125,6 +154,10 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
     const slots: { start: string; end: string; durationMins: number }[] = [];
 
     let current = workStartMinutes;
+    // When scheduling for today, don't suggest slots that have already passed.
+    if (date === getTodayDateString() && current < nowMins) {
+      current = nowMins;
+    }
     for (const b of busyIntervals) {
       if (b.start > current && (b.start - current) >= 30) {
         slots.push({
@@ -145,7 +178,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
     }
 
     return slots.slice(0, 3);
-  }, [isOpen, date, schedules, editingSchedule, workStartMinutes, workEndMinutes]);
+  }, [isOpen, date, schedules, editingSchedule, workStartMinutes, workEndMinutes, nowMins]);
 
   // Real-time conflict detection & Deadline checking
   useEffect(() => {
@@ -195,6 +228,33 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
     }
   }, [date, startTime, endTime, schedules, editingSchedule, isOpen, tasks, mode, newDeadline, currentTaskObj]);
 
+  // Block scheduling a slot for today whose start time has already passed.
+  // In edit mode this only applies when the user actually changed the date or
+  // start time, so editing the notes of an already-started item stays possible.
+  const timeChanged = !editingSchedule
+    || startTime !== editingSchedule.startTime
+    || date !== editingSchedule.date;
+  const pastTimeWarning = useMemo(() => {
+    if (date !== getTodayDateString() || !timeChanged) return null;
+    if (timeToMinutes(startTime) < nowMins) {
+      return `This start time (${formatTime12(startTime)}) has already passed — it is now ${formatTime12(minutesToTime(nowMins))}. Pick a later slot.`;
+    }
+    return null;
+  }, [date, timeChanged, startTime, nowMins]);
+
+  // Earliest selectable times for today: native time pickers honor the `min`
+  // attribute, so already-passed times never appear in the selection dropdown
+  // at all. Applied only while the user is changing the time (same condition
+  // as the warning above), so the stored value of an already-started item
+  // stays valid while editing its notes.
+  const constrainToNow = date === getTodayDateString() && timeChanged;
+  const minStartTime = constrainToNow
+    ? minutesToTime(Math.ceil(nowMins / 5) * 5)
+    : undefined;
+  const minEndTime = constrainToNow
+    ? minutesToTime(Math.max(Math.ceil(nowMins / 5) * 5, timeToMinutes(startTime)))
+    : undefined;
+
   // Conflict Resolution Action: Move to first available slot
   const handleResolveMove = (slot: { start: string; end: string }) => {
     const plannedDuration = timeToMinutes(endTime) - timeToMinutes(startTime);
@@ -232,6 +292,10 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
     const startMin = timeToMinutes(startTime);
     const endMin = timeToMinutes(endTime);
     if (endMin <= startMin) {
+      return;
+    }
+    // Hard-block slots that are already in the past for today.
+    if (pastTimeWarning) {
       return;
     }
 
@@ -535,7 +599,23 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
                   id="schedule-date"
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  // Calendar only offers today onward for new schedules — past
+                  // dates are never needed for scheduling. Editing an existing
+                  // (possibly historical) item keeps its full date range.
+                  min={editingSchedule ? undefined : getTodayDateString()}
+                  onChange={(e) => {
+                    const newDate = e.target.value;
+                    setDate(newDate);
+                    // Switching back to today while a past time is still
+                    // selected: bump to the next 5-min step so the requested
+                    // slot is immediately valid.
+                    if (newDate === getTodayDateString() && timeToMinutes(startTime) < nowMins) {
+                      let bump = Math.ceil(nowMins / 5) * 5;
+                      if (bump > workEndMinutes - 15) bump = workStartMinutes;
+                      setStartTime(minutesToTime(bump));
+                      setEndTime(minutesToTime(Math.min(bump + 90, workEndMinutes)));
+                    }
+                  }}
                   required
                 />
               </div>
@@ -547,6 +627,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
                   id="schedule-start-time"
                   type="time"
                   value={startTime}
+                  min={minStartTime}
                   onChange={(e) => setStartTime(e.target.value)}
                   required
                 />
@@ -559,6 +640,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
                   id="schedule-end-time"
                   type="time"
                   value={endTime}
+                  min={minEndTime}
                   onChange={(e) => setEndTime(e.target.value)}
                   required
                 />
@@ -644,6 +726,14 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
               </div>
             )}
 
+            {/* Past Time Warning Callout */}
+            {pastTimeWarning && (
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex items-center gap-2" role="alert">
+                <AlertTriangle size={15} className="text-amber-400 flex-shrink-0" />
+                <span>{pastTimeWarning}</span>
+              </div>
+            )}
+
             {/* Conflict Detection & Resolution Box */}
             {conflictData && (
               <motion.div
@@ -697,7 +787,7 @@ export function ScheduleModal({ isOpen, onClose }: ScheduleModalProps) {
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting || (mode === 'existing' && !selectedTaskId)}
+                disabled={isSubmitting || pastTimeWarning !== null || (mode === 'existing' && !selectedTaskId)}
               >
                 {editingSchedule ? 'Update Schedule' : 'Schedule'}
               </Button>

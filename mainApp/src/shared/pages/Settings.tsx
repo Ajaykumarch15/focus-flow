@@ -44,6 +44,49 @@ const NAV_SECTIONS = [
 const fadeUp = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } };
 const stagger = { show: { transition: { staggerChildren: 0.04 } } };
 
+/**
+ * Goal number input with local text state:
+ * - Clearing/selecting text while typing doesn't instantly write 0 (which would
+ *   silently disable the goal mid-edit).
+ * - On commit (blur/Enter) the value is clamped to 0–24 and non-numeric input
+ *   can never persist NaN into the store.
+ * - Re-syncs from the store when the committed value changes externally.
+ */
+function GoalInput({ value, onCommit, ariaLabel }: { value: number; onCommit: (n: number) => void; ariaLabel: string }) {
+  const [text, setText] = useState(String(value));
+  const committedRef = useRef(value);
+
+  // Sync when the stored value changes (e.g. profile reload) unless mid-edit
+  useEffect(() => {
+    if (value !== committedRef.current) {
+      committedRef.current = value;
+      setText(String(value));
+    }
+  }, [value]);
+
+  const commit = () => {
+    const n = Math.max(0, Math.min(24, Math.floor(Number(text) || 0)));
+    committedRef.current = n;
+    setText(String(n));
+    if (n !== value) onCommit(n);
+  };
+
+  return (
+    <Input
+      type="number"
+      inputMode="numeric"
+      min="0"
+      max="24"
+      aria-label={ariaLabel}
+      className="h-11 rounded-xl"
+      value={text}
+      onChange={e => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => { if (e.key === 'Enter') { commit(); (e.target as HTMLInputElement).blur(); } }}
+    />
+  );
+}
+
 export function Settings() {
   const { theme, profile, updateTheme, updateProfile } = useStore();
   const { user, restoreSession } = useAuthStore();
@@ -165,12 +208,12 @@ export function Settings() {
                 </Field>
                 <div className="grid grid-cols-3 gap-4">
                   <Field label="Work Goal (hours)">
-                    <Input type="number" className="h-11 rounded-xl" min="0" max="24" value={profile.dailyGoal}
-                      onChange={e => { updateProfile({ dailyGoal: Number(e.target.value) }); flashSaved(); }} />
+                    <GoalInput ariaLabel="Work Goal in hours" value={profile.dailyGoal}
+                      onCommit={n => { updateProfile({ dailyGoal: n }); flashSaved(); }} />
                   </Field>
                   <Field label="Personal Goal (hours)">
-                    <Input type="number" className="h-11 rounded-xl" min="0" max="24" value={profile.personalDailyGoal}
-                      onChange={e => { updateProfile({ personalDailyGoal: Number(e.target.value) }); flashSaved(); }} />
+                    <GoalInput ariaLabel="Personal Goal in hours" value={profile.personalDailyGoal}
+                      onCommit={n => { updateProfile({ personalDailyGoal: n }); flashSaved(); }} />
                   </Field>
                   <Field label="Timezone">
                     <Select className="h-11 rounded-xl" value={profile.timezone}
