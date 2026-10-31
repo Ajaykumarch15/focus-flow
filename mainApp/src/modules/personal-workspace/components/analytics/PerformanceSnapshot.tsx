@@ -1,47 +1,10 @@
 import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown, Target, CheckCircle2, Clock, Map, Zap } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Zap, Clock, CheckCircle2, Target, Map } from 'lucide-react';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
 
-interface KpiCardProps {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  subValue?: string;
-  subLabel?: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-  trend?: { pct: number; direction: 'up' | 'down' | 'flat' };
-}
-
-function KpiCard({ icon, label, value, subValue, subLabel, color, bgColor, borderColor, trend }: KpiCardProps) {
-  return (
-    <div className={`p-4 rounded-2xl bg-surface-900 border ${borderColor} hover:shadow-md transition-shadow`}>
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`w-10 h-10 rounded-xl ${bgColor} flex items-center justify-center ${color}`}>
-          {icon}
-        </div>
-        <div className="min-w-0">
-          <p className="text-lg font-bold text-surface-50 leading-tight">{value}</p>
-          {subValue && <p className="text-xs text-surface-400">{subValue}</p>}
-        </div>
-      </div>
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-surface-400 font-medium">{label}</p>
-        {trend && trend.direction !== 'flat' && (
-          <div className={`flex items-center gap-0.5 text-[10px] font-semibold ${
-            trend.direction === 'up' ? 'text-success-400' : 'text-danger-400'
-          }`}>
-            {trend.direction === 'up' ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-            {Math.abs(trend.pct)}%
-          </div>
-        )}
-        {subLabel && (
-          <p className="text-[10px] text-surface-500">{subLabel}</p>
-        )}
-      </div>
-    </div>
-  );
+interface TrendInfo {
+  pct: number;
+  direction: 'up' | 'down' | 'flat';
 }
 
 interface PerformanceSnapshotProps {
@@ -53,9 +16,9 @@ interface PerformanceSnapshotProps {
   totalMilestones: number;
   activeRoadmaps: number;
   comparisons: {
-    focusedTime?: { pct: number; direction: 'up' | 'down' | 'flat' };
-    completedTasks?: { pct: number; direction: 'up' | 'down' | 'flat' };
-    completedMilestones?: { pct: number; direction: 'up' | 'down' | 'flat' };
+    focusedTime?: TrendInfo;
+    completedTasks?: TrendInfo;
+    completedMilestones?: TrendInfo;
   } | null;
 }
 
@@ -67,6 +30,12 @@ const formatTime = (ms: number): string => {
   const m = mins % 60;
   return m ? `${h}h ${m}m` : `${h}h`;
 };
+
+/** Render a trend badge only when the comparison actually moved. */
+function trendFor(trend?: TrendInfo): string | undefined {
+  if (!trend || trend.direction === 'flat') return undefined;
+  return `${Math.abs(trend.pct)}%`;
+}
 
 export function PerformanceSnapshot({
   productivityScore,
@@ -89,53 +58,68 @@ export function PerformanceSnapshot({
     >
       <h2 className="text-xs font-bold uppercase tracking-wider text-surface-400 mb-3">Key Metrics</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        <KpiCard
-          icon={<Zap size={18} />}
-          label="Productivity Score"
-          value={`${productivityScore ?? 0}`}
-          subValue="/100"
-          color="text-brand-400"
-          bgColor="bg-brand-500/15"
-          borderColor="border-surface-800"
-          trend={comparisons?.focusedTime ?? undefined}
+        <StatisticsCard
+          title="Productivity Score"
+          value={productivityScore ?? 0}
+          description="/100"
+          icon={<Zap size={14} />}
+          accent="brand"
+          transparent
+          alwaysShowBorder
+          trend={trendFor(comparisons?.focusedTime)}
+          trendDirection={comparisons?.focusedTime?.direction === 'down' ? 'down' : 'up'}
+          backgroundImage="/SVG/svg/CHARTS.svg"
+          backgroundPosition="bottom-right"
         />
-        <KpiCard
-          icon={<Clock size={18} />}
-          label="Focused Time"
+        <StatisticsCard
+          title="Focused Time"
           value={formatTime(focusedTimeMs)}
-          subValue={comparisons?.focusedTime && comparisons.focusedTime.direction !== 'flat' ? 
-            `${comparisons.focusedTime.direction === 'up' ? '+' : '-'}${Math.abs(comparisons.focusedTime.pct)}%` : undefined}
-          color="text-warning-400"
-          bgColor="bg-warning-500/15"
-          borderColor="border-surface-800"
+          description="this period"
+          icon={<Clock size={14} />}
+          accent="warning"
+          transparent
+          alwaysShowBorder
+          trend={trendFor(comparisons?.focusedTime)}
+          trendDirection={comparisons?.focusedTime?.direction === 'down' ? 'down' : 'up'}
+          backgroundImage="/SVG/svg/time-management_4ss6.svg"
+          backgroundPosition="bottom-left"
         />
-        <KpiCard
-          icon={<CheckCircle2 size={18} />}
-          label="Tasks Completed"
+        <StatisticsCard
+          title="Tasks Completed"
           value={`${completedTasks} / ${totalTasks}`}
-          subValue={`${taskCompletionPct}%`}
-          color="text-success-400"
-          bgColor="bg-success-500/15"
-          borderColor="border-surface-800"
-          trend={comparisons?.completedTasks}
+          description={`${taskCompletionPct}% completion`}
+          icon={<CheckCircle2 size={14} />}
+          accent="success"
+          transparent
+          alwaysShowBorder
+          trend={trendFor(comparisons?.completedTasks)}
+          trendDirection={comparisons?.completedTasks?.direction === 'down' ? 'down' : 'up'}
+          backgroundImage="/SVG/svg/check%20boxes.svg"
+          backgroundPosition="top-right"
         />
-        <KpiCard
-          icon={<Target size={18} />}
-          label="Milestones Completed"
+        <StatisticsCard
+          title="Milestones Done"
           value={`${completedMilestones} / ${totalMilestones}`}
-          subValue={`${milestoneCompletionPct}%`}
-          color="text-info-400"
-          bgColor="bg-info-500/15"
-          borderColor="border-surface-800"
-          trend={comparisons?.completedMilestones}
+          description={`${milestoneCompletionPct}% completion`}
+          icon={<Target size={14} />}
+          accent="info"
+          transparent
+          alwaysShowBorder
+          trend={trendFor(comparisons?.completedMilestones)}
+          trendDirection={comparisons?.completedMilestones?.direction === 'down' ? 'down' : 'up'}
+          backgroundImage="/SVG/svg/career%20growth.svg"
+          backgroundPosition="bottom-right"
         />
-        <KpiCard
-          icon={<Map size={18} />}
-          label="Active Roadmaps"
-          value={`${activeRoadmaps}`}
-          color="text-brand-300"
-          bgColor="bg-brand-500/10"
-          borderColor="border-surface-800"
+        <StatisticsCard
+          title="Active Roadmaps"
+          value={activeRoadmaps}
+          description="in progress"
+          icon={<Map size={14} />}
+          accent="neutral"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/navigation.svg"
+          backgroundPosition="top"
         />
       </div>
     </motion.div>

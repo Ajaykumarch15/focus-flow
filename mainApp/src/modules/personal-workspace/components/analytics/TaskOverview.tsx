@@ -4,36 +4,9 @@ import { ListTodo, Clock, CheckCircle, Flame } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { Card } from '@shared/components/ui/Card';
+import { StatisticsCard } from '@shared/components/ui/StatisticsCard';
 
 const DONUT_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } },
-};
-
-function KpiCard({ icon, label, value, color }: {
-  icon: React.ReactNode; label: string; value: number; color: string;
-}) {
-  return (
-    <motion.div variants={fadeUp}
-      className="rounded-2xl p-4 relative overflow-hidden transition-all hover:scale-[1.02] cursor-default"
-      style={{
-        background: `linear-gradient(135deg, ${color}12 0%, ${color}06 100%)`,
-        border: `1px solid ${color}30`,
-      }}>
-      <div className="absolute top-0 right-0 w-20 h-20 opacity-15 pointer-events-none rounded-bl-full"
-        style={{ background: `radial-gradient(circle at top right, ${color}40, transparent)` }} />
-      <div className="flex items-center gap-2.5 mb-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${color}20`, color }}>
-          {icon}
-        </div>
-      </div>
-      <p className="text-2xl font-display font-extrabold text-surface-50 leading-none">{value}</p>
-      <p className="text-[11px] font-semibold mt-1" style={{ color: `${color}cc` }}>{label}</p>
-    </motion.div>
-  );
-}
 
 export function TaskOverview() {
   const { tasks } = usePersonalTaskStore();
@@ -64,10 +37,50 @@ export function TaskOverview() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <KpiCard icon={<ListTodo size={18} />} label="To Do" value={kpiCounts.todo} color="#3b82f6" />
-        <KpiCard icon={<Clock size={18} />} label="In Progress" value={kpiCounts.inProgress} color="#f59e0b" />
-        <KpiCard icon={<CheckCircle size={18} />} label="Completed" value={kpiCounts.completed} color="#22c55e" />
-        <KpiCard icon={<Flame size={18} />} label="Overdue" value={kpiCounts.overdue} color="#ef4444" />
+        <StatisticsCard
+          title="To Do"
+          value={kpiCounts.todo}
+          description="Not started yet"
+          icon={<ListTodo size={14} />}
+          accent="info"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/PLAN.svg"
+          backgroundPosition="bottom-right"
+        />
+        <StatisticsCard
+          title="In Progress"
+          value={kpiCounts.inProgress}
+          description="Active or paused"
+          icon={<Clock size={14} />}
+          accent="warning"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/inprogress.svg"
+          backgroundPosition="bottom-left"
+        />
+        <StatisticsCard
+          title="Completed"
+          value={kpiCounts.completed}
+          description="Done so far"
+          icon={<CheckCircle size={14} />}
+          accent="success"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/check%20boxes.svg"
+          backgroundPosition="top-right"
+        />
+        <StatisticsCard
+          title="Overdue"
+          value={kpiCounts.overdue}
+          description="Past their deadline"
+          icon={<Flame size={14} />}
+          accent="danger"
+          transparent
+          alwaysShowBorder
+          backgroundImage="/SVG/svg/tight%20deadline.svg"
+          backgroundPosition="top"
+        />
       </div>
 
       {/* Donut Chart */}
