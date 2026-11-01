@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Settings, User, ChevronDown, Menu, MessageSquare } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Menu, MessageSquare, BriefcaseBusiness } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
@@ -12,6 +12,17 @@ import { NowIndicator } from '@worklog/components/NowIndicator';
 import { FocusFlowLogo } from './FocusFlowLogo';
 import { NotificationCenter } from '@collab/components/NotificationCenter';
 import { GlobalCommandPalette } from '@collab/components/GlobalCommandPalette';
+import { api } from '@shared/utils/api';
+
+function localDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDuration(ms: number) {
+  const seconds = Math.floor(ms / 1000);
+  return `${String(Math.floor(seconds / 3600)).padStart(2, '0')}:${String(Math.floor((seconds % 3600) / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
 
 export function GlobalHeader() {
   const { user, logout } = useAuthStore();
@@ -22,6 +33,9 @@ export function GlobalHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [officeTime, setOfficeTime] = useState<{ totalMs: number; activeSince: number | null } | null>(null);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [officeBusy, setOfficeBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +54,29 @@ export function GlobalHeader() {
       document.removeEventListener('keydown', keyHandler);
     };
   }, []);
+
+  useEffect(() => {
+    if (!user) { setOfficeTime(null); return; }
+    let alive = true;
+    const load = () => api.officeWorkTime.today(localDateKey()).then((data) => {
+      if (alive) setOfficeTime({ totalMs: data.totalMs || 0, activeSince: data.activeSince || null });
+    }).catch(() => {});
+    void load();
+    const ticker = window.setInterval(() => setClockNow(Date.now()), 1000);
+    const poll = window.setInterval(() => { void load(); }, 30000);
+    return () => { alive = false; window.clearInterval(ticker); window.clearInterval(poll); };
+  }, [user?._id]);
+
+  const toggleOfficeTime = async () => {
+    if (officeBusy) return;
+    setOfficeBusy(true);
+    try {
+      const data = await api.officeWorkTime.toggle(localDateKey());
+      setOfficeTime({ totalMs: data.totalMs || 0, activeSince: data.activeSince || null });
+      setClockNow(Date.now());
+    } catch { /* Keep the current clock state; the next poll will resync. */ }
+    finally { setOfficeBusy(false); }
+  };
 
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
@@ -139,6 +176,20 @@ export function GlobalHeader() {
         </button>*/}
         <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
         <div className="hidden lg:block"><NowIndicator /></div>
+        {user && <div className="inline-flex flex-none items-center gap-2 px-1.5" title="Office work time today">
+          <BriefcaseBusiness size={14} className={officeTime?.activeSince ? 'text-emerald-400' : 'text-surface-400'} />
+          <span className="text-[11px] font-medium text-surface-400 hidden sm:inline">Office</span>
+          <button type="button" role="switch" aria-checked={Boolean(officeTime?.activeSince)}
+            aria-label="Track office work time" onClick={toggleOfficeTime} disabled={officeBusy}
+            className={`relative box-border flex-none appearance-none overflow-hidden rounded-full border-0 p-0 transition-colors disabled:opacity-60 ${officeTime?.activeSince ? 'bg-emerald-500' : 'bg-surface-700'}`}
+            style={{ width: 36, minWidth: 36, maxWidth: 36, height: 20, minHeight: 20 }}>
+            <span className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
+              style={{ left: 2, transform: officeTime?.activeSince ? 'translateX(16px)' : 'translateX(0)' }} />
+          </button>
+          <span className={`min-w-[4.5rem] flex-none font-mono text-xs tabular-nums ${officeTime?.activeSince ? 'text-emerald-300' : 'text-surface-300'}`}>
+            {formatDuration((officeTime?.totalMs || 0) + (officeTime?.activeSince ? Math.max(0, clockNow - officeTime.activeSince) : 0))}
+          </span>
+        </div>}
         <ThemeToggle />
 
         {/* Notifications */}
@@ -189,6 +240,10 @@ export function GlobalHeader() {
                   <button onClick={() => { setMenuOpen(false); navigate('/profile'); }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-300 hover:text-surface-100 hover:bg-surface-800 transition-all">
                     <User size={14} /> Profile
+                  </button>
+                  <button onClick={() => { setMenuOpen(false); navigate(activeWorkspace === 'personal' ? '/personal/office-time' : '/worklog/office-time'); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-surface-300 hover:text-surface-100 hover:bg-surface-800 transition-all">
+                    <BriefcaseBusiness size={14} /> Office Time Analytics
                   </button>
                   <div className="my-1 border-t border-surface-800" />
                   <button onClick={() => { setMenuOpen(false); logout(); navigate('/login'); }}

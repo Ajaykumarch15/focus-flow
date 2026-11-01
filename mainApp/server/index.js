@@ -94,6 +94,7 @@ const personalSessionRoutes = require('./routes/personalSessions'); // Personal 
 const backupRoutes = require('./routes/backup');                     // Backup & Restore
 const meetingRoutes = require('./routes/meetings');                  // Meetings
 const personalFutureGoalRoutes = require('./routes/personalFutureGoals'); // Future Goals
+const officeWorkTimeRoutes = require('./routes/officeWorkTime');
 const { createApiLimiter } = require('./middleware/rateLimit'); // IES-P0-09
 const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IES-P0-11
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
@@ -166,6 +167,7 @@ app.use('/api/personal-sessions', personalSessionRoutes); // Personal Sessions
 app.use('/api/backup', backupRoutes);                     // Backup & Restore
 app.use('/api/meetings', meetingRoutes);                  // Meetings
 app.use('/api/personal-future-goals', personalFutureGoalRoutes); // Future Goals
+app.use('/api/office-work-time', officeWorkTimeRoutes);
 app.use('/api/chat', chatRoutes);                                // Real-time chat
 
 // IES-P0-19: liveness, readiness, metrics.
