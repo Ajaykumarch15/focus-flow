@@ -59,6 +59,7 @@ const PersonalSchedule   = lazy(() => import('@personal/pages/PersonalSchedule')
 const FutureGoalsPage    = lazy(() => import('@personal/pages/FutureGoalsPage').then(module => ({ default: module.FutureGoalsPage })));
 const ActiveTimersPage = lazy(() => import('@timers/pages/ActiveTimersPage').then(module => ({ default: module.ActiveTimersPage })));
 const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
+const OfficeWorkTimeAnalytics = lazy(() => import('@worklog/pages/OfficeWorkTimeAnalytics').then(module => ({ default: module.OfficeWorkTimeAnalytics })));
 const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
 const WorkspaceListingPage = lazy(() => import('@collab/pages/WorkspaceListingPage').then(module => ({ default: module.WorkspaceListingPage })));
 const WorkspaceHubPage   = lazy(() => import('@collab/pages/WorkspaceHubPage').then(module => ({ default: module.WorkspaceHubPage })));
@@ -227,6 +228,7 @@ export default function App() {
                 <Route path="/worklog/search" element={<SearchResultsPage />} />
                 <Route path="/worklog/reports" element={<ReportsPage />} />
                 <Route path="/worklog/insights" element={<InsightsPage />} />
+                <Route path="/worklog/office-time" element={<OfficeWorkTimeAnalytics />} />
                 <Route path="/worklog/habits" element={<Habits />} />
                 <Route path="/worklog/worklog-dashboard" element={<WorkLogDashboard />} />
                 <Route path="/worklog/settings" element={<WorklogSettingsPage />} />
@@ -243,6 +245,7 @@ export default function App() {
                 <Route path="/personal/schedule" element={<PersonalSchedule />} />
                 <Route path="/personal/activity" element={<PersonalActivityPage />} />
                 <Route path="/personal/analytics" element={<PersonalAnalyticsPage />} />
+                <Route path="/personal/office-time" element={<OfficeWorkTimeAnalytics />} />
                 <Route path="/personal/roadmaps" element={<RoadmapsPage />} />
                 <Route path="/personal/roadmaps/import" element={<ImportRoadmapPage />} />
                 <Route path="/personal/roadmaps/:id" element={<RoadmapDetailPage />} />

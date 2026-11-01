@@ -869,6 +869,16 @@ export const api = {
       request<any>(`/personal-sessions/${id}/heartbeat`, { method: 'PATCH' }),
   },
 
+  officeWorkTime: {
+    today: (date: string) => request<any>(`/office-work-time/today?date=${encodeURIComponent(date)}`),
+    analytics: (from: string, to: string) => request<Array<{ date: string; totalMs: number }>>(
+      `/office-work-time/analytics?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+    toggle: (date: string) => request<any>('/office-work-time/toggle', {
+      method: 'POST', body: JSON.stringify({ date }),
+    }),
+  },
+
   backup: {
     exportData: () => request<FocusFlowBackup>('/backup/export', { method: 'POST' }),
     importData: (payload: FocusFlowBackup) =>
