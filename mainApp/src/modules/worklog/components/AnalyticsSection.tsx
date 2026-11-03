@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, ReferenceLine,
+  PieChart, Pie, Cell, AreaChart, Area, ReferenceLine, LineChart, Line, CartesianGrid, Legend,
 } from 'recharts';
 import {
   Clock, Pause, Zap, CheckCircle2, Star, Flame, Brain, Timer,
@@ -36,9 +36,16 @@ export interface AnalyticsSectionProps {
   accent: string;
   loading: boolean;
   rangeLabel: string;
+  officeEntries?: Array<{ date: string; totalMs: number }>;
+  officeTimeAvailable?: boolean;
+  officeTimeLoading?: boolean;
 }
 
-export function AnalyticsSection({ sessions, tasks, start, end, accent, loading, rangeLabel }: AnalyticsSectionProps) {
+function localDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function AnalyticsSection({ sessions, tasks, start, end, accent, loading, rangeLabel, officeEntries = [], officeTimeAvailable = true, officeTimeLoading = false }: AnalyticsSectionProps) {
   const stats = useMemo(() => computeRangeStats(sessions, tasks, start, end), [sessions, tasks, start, end]);
 
   const prevBounds = useMemo(() => {
@@ -54,6 +61,29 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
   const completionDelta = getComparisonDelta(stats.completionRate, prevStats.completionRate);
 
   const chartData = useMemo(() => computeDailySeries(sessions, start, end), [sessions, start, end]);
+  const comparisonData = useMemo(() => {
+    const officeByDate = new Map(officeEntries.map(entry => [entry.date, entry.totalMs]));
+    const focusByDate = new Map<string, number>();
+    for (const session of sessions) {
+      const key = localDateKey(new Date(session.startTime));
+      focusByDate.set(key, (focusByDate.get(key) || 0) + session.activeTime);
+    }
+    const first = new Date(start);
+    first.setHours(0, 0, 0, 0);
+    const last = new Date(end);
+    last.setHours(0, 0, 0, 0);
+    const rows: Array<{ date: string; day: string; focusHours: number; officeHours: number | null }> = [];
+    for (const date = new Date(first); date <= last; date.setDate(date.getDate() + 1)) {
+      const key = localDateKey(date);
+      rows.push({
+        date: key,
+        day: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        focusHours: Math.round(((focusByDate.get(key) || 0) / 3_600_000) * 100) / 100,
+        officeHours: officeByDate.has(key) ? Math.round(((officeByDate.get(key) || 0) / 3_600_000) * 100) / 100 : 0,
+      });
+    }
+    return rows;
+  }, [sessions, start, end, officeEntries]);
   const categoryData = useMemo(() => computeCategoryBreakdown(sessions, tasks, start, end), [sessions, tasks, start, end]);
   const topTasks = useMemo(() => computeTopTasks(sessions, tasks, start, end), [sessions, tasks, start, end]);
 
@@ -127,7 +157,7 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
     return items;
   }, [focusDelta, prevStats.focusedMs, prevStats.completionRate, categoryData, topCategory, stats.completionRate, completionDelta, stats.pausedMs, stats.focusedMs, inRangeSessions.length]);
 
-  const hasData = stats.sessionCount > 0;
+  const hasData = stats.sessionCount > 0 || (officeTimeAvailable && officeEntries.length > 0);
 
   if (loading) {
     return (
@@ -162,6 +192,38 @@ export function AnalyticsSection({ sessions, tasks, start, end, accent, loading,
 
   return (
     <div className="space-y-6">
+      {officeTimeAvailable && (
+        <motion.div variants={fadeUp} initial="hidden" animate="show"
+          className="rounded-2xl border border-surface-800 bg-surface-900 p-6">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="text-sm font-bold text-surface-100">Office Time vs Focus Time</h2>
+              <p className="mt-1 text-xs text-surface-400">Compare hours spent at the office with time recorded in focus sessions.</p>
+            </div>
+            <span className="text-[10px] text-surface-500 font-medium shrink-0">{rangeLabel}</span>
+          </div>
+          {officeTimeLoading ? (
+            <SkeletonChart height={280} />
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={comparisonData} margin={{ top: 8, right: 12, left: -12, bottom: 2 }}>
+                <CartesianGrid stroke="var(--color-surface-800)" strokeDasharray="3 5" vertical={false} />
+                <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value: number) => `${value}h`} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--color-surface-900)', border: '1px solid var(--color-surface-800)', borderRadius: 12, fontSize: 12, color: 'var(--color-surface-50)' }}
+                  labelStyle={{ color: 'var(--color-surface-400)' }}
+                  formatter={(value: number, name: string) => [`${value.toFixed(2)}h`, name]}
+                />
+                <Legend wrapperStyle={{ fontSize: 11, color: '#a1a1aa' }} />
+                <Line type="monotone" dataKey="officeHours" name="Office time" stroke="#34d399" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="focusHours" name="Focus time" stroke={accent} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
+        </motion.div>
+      )}
+
       {/* ═══ KPI Cards ═══ */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[

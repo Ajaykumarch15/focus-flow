@@ -357,7 +357,7 @@ class ParallelTimerEngine {
 
       const stoppedSessionId = timer.sessionId;
 
-      addCompletedSession(activeTime);
+      addCompletedSession(activeTime, timer.sessionKind === 'personal' ? 'personal' : 'work');
 
       // Remove from map
       this.timers.delete(taskId);

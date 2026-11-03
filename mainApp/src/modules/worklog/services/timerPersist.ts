@@ -15,6 +15,7 @@ import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, getTimezone, dayKeyI
 const TIMER_KEY = 'ff_active_timer';      // Legacy single timer
 const TIMERS_KEY = 'ff_active_timers';    // New parallel multi-timer
 const DAY_CACHE_KEY = 'ff_day_cache';
+const PERSONAL_DAY_CACHE_KEY = 'ff_personal_day_cache';
 const LEGACY_TODAY_KEY = 'ff_today_ms';
 
 export interface PersistedTimer {
@@ -141,9 +142,9 @@ function todayKey(): string {
   return getTodayKey();
 }
 
-function readDayCache(): Record<string, number> {
+function readDayCache(key = DAY_CACHE_KEY): Record<string, number> {
   try {
-    const raw = localStorage.getItem(DAY_CACHE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -154,8 +155,8 @@ function readDayCache(): Record<string, number> {
   return {};
 }
 
-function writeDayCache(cache: Record<string, number>): void {
-  try { localStorage.setItem(DAY_CACHE_KEY, JSON.stringify(cache)); }
+function writeDayCache(cache: Record<string, number>, key = DAY_CACHE_KEY): void {
+  try { localStorage.setItem(key, JSON.stringify(cache)); }
   catch { /* storage full */ }
 }
 
@@ -182,15 +183,20 @@ export function loadTodayMs(): number {
   return readDayCache()[todayKey()] || 0;
 }
 
+export function loadPersonalTodayMs(): number {
+  return readDayCache(PERSONAL_DAY_CACHE_KEY)[todayKey()] || 0;
+}
+
 /**
  * Add a just-completed session's active time to today's cache.
  * Call this inside stopTimer BEFORE wiping store state.
  */
-export function addCompletedSession(activeMs: number): void {
+export function addCompletedSession(activeMs: number, kind: 'work' | 'personal' = 'work'): void {
   migrateLegacyToday();
-  const cache = readDayCache();
+  const key = kind === 'personal' ? PERSONAL_DAY_CACHE_KEY : DAY_CACHE_KEY;
+  const cache = readDayCache(key);
   cache[todayKey()] = (cache[todayKey()] || 0) + activeMs;
-  writeDayCache(cache);
+  writeDayCache(cache, key);
 }
 
 /** Overwrite today's total (used after full recalculation). */
@@ -220,9 +226,19 @@ export function loadWeekMs(timeZone = getTimezone()): number {
   return total;
 }
 
+export function loadPersonalWeekMs(timeZone = getTimezone()): number {
+  migrateLegacyToday();
+  const cache = readDayCache(PERSONAL_DAY_CACHE_KEY);
+  const startKey = getIsoWeekStartKey(timeZone);
+  const endKey = getIsoWeekEndKey(timeZone);
+  return Object.entries(cache).reduce((total, [key, ms]) =>
+    key >= startKey && key <= endKey ? total + ms : total, 0);
+}
+
 /** Clear the day cache (call on logout). */
 export function clearTodayMs(): void {
   localStorage.removeItem(DAY_CACHE_KEY);
+  localStorage.removeItem(PERSONAL_DAY_CACHE_KEY);
   localStorage.removeItem(LEGACY_TODAY_KEY);
 }
 
@@ -233,7 +249,10 @@ export function clearTodayMs(): void {
  * day semantics `addCompletedSession` uses, so today/week totals survive a
  * refresh or re-login instead of resetting to zero.
  */
-export function rebuildDayCache(sessions: Array<{ startTime?: number; activeTime?: number; isActive?: boolean }>): void {
+export function rebuildDayCache(
+  sessions: Array<{ startTime?: number; activeTime?: number; isActive?: boolean }>,
+  kind: 'work' | 'personal' = 'work',
+): void {
   migrateLegacyToday();
   const cache: Record<string, number> = {};
   for (const s of sessions) {
@@ -243,6 +262,7 @@ export function rebuildDayCache(sessions: Array<{ startTime?: number; activeTime
     const key = dayKeyInTz(s.startTime);
     cache[key] = (cache[key] || 0) + activeMs;
   }
-  try { localStorage.setItem(DAY_CACHE_KEY, JSON.stringify(cache)); }
+  const key = kind === 'personal' ? PERSONAL_DAY_CACHE_KEY : DAY_CACHE_KEY;
+  try { localStorage.setItem(key, JSON.stringify(cache)); }
   catch { /* storage full */ }
 }
