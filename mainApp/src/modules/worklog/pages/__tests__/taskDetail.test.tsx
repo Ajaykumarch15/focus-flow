@@ -14,19 +14,9 @@ const apiMock = vi.hoisted(() => ({
 }));
 vi.mock('@shared/utils/api', () => ({ api: apiMock }));
 
-const timerState = vi.hoisted(() => ({
-  activeTaskId: null as string | null,
-  activeSessionId: null as string | null,
-  activeTimerState: 'idle' as 'idle' | 'running' | 'paused',
-  activeTask: null as Task | null,
-  display: '00:00:00',
-  elapsedMs: 0,
-  baseElapsedMs: 0,
-  sessionStartTime: 0,
-  totalPauseDuration: 0,
-}));
-vi.mock('@shared/hooks/useActiveTimer', () => ({
-  useActiveTimer: () => timerState,
+const taskTimerState = vi.hoisted(() => ({ state: 'idle' as 'idle' | 'running' | 'paused', display: '00:00:00' }));
+vi.mock('@shared/hooks/useTaskParallelTimer', () => ({
+  useTaskParallelTimer: () => taskTimerState,
 }));
 
 function mkTask(id: string, overrides: Partial<Task> = {}): Task {
@@ -74,17 +64,7 @@ beforeEach(() => {
   apiMock.sessions.list.mockReset();
   apiMock.sessions.list.mockResolvedValue([]);
 
-  Object.assign(timerState, {
-    activeTaskId: null,
-    activeSessionId: null,
-    activeTimerState: 'idle',
-    activeTask: null,
-    display: '00:00:00',
-    elapsedMs: 0,
-    baseElapsedMs: 0,
-    sessionStartTime: 0,
-    totalPauseDuration: 0,
-  });
+  Object.assign(taskTimerState, { state: 'idle', display: '00:00:00' });
 
   useStore.setState({
     dataLoading: false,
@@ -100,6 +80,10 @@ beforeEach(() => {
     pauseTimer: vi.fn(),
     resumeTimer: vi.fn(),
     stopTimer: vi.fn(async () => {}),
+    startParallelTimer: vi.fn(async () => {}),
+    pauseParallelTimer: vi.fn(),
+    resumeParallelTimer: vi.fn(),
+    stopParallelTimer: vi.fn(async () => {}),
     addSubtask: vi.fn(async () => {}),
     toggleSubtask: vi.fn(async () => {}),
     deleteSubtask: vi.fn(async () => {}),
@@ -142,59 +126,51 @@ describe('TaskDetail page', () => {
     expect(text).toContain('Ready to focus');
   });
 
-  it('shows Start Timer button when task is idle', () => {
+  it('shows Start Focus button when task is idle', () => {
     const { container } = renderWithRoute('t-1');
-    expect(buttonByText(container, 'Start Timer')).not.toBeNull();
+    expect(buttonByText(container, 'Start Focus')).not.toBeNull();
   });
 
-  it('calls startTimer when Start Timer is clicked', () => {
+  it('calls startParallelTimer when Start Focus is clicked', () => {
     const { container } = renderWithRoute('t-1');
-    const btn = buttonByText(container, 'Start Timer')!;
+    const btn = buttonByText(container, 'Start Focus')!;
     act(() => btn.click());
-    expect(useStore.getState().startTimer).toHaveBeenCalledWith('t-1');
+    expect(useStore.getState().startParallelTimer).toHaveBeenCalledWith('t-1');
   });
 
-  it('shows Pause button when timer is running', () => {
-    timerState.activeTaskId = 't-1';
-    timerState.activeTimerState = 'running';
-    timerState.display = '01:30:00';
-    useStore.setState({ activeTaskId: 't-1', activeTimerState: 'running' });
+  it('shows Pause button when this task timer is running, even when another task is active', () => {
+    taskTimerState.state = 'running';
+    taskTimerState.display = '01:30:00';
 
     const { container } = renderWithRoute('t-1');
     expect(buttonByText(container, 'Pause')).not.toBeNull();
   });
 
-  it('calls pauseTimer when Pause is clicked', () => {
-    timerState.activeTaskId = 't-1';
-    timerState.activeTimerState = 'running';
-    useStore.setState({ activeTaskId: 't-1', activeTimerState: 'running' });
+  it('calls pauseParallelTimer when Pause is clicked', () => {
+    taskTimerState.state = 'running';
 
     const { container } = renderWithRoute('t-1');
     const btn = buttonByText(container, 'Pause')!;
     act(() => btn.click());
-    expect(useStore.getState().pauseTimer).toHaveBeenCalledWith('t-1');
+    expect(useStore.getState().pauseParallelTimer).toHaveBeenCalledWith('t-1');
   });
 
   it('shows Resume and Stop buttons when timer is paused', () => {
-    timerState.activeTaskId = 't-1';
-    timerState.activeTimerState = 'paused';
-    timerState.display = '00:30:00';
-    useStore.setState({ activeTaskId: 't-1', activeTimerState: 'paused' });
+    taskTimerState.state = 'paused';
+    taskTimerState.display = '00:30:00';
 
     const { container } = renderWithRoute('t-1');
     expect(buttonByText(container, 'Resume')).not.toBeNull();
     expect(buttonByText(container, 'Stop')).not.toBeNull();
   });
 
-  it('calls stopTimer when Stop is clicked', () => {
-    timerState.activeTaskId = 't-1';
-    timerState.activeTimerState = 'paused';
-    useStore.setState({ activeTaskId: 't-1', activeTimerState: 'paused' });
+  it('calls stopParallelTimer when Stop is clicked', () => {
+    taskTimerState.state = 'paused';
 
     const { container } = renderWithRoute('t-1');
     const btn = buttonByText(container, 'Stop')!;
     act(() => btn.click());
-    expect(useStore.getState().stopTimer).toHaveBeenCalledWith('t-1');
+    expect(useStore.getState().stopParallelTimer).toHaveBeenCalledWith('t-1');
   });
 
   it('renders subtask section with correct count', () => {

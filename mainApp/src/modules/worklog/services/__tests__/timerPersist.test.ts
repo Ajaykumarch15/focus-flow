@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   addCompletedSession,
   loadTodayMs,
+  loadPersonalTodayMs,
   saveTodayMs,
   loadDayMs,
   loadWeekMs,
@@ -10,6 +11,7 @@ import {
 import { getTodayKey, getIsoWeekStartKey, getIsoWeekEndKey, addDaysToKey } from '@shared/utils/time';
 
 const DAY_CACHE_KEY = 'ff_day_cache';
+const PERSONAL_DAY_CACHE_KEY = 'ff_personal_day_cache';
 const LEGACY_TODAY_KEY = 'ff_today_ms';
 
 describe('timerPersist day cache (IES-P1-19)', () => {
@@ -34,6 +36,13 @@ describe('timerPersist day cache (IES-P1-19)', () => {
     addCompletedSession(60_000);
     saveTodayMs(300_000);
     expect(loadTodayMs()).toBe(300_000);
+  });
+
+  it('keeps personal and work session totals separate', () => {
+    addCompletedSession(60_000, 'work');
+    addCompletedSession(120_000, 'personal');
+    expect(loadTodayMs()).toBe(60_000);
+    expect(loadPersonalTodayMs()).toBe(120_000);
   });
 
   it('loadWeekMs sums only keys inside the current ISO week (Mon–Sun)', () => {
@@ -73,5 +82,6 @@ describe('timerPersist day cache (IES-P1-19)', () => {
     expect(loadTodayMs()).toBe(0);
     expect(loadWeekMs()).toBe(0);
     expect(localStorage.getItem(DAY_CACHE_KEY)).toBeNull();
+    expect(localStorage.getItem(PERSONAL_DAY_CACHE_KEY)).toBeNull();
   });
 });

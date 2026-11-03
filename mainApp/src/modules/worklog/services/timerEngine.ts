@@ -314,7 +314,7 @@ class TimerEngine {
       const stoppedTaskId = this.taskId;
       const stoppedSessionId = this.sessionId;
 
-      addCompletedSession(activeTime);
+      addCompletedSession(activeTime, this.sessionKind === 'personal' ? 'personal' : 'work');
 
       // Reset state
       this.timerState = 'idle';

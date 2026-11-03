@@ -693,6 +693,8 @@ export function ReportsPage() {
   const [view, setView] = useState<'overview' | 'focus'>('overview');
   const [apiSessions, setApiSessions] = useState<SessionLike[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
+  const [officeEntries, setOfficeEntries] = useState<Array<{ date: string; totalMs: number }>>([]);
+  const [officeTimeLoading, setOfficeTimeLoading] = useState(false);
   const [timerTick, setTimerTick] = useState(0);
   const prevTimerRef = useRef(activeTimerState);
 
@@ -734,6 +736,21 @@ export function ReportsPage() {
       .finally(() => { if (!cancelled) setLoadingSessions(false); });
     return () => { cancelled = true; };
   }, [activeTaskId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (selectedUserId) {
+      setOfficeEntries([]);
+      setOfficeTimeLoading(false);
+      return;
+    }
+    setOfficeTimeLoading(true);
+    api.officeWorkTime.analytics(rangeFrom, rangeTo)
+      .then((entries) => { if (!cancelled) setOfficeEntries(entries); })
+      .catch(() => { if (!cancelled) setOfficeEntries([]); })
+      .finally(() => { if (!cancelled) setOfficeTimeLoading(false); });
+    return () => { cancelled = true; };
+  }, [rangeFrom, rangeTo, selectedUserId]);
 
   useEffect(() => {
     setLoadingSummary(true);
@@ -901,6 +918,9 @@ export function ReportsPage() {
             accent={accent}
             loading={loadingSessions && sessions.length === 0}
             rangeLabel={focusLabel}
+            officeEntries={officeEntries}
+            officeTimeAvailable={!selectedUserId}
+            officeTimeLoading={officeTimeLoading}
           />
         </div>
       ) : (

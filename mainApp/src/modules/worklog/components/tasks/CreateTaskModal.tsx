@@ -52,6 +52,7 @@ export function CreateTaskModal({ onClose, onAddTask, contextLabel = 'in To Do c
   const [labels, setLabels] = useState<string[]>([]);
   const [errors, setErrors] = useState<{ title?: string }>({});
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [showMore, setShowMore] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [labelsOpen, setLabelsOpen] = useState(false);
@@ -77,12 +78,13 @@ export function CreateTaskModal({ onClose, onAddTask, contextLabel = 'in To Do c
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting) return;
+    if (submittingRef.current) return;
     if (!form.title.trim()) {
       setErrors({ title: 'Task name is required.' });
       return;
     }
     setErrors({});
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const newTaskId = await addTask({
@@ -107,6 +109,7 @@ export function CreateTaskModal({ onClose, onAddTask, contextLabel = 'in To Do c
     } catch {
       setErrors({ title: 'Failed to create task. Please try again.' });
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -126,7 +129,6 @@ export function CreateTaskModal({ onClose, onAddTask, contextLabel = 'in To Do c
           <Button
             type="submit"
             form="create-task-form"
-            onClick={handleSubmit}
             disabled={!form.title.trim() || submitting}
             className="rounded-xl"
             leftIcon={<Plus size={16} />}

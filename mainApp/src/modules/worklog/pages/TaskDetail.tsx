@@ -10,7 +10,7 @@ import { useScheduleStore } from '@worklog/services/useScheduleStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { ScheduleModal } from '@personal/components/schedule/ScheduleModal';
 import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
-import { useActiveTimer } from '@shared/hooks/useActiveTimer';
+import { useTaskParallelTimer } from '@shared/hooks/useTaskParallelTimer';
 import { formatDuration, formatHours, getDeadlineStatus } from '@shared/utils/time';
 import { PRIORITY_CONFIG, DEADLINE_CONFIG } from '@shared/utils/colors';
 import { Button } from '@shared/components/ui/Button';
@@ -41,7 +41,7 @@ export function TaskDetail() {
     addSubtask, toggleSubtask, deleteSubtask, addJournal,
     journals, updateTask, deleteTask, completeTask, theme,
   } = useStore();
-  const { activeTaskId, activeTimerState, display: activeDisplay } = useActiveTimer();
+  const { state: taskTimerState, display: activeDisplay } = useTaskParallelTimer(id ?? '');
   const { openModal: openScheduleModal, isModalOpen, closeModal } = useScheduleStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
   const isReducedMotion = theme?.reducedMotion;
@@ -72,9 +72,8 @@ export function TaskDetail() {
     );
   }
 
-  const isActive = activeTaskId === task.id;
-  const isRunning = isActive && activeTimerState === 'running';
-  const isPaused = isActive && activeTimerState === 'paused';
+  const isRunning = taskTimerState === 'running';
+  const isPaused = taskTimerState === 'paused';
   const priority = PRIORITY_CONFIG[task.priority];
   const taskJournals = journals.filter(j => j.taskId === task.id);
   const deadlineInfo = task.status !== 'completed' ? getDeadlineStatus(task.deadline) : null;
@@ -191,7 +190,7 @@ export function TaskDetail() {
               <CircularTimer
                 taskId={task.id}
                 state={isRunning ? 'running' : isPaused ? 'paused' : 'idle'}
-                display={isActive ? activeDisplay : formatHours(task.totalTime)}
+                display={taskTimerState !== 'idle' ? activeDisplay : formatHours(task.totalTime)}
                 totalTime={task.totalTime}
                 isReducedMotion={isReducedMotion}
                 onStart={startParallelTimer}

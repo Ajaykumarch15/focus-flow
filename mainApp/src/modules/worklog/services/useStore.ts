@@ -435,8 +435,9 @@ export const useStore = create<StoreState>((set, get) => {
 
           // Keep the offline day/week cache authoritative from the backend, so a
           // refresh or re-login never resets today's progress to zero.
-          // Include personal sessions for accurate daily/weekly totals.
-          rebuildDayCache([...allSessions, ...personalSessions]);
+          // Keep separate authoritative caches so personal focus never leaks into Worklog goals.
+          rebuildDayCache(allSessions, 'work');
+          rebuildDayCache(personalSessions, 'personal');
 
           // Find ALL active work sessions (not just the first) to prevent ghost
           // sessions that exist on the backend but are invisible on the client.
@@ -1089,22 +1090,40 @@ export const useStore = create<StoreState>((set, get) => {
 
     getTodayTime: () => {
       const completedMs = loadTodayMs();
-      // Legacy single-timer elapsed
-      const legacyLiveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
-      // Parallel multi-timer elapsed: sum all running timers
-      const parallelLiveMs = parallelTimerEngine.getRunningTimers()
-        .reduce((sum, t) => sum + parallelTimerEngine.getElapsedMs(t.taskId), 0);
-      return completedMs + legacyLiveMs + parallelLiveMs;
+      const workTaskIds = new Set(get().tasks.map(task => task.id));
+      const personalTaskIds = new Set(usePersonalTaskStore.getState().tasks.map(task => task.id));
+      const liveBySession = new Map<string, number>();
+      const legacy = timerEngine.getSnapshot();
+      if (legacy.timerState !== 'idle' && legacy.sessionKind !== 'personal' && legacy.taskId
+        && workTaskIds.has(legacy.taskId) && !personalTaskIds.has(legacy.taskId)) {
+        liveBySession.set(`task:${legacy.taskId}`, timerEngine.getElapsedMs());
+      }
+      for (const timer of parallelTimerEngine.getAllSnapshots().values()) {
+        if (timer.timerState === 'idle' || timer.sessionKind === 'personal'
+          || !workTaskIds.has(timer.taskId) || personalTaskIds.has(timer.taskId)) continue;
+        const key = `task:${timer.taskId}`;
+        if (!liveBySession.has(key)) liveBySession.set(key, parallelTimerEngine.getElapsedMs(timer.taskId));
+      }
+      return completedMs + [...liveBySession.values()].reduce((sum, ms) => sum + ms, 0);
     },
 
     getWeekTime: () => {
       const completedMs = loadWeekMs();
-      // Legacy single-timer elapsed
-      const legacyLiveMs = timerEngine.getState() !== 'idle' ? timerEngine.getElapsedMs() : 0;
-      // Parallel multi-timer elapsed: sum all running timers
-      const parallelLiveMs = parallelTimerEngine.getRunningTimers()
-        .reduce((sum, t) => sum + parallelTimerEngine.getElapsedMs(t.taskId), 0);
-      return completedMs + legacyLiveMs + parallelLiveMs;
+      const workTaskIds = new Set(get().tasks.map(task => task.id));
+      const personalTaskIds = new Set(usePersonalTaskStore.getState().tasks.map(task => task.id));
+      const liveBySession = new Map<string, number>();
+      const legacy = timerEngine.getSnapshot();
+      if (legacy.timerState !== 'idle' && legacy.sessionKind !== 'personal' && legacy.taskId
+        && workTaskIds.has(legacy.taskId) && !personalTaskIds.has(legacy.taskId)) {
+        liveBySession.set(`task:${legacy.taskId}`, timerEngine.getElapsedMs());
+      }
+      for (const timer of parallelTimerEngine.getAllSnapshots().values()) {
+        if (timer.timerState === 'idle' || timer.sessionKind === 'personal'
+          || !workTaskIds.has(timer.taskId) || personalTaskIds.has(timer.taskId)) continue;
+        const key = `task:${timer.taskId}`;
+        if (!liveBySession.has(key)) liveBySession.set(key, parallelTimerEngine.getElapsedMs(timer.taskId));
+      }
+      return completedMs + [...liveBySession.values()].reduce((sum, ms) => sum + ms, 0);
     },
   };
 });
