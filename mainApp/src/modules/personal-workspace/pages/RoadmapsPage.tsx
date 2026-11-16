@@ -136,8 +136,8 @@ export function RoadmapsPage() {
           </div>
         </div>
 
-        {/* Handwritten decoration */}
-        <div className="absolute top-5 right-5 sm:top-7 sm:right-7 lg:top-8 lg:right-10 text-right pointer-events-none">
+        {/* Handwritten decoration (hidden on phones — it overlaps the hero copy) */}
+        <div className="hidden sm:block absolute top-5 right-5 sm:top-7 sm:right-7 lg:top-8 lg:right-10 text-right pointer-events-none">
           <p className="text-sm text-blue-600/80 font-medium italic" style={{ transform: 'rotate(2deg)' }}>
             "Small steps<br />lead to big<br />achievements!"
           </p>
@@ -168,7 +168,7 @@ export function RoadmapsPage() {
           title="No roadmaps yet"
           description="Turn a long-term goal into focused execution. Create your first roadmap to get started."
           action={
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={16} />}>
                 Create Roadmap
               </Button>
@@ -183,14 +183,14 @@ export function RoadmapsPage() {
       {/* Search + Filters */}
       {!loading && !error && roadmaps.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="relative flex-1 max-w-xs">
+          className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
+          <div className="relative w-full sm:max-w-xs sm:flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-surface-500" />
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search roadmaps..."
-              className="pl-9 h-9 text-xs"
+              className="pl-9 h-10 text-xs sm:h-9"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300">
@@ -198,28 +198,32 @@ export function RoadmapsPage() {
               </button>
             )}
           </div>
-          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
-            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-            <option value="all">All Types</option>
-            {Object.entries(ROADMAP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-            <option value="all">All Status</option>
-            {Object.entries(ROADMAP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
-            className="h-9 px-2.5 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50">
-            <option value="newest">Newest First</option>
-            <option value="progress">Progress</option>
-            <option value="target">Target Date</option>
-          </select>
-          <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={14} />} className="sm:ml-auto">
-            Create Roadmap
-          </Button>
-          <Button variant="secondary" onClick={() => navigate('/personal/roadmaps/import')} leftIcon={<FileJson size={14} />}>
-            Import from JSON
-          </Button>
+          <div className="grid grid-cols-3 gap-2 sm:contents">
+            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+              className="h-10 min-w-0 w-full px-2 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50 sm:h-9 sm:px-2.5">
+              <option value="all">All Types</option>
+              {Object.entries(ROADMAP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+              className="h-10 min-w-0 w-full px-2 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50 sm:h-9 sm:px-2.5">
+              <option value="all">All Status</option>
+              {Object.entries(ROADMAP_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+              className="h-10 min-w-0 w-full px-2 rounded-lg bg-surface-900 border border-surface-700 text-xs text-surface-300 outline-none focus:border-brand-500/50 sm:h-9 sm:px-2.5">
+              <option value="newest">Newest First</option>
+              <option value="progress">Progress</option>
+              <option value="target">Target Date</option>
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+            <Button onClick={() => setShowCreate(true)} leftIcon={<Plus size={14} />} className="h-10 sm:h-9 sm:ml-auto">
+              Create Roadmap
+            </Button>
+            <Button variant="secondary" onClick={() => navigate('/personal/roadmaps/import')} leftIcon={<FileJson size={14} />} className="h-10 sm:h-9">
+              Import from JSON
+            </Button>
+          </div>
         </motion.div>
       )}
 
@@ -237,14 +241,14 @@ export function RoadmapsPage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + i * 0.05 }}
-              className={`flex items-center gap-3 p-4 rounded-2xl bg-surface-900 border border-surface-800 hover:border-surface-700 transition-colors`}
+              className={`flex items-center gap-2.5 sm:gap-3 p-3 sm:p-4 rounded-2xl bg-surface-900 border border-surface-800 hover:border-surface-700 transition-colors`}
             >
-              <div className={`w-10 h-10 rounded-xl ${kpi.bg} ${kpi.border} border flex items-center justify-center ${kpi.color}`}>
+              <div className={`w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl ${kpi.bg} ${kpi.border} border flex items-center justify-center ${kpi.color}`}>
                 {kpi.icon}
               </div>
-              <div>
-                <p className="text-2xl font-bold text-surface-50">{kpi.value}</p>
-                <p className="text-[11px] text-surface-400">{kpi.label}</p>
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold text-surface-50 leading-tight">{kpi.value}</p>
+                <p className="text-[10px] sm:text-[11px] text-surface-400 leading-tight">{kpi.label}</p>
               </div>
             </motion.div>
           ))}
@@ -320,7 +324,7 @@ export function RoadmapsPage() {
                     </div>
 
                     {/* Stats row */}
-                    <div className="flex items-center gap-3 text-xs text-surface-400">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-surface-400">
                       <span className="flex items-center gap-1">
                         <Target size={12} />
                         {roadmap.milestoneCompleted}/{roadmap.milestoneTotal} milestones
@@ -332,7 +336,7 @@ export function RoadmapsPage() {
                         </span>
                       )}
                       {roadmap.targetDate && (
-                        <span className="flex items-center gap-1 ml-auto">
+                        <span className="flex items-center gap-1 sm:ml-auto">
                           <Calendar size={12} />
                           {new Date(roadmap.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </span>

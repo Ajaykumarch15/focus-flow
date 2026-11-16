@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { House, CheckSquare, Target, BarChart3, User } from 'lucide-react';
+import { House, Sun, CheckSquare, BarChart3, User } from 'lucide-react';
 
 interface Tab {
   icon: typeof House;
@@ -8,11 +8,12 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { icon: House,    label: 'Home',    to: '/personal/today' },
-  { icon: CheckSquare, label: 'Tasks', to: '/personal/tasks' },
-  { icon: Target,   label: 'Focus',   to: '/personal/tasks' },
-  { icon: BarChart3, label: 'Insights', to: '/personal/analytics' },
-  { icon: User,     label: 'Profile', to: '/profile' },
+  { icon: Sun,        label: 'Today',   to: '/personal/today' },
+  { icon: CheckSquare, label: 'Tasks',  to: '/personal/tasks' },
+  // Workspace switcher — opens the homepage where you pick a workspace card.
+  { icon: House,      label: 'Home',    to: '/home' },
+  { icon: BarChart3,  label: 'Insights', to: '/personal/analytics' },
+  { icon: User,       label: 'Profile', to: '/profile' },
 ];
 
 export function MobileBottomNav() {
@@ -20,9 +21,9 @@ export function MobileBottomNav() {
   const navigate = useNavigate();
 
   const isActive = (label: string) => {
-    if (label === 'Home')    return pathname === '/personal/today';
-    if (label === 'Tasks')   return pathname === '/personal/tasks';
-    if (label === 'Focus')   return pathname.startsWith('/personal/tasks/');
+    if (label === 'Today')   return pathname === '/personal/today';
+    if (label === 'Tasks')   return pathname === '/personal/tasks' || pathname.startsWith('/personal/tasks/');
+    if (label === 'Home')    return pathname === '/home';
     if (label === 'Insights') return pathname === '/personal/analytics';
     if (label === 'Profile') return pathname === '/profile' || pathname.startsWith('/profile/');
     return false;

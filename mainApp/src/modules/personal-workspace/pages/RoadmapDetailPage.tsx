@@ -68,21 +68,21 @@ function SortablePhaseItem({
         aria-label={`${phase.title}, ${phaseProgress}% complete`}
         onClick={() => navigate(`/personal/roadmaps/${roadmapId}/phases/${phase._id}`)}
         onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/personal/roadmaps/${roadmapId}/phases/${phase._id}`); }}
-        className={`w-full text-left rounded-2xl border bg-surface-900/90 p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'}`}
+        className={`w-full text-left rounded-2xl border bg-surface-900/90 p-3.5 sm:p-4 cursor-pointer transition-all duration-200 hover:border-surface-700 hover:bg-surface-800/50 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800'}`}
       >
-        <div className="flex items-center gap-3">
-          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${phase.title}`}>
+        <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none mt-1 sm:mt-0" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${phase.title}`}>
             <GripVertical size={14} />
           </button>
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
+          <div className={`w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 rounded-xl flex items-center justify-center text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
             {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-surface-50 truncate">{phase.title}</p>
             {(phase.startDate || phase.targetDate) && (
               <div className="flex items-center gap-1.5 mt-0.5">
-                <Calendar size={10} className="text-surface-500" />
-                <span className="text-[10px] text-surface-500">
+                <Calendar size={10} className="text-surface-500 flex-shrink-0" />
+                <span className="text-[10px] text-surface-500 truncate">
                   {phase.startDate && phase.targetDate
                     ? `${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(phase.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                     : phase.startDate ? `Start: ${new Date(phase.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `Target: ${new Date(phase.targetDate!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
@@ -90,8 +90,8 @@ function SortablePhaseItem({
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-2 mt-1">
-              <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+              <div className="flex-1 min-w-[60px] max-w-[140px] h-1.5 bg-surface-800 rounded-full overflow-hidden">
                 <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${phaseProgress}%` }} />
               </div>
               <span className="text-[11px] font-medium text-surface-300">{formatProgress(phase.progress, phase.milestoneTotal)}</span>
@@ -99,14 +99,14 @@ function SortablePhaseItem({
             </div>
           </div>
           <div className="flex items-center gap-0.5 flex-shrink-0">
-            <Badge tone={STATUS_COLORS[phase.status] || 'neutral'} className="text-[10px]">{phase.status}</Badge>
+            <Badge tone={STATUS_COLORS[phase.status] || 'neutral'} className="hidden sm:inline-flex text-[10px]">{phase.status}</Badge>
             <button onClick={(e) => { e.stopPropagation(); setPhaseFormTarget(phase); }} className="p-1.5 rounded-lg text-surface-500 hover:text-surface-200 hover:bg-surface-800 transition-all" title="Edit phase" aria-label={`Edit ${phase.title}`}>
               <Pencil size={13} />
             </button>
             <button onClick={(e) => { e.stopPropagation(); setPhaseDeleteTarget(phase); }} className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete phase" aria-label={`Delete ${phase.title}`}>
               <Trash2 size={13} />
             </button>
-            <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
+            <ChevronRight size={16} className="hidden sm:block text-surface-600 group-hover:text-surface-300 transition-colors" />
           </div>
         </div>
       </div>
@@ -171,7 +171,7 @@ export function RoadmapDetailPage() {
 
   if (detailLoading) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
         <div className="h-4 w-32 bg-surface-800 rounded animate-pulse" />
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-surface-800 animate-pulse" />
@@ -190,7 +190,7 @@ export function RoadmapDetailPage() {
 
   if (error) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto">
         <Card className="p-8 text-center">
           <AlertCircle className="mx-auto mb-3 text-red-400" size={32} />
           <p className="text-surface-300 mb-1 font-medium">Something went wrong</p>
@@ -241,10 +241,10 @@ export function RoadmapDetailPage() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="flex items-start gap-4"
+        className="flex items-start gap-3 sm:gap-4"
       >
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0"
           style={{ backgroundColor: `${roadmap.color}15`, color: roadmap.color }}
         >
           <Icon size={22} />
@@ -298,7 +298,7 @@ export function RoadmapDetailPage() {
         transition={{ duration: 0.2, delay: 0.05 }}
       >
         <Card className="p-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-surface-200">Overall Progress</span>
               {health && (
@@ -347,12 +347,12 @@ export function RoadmapDetailPage() {
         transition={{ duration: 0.2, delay: 0.08 }}
         className="flex items-center justify-between"
       >
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-surface-900 border border-surface-800">
+        <div className="flex w-full items-center gap-1 p-1 rounded-xl bg-surface-900 border border-surface-800 sm:w-auto">
           {(['phases', 'timeline', 'calendar'] as const).map(view => (
             <button
               key={view}
               onClick={() => setViewMode(view)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors ${
+              className={`flex flex-1 items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-xs font-semibold capitalize transition-colors sm:flex-none sm:px-3 sm:py-1.5 ${
                 viewMode === view ? 'bg-brand-500/15 text-brand-400' : 'text-surface-400 hover:text-surface-200'
               }`}
             >
@@ -400,7 +400,7 @@ export function RoadmapDetailPage() {
         transition={{ duration: 0.2, delay: 0.1 }}
         className={viewMode !== 'phases' ? 'hidden' : undefined}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Phases</h2>
           <div className="flex items-center gap-3">
             {sortedPhases.length > 0 && (

@@ -49,7 +49,7 @@ export function PauseCapturePanel({ paused, workLogId, workLogTitle }: PauseCapt
   if (!canCaptureOnPause(paused, workLogId)) {
     if (!paused) return null;
     return (
-      <section aria-label="Capture on pause" className="rounded-3xl border border-surface-800/60 bg-surface-900 p-6">
+      <section aria-label="Capture on pause" className="rounded-3xl border border-surface-800/60 bg-surface-900 p-4 sm:p-6">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-surface-800/70 flex items-center justify-center flex-shrink-0">
             <ShieldAlert size={16} className="text-surface-400" />
@@ -128,8 +128,8 @@ export function PauseCapturePanel({ paused, workLogId, workLogTitle }: PauseCapt
 
   if (dismissed) {
     return (
-      <section aria-label="Capture on pause" className="rounded-3xl border border-surface-800/60 bg-surface-900 px-6 py-4">
-        <div className="flex items-center justify-between gap-3">
+      <section aria-label="Capture on pause" className="rounded-3xl border border-surface-800/60 bg-surface-900 px-4 py-4 sm:px-6">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="text-sm text-surface-400">Paused — <span className="text-surface-200 font-medium">{workLogTitle ?? 'linked work log'}</span></p>
           <Button variant="ghost" size="xs" leftIcon={<AlertOctagon size={13} />} onClick={() => setDismissed(false)}>
             Capture blocker or decision
@@ -140,7 +140,7 @@ export function PauseCapturePanel({ paused, workLogId, workLogTitle }: PauseCapt
   }
 
   return (
-    <section aria-label="Capture on pause" className="rounded-3xl border border-amber-500/20 bg-surface-900 p-6">
+    <section aria-label="Capture on pause" className="rounded-3xl border border-amber-500/20 bg-surface-900 p-4 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-display font-bold text-surface-50 flex items-center gap-2">

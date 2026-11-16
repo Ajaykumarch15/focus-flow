@@ -54,25 +54,25 @@ function SortableMilestoneItem({
 
   return (
     <motion.div ref={setNodeRef} style={style} initial={{ opacity: 0, y: 12 }} animate={{ opacity: isDragging ? 0.5 : 1, y: 0 }} transition={{ delay: idx * 0.03 }}>
-      <div className={`relative rounded-2xl border bg-surface-900/90 p-4 transition-all duration-200 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800 hover:border-surface-700 hover:bg-surface-800/50'}`}>
-        <div className="flex items-center gap-3">
-          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${milestone.title}`}>
+      <div className={`relative rounded-2xl border bg-surface-900/90 p-3.5 sm:p-4 transition-all duration-200 group ${isActive ? 'border-brand-500/30 ring-1 ring-brand-500/10' : 'border-surface-800 hover:border-surface-700 hover:bg-surface-800/50'}`}>
+        <div className="flex items-start sm:items-center gap-2.5 sm:gap-3">
+          <button className="flex-shrink-0 cursor-grab active:cursor-grabbing text-surface-600 hover:text-surface-300 touch-none mt-1 sm:mt-0" {...attributes} {...listeners} onClick={(e) => e.stopPropagation()} aria-label={`Drag ${milestone.title}`}>
             <GripVertical size={14} />
           </button>
-          <button onClick={() => navigate(`/personal/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)} className="flex-1 min-w-0 flex items-center gap-3 text-left">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
+          <button onClick={() => navigate(`/personal/roadmaps/${id}/phases/${phaseId}/milestones/${milestone._id}`)} className="flex-1 min-w-0 flex items-start sm:items-center gap-2.5 sm:gap-3 text-left">
+            <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-sm font-bold ${isCompleted ? 'bg-emerald-500/20 text-emerald-400' : isActive ? 'bg-brand-500/20 text-brand-400' : 'bg-surface-800 text-surface-400'}`}>
               {isCompleted ? <CheckCircle2 size={18} /> : String(idx + 1).padStart(2, '0')}
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-surface-50 truncate">{milestone.title}</p>
               {milestone.targetDate && (
                 <div className="flex items-center gap-1 mt-0.5">
-                  <Calendar size={9} className="text-surface-500" />
-                  <span className="text-[10px] text-surface-500">{new Date(milestone.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                  <Calendar size={9} className="text-surface-500 flex-shrink-0" />
+                  <span className="text-[10px] text-surface-500 truncate">{new Date(milestone.targetDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 mt-1">
-                <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden max-w-[140px]">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                <div className="flex-1 min-w-[60px] max-w-[140px] h-1.5 bg-surface-800 rounded-full overflow-hidden">
                   <div className="h-full rounded-full bg-brand-500/70 transition-all duration-300" style={{ width: `${mProgress}%` }} />
                 </div>
                 <span className="text-[11px] font-medium text-surface-300">{mProgress}%</span>
@@ -80,8 +80,8 @@ function SortableMilestoneItem({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="text-[10px]">{milestone.status}</Badge>
-              <ChevronRight size={16} className="text-surface-600 group-hover:text-surface-300 transition-colors" />
+              <Badge tone={STATUS_COLORS[milestone.status] || 'neutral'} className="hidden sm:inline-flex text-[10px]">{milestone.status}</Badge>
+              <ChevronRight size={16} className="hidden sm:block text-surface-600 group-hover:text-surface-300 transition-colors" />
             </div>
           </button>
           <div className="flex items-center gap-0.5 flex-shrink-0">
@@ -290,7 +290,7 @@ export function PhaseDetailPage() {
 
       {/* Milestones */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex items-center gap-3">
             <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Milestones</h2>
             {sortedMilestones.length > 0 && (
@@ -371,7 +371,7 @@ export function PhaseDetailPage() {
             <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
               placeholder="Optional description" rows={2} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-surface-400 mb-1.5">Target Date</label>
               <Input type="date" value={form.targetDate} onChange={e => setForm(f => ({ ...f, targetDate: e.target.value }))} />

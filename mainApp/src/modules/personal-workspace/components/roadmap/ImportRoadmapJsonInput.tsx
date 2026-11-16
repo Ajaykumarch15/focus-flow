@@ -134,7 +134,7 @@ export function ImportRoadmapJsonInput({ onGenerate, loading, error }: ImportRoa
           value={jsonText}
           onChange={(e) => handleChange(e.target.value)}
           placeholder='{"project": {"name": "...", ...}, "phases": [...]}'
-          className="w-full h-80 bg-surface-800 border border-surface-700 rounded-xl p-4 font-mono text-sm text-surface-200 placeholder:text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 resize-none"
+          className="w-full h-64 sm:h-80 bg-surface-800 border border-surface-700 rounded-xl p-4 font-mono text-sm text-surface-200 placeholder:text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 resize-none"
           spellCheck={false}
         />
       </div>
@@ -153,7 +153,7 @@ export function ImportRoadmapJsonInput({ onGenerate, loading, error }: ImportRoa
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-3">
         <input
           ref={fileInputRef}
           type="file"
@@ -164,6 +164,7 @@ export function ImportRoadmapJsonInput({ onGenerate, loading, error }: ImportRoa
         <Button
           variant="secondary"
           onClick={() => fileInputRef.current?.click()}
+          className="w-full sm:w-auto"
           leftIcon={<Upload size={14} />}
         >
           Upload .json file
@@ -171,6 +172,7 @@ export function ImportRoadmapJsonInput({ onGenerate, loading, error }: ImportRoa
         <Button
           variant="secondary"
           onClick={handleLoadExample}
+          className="w-full sm:w-auto"
           leftIcon={<FileText size={14} />}
         >
           Load example
@@ -179,7 +181,7 @@ export function ImportRoadmapJsonInput({ onGenerate, loading, error }: ImportRoa
           onClick={handleGenerate}
           disabled={!isValid || loading}
           loading={loading}
-          className="sm:ml-auto"
+          className="w-full sm:w-auto sm:ml-auto"
           leftIcon={loading ? <Loader2 size={14} className="animate-spin" /> : undefined}
         >
           {loading ? 'Generating...' : 'Generate Preview'}

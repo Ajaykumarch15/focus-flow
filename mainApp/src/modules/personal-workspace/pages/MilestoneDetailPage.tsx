@@ -285,7 +285,7 @@ export function MilestoneDetailPage() {
 
       {/* Tasks */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-surface-400">Tasks</h2>
           <div className="flex items-center gap-3">
             <button onClick={openLinkModal}
@@ -342,7 +342,7 @@ export function MilestoneDetailPage() {
               )}
               <div className="relative flex-shrink-0" ref={taskMenu === task.id ? taskMenuRef : undefined}>
                 <button onClick={() => setTaskMenu(taskMenu === task.id ? null : task.id)}
-                  className="p-1 rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-colors opacity-0 group-hover:opacity-100"
+                  className="p-1.5 rounded-lg text-surface-600 hover:text-surface-300 hover:bg-surface-800 transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
                   aria-label="Task menu">
                   <MoreVertical size={14} />
                 </button>
@@ -402,7 +402,7 @@ export function MilestoneDetailPage() {
               <option value="critical">Critical</option>
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-surface-400 mb-1.5">Deadline</label>
               <input type="date" value={taskForm.deadline} onChange={e => setTaskForm(f => ({ ...f, deadline: e.target.value }))}

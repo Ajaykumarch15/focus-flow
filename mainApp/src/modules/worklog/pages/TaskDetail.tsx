@@ -171,7 +171,7 @@ export function TaskDetail() {
 
           <div className="flex flex-col md:flex-row gap-5 p-5 lg:p-6">
             {/* Left: Focus Timer */}
-            <div className={`flex-shrink-0 p-4 rounded-xl flex flex-col items-center justify-center min-w-[220px] transition-all duration-300 ${
+            <div className={`flex-shrink-0 w-full md:w-[280px] p-3.5 sm:p-4 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
               isRunning
                 ? 'bg-gradient-to-br from-amber-500/5 to-slate-900 border border-amber-400/40'
                 : isPaused

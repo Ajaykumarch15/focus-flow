@@ -31,10 +31,10 @@ function formatDate(dateStr: string | null): string {
 
 function TaskRow({ task }: { task: GeneratedTask }) {
   return (
-    <div className="flex items-center gap-3 py-1.5 px-3 text-sm hover:bg-surface-800/50 rounded-lg group">
-      <GripVertical size={14} className="text-surface-700 group-hover:text-surface-500 shrink-0 cursor-grab" />
+    <div className="flex items-center gap-2 sm:gap-3 py-1.5 px-2 sm:px-3 text-sm hover:bg-surface-800/50 rounded-lg group">
+      <GripVertical size={14} className="hidden sm:block text-surface-700 group-hover:text-surface-500 shrink-0 cursor-grab" />
       <div className="w-5 h-5 rounded border border-surface-600 shrink-0" />
-      <Badge tone={TASK_TYPE_COLORS[task.category] as any || 'neutral'} className="text-[10px] px-1.5 py-0">
+      <Badge tone={TASK_TYPE_COLORS[task.category] as any || 'neutral'} className="hidden sm:inline-flex text-[10px] px-1.5 py-0">
         {TASK_TYPE_LABELS[task.category] || task.category}
       </Badge>
       <span className="text-surface-200 flex-1 min-w-0 truncate">{task.title}</span>
@@ -42,9 +42,9 @@ function TaskRow({ task }: { task: GeneratedTask }) {
         <Clock size={11} /> {task.estimatedHours}h
       </span>
       {task.durationDays && task.durationDays > 1 && (
-        <span className="text-surface-500 text-xs">{task.durationDays}d</span>
+        <span className="hidden sm:inline text-surface-500 text-xs">{task.durationDays}d</span>
       )}
-      <span className="text-surface-500 text-xs whitespace-nowrap">
+      <span className="hidden sm:inline text-surface-500 text-xs whitespace-nowrap">
         {formatDate(task.scheduledDate)}
       </span>
     </div>
@@ -57,16 +57,16 @@ function MilestoneSection({ milestone }: { milestone: GeneratedMilestone }) {
   const totalHours = milestone.tasks.reduce((s, t) => s + t.estimatedHours, 0);
 
   return (
-    <div className="ml-6 border-l border-surface-800">
+    <div className="ml-2 sm:ml-6 border-l border-surface-800">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full py-2 px-3 text-left hover:bg-surface-800/30 rounded-lg transition-colors"
+        className="flex items-center gap-1.5 sm:gap-2 w-full py-2 px-2 sm:px-3 text-left hover:bg-surface-800/30 rounded-lg transition-colors"
       >
-        {expanded ? <ChevronDown size={14} className="text-surface-500" /> : <ChevronRight size={14} className="text-surface-500" />}
-        <span className="text-sm font-medium text-surface-200 flex-1">{milestone.title}</span>
-        <span className="text-xs text-surface-500">{formatDate(milestone.targetDate)}</span>
-        <span className="text-xs text-surface-500 flex items-center gap-1"><Clock size={10} />{totalHours}h</span>
-        <span className="text-xs text-surface-600">{taskCount} tasks</span>
+        {expanded ? <ChevronDown size={14} className="text-surface-500 shrink-0" /> : <ChevronRight size={14} className="text-surface-500 shrink-0" />}
+        <span className="text-sm font-medium text-surface-200 flex-1 min-w-0 truncate">{milestone.title}</span>
+        <span className="hidden md:inline text-xs text-surface-500">{formatDate(milestone.targetDate)}</span>
+        <span className="text-xs text-surface-500 flex items-center gap-1 shrink-0"><Clock size={10} />{totalHours}h</span>
+        <span className="text-xs text-surface-600 shrink-0">{taskCount} tasks</span>
       </button>
       {expanded && (
         <div className="pb-1">
@@ -88,21 +88,21 @@ function PhaseSection({ phase }: { phase: GeneratedPhase }) {
     <div className="border border-surface-800 rounded-xl overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-3 w-full py-3 px-4 text-left bg-surface-800/50 hover:bg-surface-800 transition-colors"
+        className="flex items-center gap-2 sm:gap-3 w-full py-2.5 sm:py-3 px-3 sm:px-4 text-left bg-surface-800/50 hover:bg-surface-800 transition-colors"
       >
-        {expanded ? <ChevronDown size={16} className="text-surface-400" /> : <ChevronRight size={16} className="text-surface-400" />}
-        <div className="flex-1">
+        {expanded ? <ChevronDown size={16} className="text-surface-400 shrink-0" /> : <ChevronRight size={16} className="text-surface-400 shrink-0" />}
+        <div className="flex-1 min-w-0 text-left">
           <span className="font-semibold text-surface-100">{phase.title}</span>
           {phase.description && (
-            <span className="text-xs text-surface-500 ml-2">{phase.description}</span>
+            <span className="hidden sm:inline text-xs text-surface-500 ml-2">{phase.description}</span>
           )}
         </div>
-        <span className="text-xs text-surface-400">
+        <span className="hidden md:inline text-xs text-surface-400 whitespace-nowrap">
           {formatDate(phase.startDate)} → {formatDate(phase.targetDate)}
         </span>
-        <Badge tone="info" className="text-[10px]">{phase.milestones.length} milestones</Badge>
-        <Badge tone="neutral" className="text-[10px]">{totalTasks} tasks</Badge>
-        <span className="text-xs text-surface-500 flex items-center gap-1"><Clock size={11} />{totalHours}h</span>
+        <Badge tone="info" className="hidden sm:inline-flex text-[10px]">{phase.milestones.length} milestones</Badge>
+        <Badge tone="neutral" className="text-[10px] shrink-0">{totalTasks} tasks</Badge>
+        <span className="text-xs text-surface-500 flex items-center gap-1 shrink-0"><Clock size={11} />{totalHours}h</span>
       </button>
       {expanded && (
         <div className="p-2 space-y-1">
@@ -152,7 +152,7 @@ export function ImportRoadmapPreview({ plan, warnings, onImport, onBack, importi
     <div className="space-y-4">
       <WarningBanner warnings={warnings} />
 
-      <div className="flex flex-wrap gap-3 p-4 bg-surface-800/50 rounded-xl">
+      <div className="flex flex-wrap gap-x-3 gap-y-2 p-3 sm:p-4 bg-surface-800/50 rounded-xl">
         <div className="flex items-center gap-2 text-sm">
           <span className="text-surface-400">Phases:</span>
           <span className="font-semibold text-surface-100">{stats.totalPhases}</span>
@@ -197,11 +197,11 @@ export function ImportRoadmapPreview({ plan, warnings, onImport, onBack, importi
         ))}
       </div>
 
-      <div className="flex gap-3 pt-4 border-t border-surface-800">
-        <Button variant="secondary" onClick={onBack}>
+      <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 pt-4 border-t border-surface-800">
+        <Button variant="secondary" onClick={onBack} className="w-full sm:w-auto">
           Back to Input
         </Button>
-        <Button onClick={onImport} loading={importing} className="flex-1 sm:flex-none">
+        <Button onClick={onImport} loading={importing} className="w-full sm:w-auto sm:flex-none">
           Create Roadmap
         </Button>
       </div>

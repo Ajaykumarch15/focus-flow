@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Play, Pause, Square } from 'lucide-react';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
+import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 
 interface CircularTimerProps {
   taskId: string;
@@ -18,10 +19,12 @@ interface CircularTimerProps {
   onStop?: (taskId: string) => void;
 }
 
-const SIZE = 110;
-const STROKE_WIDTH = 7;
-const RADIUS = (SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+/**
+ * A focus block counts as deep work at 25+ uninterrupted minutes
+ * (mirrors DEEP_WORK_MIN_MS in insightsSelectors).
+ */
+const FOCUS_BLOCK_MS = 25 * 60 * 1000;
+const BLOCK_MINUTES = FOCUS_BLOCK_MS / 60000;
 
 export function CircularTimer({
   taskId,
@@ -46,102 +49,87 @@ export function CircularTimer({
   const isPaused = state === 'paused';
   const isActive = state !== 'idle';
 
-  const progress = isRunning ? 0 : isPaused ? 0.5 : totalTime > 0 ? 1 : 0;
-  const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+  // Progress through the current uninterrupted focus block. The parent re-renders
+  // every second while a timer is active, so this value stays live.
+  const sessionMs = isActive ? parallelTimerEngine.getElapsedMs(taskId) : 0;
+  const blockPct = Math.min(100, (sessionMs / FOCUS_BLOCK_MS) * 100);
+  const blockMinutes = Math.floor(sessionMs / 60000);
+  const blockComplete = blockPct >= 100;
+  const hasHours = display.split(':').length > 2;
 
   return (
-    <div className="flex items-center gap-4">
-      {/* Circular Timer */}
-      <div className="relative flex-shrink-0" style={{ width: SIZE, height: SIZE }}>
-        {/* Glow effect when running */}
-        {isRunning && !isReducedMotion && (
-          <motion.div
-            className="absolute inset-[-6px] rounded-full border-2 border-amber-500/20"
-            animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0, 0.3] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-        )}
-
-        {/* Background circle */}
-        <svg
-          width={SIZE}
-          height={SIZE}
-          className="absolute inset-0 -rotate-90"
+    <div className="w-full">
+      {/* Time + status */}
+      <div className="flex items-end justify-between gap-2">
+        <span
+          className={`font-mono font-extrabold tabular-nums leading-none tracking-tight transition-colors duration-300 ${
+            hasHours ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl'
+          } ${isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-200'}`}
         >
-          {/* Track */}
-          <circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={RADIUS}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={STROKE_WIDTH}
-            className="text-surface-800"
-          />
-          {/* Progress arc */}
-          <motion.circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={RADIUS}
-            fill="none"
-            stroke="url(#timerGradient)"
-            strokeWidth={STROKE_WIDTH}
-            strokeLinecap="round"
-            strokeDasharray={CIRCUMFERENCE}
-            initial={{ strokeDashoffset: CIRCUMFERENCE }}
-            animate={{ strokeDashoffset }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
-          />
-          {/* Gradient definition */}
-          <defs>
-            <linearGradient id="timerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor={isRunning ? '#f59e0b' : isPaused ? '#eab308' : '#6366f1'} />
-              <stop offset="100%" stopColor={isRunning ? '#d97706' : isPaused ? '#ca8a04' : '#4f46e5'} />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        {/* Center content */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div
-            className={`font-mono font-extrabold tabular-nums tracking-tight transition-colors duration-300 ${
-              display.includes(':') && display.split(':').length > 2
-                ? 'text-base'
-                : 'text-2xl'
-            } ${isRunning ? 'text-amber-400' : isPaused ? 'text-amber-400/70' : 'text-surface-200'}`}
-          >
-            {display}
-          </div>
-          <p className="text-[10px] font-medium mt-0.5">
-            {isRunning ? (
-              <span className="text-amber-400 flex items-center gap-1">
-                <motion.span
-                  className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1.2, repeat: Infinity }}
-                />
-                Recording
-              </span>
-            ) : isPaused ? (
-              <span className="text-amber-400/70">Paused</span>
-            ) : totalTime > 0 ? (
-              <span className="text-surface-500">{formatHours(totalTime)}</span>
-            ) : (
-              <span className="text-surface-500">Ready</span>
-            )}
-          </p>
-        </div>
+          {display}
+        </span>
+        <span className="flex items-center gap-1.5 pb-0.5 text-[10px] font-semibold sm:text-[11px]">
+          {isRunning ? (
+            <>
+              <motion.span
+                className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400"
+                animate={isReducedMotion ? {} : { opacity: [1, 0.3, 1] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+                aria-hidden="true"
+              />
+              <span className="text-amber-400">Recording</span>
+            </>
+          ) : isPaused ? (
+            <span className="text-amber-400/70">Paused</span>
+          ) : totalTime > 0 ? (
+            <span className="text-surface-500">{formatHours(totalTime)} focused</span>
+          ) : (
+            <span className="text-surface-500">Ready</span>
+          )}
+        </span>
       </div>
 
-      {/* Controls beside the timer */}
-      <div className="flex flex-col gap-2 flex-shrink-0">
+      {/* Horizontal focus meter */}
+      <div
+        className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-800"
+        role="progressbar"
+        aria-valuenow={Math.round(blockPct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`${blockMinutes} of ${BLOCK_MINUTES} minutes`}
+        aria-label="Focus block progress"
+      >
+        <motion.div
+          className={`h-full rounded-full ${
+            isRunning
+              ? 'bg-gradient-to-r from-amber-500 to-amber-400'
+              : isPaused
+              ? 'bg-gradient-to-r from-yellow-500 to-amber-400/80'
+              : 'bg-gradient-to-r from-brand-500 to-brand-400'
+          }`}
+          initial={false}
+          animate={{ width: `${blockPct}%` }}
+          transition={isReducedMotion ? { duration: 0 } : { duration: 0.6, ease: 'easeOut' }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-medium">
+        <span className="text-surface-500">
+          {blockMinutes}m of {BLOCK_MINUTES}m block
+        </span>
+        <span className={blockComplete ? 'font-semibold text-emerald-400' : 'text-surface-500'}>
+          {blockComplete ? 'Deep work ✓' : `${Math.round(blockPct)}%`}
+        </span>
+      </div>
+
+      {/* Controls */}
+      <div className="mt-3 flex items-center gap-2">
         {!isActive && (
           <motion.button
             type="button"
-            whileHover={isReducedMotion ? {} : { scale: 1.03 }}
-            whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+            whileHover={isReducedMotion ? {} : { scale: 1.01 }}
+            whileTap={isReducedMotion ? {} : { scale: 0.98 }}
             onClick={() => handleStart(taskId)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all shadow-lg shadow-blue-500/25 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-blue-600 text-xs font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <Play size={13} fill="white" /> Start Focus
           </motion.button>
@@ -150,17 +138,17 @@ export function CircularTimer({
           <>
             <motion.button
               type="button"
-              whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+              whileTap={isReducedMotion ? {} : { scale: 0.98 }}
               onClick={() => handlePause(taskId)}
-              className="px-4 py-2 bg-surface-800 hover:bg-surface-750 text-surface-200 rounded-lg font-semibold text-xs transition-all border border-surface-700 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-surface-700 bg-surface-800 text-xs font-semibold text-surface-200 transition-all hover:bg-surface-750 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
             >
               <Pause size={13} /> Pause
             </motion.button>
             <motion.button
               type="button"
-              whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+              whileTap={isReducedMotion ? {} : { scale: 0.98 }}
               onClick={() => handleStop(taskId)}
-              className="px-4 py-2 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg font-semibold text-xs transition-all border border-red-400/20 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-400/20 bg-red-400/15 text-xs font-semibold text-red-400 transition-all hover:bg-red-400/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Square size={12} fill="currentColor" /> Stop
             </motion.button>
@@ -170,18 +158,18 @@ export function CircularTimer({
           <>
             <motion.button
               type="button"
-              whileHover={isReducedMotion ? {} : { scale: 1.03 }}
-              whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+              whileHover={isReducedMotion ? {} : { scale: 1.01 }}
+              whileTap={isReducedMotion ? {} : { scale: 0.98 }}
               onClick={() => handleResume(taskId)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold text-xs transition-all shadow-lg shadow-blue-500/25 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 text-xs font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <Play size={13} fill="white" /> Resume
             </motion.button>
             <motion.button
               type="button"
-              whileTap={isReducedMotion ? {} : { scale: 0.97 }}
+              whileTap={isReducedMotion ? {} : { scale: 0.98 }}
               onClick={() => handleStop(taskId)}
-              className="px-4 py-2 bg-red-400/15 hover:bg-red-400/25 text-red-400 rounded-lg font-semibold text-xs transition-all border border-red-400/20 flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-400/20 bg-red-400/15 text-xs font-semibold text-red-400 transition-all hover:bg-red-400/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
             >
               <Square size={12} fill="currentColor" /> Stop
             </motion.button>

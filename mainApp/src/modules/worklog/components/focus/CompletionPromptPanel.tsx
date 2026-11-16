@@ -104,8 +104,8 @@ export function CompletionPromptPanel({ completed, taskId, workLogTitle }: Compl
 
   if (dismissed) {
     return (
-      <section aria-label="Completion reflection" className="rounded-3xl border border-success-500/20 bg-surface-900 px-6 py-4">
-        <div className="flex items-center justify-between gap-3">
+      <section aria-label="Completion reflection" className="rounded-3xl border border-success-500/20 bg-surface-900 px-4 py-4 sm:px-6">
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <p className="text-sm text-surface-400">
             Task complete — <span className="text-surface-200 font-medium">reflect on it</span> while it's fresh.
           </p>
@@ -118,7 +118,7 @@ export function CompletionPromptPanel({ completed, taskId, workLogTitle }: Compl
   }
 
   return (
-    <section aria-label="Completion reflection" className="rounded-3xl border border-success-500/20 bg-surface-900 p-6">
+    <section aria-label="Completion reflection" className="rounded-3xl border border-success-500/20 bg-surface-900 p-4 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-display font-bold text-surface-50 flex items-center gap-2">

@@ -196,7 +196,7 @@ export function CreateRoadmapModal({ onClose }: CreateRoadmapModalProps) {
           <div className="space-y-5">
             <div>
               <label className="block text-sm font-semibold text-surface-200 mb-2">Icon</label>
-              <div className="grid grid-cols-8 gap-2">
+              <div className="grid grid-cols-6 sm:grid-cols-8 gap-2">
                 {ROADMAP_ICONS.map(iconName => {
                   const IconComp = ICON_MAP[iconName] || Map;
                   return (
