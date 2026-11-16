@@ -103,25 +103,28 @@ export function PersonalTaskDetail() {
     <div className="min-h-screen">
       {/* ═══ Top Bar ═══ */}
       <div className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
-        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/personal/tasks')}
-            className="text-sm px-3 py-1.5 rounded-lg"
+            className="h-9 text-sm px-2.5 sm:h-8 sm:px-3 py-1.5 rounded-lg"
             leftIcon={<ArrowLeft size={15} />}
+            aria-label="Back to Tasks"
           >
-            Back to Tasks
+            <span className="hidden sm:inline">Back to Tasks</span>
           </Button>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {task.status !== 'completed' && (
               <Button
                 variant="secondary"
                 size="sm"
                 leftIcon={<CheckCircle size={14} />}
                 onClick={() => completeTask(task.id)}
+                aria-label="Complete task"
+                className="h-9 px-2.5 sm:h-8 sm:px-3"
               >
-                Complete
+                <span className="hidden sm:inline">Complete</span>
               </Button>
             )}
             <Button
@@ -129,15 +132,17 @@ export function PersonalTaskDetail() {
               size="sm"
               leftIcon={<Edit2 size={14} />}
               onClick={() => setEditTitle(true)}
+              aria-label="Edit task"
+              className="h-9 px-2.5 sm:h-8 sm:px-3"
             >
-              Edit Task
+              <span className="hidden sm:inline">Edit Task</span>
             </Button>
           </div>
         </div>
       </div>
 
       {/* ═══ Main Content ═══ */}
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-6 space-y-5">
+      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
 
         {/* ═══ Linked Roadmap (full width, at top) ═══ */}
         {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (
@@ -163,9 +168,9 @@ export function PersonalTaskDetail() {
             style={{ backgroundColor: isTaskOverdue ? '#ef4444' : task.color }}
           />
 
-          <div className="flex flex-col md:flex-row gap-5 p-5 lg:p-6">
+          <div className="flex flex-col md:flex-row gap-4 sm:gap-5 p-4 sm:p-5 lg:p-6">
             {/* Left: Focus Timer */}
-            <div className={`flex-shrink-0 p-4 rounded-xl flex flex-col items-center justify-center min-w-[220px] transition-all duration-300 ${
+            <div className={`flex-shrink-0 w-full md:w-[280px] p-3.5 sm:p-4 rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
               isRunning
                 ? 'bg-gradient-to-br from-amber-500/5 to-slate-900 border border-amber-400/40'
                 : isPaused
@@ -259,7 +264,7 @@ export function PersonalTaskDetail() {
                 </div>
               ) : (
                 <div className="flex items-start gap-2 group">
-                  <h1 className="text-2xl lg:text-3xl font-display font-extrabold text-surface-50 leading-tight">
+                  <h1 className="min-w-0 break-words text-xl sm:text-2xl lg:text-3xl font-display font-extrabold text-surface-50 leading-tight">
                     {task.title}
                   </h1>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -268,7 +273,7 @@ export function PersonalTaskDetail() {
                         type="button"
                         onClick={() => completeTask(task.id)}
                         aria-label={`Complete task: ${task.title}`}
-                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        className="opacity-100 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                       >
                         <CheckCircle size={14} />
                       </button>
@@ -277,7 +282,7 @@ export function PersonalTaskDetail() {
                       type="button"
                       onClick={() => setEditTitle(true)}
                       aria-label={`Edit task title: ${task.title}`}
-                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                      className="opacity-100 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                     >
                       <Edit2 size={14} />
                     </button>
@@ -285,7 +290,7 @@ export function PersonalTaskDetail() {
                       type="button"
                       onClick={() => setShowConfirmDelete(true)}
                       aria-label={`Delete task ${task.title}`}
-                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      className="opacity-100 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-1.5 rounded-lg text-surface-400 hover:text-red-400 hover:bg-red-500/10 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -337,16 +342,17 @@ export function PersonalTaskDetail() {
             variants={fadeUp}
             initial="hidden"
             animate="show"
-            className="rounded-2xl border border-surface-800 bg-surface-900 p-5"
+            className="rounded-2xl border border-surface-800 bg-surface-900 p-4 sm:p-5"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-emerald-500/10 flex items-center justify-center">
                   <CheckCircle size={14} className="text-emerald-400" />
                 </div>
                 <span className="text-sm font-bold text-surface-100">Subtasks</span>
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
-                  {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} completed
+                <span className="whitespace-nowrap text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                  {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+                  <span className="hidden sm:inline"> completed</span>
                 </span>
               </div>
               <button
@@ -355,7 +361,7 @@ export function PersonalTaskDetail() {
                   const input = document.querySelector<HTMLInputElement>('#subtask-input');
                   input?.focus();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+                className="flex h-9 flex-shrink-0 items-center gap-1.5 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
               >
                 <Plus size={13} />
                 Add Subtask
@@ -408,7 +414,7 @@ export function PersonalTaskDetail() {
                         type="button"
                         onClick={() => deleteSubtask(task.id, st.id)}
                         aria-label={`Delete subtask: ${st.title}`}
-                        className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                        className="opacity-100 sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-surface-600 hover:text-red-400 transition-all p-1 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                       >
                         <Trash2 size={12} />
                       </button>
@@ -421,19 +427,19 @@ export function PersonalTaskDetail() {
             <form onSubmit={handleAddSubtask} className="flex gap-2">
               <Input
                 id="subtask-input"
-                className="flex-1 text-sm rounded-xl"
+                className="h-11 flex-1 text-sm rounded-xl"
                 placeholder="Add subtask..."
                 value={newSubtask}
                 onChange={e => setNewSubtask(e.target.value)}
               />
-              <Button type="submit" disabled={!newSubtask.trim()} size="icon">
+              <Button type="submit" disabled={!newSubtask.trim()} size="icon" className="h-11 w-11 flex-shrink-0" aria-label="Add subtask">
                 <Plus size={15} />
               </Button>
             </form>
           </motion.div>
 
           {/* Right: Quote + Progress */}
-          <div className="hidden lg:block">
+          <div>
             <RightSidebar />
           </div>
         </div>

@@ -1,17 +1,19 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Plus, Trash2,
+  Check, CheckCircle2, Plus, Trash2,
   Link2,
   ChevronDown,
   CheckCheck, RotateCcw, X, Clock,
   Play,
   Search, AlertOctagon, Eye,
   MessageSquare,
-  LayoutGrid, Rows3,
+  LayoutGrid, Rows3, ListChecks,
 } from 'lucide-react';
 import { useWorkLogStore, WorkLog, WorkLogStatus } from '@worklog/services/useWorkLogStore';
 import { WorkLogMasterDetail } from '@worklog/components/worklog/WorkLogMasterDetail';
+import { WorkLogBulkBar } from '@worklog/components/worklog/WorkLogBulkBar';
+import { ConfirmDialog } from '@shared/components/ui/ConfirmDialog';
 import { useStore } from '@worklog/services/useStore';
 import { parallelTimerEngine } from '@worklog/services/parallelTimerEngine';
 import { useAuthStore } from '@shared/services/useAuthStore';
@@ -63,7 +65,12 @@ const PRIORITY_MAP: Record<string, { label: string; color: string; bg: string }>
 };
 
 // ── Compact grid card ────────────────────────────────────────────────────────
-function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }) {
+function WorkLogGridCard({ log, onClick, selectable = false, selected = false }: {
+  log: WorkLog;
+  onClick: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+}) {
   const { activeTaskId, activeTimerState, parallelTimers } = useStore();
   const linkedTaskId = log.taskRef?._id;
 
@@ -99,6 +106,7 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
     <motion.button
       variants={fadeUp}
       onClick={onClick}
+      aria-pressed={selectable ? selected : undefined}
       animate={isRunning ? {
         borderColor: ['rgba(245,158,11,0.4)', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.4)'],
         transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
@@ -109,7 +117,7 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
         isRunning
           ? 'bg-amber-500/5 shadow-lg shadow-amber-500/10'
           : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
-      }`}
+      } ${selected ? 'ring-2 ring-brand-400/60 bg-brand-500/5 dark:bg-brand-500/10' : ''}`}
     >
       {/* Running glow overlay */}
       {isRunning && (
@@ -123,6 +131,16 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
       {/* Top row: running dot + category + priority */}
       <div className="flex items-center justify-between mb-3 relative">
         <div className="flex items-center gap-2">
+          {selectable && (
+            <span
+              aria-hidden="true"
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                selected ? 'bg-brand-500 border-brand-500 text-white' : 'border-surface-500/70'
+              }`}
+            >
+              {selected && <Check size={10} strokeWidth={3} />}
+            </span>
+          )}
           {isRunning && (
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
           )}
@@ -171,7 +189,12 @@ function WorkLogGridCard({ log, onClick }: { log: WorkLog; onClick: () => void }
 }
 
 // ── Compact list row ─────────────────────────────────────────────────────────
-function WorkLogListRow({ log, onClick }: { log: WorkLog; onClick: () => void }) {
+function WorkLogListRow({ log, onClick, selectable = false, selected = false }: {
+  log: WorkLog;
+  onClick: () => void;
+  selectable?: boolean;
+  selected?: boolean;
+}) {
   const { activeTaskId, activeTimerState, parallelTimers } = useStore();
   const linkedTaskId = log.taskRef?._id;
 
@@ -201,6 +224,7 @@ function WorkLogListRow({ log, onClick }: { log: WorkLog; onClick: () => void })
     <motion.button
       variants={fadeUp}
       onClick={onClick}
+      aria-pressed={selectable ? selected : undefined}
       animate={isRunning ? {
         borderColor: ['rgba(245,158,11,0.4)', 'rgba(245,158,11,0.15)', 'rgba(245,158,11,0.4)'],
         transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' },
@@ -211,10 +235,20 @@ function WorkLogListRow({ log, onClick }: { log: WorkLog; onClick: () => void })
         isRunning
           ? 'bg-amber-500/5 shadow-lg shadow-amber-500/10'
           : 'border-surface-200 dark:border-surface-800 bg-white dark:bg-surface-900'
-      }`}
+      } ${selected ? 'ring-2 ring-brand-400/60 bg-brand-500/5 dark:bg-brand-500/10' : ''}`}
     >
-      {/* Left: running dot + status */}
+      {/* Left: selection + running dot + status */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {selectable && (
+          <span
+            aria-hidden="true"
+            className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+              selected ? 'bg-brand-500 border-brand-500 text-white' : 'border-surface-500/70'
+            }`}
+          >
+            {selected && <Check size={10} strokeWidth={3} />}
+          </span>
+        )}
         {isRunning && (
           <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0" />
         )}
@@ -267,7 +301,12 @@ function WorkLogListRow({ log, onClick }: { log: WorkLog; onClick: () => void })
 }
 
 // ── Closed log mini card ───────────────────────────────────────────────────────
-function ClosedLogCard({ log }: { log: WorkLog }) {
+function ClosedLogCard({ log, selectable = false, selected = false, onToggleSelect }: {
+  log: WorkLog;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: () => void;
+}) {
   const { continueLog, deleteLog } = useWorkLogStore();
   const navigate = useNavigate();
   const [continuing, setContinuing] = useState(false);
@@ -276,7 +315,29 @@ function ClosedLogCard({ log }: { log: WorkLog }) {
 
   return (
     <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-surface-200 dark:border-surface-800/70 bg-white dark:bg-surface-900/60 p-4 flex items-center gap-3 hover:border-brand-500/30 transition-all group">
+      role={selectable ? 'button' : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      aria-pressed={selectable ? selected : undefined}
+      onClick={selectable ? onToggleSelect : undefined}
+      onKeyDown={selectable ? (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggleSelect?.();
+        }
+      } : undefined}
+      className={`rounded-xl border border-surface-200 dark:border-surface-800/70 bg-white dark:bg-surface-900/60 p-4 flex items-center gap-3 hover:border-brand-500/30 transition-all group ${
+        selectable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/50' : ''
+      } ${selected ? 'ring-2 ring-brand-400/60 bg-brand-500/5 dark:bg-brand-500/10' : ''}`}>
+      {selectable && (
+        <span
+          aria-hidden="true"
+          className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+            selected ? 'bg-brand-500 border-brand-500 text-white' : 'border-surface-500/70'
+          }`}
+        >
+          {selected && <Check size={10} strokeWidth={3} />}
+        </span>
+      )}
       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm ${status.bg} border ${status.border}`}>
         {status.emoji}
       </div>
@@ -411,7 +472,7 @@ function CreateLogModal({ onClose }: { onClose: () => void }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export function WorkLogPage() {
-  const { activeLogs, closedLogs, loading, loadAll } = useWorkLogStore();
+  const { activeLogs, closedLogs, loading, loadAll, closeLog, deleteLog } = useWorkLogStore();
   const { user } = useAuthStore();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -422,6 +483,10 @@ export function WorkLogPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() =>
     (localStorage.getItem('worklog-view-mode') === 'list' ? 'list' : 'grid')
   );
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('worklog-view-mode', viewMode);
@@ -455,6 +520,118 @@ export function WorkLogPage() {
       l.taskRef?.title?.toLowerCase().includes(q)
     );
   }, [closedLogs, search]);
+
+  // ── Multi-select & bulk actions ─────────────────────────────────────────────
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const visibleIds = useMemo(
+    () => [
+      ...filteredActive.map(l => l._id),
+      ...(showClosed ? filteredClosed.map(l => l._id) : []),
+    ],
+    [filteredActive, filteredClosed, showClosed],
+  );
+  const completableSelectedIds = useMemo(
+    () => activeLogs.filter(l => selectedSet.has(l._id) && l.status !== 'done').map(l => l._id),
+    [activeLogs, selectedSet],
+  );
+
+  const toggleSelect = useCallback((logId: string) => {
+    setSelectedIds(prev => prev.includes(logId) ? prev.filter(x => x !== logId) : [...prev, logId]);
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds([]), []);
+
+  const toggleSelectMode = useCallback(() => {
+    setSelectMode(m => {
+      if (m) setSelectedIds([]);
+      return !m;
+    });
+  }, []);
+
+  // Drop selections that are no longer visible after search/filter changes.
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.length === 0) return prev;
+      const visible = new Set(visibleIds);
+      const next = prev.filter(x => visible.has(x));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [visibleIds]);
+
+  useEffect(() => {
+    if (!selectMode) return;
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (target.closest('[role="dialog"], [role="alertdialog"]')) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelectMode(false);
+        setSelectedIds([]);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelectedIds(visibleIds);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
+        e.preventDefault();
+        setShowBulkDeleteConfirm(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectMode, visibleIds, selectedIds.length]);
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(prev => prev.length === visibleIds.length ? [] : visibleIds);
+  }, [visibleIds]);
+
+  const handleBulkComplete = useCallback(async () => {
+    if (bulkBusy || completableSelectedIds.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const taskStore = useStore.getState();
+      for (const logId of completableSelectedIds) {
+        const log = activeLogs.find(l => l._id === logId);
+        const taskId = log?.taskRef?._id;
+        if (taskId) {
+          // Close out any live timer so tracked time isn't orphaned.
+          if (parallelTimerEngine.getState(taskId) !== 'idle') {
+            await taskStore.stopParallelTimer(taskId);
+          }
+          if (taskStore.activeTaskId === taskId && taskStore.activeTimerState === 'running') {
+            await taskStore.stopTimer(taskId);
+          }
+        }
+        await closeLog(logId);
+      }
+      setSelectedIds([]);
+      setSelectMode(false);
+    } catch (err: any) {
+      const { toast } = await import('@shared/services/useToastStore');
+      toast.error('Failed to complete selected logs', err?.message || 'Something went wrong');
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [bulkBusy, completableSelectedIds, activeLogs, closeLog]);
+
+  const handleBulkDeleteConfirm = useCallback(async () => {
+    const ids = [...selectedIds];
+    setShowBulkDeleteConfirm(false);
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      for (const logId of ids) await deleteLog(logId);
+      setSelectedIds([]);
+      setSelectMode(false);
+    } finally {
+      setBulkBusy(false);
+    }
+  }, [selectedIds, deleteLog]);
 
   // S3-T1 master/detail merge: a selected work log renders inline within this
   // single surface (IA §8.7-4, §8.8; ECIS §B.4). The standalone WorkLogDetail
@@ -539,32 +716,45 @@ export function WorkLogPage() {
             })}
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex gap-0.5 rounded-xl bg-surface-100 dark:bg-surface-800 p-1 ml-auto" role="group" aria-label="View mode">
-            <button
-              onClick={() => setViewMode('grid')}
-              aria-pressed={viewMode === 'grid'}
-              title="Grid view"
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
-                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
-              }`}
+          {/* Selection + view mode toggles */}
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              size="sm"
+              variant={selectMode ? 'primary' : 'secondary'}
+              onClick={toggleSelectMode}
+              aria-pressed={selectMode}
+              className="h-9 gap-1.5"
+              title={selectMode ? 'Exit selection mode' : 'Select multiple logs'}
             >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              aria-pressed={viewMode === 'list'}
-              title="List view"
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'list'
-                  ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
-                  : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
-              }`}
-            >
-              <Rows3 size={15} />
-            </button>
+              <ListChecks size={14} />
+              {selectMode ? 'Done' : 'Select'}
+            </Button>
+            <div className="flex gap-0.5 rounded-xl bg-surface-100 dark:bg-surface-800 p-1" role="group" aria-label="View mode">
+              <button
+                onClick={() => setViewMode('grid')}
+                aria-pressed={viewMode === 'grid'}
+                title="Grid view"
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
+                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                }`}
+              >
+                <LayoutGrid size={15} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                title="List view"
+                className={`p-2 rounded-lg transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-surface-700 text-brand-500 dark:text-brand-400 shadow-sm'
+                    : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'
+                }`}
+              >
+                <Rows3 size={15} />
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -574,7 +764,13 @@ export function WorkLogPage() {
         <motion.div variants={stagger} initial="hidden" animate="show"
           className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredActive.map(log => (
-            <WorkLogGridCard key={log._id} log={log} onClick={() => navigate(`/worklog/logs/${log._id}`)} />
+            <WorkLogGridCard
+              key={log._id}
+              log={log}
+              selectable={selectMode}
+              selected={selectedSet.has(log._id)}
+              onClick={() => selectMode ? toggleSelect(log._id) : navigate(`/worklog/logs/${log._id}`)}
+            />
           ))}
         </motion.div>
       )}
@@ -582,7 +778,13 @@ export function WorkLogPage() {
       {filteredActive.length > 0 && viewMode === 'list' && (
         <motion.div variants={stagger} initial="hidden" animate="show" className="space-y-2">
           {filteredActive.map(log => (
-            <WorkLogListRow key={log._id} log={log} onClick={() => navigate(`/worklog/logs/${log._id}`)} />
+            <WorkLogListRow
+              key={log._id}
+              log={log}
+              selectable={selectMode}
+              selected={selectedSet.has(log._id)}
+              onClick={() => selectMode ? toggleSelect(log._id) : navigate(`/worklog/logs/${log._id}`)}
+            />
           ))}
         </motion.div>
       )}
@@ -650,12 +852,41 @@ export function WorkLogPage() {
             {showClosed && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }} className="space-y-2 overflow-hidden mt-2">
-                {filteredClosed.map(log => <ClosedLogCard key={log._id} log={log} />)}
+                {filteredClosed.map(log => (
+                  <ClosedLogCard
+                    key={log._id}
+                    log={log}
+                    selectable={selectMode}
+                    selected={selectedSet.has(log._id)}
+                    onToggleSelect={() => toggleSelect(log._id)}
+                  />
+                ))}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       )}
+
+      <WorkLogBulkBar
+        visible={selectMode}
+        count={selectedIds.length}
+        totalCount={visibleIds.length}
+        completableCount={completableSelectedIds.length}
+        busy={bulkBusy}
+        onSelectAll={handleSelectAll}
+        onComplete={handleBulkComplete}
+        onDelete={() => setShowBulkDeleteConfirm(true)}
+        onClear={clearSelection}
+      />
+
+      <ConfirmDialog
+        isOpen={showBulkDeleteConfirm}
+        title={`Delete ${selectedIds.length} work log${selectedIds.length === 1 ? '' : 's'}?`}
+        message={`This will permanently remove ${selectedIds.length} work log${selectedIds.length === 1 ? '' : 's'} and every note, completed item, link and attachment they contain. This action cannot be undone.`}
+        confirmLabel="Delete Logs"
+        onConfirm={handleBulkDeleteConfirm}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+      />
 
       <AnimatePresence>
         {showCreate && <CreateLogModal onClose={() => setShowCreate(false)} />}

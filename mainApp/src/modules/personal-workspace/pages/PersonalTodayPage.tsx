@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Play, AlertTriangle, Clock, CheckCircle, Zap,
   Target, ListTodo, ArrowRight,
-  Plus, FileText, Calendar, Map, TrendingUp, Sparkles, CalendarDays, AlertOctagon,
+  TrendingUp, Sparkles, CalendarDays, AlertOctagon,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
@@ -132,15 +132,15 @@ export function PersonalTodayPage() {
   // Loading skeleton while data is fetching
   if (dataLoading && personalTasks.length === 0) {
     return (
-      <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto space-y-6">
         <div className="rounded-3xl border border-surface-800/60 bg-surface-900 p-8 space-y-4">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-72" />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {[1, 2, 3].map(i => <SkeletonStatCard key={i} />)}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => <SkeletonStatCard key={i} />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[1, 2, 3].map(i => <SkeletonTaskCard key={i} />)}
         </div>
       </div>
@@ -150,7 +150,7 @@ export function PersonalTodayPage() {
   // Error state with retry button
   if (dataError) {
     return (
-      <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto space-y-6">
         <motion.div variants={fadeUp} initial="hidden" animate="show"
           className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
           <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
@@ -167,12 +167,12 @@ export function PersonalTodayPage() {
   }
 
   return (
-    <div className="relative p-4 lg:p-6 max-w-[1320px] mx-auto flex flex-col gap-4 lg:block lg:space-y-4">
+    <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto flex flex-col gap-4 lg:gap-5">
 
-      {/* HERO — desktop (lg+) */}
+      {/* HERO — greeting, illustration and daily goal (responsive) */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Personal dashboard overview"
-        className="hidden lg:block relative -mx-8 overflow-hidden
-                   px-8 pt-0 pb-5">
+        className="relative -mx-4 sm:-mx-5 lg:-mx-6 overflow-hidden
+                   px-4 sm:px-5 lg:px-6 pt-0 pb-1 lg:pb-5">
         {/* Decorative background blobs */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
           <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
@@ -185,127 +185,100 @@ export function PersonalTodayPage() {
               <Badge tone="brand" className="text-[10px] font-bold uppercase tracking-wider border border-brand-500/20">{todayLabel}</Badge>
               {activeTask && <Badge tone="warning" className="text-[10px] font-bold uppercase tracking-wider animate-pulse">Timer Running</Badge>}
             </div>
-            <h1 className="mt-2 text-xl lg:text-[2.125rem] font-display font-extrabold tracking-tight leading-tight">
+            <h1 className="mt-2 text-[1.75rem] sm:text-3xl lg:text-[2.125rem] font-display font-extrabold tracking-tight leading-tight">
               <span className="text-surface-50">{greeting}</span>,{' '}
               <span className="text-brand-500">{firstName}</span>
             </h1>
             
           </div>
-          {/* Center: Focus illustration */}
-          <div className="relative mx-auto shrink-0">
-            <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-20 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
-            <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
-              className="relative w-auto max-w-[110px] sm:max-w-[130px] lg:max-w-[235px] xl:max-w-[245px] h-auto object-contain select-none pointer-events-none" />
-            <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-4 h-12 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
-          </div>
-          {/* Right: Daily goal progress card */}
-          <div className="flex-shrink-0 w-full max-w-[260px] mx-auto lg:mr-0">
-            <div className="w-full rounded-2xl border border-surface-800 bg-transparent dark:border-brand-500/[0.08] shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] p-3 text-center">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
-              {progressPct === null ? (
-                // No goal set
-                <>
-                  <div className="text-3xl font-display font-extrabold text-surface-50 leading-none mt-2">&mdash;</div>
-                  <p className="text-xs text-surface-500 mt-2">Set a daily goal in Settings to track progress.</p>
-                </>
-              ) : (
-                // Goal progress with circular indicator
-                <>
-                  {/* Circular Progress SVG */}
-                  <div className="relative w-16 h-16 mx-auto mt-2">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                      <circle
-                        cx="50" cy="50" r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="6"
-                        className="text-surface-200 dark:text-surface-700"
-                      />
-                      <circle
-                        cx="50" cy="50" r="42"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="6"
-                        strokeDasharray={`${(progressPct / 100) * 264} 264`}
-                        strokeLinecap="round"
-                        className={`${progressPct >= 100 ? 'text-success-400' : 'text-brand-400'}`}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-lg font-display font-extrabold text-surface-50">{progressPct}%</span>
+          {/* Right: Focus illustration (desktop) + daily goal card */}
+          <div className="flex w-full items-center justify-center gap-3 sm:gap-4 lg:contents">
+            {/* Illustration — hidden on phones so the hero can use the full width */}
+            <div className="relative mx-auto hidden shrink-0 sm:block">
+              <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-20 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
+              <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
+                className="relative w-auto max-w-[130px] lg:max-w-[235px] xl:max-w-[245px] h-auto object-contain select-none pointer-events-none" />
+              <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-4 h-12 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
+            </div>
+            {/* Daily goal progress card */}
+            <div className="min-w-0 flex-1 w-full max-w-none sm:max-w-[280px] lg:flex-none lg:w-full lg:max-w-[260px]">
+              <div className="w-full rounded-2xl border border-surface-800 bg-transparent dark:border-brand-500/[0.08] shadow-sm dark:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.4)] p-3 text-center">
+                <p className="text-[10px] font-extrabold uppercase tracking-wider text-surface-400">Daily Goal</p>
+                {progressPct === null ? (
+                  // No goal set
+                  <>
+                    <div className="text-3xl font-display font-extrabold text-surface-50 leading-none mt-2">&mdash;</div>
+                    <p className="text-xs text-surface-500 mt-2">Set a daily goal in Settings to track progress.</p>
+                  </>
+                ) : (
+                  // Goal progress — horizontal fill on phones, circular indicator from tablet up
+                  <>
+                    {/* Mobile: horizontal progress bar */}
+                    <div className="text-left sm:hidden">
+                      <div className="mt-2 flex items-end justify-between gap-2">
+                        <span className="text-lg font-display font-extrabold leading-none text-surface-50">{progressPct}%</span>
+                        <span className="text-xs font-semibold text-surface-200">
+                          {formatHours(todayMs)} <span className="font-normal text-surface-500">of</span> {profile.personalDailyGoal}h
+                        </span>
+                      </div>
+                      <div
+                        className="mt-2 h-2 w-full overflow-hidden rounded-full bg-surface-200 dark:bg-surface-700"
+                        role="progressbar"
+                        aria-valuenow={progressPct}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="Daily goal progress"
+                      >
+                        <div
+                          className={`h-full rounded-full transition-[width] duration-500 ${progressPct >= 100 ? 'bg-success-400' : 'bg-brand-400'}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-sm font-semibold text-surface-200 mt-2">
-                    {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.personalDailyGoal}h
-                  </p>
-                  {remainingMs != null && remainingMs > 0 && progressPct < 100 && (
-                    <p className="text-xs text-surface-400 mt-0.5">{formatMs(remainingMs)} remaining today</p>
-                  )}
-                </>
-              )}
+
+                    {/* Tablet / desktop: circular indicator */}
+                    <div className="hidden sm:block">
+                      <div className="relative w-16 h-16 mx-auto mt-2">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                          <circle
+                            cx="50" cy="50" r="42"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="6"
+                            className="text-surface-200 dark:text-surface-700"
+                          />
+                          <circle
+                            cx="50" cy="50" r="42"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="6"
+                            strokeDasharray={`${(progressPct / 100) * 264} 264`}
+                            strokeLinecap="round"
+                            className={`${progressPct >= 100 ? 'text-success-400' : 'text-brand-400'}`}
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-lg font-display font-extrabold text-surface-50">{progressPct}%</span>
+                        </div>
+                      </div>
+                      <p className="text-sm font-semibold text-surface-200 mt-2">
+                        {formatHours(todayMs)} <span className="text-surface-500 font-normal">of</span> {profile.personalDailyGoal}h
+                      </p>
+                    </div>
+
+                    {remainingMs != null && remainingMs > 0 && progressPct < 100 && (
+                      <p className="text-xs text-surface-400 mt-1.5 sm:mt-0.5">{formatMs(remainingMs)} remaining today</p>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </motion.section>
 
-      {/* HERO — mobile (hidden on lg+) */}
-      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Personal dashboard overview"
-        className="order-1 lg:hidden flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          {activeTask && (
-            <Badge tone="warning" className="mb-2 text-[10px] font-bold uppercase tracking-wider animate-pulse">Timer Running</Badge>
-          )}
-          <p className="text-[11px] font-extrabold uppercase tracking-widest text-surface-500">{greeting},</p>
-          <h1 className="mt-1 text-[2rem] leading-none font-display font-extrabold tracking-tight">
-            <span className="bg-gradient-to-r from-success-500 to-info-500 bg-clip-text text-transparent">{firstName}</span>
-            <span className="ml-2 text-xl align-middle">👋</span>
-          </h1>
-          <p className="mt-2 text-xs text-surface-500">Keep going, you're doing great!</p>
-        </div>
-        <img src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
-          className="w-28 sm:w-36 shrink-0 h-28 sm:h-36 object-contain select-none pointer-events-none" />
-      </motion.section>
-
-      {/* GOAL + STATS — mobile (combined card, hidden on lg+) */}
-      <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Today's goal and progress"
-        className="order-2 lg:hidden rounded-3xl border border-surface-800/60 bg-gradient-to-r from-success-500/15 via-surface-900 to-info-500/15 p-4 flex items-center gap-4">
-        <div className="flex flex-col items-center shrink-0">
-          <div className="relative w-20 h-20 sm:w-24 sm:h-24">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
-                className="text-surface-200 dark:text-surface-700" />
-              {progressPct !== null && (
-                <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6"
-                  strokeDasharray={`${(progressPct / 100) * 264} 264`} strokeLinecap="round"
-                  className={progressPct >= 100 ? 'text-success-400' : 'text-brand-400'} />
-              )}
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-lg font-display font-extrabold text-surface-50">{progressPct === null ? '—' : `${progressPct}%`}</span>
-            </div>
-          </div>
-          <p className="mt-1.5 text-xs font-semibold text-surface-200">
-            {formatHours(todayMs)} <span className="text-surface-500 font-normal">/ {profile.personalDailyGoal}h</span>
-          </p>
-          <p className="text-[10px] text-surface-500">Today's Goal</p>
-        </div>
-        <div className="flex-1 min-w-0 grid grid-cols-3 gap-1">
-          {[ 
-            { label: 'Completed', value: completedToday, icon: CheckCircle, cls: 'text-success-500' },
-            { label: 'Scheduled', value: todayTasks.length, icon: Calendar, cls: 'text-purple-500' },
-            { label: 'Overdue', value: overdueCount, icon: AlertTriangle, cls: 'text-danger-500' },
-          ].map(({ label, value, icon: Icon, cls }) => (
-            <div key={label} className="flex flex-col items-center gap-1">
-              <Icon size={18} className={cls} />
-              <span className="text-[10px] text-surface-500">{label}</span>
-              <span className="text-lg font-display font-bold text-surface-50">{value}</span>
-            </div>
-          ))}
-        </div>
-      </motion.section>
-
-      {/* KEY METRICS - Stat Cards (desktop only) */}
-      <motion.div variants={stagger} initial="hidden" animate="show" className="hidden lg:grid grid-cols-4 gap-3">
+      {/* KEY METRICS - Stat Cards (responsive) */}
+      <motion.div variants={stagger} initial="hidden" animate="show" className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {(([
           { label: "Today's Focus", value: formatHours(todayMs), icon: Clock, accent: 'brand', illustration: TrendingUp, bg: '/SVG/svg/time-management_4ss6.svg' },
           { label: 'Completed Today', value: String(completedToday), icon: CheckCircle, accent: 'success', illustration: Sparkles, bg: '/SVG/svg/thumbs%20up.svg' },
@@ -332,9 +305,9 @@ export function PersonalTodayPage() {
       
 
       {/* MAIN GRID — 2/3 left column, 1/3 right column on desktop */}
-      <div className="order-3 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 lg:gap-6">
         {/* LEFT COLUMN — Active Focus + Continue Working */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-5 lg:space-y-6">
           {/* ACTIVE FOCUS SECTION */}
           <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="pt-focus" className="space-y-3">
             <h2 id="pt-focus" className="flex items-center justify-between font-display font-bold text-surface-50 text-lg">
@@ -346,22 +319,13 @@ export function PersonalTodayPage() {
               </span>
               {/* Focus Mode button when no active task */}
               {!activeTask && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/personal/tasks')}
-                    className="lg:hidden flex items-center gap-1 rounded-full border border-success-500/30 bg-success-500/15 px-2.5 py-1 text-[11px] font-bold text-success-600 dark:text-success-400 transition-colors hover:bg-success-500/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-500/40"
-                  >
-                    Focus Mode <ArrowRight size={11} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/personal/tasks')}
-                    className="hidden lg:flex items-center gap-1 text-xs font-medium text-brand-400 hover:text-brand-300 transition-colors"
-                  >
-                    Focus Mode <ArrowRight size={12} />
-                  </button>
-                </>
+                <button
+                  type="button"
+                  onClick={() => navigate('/personal/tasks')}
+                  className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-brand-400 transition-colors hover:bg-brand-500/10 hover:text-brand-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40"
+                >
+                  Focus Mode <ArrowRight size={12} />
+                </button>
               )}
             </h2>
             {activeTask ? (
@@ -412,26 +376,19 @@ export function PersonalTodayPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm lg:text-base font-semibold text-surface-200 mb-1">Nothing in focus right now</p>
-                    <p className="text-xs lg:text-sm text-surface-400 lg:mb-4">Pick a task and start making progress.</p>
-                    <Button size="sm" leftIcon={<Play size={12} />} className="hidden lg:inline-flex"
+                    <p className="text-xs lg:text-sm text-surface-400 mb-3">Pick a task and start making progress.</p>
+                    <Button size="sm" leftIcon={<Play size={12} />} className="w-full lg:w-auto"
                       onClick={() => navigate('/personal/tasks')}>
                       Choose a Task
                     </Button>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/personal/tasks')}
-                      className="lg:hidden mt-3 w-full h-9 rounded-xl bg-gradient-to-r from-success-500 to-teal-500 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-all hover:from-success-400 hover:to-teal-400 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success-500/40"
-                    >
-                      <Play size={12} /> Choose a Task
-                    </button>
                   </div>
                 </div>
               </Card>
             )}
           </motion.section>
 
-          {/* CONTINUE WORKING — Active/paused tasks (desktop only) */}
-          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="pt-continue" className="hidden lg:block space-y-3">
+          {/* CONTINUE WORKING — Active/paused tasks */}
+          <motion.section variants={fadeUp} initial="hidden" animate="show" aria-labelledby="pt-continue" className="space-y-3">
             <h2 id="pt-continue" className="flex items-center justify-between font-display font-bold text-surface-50 text-lg">
               <span className="flex items-center gap-2.5">
                 <span className="w-8 h-8 rounded-xl bg-surface-900 border border-surface-800 flex items-center justify-center text-brand-400">
@@ -473,42 +430,13 @@ export function PersonalTodayPage() {
           </motion.section>
         </div>
 
-        {/* RIGHT COLUMN — Calendar + Quick Actions (desktop only) */}
-        <div className="hidden lg:block space-y-5">
+        {/* RIGHT COLUMN — Calendar + Quick Actions (stacked on mobile) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-5">
           <CompactCalendarWidget />
           <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
          {/* <RightSidebar />*/}
         </div>
       </div>
-
-      {/* QUICK ACTIONS — mobile (grid of 4 action buttons) */}
-      <motion.div variants={fadeUp} initial="hidden" animate="show" className="order-5 lg:hidden">
-        <div className="flex items-center gap-2.5 mb-3">
-          <span className="w-7 h-7 rounded-full border border-warning-500/25 bg-warning-500/15 flex items-center justify-center text-warning-500">
-            <Zap size={13} />
-          </span>
-          <h2 className="font-display font-bold text-surface-50 text-lg">Quick Actions</h2>
-        </div>
-        <div className="grid grid-cols-4 gap-2.5">
-          {[ 
-            { label: 'Add Task', icon: Plus, onClick: () => setShowCreate(true), cls: 'bg-success-500/10 border-success-500/20 text-success-600 dark:text-success-400' },
-            { label: 'Add Note', icon: FileText, onClick: () => navigate('/personal/tasks'), cls: 'bg-info-500/10 border-info-500/20 text-info-600 dark:text-info-400' },
-            { label: 'Plan My Day', icon: Calendar, onClick: () => navigate('/personal/today'), cls: 'bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400' },
-            { label: 'Open Roadmap', icon: Map, onClick: () => navigate('/personal/roadmaps'), cls: 'bg-violet-500/10 border-violet-500/20 text-violet-600 dark:text-violet-400' },
-          ].map(({ label, icon: Icon, onClick, cls }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={onClick}
-              aria-label={label}
-              className={`${cls} border rounded-2xl aspect-square flex flex-col items-center justify-center gap-1.5 transition-all hover:-translate-y-0.5 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40`}
-            >
-              <Icon size={20} />
-              <span className="text-[10px] font-semibold leading-tight text-center px-1">{label}</span>
-            </button>
-          ))}
-        </div>
-      </motion.div>
 
       {/* Create Task Modal */}
       <AnimatePresence>

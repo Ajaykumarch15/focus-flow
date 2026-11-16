@@ -101,7 +101,7 @@ export function PersonalRoadmapTimeline({
       milestone.status !== 'completed' &&
       milestone.targetDate < key;
     return (
-      <div key={milestone._id} className="grid grid-cols-[220px_1fr_120px] items-center gap-3 group">
+      <div key={milestone._id} className="grid grid-cols-[150px_1fr_90px] sm:grid-cols-[220px_1fr_120px] items-center gap-2 sm:gap-3 group">
         {/* Name + status */}
         <div className="min-w-0">
           <button
@@ -179,8 +179,8 @@ export function PersonalRoadmapTimeline({
   };
 
   return (
-    <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 overflow-x-auto">
-      <div className="min-w-[720px] space-y-4">
+    <div className="rounded-2xl border border-surface-800 bg-surface-900 p-4 sm:p-5 overflow-x-auto">
+      <div className="min-w-[560px] sm:min-w-[720px] space-y-4">
         {/* Roadmap range + health + controls */}
         {(rangeLabel || health) && (
           <div className="flex items-center justify-between gap-3">
@@ -221,7 +221,7 @@ export function PersonalRoadmapTimeline({
 
         {/* Axis header */}
         {span && (
-          <div className="grid grid-cols-[220px_1fr_120px] items-center gap-3">
+          <div className="grid grid-cols-[150px_1fr_90px] sm:grid-cols-[220px_1fr_120px] items-center gap-2 sm:gap-3">
             <span className="text-[11px] font-bold uppercase tracking-wider text-surface-500">Milestone</span>
             <div className="relative h-5">
               {ticks.map((t, i) => (

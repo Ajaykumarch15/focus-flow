@@ -189,7 +189,8 @@ export function RoadmapCalendarView({
         <div className="grid grid-cols-7 border-b border-surface-800">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="text-center text-[10px] font-semibold uppercase tracking-wider text-surface-500 py-2">
-              {day}
+              <span className="sm:hidden">{day[0]}</span>
+              <span className="hidden sm:inline">{day}</span>
             </div>
           ))}
         </div>
@@ -204,7 +205,7 @@ export function RoadmapCalendarView({
                 key={idx}
                 onClick={() => hasItems && setSelectedDay(isSelected ? null : dayInfo.dateStr)}
                 className={`
-                  relative min-h-[72px] p-1.5 border-b border-r border-surface-800/50 transition-colors
+                  relative min-h-[60px] sm:min-h-[72px] p-1 sm:p-1.5 border-b border-r border-surface-800/50 transition-colors
                   ${!dayInfo.isCurrentMonth ? 'bg-surface-950/50' : 'bg-surface-900'}
                   ${hasItems ? 'cursor-pointer hover:bg-surface-800/50' : ''}
                   ${isSelected ? 'bg-surface-800/70 ring-1 ring-brand-500/30' : ''}
@@ -270,10 +271,10 @@ export function RoadmapCalendarView({
             transition={{ duration: 0.15 }}
             className="rounded-2xl border border-surface-800 bg-surface-900 overflow-hidden"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
-              <div className="flex items-center gap-2">
-                <Calendar size={14} className="text-brand-400" />
-                <h4 className="text-sm font-bold text-surface-100">
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-surface-800">
+              <div className="flex min-w-0 items-center gap-2">
+                <Calendar size={14} className="flex-shrink-0 text-brand-400" />
+                <h4 className="text-sm font-bold text-surface-100 truncate">
                   {new Date(selectedDayData.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                 </h4>
               </div>
@@ -282,7 +283,7 @@ export function RoadmapCalendarView({
               </button>
             </div>
 
-            <div className="p-4 space-y-3">
+            <div className="p-3 sm:p-4 space-y-3">
               {/* Milestones due */}
               {selectedDayData.milestones.length > 0 && (
                 <div>

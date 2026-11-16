@@ -79,11 +79,11 @@ export function GlobalHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-4 lg:px-6 gap-4">
+    <header className="sticky top-0 z-30 h-14 border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl flex items-center px-3 sm:px-4 lg:px-6 gap-2 sm:gap-3 lg:gap-4">
       {/* Left: Hamburger (mobile only) + Logo + Workspace Badge */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <button onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-          className="lg:hidden p-2 -ml-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
+          className="lg:hidden flex-shrink-0 p-2 -ml-1 sm:-ml-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
           aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
           <Menu size={18} />
         </button>
@@ -93,9 +93,9 @@ export function GlobalHeader() {
         </button>
 
         {/* Branding — mobile only (desktop keeps breadcrumbs) */}
-        <div className="lg:hidden leading-none">
-          <p className="text-sm font-bold text-surface-50">FocusFlow</p>
-          <p className="mt-0.5 text-[10px] font-medium text-surface-400">Developer Operating System</p>
+        <div className="min-w-0 leading-none lg:hidden">
+          <p className="truncate text-sm font-bold text-surface-50">FocusFlow</p>
+          <p className="mt-0.5 hidden truncate text-[10px] font-medium text-surface-400 sm:block">Developer Operating System</p>
         </div>
 
         {/* Workspace Switcher */}
@@ -158,7 +158,7 @@ export function GlobalHeader() {
       </div>
 
       {/* Right: Search + Theme + Notifications + User */}
-      <div className="flex items-center gap-1 flex-shrink-0">
+      <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-1">
         {/* Search — opens the global command palette (Ctrl/Cmd+K) */}
         {/*<button
           type="button"
@@ -176,7 +176,7 @@ export function GlobalHeader() {
         </button>*/}
         <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
         <div className="hidden lg:block"><NowIndicator /></div>
-        {user && <div className="inline-flex flex-none items-center gap-2 px-1.5" title="Office work time today">
+        {user && <div className="inline-flex flex-none items-center gap-1.5 px-1 sm:gap-2 sm:px-1.5" title="Office work time today">
           <BriefcaseBusiness size={14} className={officeTime?.activeSince ? 'text-emerald-400' : 'text-surface-400'} />
           <span className="text-[11px] font-medium text-surface-400 hidden sm:inline">Office</span>
           <button type="button" role="switch" aria-checked={Boolean(officeTime?.activeSince)}
@@ -186,7 +186,7 @@ export function GlobalHeader() {
             <span className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
               style={{ left: 2, transform: officeTime?.activeSince ? 'translateX(16px)' : 'translateX(0)' }} />
           </button>
-          <span className={`min-w-[4.5rem] flex-none font-mono text-xs tabular-nums ${officeTime?.activeSince ? 'text-emerald-300' : 'text-surface-300'}`}>
+          <span className={`hidden sm:inline min-w-[4.5rem] flex-none font-mono text-xs tabular-nums ${officeTime?.activeSince ? 'text-emerald-300' : 'text-surface-300'}`}>
             {formatDuration((officeTime?.totalMs || 0) + (officeTime?.activeSince ? Math.max(0, clockNow - officeTime.activeSince) : 0))}
           </span>
         </div>}
@@ -210,7 +210,7 @@ export function GlobalHeader() {
           <button onClick={() => setMenuOpen(!menuOpen)}
             aria-expanded={menuOpen}
             aria-haspopup="menu"
-            className="flex items-center gap-2 h-9 pl-1 pr-2 rounded-xl hover:bg-surface-800 transition-all">
+            className="flex items-center gap-2 h-9 pl-1 pr-1 sm:pr-2 rounded-xl hover:bg-surface-800 transition-all">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-400 to-cyan-400 flex items-center justify-center text-[11px] font-bold text-white">
               {user?.name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
