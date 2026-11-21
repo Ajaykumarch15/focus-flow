@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Calendar, MessageSquare, Link2, Trash2, ChevronDown, ChevronUp, Pencil, Plus, CheckCircle2, Flag, Tag, Users, ListChecks, Paperclip } from 'lucide-react';
+import { X, Calendar, MessageSquare, Link2, Trash2, ChevronDown, ChevronUp, Flag, Tag, Users, ListChecks, Paperclip, CheckCircle2, Plus } from 'lucide-react';
 import { Avatar } from '@shared/components/ui/Avatar';
 
 import { Button } from '@shared/components/ui/Button';
 import { Select } from '@shared/components/ui/Select';
 import { useKanbanStore } from './kanbanStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 
 import { canEditTask } from './taskPermissions';
 import { KANBAN_COLUMNS } from './types';
@@ -28,9 +27,8 @@ const STATUS_CONFIG: Record<string, { color: string; bg: string }> = {
 };
 
 export function TaskDetailsPanel() {
-  const { tasks, selectedTaskId, showDetailsPanel, closeDetailsPanel, updateTask, deleteTask, toggleSubtask, membersMap } =
+  const { tasks, selectedTaskId, showDetailsPanel, closeDetailsPanel, updateTask, deleteTask, toggleSubtask } =
     useKanbanStore();
-  const assignTask = useCollaborationStore((s) => s.assignTask);
 
   const task = tasks.find((t) => t.id === selectedTaskId);
   const [depsOpen, setDepsOpen] = useState(false);
@@ -201,29 +199,6 @@ export function TaskDetailsPanel() {
                     <Users size={13} />
                     Assignees {task.assignees.length > 0 && <span className="text-surface-500">({task.assignees.length})</span>}
                   </label>
-                  {canEdit && (
-                    <button
-                      onClick={() => {
-                        const currentIds = task.assignees.map((a) => a.id);
-                        const memberNames = Object.entries(membersMap)
-                          .filter(([id]) => id !== task.ownerId)
-                          .map(([id, m]) => `${m.name} (${id.slice(-4)})`)
-                          .join('\n');
-                        const input = window.prompt(
-                          `Current assignees: ${currentIds.length > 0 ? task.assignees.map(a => a.name).join(', ') : 'None'}\n\nEnter member IDs (comma-separated) from:\n${memberNames}`,
-                          currentIds.join(', '),
-                        );
-                        if (input !== null) {
-                          const ids = input.split(',').map((s) => s.trim()).filter(Boolean);
-                          assignTask(task.id, ids);
-                        }
-                      }}
-                      className="text-[11px] font-semibold text-brand-400 hover:text-brand-300 transition-colors flex items-center gap-1"
-                    >
-                      <Pencil size={11} />
-                      Edit
-                    </button>
-                  )}
                 </div>
                 {task.assignees.length > 0 ? (
                   <div className="flex flex-wrap gap-2">

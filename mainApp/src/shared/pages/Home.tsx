@@ -1,12 +1,10 @@
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Users, CheckCircle2,
-  Flame, GitBranch, BookMarked, ShieldCheck, Activity
+  CheckCircle2,
+  Flame, BookMarked, ShieldCheck, Activity
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useStore } from '@worklog/services/useStore';
 import { Badge } from '@shared/components/ui/Badge';
 import { ThemeToggle } from '@shared/components/ui/ThemeToggle';
@@ -36,13 +34,7 @@ const itemVariants = {
 export function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { workspaces, loadWorkspaces } = useCollaborationStore();
   const { theme } = useStore();
-
-  // IES-P2-07: real workspace counts replace the removed seed data.
-  useEffect(() => {
-    loadWorkspaces();
-  }, [loadWorkspaces]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -60,8 +52,6 @@ export function HomePage() {
   const handleSelectWorkLog = () => {
     navigate('/worklog/dashboard');
   };
-
-  const totalMembers = workspaces.reduce((sum, ws) => sum + (ws.membersCount || 0), 0);
 
   return (
     <div className="h-dvh md:h-auto md:min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-5 relative overflow-hidden md:overflow-y-auto flex flex-col">
@@ -111,7 +101,7 @@ export function HomePage() {
           variants={containerVariants}
           initial="hidden"
           animate="show"
-          className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain no-scrollbar md:grid md:grid-cols-2 md:gap-4 lg:grid-cols-3 md:overflow-visible"
+          className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain no-scrollbar md:grid md:grid-cols-2 md:gap-4 md:overflow-visible"
         >
 
           <WorkspaceCard
@@ -154,31 +144,11 @@ export function HomePage() {
             onAction={handleSelectWorkLog}
           />
 
-          <WorkspaceCard
-            variants={itemVariants}
-            accent="violet"
-            className="md:col-span-2 lg:col-span-1"
-            badges={['Team', 'Engineering']}
-            title="Team Collaboration"
-            // description="Shared engineering workspaces — projects, sprints, members, QA dashboards, and real-time collaboration."
-            image={{
-              light: '/team_photo.png',
-              dark: '/team_photo.png',
-              lightSrcSet: cardSrcSet('/team_photo.png'),
-              darkSrcSet: cardSrcSet('/team_photo.png'),
-            }}
-            chips={[
-              { icon: <GitBranch size={14} className="text-blue-400" />, label: `${workspaces.length} Workspace${workspaces.length !== 1 ? 's' : ''}` },
-              { icon: <Users size={14} className="text-violet-400" />, label: `${totalMembers} Members` },
-            ]}
-            actionLabel="View Projects & Workspaces"
-            onAction={() => navigate('/collab/workspaces')}
-          />
-
           {(user?.roleId?.level ?? 0) >= 60 && (
             <WorkspaceCard
               variants={itemVariants}
               accent="purple"
+              className="md:col-span-2"
               badges={['Admin', 'Management']}
               title="Admin Console"
               image={{
@@ -188,7 +158,7 @@ export function HomePage() {
                 darkSrcSet: cardSrcSet('/team_photo.png'),
               }}
               chips={[
-                { icon: <ShieldCheck size={14} className="text-purple-400" />, label: 'User & Team Management' },
+                { icon: <ShieldCheck size={14} className="text-purple-400" />, label: 'User Management' },
                 { icon: <Activity size={14} className="text-pink-400" />, label: 'Audit & Analytics' },
               ]}
               actionLabel="Open Admin Console"
@@ -201,7 +171,7 @@ export function HomePage() {
 
       {/* Footer */}
       <footer className="hidden md:block text-center text-[10px] text-surface-400 z-10 relative pt-3 pb-0 border-t border-surface-800/60 max-w-6xl mx-auto w-full shrink-0">
-        FocusFlow Developer Workspace Platform · Personal & Team Collaboration Engine
+        FocusFlow Developer Workspace Platform · Personal & Work Productivity Engine
       </footer>
 
     </div>

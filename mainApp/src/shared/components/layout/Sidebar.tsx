@@ -3,12 +3,10 @@ import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
   Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
-  History, Library, Map, BarChart3, Calendar, Lightbulb,
-  FolderOpen, Bell, HelpCircle, ChevronRight, User, Timer, Target,
-  MessageSquare,
+  Library, Map, BarChart3, Calendar, Lightbulb,
+  Bell, HelpCircle, ChevronRight, User, Timer, Target,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
-import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Avatar } from '@shared/components/ui/Avatar';
 import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
 
@@ -55,19 +53,6 @@ const WORKLOG_NAV: NavPanelDef[] = [
   { to: '/worklog/knowledge', icon: Library, label: 'Knowledge' },
 ];
 
-const getCollabNav = (workspaceId: string): NavPanelDef[] => [
-  {
-    to: `/collab/${workspaceId}/projects`, icon: FolderOpen, label: 'Projects',
-    children: [
-      { to: `/collab/${workspaceId}/projects`, label: 'All Projects' },
-    ],
-  },
-  { to: `/collab/${workspaceId}/chat`, icon: MessageSquare, label: 'Chat' },
-  { to: `/collab/${workspaceId}/schedule`, icon: Calendar, label: 'Schedule' },
-  { to: `/collab/${workspaceId}/people`, icon: User, label: 'People' },
-  { to: `/collab/${workspaceId}/activity`, icon: History, label: 'Activity' },
-];
-
 const BOTTOM_NAV: NavPanelDef[] = [
   { to: '/active-timers', icon: Timer, label: 'Active Timers' },
   {
@@ -93,20 +78,13 @@ export function Sidebar({ expanded = false }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const workspace = useAuthStore((s) => s.workspace);
-  const workspaceId = useWorkspaceId();
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [hoveredTop, setHoveredTop] = useState(0);
   const iconRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const collabNav = workspaceId ? getCollabNav(workspaceId) : [];
-
-  const navItems = workspace === 'personal'
-    ? PERSONAL_NAV
-    : workspace === 'collab'
-      ? collabNav
-      : WORKLOG_NAV;
+  const navItems = workspace === 'personal' ? PERSONAL_NAV : WORKLOG_NAV;
 
   const adminNav: NavPanelDef = {
     to: '/admin/audit', icon: ShieldCheck, label: 'Admin Console',

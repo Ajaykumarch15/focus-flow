@@ -5,9 +5,7 @@ const Task = require('../models/Task');
 const Session = require('../models/Session');
 const WorkLog = require('../models/WorkLog');
 const Activity = require('../models/Activity');
-const Team = require('../models/Team');
 const ReportShare = require('../models/ReportShare');
-const Workspace = require('../models/Workspace');
 const protect = require('../middleware/auth');
 const admin = require('../middleware/admin');
 const reportsRouter = require('./reports');
@@ -124,107 +122,6 @@ router.get('/users/deleted', async (req, res, next) => {
   }
 });
 
-// ── GET /api/admin/users/:userId/owner-status ────────────────────────────────
-router.get('/users/:userId/owner-status', validate(null, { params: userParamsSchema }), async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-    const ownedWorkspaces = await Workspace.find({ createdBy: userId }).select('name type').lean();
-    res.json({ isOwner: ownedWorkspaces.length > 0, workspaces: ownedWorkspaces });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── GET /api/admin/users/:userId/workspaces ──────────────────────────────────
-router.get('/users/:userId/workspaces', validate(null, { params: userParamsSchema }), async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-    const workspaces = await Workspace.find({ 'members.userId': userId })
-      .select('name type icon description createdBy members createdAt')
-      .lean();
-    const result = workspaces.map(ws => {
-      const member = ws.members.find(m => String(m.userId) === String(userId));
-      return {
-        workspaceId: ws._id,
-        name: ws.name,
-        type: ws.type,
-        icon: ws.icon,
-        description: ws.description,
-        memberRole: member ? member.role : null,
-        joinedAt: member?.joinedAt,
-        isCreator: String(ws.createdBy) === String(userId),
-        createdAt: ws.createdAt,
-      };
-    });
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── PATCH /api/admin/users/:userId/workspace-role ────────────────────────────
-const workspaceRoleSchema = z.object({
-  workspaceId: objectId,
-  role: z.enum(['superadmin', 'admin', 'nonadmin']),
-}).strict();
-
-router.patch('/users/:userId/workspace-role', validate(workspaceRoleSchema, { params: userParamsSchema }), async (req, res, next) => {
-  try {
-    const { userId } = req.params;
-    const { workspaceId, role } = req.body;
-    const isSuperAdmin = req.user.roleId?.level === 100;
-
-    const ws = await Workspace.findById(workspaceId);
-    if (!ws) return res.status(404).json({ message: 'Workspace not found' });
-
-    const memberIdx = ws.members.findIndex(m => String(m.userId) === String(userId));
-    if (memberIdx === -1) {
-      return res.status(404).json({ message: 'User is not a member of this workspace' });
-    }
-
-    const currentRole = ws.members[memberIdx].role;
-    const isTargetOwner = String(ws.createdBy) === String(userId);
-
-    if (isTargetOwner && !isSuperAdmin) {
-      return res.status(403).json({ message: 'Only super admins can change the workspace owner role' });
-    }
-
-    const allowedRoles = isSuperAdmin ? ['superadmin', 'admin', 'nonadmin'] : ['admin', 'nonadmin'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: `Role must be one of: ${allowedRoles.join(', ')}` });
-    }
-
-    ws.members[memberIdx].role = role;
-    await ws.save();
-
-    Activity.create({
-      userId: req.user._id,
-      action: 'workspace.member.roleChanged',
-      details: {
-        workspaceId: ws._id,
-        workspaceName: ws.name,
-        member: userId,
-        oldRole: currentRole,
-        newRole: role,
-        source: 'admin_console',
-      },
-    }).catch(() => {});
-
-    Notification.create({
-      userId,
-      actor: { id: req.user._id, name: req.user.name, email: req.user.email, avatar: req.user.avatar || '' },
-      type: 'role_changed',
-      title: `Your role changed to ${role} in ${ws.name}`,
-      body: `${req.user.name} changed your workspace role to ${role}.`,
-      targetUrl: `/w/${ws._id}/overview`,
-    }).catch(() => {});
-
-    res.json({ workspaceId: ws._id, name: ws.name, memberRole: role, oldRole: currentRole });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // ── POST /api/admin/users ─────────────────────────────────────────────────
 const createUserSchema = z.object({
   name: z.string().trim().min(1, 'Name is required').max(100, 'Name too long'),
@@ -278,11 +175,7 @@ router.patch('/users/:userId', validate(adminUserPatchSchema, { params: userPara
       if (role === 'superadmin' && req.user.roleId?.level !== 100) {
         return res.status(403).json({ message: 'Only super admins can assign the Super Admin role' });
       }
-      // Check if target user is a workspace owner
-      const isOwner = await Workspace.exists({ createdBy: userId });
-      if (isOwner && req.user.roleId?.level !== 100) {
-        return res.status(403).json({ message: 'Only super admins can change the role of a workspace owner' });
-      }
+      // Collab workspace ownership no longer exists; system-role rules only.
       update.role = role;
       // Also update the roleId reference to the Role model
       const level = role === 'superadmin' ? 100 : role === 'admin' ? 60 : 0;
@@ -353,10 +246,7 @@ router.delete('/users/:userId', validate(null, { params: userParamsSchema }), as
     // history are retained for forensic/audit purposes; a deleted user is
     // excluded from every aggregate query via `deletedAt: null` filters and
     // can never authenticate (protect + login both reject `deletedAt` set).
-    await Promise.all([
-      Team.updateMany({ members: userId }, { $pull: { members: userId } }),
-      ReportShare.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } }),
-    ]);
+    await ReportShare.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } });
 
     res.json({ message: 'User soft-deleted', user });
     Activity.create({ userId: req.user._id, action: 'user.deleted', details: { targetUserId: userId, targetName: user.name } }).catch(() => {});

@@ -1,17 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Settings, User, ChevronDown, Menu, MessageSquare, BriefcaseBusiness } from 'lucide-react';
+import { LogOut, Settings, User, ChevronDown, Menu, BriefcaseBusiness, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
 import { useStore } from '@worklog/services/useStore';
-import { useWorkspaceId } from '@collab/hooks/useWorkspaceId';
 import { Breadcrumbs } from './Breadcrumbs';
 import { ThemeToggle } from './ThemeToggle';
 import { NowIndicator } from '@worklog/components/NowIndicator';
 import { FocusFlowLogo } from './FocusFlowLogo';
-import { NotificationCenter } from '@collab/components/NotificationCenter';
-import { GlobalCommandPalette } from '@collab/components/GlobalCommandPalette';
 import { api } from '@shared/utils/api';
 
 function localDateKey() {
@@ -29,10 +26,8 @@ export function GlobalHeader() {
   const { activeWorkspace } = useWorkspaceStore();
   const { mobileSidebarOpen, setMobileSidebarOpen } = useStore();
   const navigate = useNavigate();
-  const workspaceId = useWorkspaceId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [, setWsOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [officeTime, setOfficeTime] = useState<{ totalMs: number; activeSince: number | null } | null>(null);
   const [clockNow, setClockNow] = useState(Date.now());
   const [officeBusy, setOfficeBusy] = useState(false);
@@ -87,7 +82,7 @@ export function GlobalHeader() {
           aria-label="Toggle navigation menu" aria-expanded={mobileSidebarOpen} type="button">
           <Menu size={18} />
         </button>
-        <button onClick={() => navigate(activeWorkspace === 'work' ? '/worklog/dashboard' : activeWorkspace === 'collab' ? `/collab/${workspaceId || 'default'}/dashboard` : '/personal/today')}
+        <button onClick={() => navigate(activeWorkspace === 'work' ? '/worklog/dashboard' : '/personal/today')}
           className="flex-shrink-0 cursor-pointer" aria-label="Go to dashboard">
           <FocusFlowLogo size="sm" showText={false} />
         </button>
@@ -174,7 +169,16 @@ export function GlobalHeader() {
             Ctrl K
           </kbd>
         </button>*/}
-        <GlobalCommandPalette isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+        <button
+          type="button"
+          onClick={() => navigate(activeWorkspace === 'personal' ? '/personal/search' : '/worklog/search')}
+          aria-label="Search"
+          title="Search"
+          className="h-9 px-3 rounded-xl bg-surface-800/60 border border-surface-800 text-xs text-surface-400 hover:text-surface-200 hover:border-surface-600 transition-all flex items-center gap-2"
+        >
+          <Search size={15} />
+          <span className="hidden lg:inline">Search</span>
+        </button>
         <div className="hidden lg:block"><NowIndicator /></div>
         {user && <div className="inline-flex flex-none items-center gap-1.5 px-1 sm:gap-2 sm:px-1.5" title="Office work time today">
           <BriefcaseBusiness size={14} className={officeTime?.activeSince ? 'text-emerald-400' : 'text-surface-400'} />
@@ -191,19 +195,6 @@ export function GlobalHeader() {
           </span>
         </div>}
         <ThemeToggle />
-
-        {/* Notifications */}
-        <NotificationCenter />
-
-        {/* Chat */}
-        <button
-          onClick={() => navigate(`/collab/${workspaceId || 'default'}/chat`)}
-          className="hidden lg:block p-2 rounded-xl text-surface-400 hover:text-surface-50 hover:bg-surface-800 transition-colors"
-          aria-label="Open chat"
-          title="Messages"
-        >
-          <MessageSquare size={17} />
-        </button>
 
         {/* User Menu */}
         <div className="relative" ref={menuRef}>

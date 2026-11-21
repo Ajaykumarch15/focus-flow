@@ -10,7 +10,7 @@ import { SkeletonStatCard } from '@shared/components/ui/Skeleton';
 import { Card } from '@shared/components/ui/Card';
 import { Button } from '@shared/components/ui/Button';
 import { Badge } from '@shared/components/ui/Badge';
-import { getRoleDisplayName } from '@collab/utils/roleDisplay';
+import { getRoleDisplayName } from '@shared/utils/roleDisplay';
 
 const stagger = { show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -48,21 +48,19 @@ export function AdminOverview() {
   const [analytics, setAnalytics] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [teams, setTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const [s, a, act, u, t] = await Promise.all([
+        const [s, a, act, u] = await Promise.all([
           api.admin.getStats(),
           api.admin.getSystemAnalytics('week'),
           api.admin.getActivity(5),
           api.admin.listUsers(),
-          api.teams.list(),
         ]);
-        setStats(s); setAnalytics(a); setActivities(act.items); setUsers(u.items); setTeams(t);
+        setStats(s); setAnalytics(a); setActivities(act.items); setUsers(u.items);
       } catch {}
       finally { setLoading(false); }
     })();
@@ -85,7 +83,6 @@ export function AdminOverview() {
           <p className="text-surface-400 text-sm">{today}</p>
           <div className="flex items-center gap-4 mt-3">
             <span className="text-xs text-surface-400">{users.length} total users</span>
-            <span className="text-xs text-surface-400">{teams.length} teams</span>
             <span className="flex items-center gap-1.5 text-xs text-emerald-400">
               <motion.span className="w-2 h-2 rounded-full bg-emerald-400" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
               {stats?.activeUsers || 0} active now

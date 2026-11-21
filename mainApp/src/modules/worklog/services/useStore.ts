@@ -27,7 +27,6 @@ import type {
 import { useWorkLogStore } from './useWorkLogStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import { usePersonalTaskStore } from '@personal/services/usePersonalTaskStore';
 import { toast } from '@shared/services/useToastStore';
 import { generateBrandShades } from '@shared/utils/colorUtils';
@@ -374,50 +373,7 @@ export const useStore = create<StoreState>((set, get) => {
 
         const baseTasks = taskDocs.map(mapTask);
 
-        // Fetch workspace-scoped tasks assigned to, created by, or under review
-        // for the current user. A kanban task must surface on a member's Today/
-        // WorkLog view only when it belongs to them (assignee/owner/reviewer) —
-        // never every task for every team member.
-        const currentUserId = useAuthStore.getState().user?._id ?? null;
-        const belongsToUser = (doc: any): boolean => {
-          if (!currentUserId) return true;
-          const norm = (v: any) => (v ? String(v._id ?? v) : null);
-          const assigneeIds: string[] = Array.isArray(doc.assigneeIds)
-            ? doc.assigneeIds.map((id: any) => norm(id))
-            : doc.assigneeId
-              ? [norm(doc.assigneeId)]
-              : [];
-          const owner = norm(doc.userId);
-          const reviewer = norm(doc.reviewerId);
-          return (
-            assigneeIds.includes(currentUserId) ||
-            owner === currentUserId ||
-            reviewer === currentUserId
-          );
-        };
-        let workspaceTasks: Task[] = [];
-        try {
-          const workspaces = await api.workspaces.list();
-          const wsTaskResults = await Promise.all(
-            (Array.isArray(workspaces) ? workspaces : []).map((ws: any) =>
-              api.tasks.list({ workspaceId: ws._id ?? ws.id }).catch(() => [])
-            )
-          );
-          for (const docs of wsTaskResults) {
-            if (Array.isArray(docs)) {
-              for (const doc of docs) {
-                if (!belongsToUser(doc)) continue;
-                const mapped = mapTask(doc);
-                mapped.workspaceContext = 'collab';
-                workspaceTasks.push(mapped);
-              }
-            }
-          }
-        } catch {
-          // Workspace fetch failed — continue with personal tasks only
-        }
-
-        const allTasks = [...baseTasks, ...workspaceTasks];
+        const allTasks = baseTasks;
 
         // Process any queued offline timer operations. Fire-and-forget: the queue
         // retries failed ops with backoff; blocking here would delay boot and the
@@ -567,15 +523,8 @@ export const useStore = create<StoreState>((set, get) => {
       try {
         const docs = await api.tasks.list();
         const mapped = docs.map(mapTask);
-        // fetchTasks only sees the *personal* task list (no workspaceId). loadAll
-        // also merges in workspace-scoped (collab) tasks — replacing `tasks` here
-        // with the personal list alone would silently drop them after bulk ops
-        // or any refresh. Preserve and dedupe collab tasks instead.
-        const workspaceTasks = get().tasks.filter(t => t.workspaceContext === 'collab');
-        const seen = new Set(mapped.map(t => t.id));
-        const merged = [...mapped, ...workspaceTasks.filter(t => !seen.has(t.id))];
-        saveCache(TASKS_KEY, merged);
-        set({ tasks: merged });
+        saveCache(TASKS_KEY, mapped);
+        set({ tasks: mapped });
       } catch (err) {
         console.error('❌ fetchTasks failed:', err);
       }

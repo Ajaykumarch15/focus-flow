@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@worklog/services/useStore';
 import { useAuthStore } from '@shared/services/useAuthStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { timerEngine } from '@worklog/services/timerEngine';
 import { selectNowStrip } from '@personal/services/nowSelectors';
 
@@ -15,22 +14,21 @@ import { selectNowStrip } from '@personal/services/nowSelectors';
 //
 // State/data logic is reused from the existing `selectNowStrip` selector.
 // The indicator is workspace-scoped: a personal running task does not appear
-// in the worklog/collab header and vice-versa.
+// in the WorkLog header and vice-versa.
 
 export function NowIndicator() {
   const {
     tasks, activeTaskId, activeSessionId, activeTimerState,
   } = useStore();
-  const { workspaces, projects, sprints, features, tasks: collabTasks } = useCollaborationStore();
   const workspace = useAuthStore((s) => s.workspace);
   const navigate = useNavigate();
 
   const now = useMemo(
     () => selectNowStrip({
-      tasks, collabTasks, workspaces, projects, sprints, features,
+      tasks,
       activeTaskId, activeSessionId, activeTimerState,
     }),
-    [tasks, collabTasks, workspaces, projects, sprints, features, activeTaskId, activeSessionId, activeTimerState],
+    [tasks, activeTaskId, activeSessionId, activeTimerState],
   );
 
   // Only surface the active task when the running session belongs to the
@@ -45,7 +43,7 @@ export function NowIndicator() {
 
   const goToTask = () => {
     if (!hasActive) return;
-    navigate(now.state === 'collab' && now.workspaceId ? `/collab/${now.workspaceId}/projects` : `/worklog/tasks/${now.taskId}`);
+    navigate(`/worklog/tasks/${now.taskId}`);
   };
 
   if (hasActive) {

@@ -2,21 +2,10 @@
 // The build fails loudly when it is missing (see vite.config.ts requireApiUrl)
 // and its type is declared in src/vite-env.d.ts.
 import type {
-  Feature,
   GitContext,
-  Sprint,
-  SprintStats,
-  WorkspaceActivity,
-  NotificationItem,
   SearchResults,
   ProjectPatch,
-  RoadmapMilestone,
-  RoadmapPhase,
-  RoadmapModule,
-  RoadmapStatus,
-  DiscussionComment,
-  TaskAttachment,
-} from '@collab/types/collaboration';
+} from '@shared/types/apiCompat';
 import type {
   RoadmapListItem,
   RoadmapDetail,
@@ -47,87 +36,6 @@ type Paginated<T> = {
   hasMore: boolean;
   nextCursor: string | null;
 };
-
-// ── IES-R1: Phase 3 collaboration payloads (routes in server/routes). ─────────
-// Collaborative task refs mirror CollaborativeTask in src/types/collaboration.ts;
-// only id refs are sent to the API — workspaceId/projectId/sprintId/featureId.
-export type TaskCollabRefs = {
-  workspaceId?: string;
-  projectId?: string;
-  sprintId?: string;
-  featureId?: string;
-};
-
-export type TaskListParams = TaskCollabRefs;
-
-export type SprintCreatePayload = {
-  projectId: string;
-  name: string;
-  startDate: string | number;
-  endDate: string | number;
-  goal?: string;
-  capacityHours?: number;
-  targetVelocity?: number;
-};
-
-export type SprintUpdatePayload = Partial<Omit<SprintCreatePayload, 'projectId'>> & {
-  status?: 'draft' | 'planned' | 'active' | 'completed';
-};
-
-export type FeatureCreatePayload = {
-  projectId: string;
-  name: string;
-  description?: string;
-  type?: Feature['type'];
-  labels?: string[];
-  ownerId?: string;
-  estimatedHours?: number;
-  status?: Feature['status'];
-  order?: number;
-  sprintId?: string | null;
-  // EEP2-P3.2.4 / DDS §4.8: optional module ownership; null = project-level.
-  moduleId?: string | null;
-};
-
-export type FeatureUpdatePayload = Partial<Omit<FeatureCreatePayload, 'projectId'>> & {
-  sprintId?: string | null;
-  moduleId?: string | null;
-};
-
-// ── EEP2-P3.3/P3.4: Roadmap spine payloads (routes in server/routes). ─────────
-// `projectId` is always sent by the client; `workspaceRef` is derived server-side.
-export type MilestoneCreatePayload = {
-  projectId: string;
-  name: string;
-  description?: string;
-  targetDate?: string | number | null;
-  order?: number;
-  status?: RoadmapStatus;
-};
-export type MilestoneUpdatePayload = Partial<Omit<MilestoneCreatePayload, 'projectId'>>;
-
-export type PhaseCreatePayload = {
-  projectId: string;
-  milestoneId: string;
-  name: string;
-  description?: string;
-  status?: RoadmapStatus;
-  order?: number;
-  startDate?: string | number | null;
-  endDate?: string | number | null;
-};
-export type PhaseUpdatePayload = Partial<Omit<PhaseCreatePayload, 'projectId'>>;
-
-export type ModuleCreatePayload = {
-  projectId: string;
-  phaseId: string;
-  name: string;
-  description?: string;
-  status?: RoadmapStatus;
-  order?: number;
-  ownerId?: string | null;
-};
-export type ModuleUpdatePayload = Partial<Omit<ModuleCreatePayload, 'projectId'>>;
 
 // IES-P0-12: the session JWT lives in an httpOnly cookie; `credentials: 'include'`
 // makes the browser attach it to every request (cross-origin in dev).
@@ -175,23 +83,10 @@ export const api = {
   },
 
   tasks: {
-    // IES-R1: optional collab filters hit the workspace-scoped GET /tasks
-    // (member-gated); omitted, it stays the personal task list.
-    list: (params?: TaskListParams) => {
-      const qs = new URLSearchParams();
-      if (params?.workspaceId) qs.set('workspaceId', params.workspaceId);
-      if (params?.projectId) qs.set('projectId', params.projectId);
-      if (params?.sprintId) qs.set('sprintId', params.sprintId);
-      if (params?.featureId) qs.set('featureId', params.featureId);
-      const s = qs.toString();
-      return request<any[]>(`/tasks${s ? '?' + s : ''}`);
-    },
+    list: () => request<any[]>('/tasks'),
     create: (body: any) => request<any>('/tasks', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: any) => request<any>(`/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
     delete: (id: string) => request<any>(`/tasks/${id}`, { method: 'DELETE' }),
-    // IES-R1: persist gitContext on a collaborative task (PATCH /tasks/:id/git).
-    patchGit: (id: string, gitContext: GitContext) =>
-      request<any>(`/tasks/${id}/git`, { method: 'PATCH', body: JSON.stringify(gitContext) }),
     addSubtask: (taskId: string, title: string) =>
       request<any>(`/tasks/${taskId}/subtasks`, { method: 'POST', body: JSON.stringify({ title }) }),
     toggleSubtask: (taskId: string, subId: string, completed: boolean) =>
@@ -394,15 +289,6 @@ export const api = {
       request<any>(`/admin/users/${userId}`, { method: 'DELETE' }),
     restoreUser: (userId: string) =>
       request<any>(`/admin/users/${userId}/restore`, { method: 'POST' }),
-    getOwnerStatus: (userId: string) =>
-      request<{ isOwner: boolean; workspaces: any[] }>(`/admin/users/${userId}/owner-status`),
-    getUserWorkspaces: (userId: string) =>
-      request<any[]>(`/admin/users/${userId}/workspaces`),
-    setWorkspaceRole: (userId: string, data: { workspaceId: string; role: string }) =>
-      request<any>(`/admin/users/${userId}/workspace-role`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
     getSystemAnalytics: (period?: string) => {
       const qs = period ? `?period=${period}` : '';
       return request<any>(`/admin/system-analytics${qs}`);
@@ -436,27 +322,6 @@ export const api = {
     },
   },
 
-  teams: {
-    list: () => request<any[]>('/teams'),
-    create: (data: { name: string; description?: string; members?: string[]; workspaceId?: string; leaderId?: string; color?: string; projectId?: string }) => 
-      request<any>('/teams', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: { name?: string; description?: string; members?: string[]; leaderId?: string; color?: string }) => 
-      request<any>(`/teams/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    delete: (id: string) => 
-      request<any>(`/teams/${id}`, { method: 'DELETE' }),
-    addMember: (id: string, userId: string) =>
-      request<any>(`/teams/${id}/members`, { method: 'POST', body: JSON.stringify({ userId }) }),
-    removeMember: (id: string, userId: string) =>
-      request<any>(`/teams/${id}/members/${userId}`, { method: 'DELETE' }),
-    getAnalytics: (id: string, from?: number, to?: number) => {
-      const params = new URLSearchParams();
-      if (from) params.set('from', String(from));
-      if (to)   params.set('to', String(to));
-      const qs = params.toString();
-      return request<any>(`/teams/${id}/analytics${qs ? '?' + qs : ''}`);
-    },
-  },
-
   projects: {
     list: (workspaceId?: string) => {
       const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
@@ -478,132 +343,6 @@ export const api = {
     remove: (id: string) => request<any>(`/projects/${id}`, { method: 'DELETE' }),
   },
 
-  // IES-R1: real Sprint CRUD backed by the Phase 3 route (server/routes/sprints.js).
-  sprints: {
-    list: (projectId: string) =>
-      request<Sprint[]>(`/sprints?projectId=${encodeURIComponent(projectId)}`),
-    create: (body: SprintCreatePayload) =>
-      request<Sprint>('/sprints', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: SprintUpdatePayload) =>
-      request<Sprint>(`/sprints/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/sprints/${id}`, { method: 'DELETE' }),
-    // EEP2-P4.1.4: one-way commitment latch (Owner/Admin). Idempotent; the
-    // original commitmentDate is never rewritten.
-    commit: (id: string) => request<Sprint>(`/sprints/${id}/commit`, { method: 'POST' }),
-    // EEP2-P4.2.3: capacity/velocity summary (DDS §10). Velocity is derived
-    // from completed items only.
-    stats: (id: string) => request<SprintStats>(`/sprints/${id}/stats`),
-  },
-
-  // IES-R1: real Feature CRUD backed by the Phase 3 route (server/routes/features.js).
-  // Backlog = omit/leave null sprintId; use backlog:true to list backlog features.
-  features: {
-    list: (params: { projectId: string; sprintId?: string; backlog?: boolean; type?: Feature['type']; status?: Feature['status'] }) => {
-      const qs = new URLSearchParams({ projectId: params.projectId });
-      if (params.sprintId) qs.set('sprintId', params.sprintId);
-      if (params.backlog !== undefined) qs.set('backlog', String(params.backlog));
-      if (params.type) qs.set('type', params.type);
-      if (params.status) qs.set('status', params.status);
-      return request<Feature[]>(`/features?${qs.toString()}`);
-    },
-    create: (body: FeatureCreatePayload) =>
-      request<Feature>('/features', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: FeatureUpdatePayload) =>
-      request<Feature>(`/features/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/features/${id}`, { method: 'DELETE' }),
-  },
-
-  // EEP2-P3.3/P3.4: Roadmap spine CRUD backed by Phase 3 routes. `workspaceRef`
-  // is derived server-side from the owning Project — never sent by the client.
-  milestones: {
-    list: (projectId: string) =>
-      request<RoadmapMilestone[]>(`/milestones?projectId=${encodeURIComponent(projectId)}`),
-    create: (body: MilestoneCreatePayload) =>
-      request<RoadmapMilestone>('/milestones', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: MilestoneUpdatePayload) =>
-      request<RoadmapMilestone>(`/milestones/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/milestones/${id}`, { method: 'DELETE' }),
-  },
-
-  phases: {
-    list: (projectId: string, milestoneId?: string) => {
-      const qs = milestoneId
-        ? `?projectId=${encodeURIComponent(projectId)}&milestoneId=${encodeURIComponent(milestoneId)}`
-        : `?projectId=${encodeURIComponent(projectId)}`;
-      return request<RoadmapPhase[]>(`/phases${qs}`);
-    },
-    create: (body: PhaseCreatePayload) =>
-      request<RoadmapPhase>('/phases', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: PhaseUpdatePayload) =>
-      request<RoadmapPhase>(`/phases/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/phases/${id}`, { method: 'DELETE' }),
-  },
-
-  modules: {
-    list: (projectId: string, phaseId?: string) => {
-      const qs = phaseId
-        ? `?projectId=${encodeURIComponent(projectId)}&phaseId=${encodeURIComponent(phaseId)}`
-        : `?projectId=${encodeURIComponent(projectId)}`;
-      return request<RoadmapModule[]>(`/modules${qs}`);
-    },
-    create: (body: ModuleCreatePayload) =>
-      request<RoadmapModule>('/modules', { method: 'POST', body: JSON.stringify(body) }),
-    update: (id: string, body: ModuleUpdatePayload) =>
-      request<RoadmapModule>(`/modules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/modules/${id}`, { method: 'DELETE' }),
-  },
-
-  // IES-P2-01: real workspace CRUD + membership surface (IES-P2-07 wiring).
-  workspaces: {
-    list: () => request<any[]>('/workspaces'),
-    get: (id: string) => request<any>(`/workspaces/${id}`),
-    create: (data: { name: string; type?: string; icon?: string; description?: string; settings?: Record<string, any>; members?: Array<{ userId: string; role?: string; isProjectManager?: boolean }> }) =>
-      request<any>('/workspaces', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Record<string, any>) =>
-      request<any>(`/workspaces/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    remove: (id: string) => request<any>(`/workspaces/${id}`, { method: 'DELETE' }),
-    members: (id: string) => request<any[]>(`/workspaces/${id}/members`),
-    availableUsers: (id: string) => request<any[]>(`/workspaces/${id}/available-users`),
-    invite: (id: string, data: { userId?: string; email?: string; role?: string }) =>
-      request<any[]>(`/workspaces/${id}/members`, { method: 'POST', body: JSON.stringify(data) }),
-    join: (id: string) => request<any>(`/workspaces/${id}/join`, { method: 'POST' }),
-    setRole: (id: string, userId: string, role: string) =>
-      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-    removeMember: (id: string, userId: string) =>
-      request<any[]>(`/workspaces/${id}/members/${userId}`, { method: 'DELETE' }),
-
-    // IES-P2-04: real, workspace-scoped activity feed.
-    activity: (id: string, limit?: number, cursor?: string) => {
-      const params = new URLSearchParams();
-      if (limit) params.set('limit', String(limit));
-      if (cursor) params.set('cursor', cursor);
-      const qs = params.toString();
-      return request<Paginated<WorkspaceActivity>>(`/workspaces/${id}/activity${qs ? '?' + qs : ''}`);
-    },
-  },
-
-  // IES-P2-05: real, per-user notifications (invite / role change / removal).
-  notifications: {
-    list: (opts?: { limit?: number; cursor?: string; unreadOnly?: boolean }) => {
-      const params = new URLSearchParams();
-      if (opts?.limit) params.set('limit', String(opts.limit));
-      if (opts?.cursor) params.set('cursor', opts.cursor);
-      if (opts?.unreadOnly) params.set('unreadOnly', 'true');
-      const qs = params.toString();
-      return request<Paginated<NotificationItem>>(`/notifications${qs ? '?' + qs : ''}`);
-    },
-    unreadCount: () => request<{ count: number }>('/notifications/unread-count'),
-    markRead: (id: string) =>
-      request<NotificationItem>(`/notifications/${id}/read`, { method: 'PATCH' }),
-    markAllRead: () =>
-      request<{ updated: number }>('/notifications/read-all', { method: 'PATCH' }),
-  },
-
   // IES-P2-06: global (personal) + workspace-scoped search.
   search: {
     run: (query: string, opts?: { workspaceId?: string; limit?: number }) => {
@@ -612,62 +351,6 @@ export const api = {
       if (opts?.limit) params.set('limit', String(opts.limit));
       return request<SearchResults>(`/search?${params.toString()}`);
     },
-  },
-
-  // EEP2-P5.3.1: persisted comment threads (was client-mock in the store).
-  // `targetRef` is the polymorphic id of the target the thread hangs off; the
-  // server validates it resolves to a Task/WorkLog/Project/doc the caller can see.
-  comments: {
-    list: (
-      targetType: DiscussionComment['targetType'],
-      targetRef: string,
-      opts?: { limit?: number; cursor?: string },
-    ) => {
-      const params = new URLSearchParams({ targetType, targetRef });
-      if (opts?.limit) params.set('limit', String(opts.limit));
-      if (opts?.cursor) params.set('cursor', opts.cursor);
-      return request<Paginated<DiscussionComment>>(`/comments?${params.toString()}`);
-    },
-    create: (body: {
-      targetType: DiscussionComment['targetType'];
-      targetRef: string;
-      content: string;
-      parentId?: string | null;
-    }) => request<DiscussionComment>('/comments', { method: 'POST', body: JSON.stringify(body) }),
-    addReaction: (id: string, emoji: string) =>
-      request<DiscussionComment>(`/comments/${id}/reactions`, { method: 'PATCH', body: JSON.stringify({ emoji }) }),
-    resolve: (id: string) =>
-      request<DiscussionComment>(`/comments/${id}/resolve`, { method: 'PATCH' }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/comments/${id}`, { method: 'DELETE' }),
-  },
-
-  // EEP2-P5.3.2: persisted file attachments (was client-mock in the store).
-  // `targetRef` is the polymorphic id of the target the files hang off; the
-  // server validates it resolves to a Task/WorkLog/Project/doc the caller can
-  // see and enforces the size caps (25 MB per file, 200 per target).
-  attachments: {
-    list: (
-      targetType: TaskAttachment['targetType'],
-      targetRef: string,
-      opts?: { limit?: number; cursor?: string },
-    ) => {
-      const params = new URLSearchParams({ targetType, targetRef });
-      if (opts?.limit) params.set('limit', String(opts.limit));
-      if (opts?.cursor) params.set('cursor', opts.cursor);
-      return request<Paginated<TaskAttachment>>(`/attachments?${params.toString()}`);
-    },
-    create: (body: {
-      targetType: TaskAttachment['targetType'];
-      targetRef: string;
-      name: string;
-      type?: string;
-      url: string;
-      sizeBytes?: number;
-      description?: string;
-    }) => request<TaskAttachment>('/attachments', { method: 'POST', body: JSON.stringify(body) }),
-    remove: (id: string) =>
-      request<{ message: string }>(`/attachments/${id}`, { method: 'DELETE' }),
   },
 
   google: {
@@ -952,42 +635,6 @@ export const api = {
       }),
   },
 
-  chat: {
-    listConversations: (workspaceId: string) =>
-      request<any[]>(`/chat/conversations?workspaceId=${encodeURIComponent(workspaceId)}`),
-    createConversation: (data: { workspaceId: string; participantIds: string[]; name?: string; description?: string }) =>
-      request<any>('/chat/conversations', { method: 'POST', body: JSON.stringify(data) }),
-    getConversation: (id: string) => request<any>(`/chat/conversations/${id}`),
-    getParticipants: (conversationId: string) =>
-      request<any[]>(`/chat/conversations/${conversationId}/participants`),
-    getUnreadCount: (conversationId: string) =>
-      request<{ count: number }>(`/chat/conversations/${conversationId}/unread-count`),
-    getMessages: (conversationId: string, opts?: { limit?: number; before?: string }) => {
-      const params = new URLSearchParams();
-      if (opts?.limit) params.set('limit', String(opts.limit));
-      if (opts?.before) params.set('before', opts.before);
-      const qs = params.toString() ? '?' + params.toString() : '';
-      return request<any[]>(`/chat/conversations/${conversationId}/messages${qs}`);
-    },
-    sendMessage: (conversationId: string, content: string, replyTo?: string) =>
-      request<any>(`/chat/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ content, replyTo }),
-      }),
-    editMessage: (conversationId: string, messageId: string, content: string) =>
-      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ content }),
-      }),
-    deleteMessage: (conversationId: string, messageId: string) =>
-      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE' }),
-    toggleReaction: (conversationId: string, messageId: string, emoji: string) =>
-      request<any>(`/chat/conversations/${conversationId}/messages/${messageId}/reactions`, {
-        method: 'POST',
-        body: JSON.stringify({ emoji }),
-      }),
-    markRead: (conversationId: string) =>
-      request<any>(`/chat/conversations/${conversationId}/read`, { method: 'PATCH' }),
-  },
+
 };
 

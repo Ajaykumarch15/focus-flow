@@ -8,7 +8,6 @@ import {
 import type { TimelineEvent, TimelineGroupKey } from '../timelineSelectors';
 import type { Task, JournalEntry } from '@shared/types';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
-import type { CentralBlocker, Feature } from '@collab/types/collaboration';
 
 const NOW = Date.now();
 
@@ -77,47 +76,11 @@ function mkLog(id: string, overrides: Partial<WorkLog> = {}): WorkLog {
   } as WorkLog;
 }
 
-function mkBlocker(id: string, overrides: Partial<CentralBlocker> = {}): CentralBlocker {
-  return {
-    id,
-    workspaceId: 'ws-1',
-    title: `Blocker ${id}`,
-    severity: 'high',
-    ownerId: 'u-1',
-    reporterId: 'u-1',
-    status: 'open',
-    impactDescription: 'Blocks delivery',
-    createdAt: new Date(atLocalDaysAgo(2)).toISOString(),
-    ...overrides,
-  };
-}
-
-function mkFeature(id: string, overrides: Partial<Feature> = {}): Feature {
-  return {
-    id,
-    projectId: 'p-1',
-    workspaceId: 'ws-1',
-    name: `Feature ${id}`,
-    description: '',
-    type: 'feature',
-    labels: [],
-    ownerId: 'u-1',
-    estimatedHours: 8,
-    status: 'in_progress',
-    order: 0,
-    createdAt: new Date(atLocalDaysAgo(1)).toISOString().slice(0, 10),
-    ...overrides,
-  };
-}
-
 function baseInput(overrides: Partial<Parameters<typeof buildTimelineEvents>[0]> = {}) {
   return {
     tasks: [] as Task[],
     journals: [] as JournalEntry[],
     workLogs: [] as WorkLog[],
-    blockers: [] as CentralBlocker[],
-    features: [] as Feature[],
-    currentUserId: 'u-1',
     now: NOW,
     ...overrides,
   };
@@ -139,8 +102,6 @@ describe('buildTimelineEvents (S1-T7)', () => {
         decisions: [{ _id: 'd-1', title: 'Zustand over Redux', context: '', decision: 'Adopted Zustand.', alternatives: '', rationale: 'Size', timestamp: atLocalDaysAgo(1) }],
         blockerList: [{ _id: 'b-1', title: 'Mongo down', severity: 'critical', status: 'resolved', notes: 'Restarted', createdAt: atLocalDaysAgo(2), resolvedAt: atLocalDaysAgo(1) }],
       })],
-      blockers: [mkBlocker('cb-1')],
-      features: [mkFeature('f-1')],
     }));
 
     const kinds = events.map((e) => e.kind);
@@ -152,8 +113,6 @@ describe('buildTimelineEvents (S1-T7)', () => {
     expect(kinds).toContain('decision');
     expect(kinds).toContain('worklog_blocker');
     expect(kinds).toContain('worklog_blocker_resolved');
-    expect(kinds).toContain('blocker_raised');
-    expect(kinds).toContain('feature_created');
   });
 
   it('sorts newest first', () => {
@@ -203,17 +162,6 @@ describe('buildTimelineEvents (S1-T7)', () => {
     expect(events.filter((e) => e.kind === 'completed_item')).toHaveLength(0);
   });
 
-  it('only includes features owned by the current user, and only when a user id is known', () => {
-    const features = [
-      mkFeature('f-1', { ownerId: 'u-1' }),
-      mkFeature('f-2', { ownerId: 'someone-else' }),
-    ];
-    const owned = buildTimelineEvents(baseInput({ features }));
-    expect(owned.filter((e) => e.kind === 'feature_created').map((e) => e.title)).toEqual(['Feature f-1']);
-
-    const anonymous = buildTimelineEvents(baseInput({ features, currentUserId: '' }));
-    expect(anonymous.filter((e) => e.kind === 'feature_created')).toHaveLength(0);
-  });
 });
 
 describe('selectPersonalTimeline filters (S1-T7)', () => {
@@ -291,7 +239,7 @@ describe('groupTimelineEvents (S1-T7)', () => {
 
   it('labels every event kind for the filter UI', () => {
     const kinds = Object.keys(TIMELINE_KIND_LABELS);
-    expect(kinds.length).toBeGreaterThanOrEqual(16);
+    expect(kinds.length).toBeGreaterThanOrEqual(14);
     for (const label of Object.values(TIMELINE_KIND_LABELS)) {
       expect(label.length).toBeGreaterThan(0);
     }

@@ -1,6 +1,5 @@
 import type { JournalEntry, Task } from '@shared/types';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
-import type { CentralBlocker, Feature } from '@collab/types/collaboration';
 import { addDaysToKey, dayKey } from '@shared/utils/time';
 import { stripHtml } from '@shared/utils/htmlContent';
 
@@ -8,11 +7,11 @@ import { stripHtml } from '@shared/utils/htmlContent';
 // Answers "What have I been working on recently?" as a chronological feed of
 // ONLY data that already exists in the client stores — personal tasks & their
 // timer sessions, journal notes, work-log timeline entries (timer/note/
-// snapshot/completed item/decision/blocker), structured work-log blockers,
-// central blockers, and features the current user owns. Nothing is invented:
-// task "completed" and review events are intentionally omitted because no
-// completion/review timestamp exists in the current model. 100% pure — the
-// same inputs always produce the same output; `now` is injectable for tests.
+// snapshot/completed item/decision/blocker), and structured work-log blockers.
+// Nothing is invented: task "completed" and review events are intentionally
+// omitted because no completion/review timestamp exists in the current model.
+// 100% pure — the same inputs always produce the same output; `now` is
+// injectable for tests.
 
 export type TimelineEventKind =
   | 'task_created'
@@ -28,10 +27,7 @@ export type TimelineEventKind =
   | 'decision'
   | 'blocker'
   | 'worklog_blocker'
-  | 'worklog_blocker_resolved'
-  | 'blocker_raised'
-  | 'blocker_resolved'
-  | 'feature_created';
+  | 'worklog_blocker_resolved';
 
 export type TimelineRange = 'all' | 'today' | 'week';
 
@@ -50,9 +46,6 @@ export const TIMELINE_KIND_LABELS: Record<TimelineEventKind, string> = {
   blocker: 'Work-log blocker',
   worklog_blocker: 'Blocker reported',
   worklog_blocker_resolved: 'Blocker resolved',
-  blocker_raised: 'Blocker reported',
-  blocker_resolved: 'Blocker resolved',
-  feature_created: 'Feature created',
 };
 
 export interface TimelineEvent {
@@ -80,9 +73,6 @@ export interface TimelineInput {
   tasks: Task[];
   journals: JournalEntry[];
   workLogs: WorkLog[];
-  blockers: CentralBlocker[];
-  features: Feature[];
-  currentUserId?: string;
   now?: number;
 }
 
@@ -110,17 +100,6 @@ const WORKLOG_TIMER_TITLES: Partial<Record<TimelineEventKind, string>> = {
 
 function normalizeText(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, ' ');
-}
-
-/** Local-midnight instant for a YYYY-MM-DD date key. */
-function midnightOf(dateKey: string): number {
-  return new Date(`${dateKey}T00:00:00`).getTime();
-}
-
-function toMs(value: number | string): number {
-  if (typeof value === 'number') return value;
-  const ms = Date.parse(String(value));
-  return Number.isFinite(ms) ? ms : 0;
 }
 
 /** Sunday-start of the local calendar week a timestamp falls in (mirrors
@@ -276,53 +255,6 @@ function fromWorkLogs(workLogs: WorkLog[]): TimelineEvent[] {
   return events;
 }
 
-function fromCentralBlockers(blockers: CentralBlocker[]): TimelineEvent[] {
-  const events: TimelineEvent[] = [];
-  for (const blocker of blockers) {
-    const created = toMs(blocker.createdAt);
-    if (created > 0) {
-      events.push({
-        id: `cb:${blocker.id}:raised`,
-        kind: 'blocker_raised',
-        timestamp: created,
-        title: blocker.title || 'Blocker',
-        description: blocker.impactDescription || undefined,
-        severity: blocker.severity,
-        taskId: blocker.taskId,
-      });
-    }
-    if (blocker.resolvedAt) {
-      const resolved = toMs(blocker.resolvedAt);
-      if (resolved > 0) {
-        events.push({
-          id: `cb:${blocker.id}:resolved`,
-          kind: 'blocker_resolved',
-          timestamp: resolved,
-          title: blocker.title || 'Blocker',
-          description: 'Blocker resolved',
-          severity: blocker.severity,
-          taskId: blocker.taskId,
-        });
-      }
-    }
-  }
-  return events;
-}
-
-function fromOwnedFeatures(features: Feature[], currentUserId?: string): TimelineEvent[] {
-  if (!currentUserId) return [];
-  return features
-    .filter((f) => f.ownerId === currentUserId && f.createdAt)
-    .map((f) => ({
-      id: `feat:${f.id}:created`,
-      kind: 'feature_created' as const,
-      timestamp: midnightOf(f.createdAt),
-      title: f.name || 'Untitled feature',
-      description: 'Feature created',
-      category: f.type || 'feature',
-    }));
-}
-
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export function buildTimelineEvents(input: TimelineInput): TimelineEvent[] {
@@ -330,8 +262,6 @@ export function buildTimelineEvents(input: TimelineInput): TimelineEvent[] {
     ...fromPersonalTasks(input.tasks ?? []),
     ...fromJournals(input.journals ?? []),
     ...fromWorkLogs(input.workLogs ?? []),
-    ...fromCentralBlockers(input.blockers ?? []),
-    ...fromOwnedFeatures(input.features ?? [], input.currentUserId),
   ];
 
   // Newest first; the index tie-breaker keeps the order stable for events that

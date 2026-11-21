@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { Plus, Trash2, Link2, Check, Users } from 'lucide-react';
+import { Plus, Trash2, Link2 } from 'lucide-react';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Input } from '@shared/components/ui/Input';
 import { Textarea } from '@shared/components/ui/Textarea';
 import { Select } from '@shared/components/ui/Select';
 import { Field } from '@shared/components/ui/Field';
 import { Button } from '@shared/components/ui/Button';
-import { Avatar } from '@shared/components/ui/Avatar';
 import { useKanbanStore } from './kanbanStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { KANBAN_COLUMNS, LABEL_PRESETS } from './types';
 import type { KanbanStatus, KanbanPriority, KanbanSubtask } from './types';
 
@@ -24,22 +22,17 @@ const PRIORITY_OPTIONS: { value: KanbanPriority; label: string }[] = [
   { value: 'urgent', label: 'Urgent' },
 ];
 
-const KANBAN_TO_SPRINT: Record<KanbanStatus, string> = {
-  todo: 'backlog',
-  doing: 'in_progress',
-  review: 'review',
-  done: 'done',
-};
+const LABEL_COLOR: Record<string, string> = Object.fromEntries(
+  LABEL_PRESETS.map((l) => [l.name, l.color]),
+);
 
 export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
-  const { addModalDefaultStatus, tasks, workspaceId, projectId, membersMap } = useKanbanStore();
-  const createTask = useCollaborationStore((s) => s.createTask);
+  const { addModalDefaultStatus, tasks, addTask } = useKanbanStore();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<KanbanStatus>(addModalDefaultStatus);
   const [priority, setPriority] = useState<KanbanPriority>('medium');
   const [dueDate, setDueDate] = useState('');
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
   const [subtasks, setSubtasks] = useState<KanbanSubtask[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -47,15 +40,12 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
   const [errors, setErrors] = useState<{ title?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
-  const memberEntries = Object.entries(membersMap);
-
   const resetForm = () => {
     setTitle('');
     setDescription('');
     setStatus(addModalDefaultStatus);
     setPriority('medium');
     setDueDate('');
-    setAssigneeIds([]);
     setSelectedLabels([]);
     setSubtasks([]);
     setNewSubtask('');
@@ -77,20 +67,21 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
 
     setSubmitting(true);
     try {
-      await createTask({
+      addTask({
         title: title.trim(),
         description: description.trim(),
+        status,
         priority,
-        sprintStatus: KANBAN_TO_SPRINT[status] as any,
-        workspaceId: workspaceId || undefined,
-        projectId: projectId || undefined,
-        assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
-        labels: selectedLabels.length > 0 ? selectedLabels : ['General'],
-        dependencies: selectedDeps.length > 0 ? selectedDeps : [],
-        estimatedHours: 8,
-        actualHours: 0,
+        labels: (selectedLabels.length > 0 ? selectedLabels : ['General']).map((name) => ({
+          name,
+          color: LABEL_COLOR[name] ?? '#6b7280',
+        })),
+        assignees: [],
+        dueDate: dueDate || undefined,
         subtasks: subtasks.map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
-        deadline: dueDate ? new Date(dueDate).toISOString() : undefined,
+        comments: 0,
+        attachments: 0,
+        dependencies: selectedDeps.length > 0 ? selectedDeps : [],
       });
       resetForm();
       onClose();
@@ -99,12 +90,6 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const toggleAssignee = (userId: string) => {
-    setAssigneeIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
-    );
   };
 
   const handleAddSubtask = () => {
@@ -183,39 +168,6 @@ export function AddTaskModal({ open, onClose }: AddTaskModalProps) {
             </Select>
           </Field>
         </div>
-
-        {/* Assignees */}
-        {memberEntries.length > 0 && (
-          <div>
-            <label className="text-xs font-semibold text-surface-300 mb-2 flex items-center gap-1.5">
-              <Users size={12} className="text-brand-400" />
-              Assign Members {assigneeIds.length > 0 && <span className="text-brand-400">({assigneeIds.length})</span>}
-            </label>
-            <div className="max-h-32 overflow-y-auto space-y-1 rounded-xl border border-surface-800 bg-surface-900/50 p-2">
-              {memberEntries.map(([id, m]) => {
-                const isSelected = assigneeIds.includes(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => toggleAssignee(id)}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${
-                      isSelected
-                        ? 'bg-brand-500/10 border border-brand-500/30'
-                        : 'hover:bg-surface-850 border border-transparent'
-                    }`}
-                  >
-                    <Avatar name={m.name} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-surface-200 truncate">{m.name}</p>
-                    </div>
-                    {isSelected && <Check size={12} className="text-brand-400 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         <Field label="Due Date" htmlFor="task-due">
           <Input

@@ -74,18 +74,8 @@ const workLogRoutes = require('./routes/workLogs');
 const habitRoutes = require('./routes/habits');
 const reportRoutes = require('./routes/reports');   // ← NEW
 const adminRoutes = require('./routes/admin');     // ← NEW
-const teamRoutes  = require('./routes/teams');     // ← NEW
-const workspaceRoutes = require('./routes/workspaces'); // IES-P2-01
 const projectRoutes = require('./routes/projects');
-const notificationRoutes = require('./routes/notifications'); // IES-P2-05
-const searchRoutes = require('./routes/search');             // IES-P2-06
-const sprintRoutes = require('./routes/sprints');            // IES-R1
-const featureRoutes = require('./routes/features');          // IES-R1
-const milestoneRoutes = require('./routes/milestones');      // EEP2-P3.2.1
-const phaseRoutes = require('./routes/phases');              // EEP2-P3.2.2
-const moduleRoutes = require('./routes/modules');            // EEP2-P3.2.3
-const commentRoutes = require('./routes/comments');          // EEP2-P5.3.1
-const attachmentRoutes = require('./routes/attachments');    // EEP2-P5.3.2
+const searchRoutes = require('./routes/search');             // personal search
 const personalRoadmapIsolatedRoutes = require('./routes/personalRoadmapsIsolated'); // Personal Roadmaps (isolated)
 const usersRoutes = require('./routes/users');                 // User list for member pickers
 const scheduleRoutes = require('./routes/schedules');         // Schedule & Planner
@@ -100,8 +90,6 @@ const { createSecurityHeaders } = require('./middleware/securityHeaders'); // IE
 const { csrfProtect } = require('./middleware/csrf'); // IES-P0-12
 const errorHandler = require('./middleware/errorHandler'); // IES-P0-14
 const { startReaper } = require('./jobs/reaper');          // IES-P1-26
-const chatRoutes = require('./routes/chat');               // Real-time chat
-const { initSocket } = require('./socket/chat');          // Socket.IO handler
 
 const app = express();
 
@@ -148,18 +136,8 @@ app.use('/api/worklogs', workLogRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/reports', reportRoutes);            // ← NEW
 app.use('/api/admin', adminRoutes);              // ← NEW
-app.use('/api/teams', teamRoutes);              // ← NEW
-app.use('/api/workspaces', workspaceRoutes);    // IES-P2-01
 app.use('/api/projects', projectRoutes);
-app.use('/api/notifications', notificationRoutes); // IES-P2-05
-app.use('/api/search', searchRoutes);              // IES-P2-06
-app.use('/api/sprints', sprintRoutes);             // IES-R1
-app.use('/api/features', featureRoutes);           // IES-R1
-app.use('/api/milestones', milestoneRoutes);       // EEP2-P3.2.1
-app.use('/api/phases', phaseRoutes);               // EEP2-P3.2.2
-app.use('/api/modules', moduleRoutes);             // EEP2-P3.2.3
-app.use('/api/comments', commentRoutes);           // EEP2-P5.3.1
-app.use('/api/attachments', attachmentRoutes);     // EEP2-P5.3.2
+app.use('/api/search', searchRoutes);              // personal search
 app.use('/api/personal-roadmaps', personalRoadmapIsolatedRoutes);   // Personal Roadmaps (isolated)
 app.use('/api/schedules', scheduleRoutes);         // Schedule & Planner
 app.use('/api/personal-tasks', personalTaskRoutes); // Personal Tasks
@@ -168,7 +146,6 @@ app.use('/api/backup', backupRoutes);                     // Backup & Restore
 app.use('/api/meetings', meetingRoutes);                  // Meetings
 app.use('/api/personal-future-goals', personalFutureGoalRoutes); // Future Goals
 app.use('/api/office-work-time', officeWorkTimeRoutes);
-app.use('/api/chat', chatRoutes);                                // Real-time chat
 
 // IES-P0-19: liveness, readiness, metrics.
 app.use('/api', healthRoutes());
@@ -182,18 +159,6 @@ const PORT = process.env.PORT || 5001;
 (async () => {
   await connectWithRetry(process.env.MONGODB_URI);
   const server = await startServer(app, PORT);
-
-  // Socket.IO real-time layer
-  const { Server } = require('socket.io');
-  const io = new Server(server, {
-    cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:5173',
-      credentials: true,
-    },
-    pingTimeout: 60000,
-    pingInterval: 25000,
-  });
-  initSocket(io);
 
   startReaper();
   const shutdown = createShutdownHandler({ server });

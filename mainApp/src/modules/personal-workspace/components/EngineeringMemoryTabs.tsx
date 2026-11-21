@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { api } from '@shared/utils/api';
 import {
   mapSession, selectEngineeringMemory,
@@ -40,10 +39,6 @@ export function EngineeringMemoryTabs({ taskId }: EngineeringMemoryTabsProps) {
     currentSessionStart, currentPauseStart,
     dataLoading, addJournal,
   } = useStore();
-  const {
-    workspaces, projects, sprints, features,
-    tasks: collabTasks, blockers,
-  } = useCollaborationStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
 
   const [sessions, setSessions] = useState<MemorySession[]>([]);
@@ -64,15 +59,15 @@ export function EngineeringMemoryTabs({ taskId }: EngineeringMemoryTabsProps) {
 
   const view: MemoryView = useMemo(
     () => selectEngineeringMemory({
-      tasks, collabTasks, workspaces, projects, sprints, features,
-      workLogs, blockers, journals,
+      tasks,
+      workLogs, journals,
       activeTaskId, activeSessionId, activeTimerState,
       focusTaskId: taskId,
       sessions,
       currentSessionStart: currentSessionStart ?? null,
       currentPauseStart: currentPauseStart ?? null,
     }),
-    [tasks, collabTasks, workspaces, projects, sprints, features, workLogs, blockers, journals, activeTaskId, activeSessionId, activeTimerState, taskId, sessions, currentSessionStart, currentPauseStart],
+    [tasks, workLogs, journals, activeTaskId, activeSessionId, activeTimerState, taskId, sessions, currentSessionStart, currentPauseStart],
   );
 
   const saveQuickNote = async () => {

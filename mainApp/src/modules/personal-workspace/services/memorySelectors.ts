@@ -1,6 +1,6 @@
 import type { TimerState } from '@shared/types';
 import type { WorkLog, DecisionItem, StructuredBlocker, ProgressSnapshot, DailyReflection } from '@worklog/services/useWorkLogStore';
-import { selectFocusSession, type FocusChip, type FocusInput } from './focusSelectors';
+import { selectFocusSession, type FocusInput } from './focusSelectors';
 import { buildTimelineEvents, TIMELINE_KIND_LABELS } from '@worklog/services/timelineSelectors';
 import { stripHtml } from '@shared/utils/htmlContent';
 
@@ -71,10 +71,6 @@ export interface MemoryFacet {
 export interface MemoryView {
   taskId: string | null;
   taskTitle: string | null;
-  workspace: FocusChip | null;
-  project: FocusChip | null;
-  sprint: FocusChip | null;
-  feature: FocusChip | null;
   subtaskCount: number;
   hasActiveSession: boolean;
   sessionState: TimerState;
@@ -128,10 +124,6 @@ const DECISION_LIMIT = 3;
 
 const FACET_DEFS: { key: string; label: string }[] = [
   { key: 'task', label: 'Task' },
-  { key: 'workspace', label: 'Workspace' },
-  { key: 'project', label: 'Project' },
-  { key: 'sprint', label: 'Sprint' },
-  { key: 'feature', label: 'Feature' },
   { key: 'subtasks', label: 'Subtasks' },
   { key: 'journal', label: 'Journal' },
   { key: 'workLog', label: 'Work log' },
@@ -193,7 +185,6 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
         ...previous,
         taskTitle:
           input.tasks.find((t) => t.id === previous.taskId)?.title
-          ?? input.collabTasks.find((t) => t.id === previous.taskId)?.title
           ?? null,
       }
     : null;
@@ -226,16 +217,10 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, DECISION_LIMIT);
 
-  const blockerCount = focus.taskId
-    ? input.blockers.filter((b) => b.taskId === focus.taskId && b.status !== 'resolved').length
-    : 0;
+  const blockerCount = focus.taskId && focus.blocker ? 1 : 0;
 
   const present: Record<string, boolean> = {
     task: Boolean(focus.taskId && focus.title),
-    workspace: Boolean(focus.workspace),
-    project: Boolean(focus.project),
-    sprint: Boolean(focus.sprint),
-    feature: Boolean(focus.feature),
     subtasks: focus.subtasks.length > 0,
     journal: Boolean(taskJournalNote || lastJournalNote),
     workLog: Boolean(linkedLog || lastWorkLog),
@@ -258,10 +243,6 @@ export function selectEngineeringMemory(input: MemoryInput): MemoryView {
   return {
     taskId: focus.taskId,
     taskTitle: focus.title,
-    workspace: focus.workspace,
-    project: focus.project,
-    sprint: focus.sprint,
-    feature: focus.feature,
     subtaskCount: focus.subtasks.length,
     hasActiveSession: focus.hasActiveSession,
     sessionState: focus.sessionState,
@@ -337,7 +318,7 @@ function isReflectionBlank(reflection: DailyReflection | undefined): boolean {
 }
 
 export function selectMemory(log: WorkLog): WorkLogMemoryView {
-  const events = buildTimelineEvents({ tasks: [], journals: [], workLogs: [log], blockers: [], features: [] })
+  const events = buildTimelineEvents({ tasks: [], journals: [], workLogs: [log] })
     .filter((event) => event.worklogId === log._id);
   const last = events[0] ?? null;
 

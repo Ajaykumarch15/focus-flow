@@ -5,7 +5,6 @@ import {
   History, PenLine, AlertTriangle, CircleDashed,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { api } from '@shared/utils/api';
 import {
@@ -51,10 +50,6 @@ export function EngineeringMemoryPanel({ taskId = null, className }: Engineering
     currentSessionStart, currentPauseStart,
     dataLoading, dataError, loadAll, addJournal,
   } = useStore();
-  const {
-    workspaces, projects, sprints, features,
-    tasks: collabTasks, blockers,
-  } = useCollaborationStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
   const navigate = useNavigate();
 
@@ -82,15 +77,15 @@ export function EngineeringMemoryPanel({ taskId = null, className }: Engineering
 
   const view: MemoryView = useMemo(
     () => selectEngineeringMemory({
-      tasks, collabTasks, workspaces, projects, sprints, features,
-      workLogs, blockers, journals,
+      tasks,
+      workLogs, journals,
       activeTaskId, activeSessionId, activeTimerState,
       focusTaskId: taskId || null,
       sessions,
       currentSessionStart: currentSessionStart ?? null,
       currentPauseStart: currentPauseStart ?? null,
     }),
-    [tasks, collabTasks, workspaces, projects, sprints, features, workLogs, blockers, journals, activeTaskId, activeSessionId, activeTimerState, taskId, sessions, currentSessionStart, currentPauseStart],
+    [tasks, workLogs, journals, activeTaskId, activeSessionId, activeTimerState, taskId, sessions, currentSessionStart, currentPauseStart],
   );
 
   const saveQuickNote = async () => {

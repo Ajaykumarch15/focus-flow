@@ -1,10 +1,9 @@
-import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Suspense, lazy, useEffect } from 'react';import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { useAuthStore }    from '@shared/services/useAuthStore';
 import { useStore }        from '@worklog/services/useStore';
 import { useWorkspaceStore } from '@shared/services/useWorkspaceStore';
-import { deriveWorkspaceFromPath } from '@collab/services/workspaceRouting';
+import { deriveWorkspaceFromPath } from '@shared/services/workspaceRouting';
 import { clearTimer }      from '@worklog/services/timerPersist';
 import { ErrorBoundary }  from '@shared/components/ui/ErrorBoundary';
 
@@ -21,10 +20,6 @@ const Register        = lazy(() => import('@shared/pages/Register').then(module 
 // TEMP (Phase 3): isolated rich-text-editor test page — remove before release.
 const RteTestPage     = lazy(() => import('@shared/pages/RteTestPage').then(module => ({ default: module.RteTestPage })));
 const HomePage         = lazy(() => import('@shared/pages/Home').then(module => ({ default: module.HomePage })));
-const ProjectsPage    = lazy(() => import('@collab/pages/ProjectsPage').then(module => ({ default: module.ProjectsPage })));
-const ProjectDetailPage = lazy(() => import('@collab/pages/ProjectDetailPage').then(module => ({ default: module.ProjectDetailPage })));
-const ProjectKanbanPage = lazy(() => import('@collab/pages/ProjectKanbanPage').then(module => ({ default: module.ProjectKanbanPage })));
-const ProjectTasksPage = lazy(() => import('@collab/pages/ProjectTasksPage').then(module => ({ default: module.ProjectTasksPage })));
 // Personal Workspace Pages
 const TodayPage       = lazy(() => import('@worklog/pages/TodayPage').then(module => ({ default: module.TodayPage })));
 const NotFoundPage    = lazy(() => import('@shared/pages/NotFoundPage').then(module => ({ default: module.NotFoundPage })));
@@ -42,7 +37,6 @@ const KnowledgePage   = lazy(() => import('@worklog/pages/Knowledge').then(modul
 const ReportsPage     = lazy(() => import('@worklog/pages/Reports').then(module => ({ default: module.ReportsPage })));
 const InsightsPage    = lazy(() => import('@worklog/pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
 const CalendarPage    = lazy(() => import('@worklog/pages/CalendarPage').then(module => ({ default: module.CalendarPage })));
-const Leaderboard     = lazy(() => import('@collab/pages/Leaderboard').then(module => ({ default: module.Leaderboard })));
 const ShareReportPage = lazy(() => import('@shared/pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('@shared/pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
 const SearchResultsPage = lazy(() => import('@shared/pages/SearchResults').then(module => ({ default: module.SearchResultsPage })));
@@ -60,18 +54,6 @@ const FutureGoalsPage    = lazy(() => import('@personal/pages/FutureGoalsPage').
 const ActiveTimersPage = lazy(() => import('@timers/pages/ActiveTimersPage').then(module => ({ default: module.ActiveTimersPage })));
 const WorkLogDashboard = lazy(() => import('@worklog/pages/WorkLogDashboard').then(module => ({ default: module.WorkLogDashboard })));
 const OfficeWorkTimeAnalytics = lazy(() => import('@worklog/pages/OfficeWorkTimeAnalytics').then(module => ({ default: module.OfficeWorkTimeAnalytics })));
-const CollabDashboard  = lazy(() => import('@collab/pages/CollabDashboard').then(module => ({ default: module.CollabDashboard })));
-const WorkspaceListingPage = lazy(() => import('@collab/pages/WorkspaceListingPage').then(module => ({ default: module.WorkspaceListingPage })));
-const WorkspaceHubPage   = lazy(() => import('@collab/pages/WorkspaceHubPage').then(module => ({ default: module.WorkspaceHubPage })));
-const WorkspaceSettingsPage = lazy(() => import('@collab/pages/WorkspaceSettingsPage').then(module => ({ default: module.WorkspaceSettingsPage })));
-const PeoplePage       = lazy(() => import('@collab/pages/PeoplePage').then(module => ({ default: module.PeoplePage })));
-const ProjectPeoplePage = lazy(() => import('@collab/pages/ProjectPeoplePage').then(module => ({ default: module.ProjectPeoplePage })));
-const TeamDetailPage   = lazy(() => import('@collab/pages/TeamDetailPage').then(module => ({ default: module.TeamDetailPage })));
-const ActivityFeedPage = lazy(() => import('@collab/pages/collaboration/ActivityFeedPage').then(module => ({ default: module.ActivityFeedPage })));
-const PeopleSettingsPage = lazy(() => import('@collab/pages/PeopleSettingsPage').then(module => ({ default: module.PeopleSettingsPage })));
-const ProjectsSettingsPage = lazy(() => import('@collab/pages/ProjectsSettingsPage').then(module => ({ default: module.ProjectsSettingsPage })));
-const ActivitySettingsPage = lazy(() => import('@collab/pages/ActivitySettingsPage').then(module => ({ default: module.ActivitySettingsPage })));
-const OverviewSettingsPage = lazy(() => import('@collab/pages/OverviewSettingsPage').then(module => ({ default: module.OverviewSettingsPage })));
 const PersonalSettingsPage = lazy(() => import('@personal/pages/PersonalSettingsPage').then(module => ({ default: module.PersonalSettingsPage })));
 const WorklogSettingsPage = lazy(() => import('@worklog/pages/WorklogSettingsPage').then(module => ({ default: module.WorklogSettingsPage })));
 const ProfilePage         = lazy(() => import('@shared/pages/ProfilePage').then(module => ({ default: module.ProfilePage })));
@@ -79,17 +61,10 @@ const ProfilePage         = lazy(() => import('@shared/pages/ProfilePage').then(
 // Meeting pages
 const MeetingsDashboard = lazy(() => import('@meetings/pages/MeetingsDashboard').then(module => ({ default: module.MeetingsDashboard })));
 const MeetingDetailPage = lazy(() => import('@meetings/pages/MeetingDetailPage').then(module => ({ default: module.MeetingDetailPage })));
-const MeetingsMembersPage = lazy(() => import('@meetings/pages/MeetingsMembersPage').then(module => ({ default: module.MeetingsMembersPage })));
-
-// Workspace schedule pages
-const WorkspaceSchedulePage = lazy(() => import('@collab/pages/WorkspaceSchedulePage').then(module => ({ default: module.WorkspaceSchedulePage })));
-const ProjectSchedulePage = lazy(() => import('@collab/pages/ProjectSchedulePage').then(module => ({ default: module.ProjectSchedulePage })));
-const ChatPage = lazy(() => import('@collab/pages/ChatPage').then(module => ({ default: module.ChatPage })));
 
 // Admin workspace pages
 const AdminAudit      = lazy(() => import('@shared/pages/admin/AdminAudit').then(module => ({ default: module.AdminAudit })));
 const AdminPeople     = lazy(() => import('@shared/pages/admin/AdminPeople').then(module => ({ default: module.AdminPeople })));
-const AdminTeams      = lazy(() => import('@shared/pages/admin/AdminTeams').then(module => ({ default: module.AdminTeams })));
 const AdminSettings   = lazy(() => import('@shared/pages/admin/AdminSettings').then(module => ({ default: module.AdminSettings })));
 
 function RouteFallback() {
@@ -140,10 +115,7 @@ function WorkspaceSync() {
     // null means the route is workspace-agnostic (e.g. /home) — skip the update
     // to keep the sidebar in its previous state.
     if (ws === null) return;
-    // useWorkspaceStore's WorkspaceType omits 'admin' (admin uses its own layout);
-    // persist it as 'collab' there, but keep the full value on useAuthStore which
-    // drives the sidebar/admin routing.
-    useWorkspaceStore.getState().setWorkspace(ws === 'admin' ? 'collab' : ws);
+    if (ws !== 'admin') useWorkspaceStore.getState().setWorkspace(ws);
     useAuthStore.getState().setWorkspace(ws);
   }, [pathname]);
   return null;
@@ -262,37 +234,14 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route element={<PersonalWorkspaceRouter />}>
                 <Route path="/meetings" element={<MeetingsDashboard />} />
-                <Route path="/meetings/members" element={<MeetingsMembersPage />} />
+                <Route path="/meetings/members" element={<Navigate to="/meetings" replace />} />
                 <Route path="/meetings/:meetingId" element={<MeetingDetailPage />} />
               </Route>
             </Route>
 
-            {/* Collab Workspace */}
+            {/* Legacy collab links redirect home */}
             <Route element={<ProtectedRoute />}>
-              <Route element={<PersonalWorkspaceRouter />}>
-                <Route path="/collab" element={<Navigate to="/collab/workspaces" replace />} />
-                <Route path="/collab/workspaces" element={<WorkspaceListingPage />} />
-                <Route path="/collab/:workspaceSlug" element={<WorkspaceHubPage />} />
-                <Route path="/collab/:workspaceSlug/dashboard" element={<CollabDashboard />} />
-                <Route path="/collab/:workspaceSlug/projects" element={<ProjectsPage />} />
-                <Route path="/collab/:workspaceSlug/projects/:projectId" element={<ProjectDetailPage />} />
-                <Route path="/collab/:workspaceSlug/projects/:projectId/kanban" element={<ProjectKanbanPage />} />
-                <Route path="/collab/:workspaceSlug/projects/:projectId/tasks" element={<ProjectTasksPage />} />
-                <Route path="/collab/:workspaceSlug/projects/:projectId/people" element={<ProjectPeoplePage />} />
-                <Route path="/collab/:workspaceSlug/projects/:projectId/schedule" element={<ProjectSchedulePage />} />
-                <Route path="/collab/:workspaceSlug/people" element={<PeoplePage />} />
-                <Route path="/collab/:workspaceSlug/chat" element={<ChatPage />} />
-                <Route path="/collab/:workspaceSlug/schedule" element={<WorkspaceSchedulePage />} />
-                <Route path="/collab/:workspaceSlug/teams/:teamId" element={<TeamDetailPage />} />
-                <Route path="/collab/:workspaceSlug/leaderboard" element={<Leaderboard />} />
-                <Route path="/collab/:workspaceSlug/activity" element={<ActivityFeedPage />} />
-                <Route path="/collab/:workspaceSlug/settings" element={<WorkspaceSettingsPage />} />
-                <Route path="/collab/:workspaceSlug/people/settings" element={<PeopleSettingsPage />} />
-                <Route path="/collab/:workspaceSlug/projects/settings" element={<ProjectsSettingsPage />} />
-                <Route path="/collab/:workspaceSlug/activity/settings" element={<ActivitySettingsPage />} />
-                <Route path="/collab/:workspaceSlug/overview/settings" element={<OverviewSettingsPage />} />
-                <Route path="/collab/:workspaceSlug/search" element={<SearchResultsPage />} />
-              </Route>
+              <Route path="/collab/*" element={<Navigate to="/home" replace />} />
             </Route>
 
             {/* Homepage (workspace switcher) */}
@@ -321,7 +270,7 @@ export default function App() {
               <Route element={<AdminRoute><AdminWorkspaceRouter /></AdminRoute>}>
                 <Route path="/admin/audit"     element={<AdminAudit />} />
                 <Route path="/admin/people"    element={<AdminPeople />} />
-                <Route path="/admin/teams"     element={<AdminTeams />} />
+                <Route path="/admin/teams"     element={<Navigate to="/admin/people" replace />} />
                 <Route path="/admin/settings"  element={<AdminSettings />} />
                 <Route path="/admin/overview"  element={<Navigate to="/admin/audit" replace />} />
                 <Route path="/admin/analytics" element={<Navigate to="/admin/audit" replace />} />

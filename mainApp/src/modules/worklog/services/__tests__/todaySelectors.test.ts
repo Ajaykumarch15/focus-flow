@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Task } from '@shared/types';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
-import type { CentralBlocker, CollaborativeTask } from '@collab/types/collaboration';
 import {
   selectContinue, selectDoNow, selectAttention, selectToday,
 } from '../todaySelectors';
@@ -57,41 +56,6 @@ function makeWorkLog(overrides: Partial<WorkLog> & { _id: string }): WorkLog {
     totalActiveMs: 0,
     createdAt: '2026-08-01T00:00:00.000Z',
     updatedAt: '2026-08-03T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function makeBlocker(overrides: Partial<CentralBlocker> & { id: string }): CentralBlocker {
-  return {
-    workspaceId: 'ws1',
-    title: 'Blocked on design',
-    severity: 'high',
-    ownerId: 'u1',
-    reporterId: 'u2',
-    status: 'open',
-    impactDescription: 'Cannot ship',
-    createdAt: '2026-08-01T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-function makeReview(overrides: Partial<CollaborativeTask> & { id: string }): CollaborativeTask {
-  return {
-    workspaceId: 'ws1',
-    projectId: 'p1',
-    title: 'Review auth',
-    description: '',
-    sprintStatus: 'review',
-    priority: 'medium',
-    ownerId: 'u1',
-    followerIds: [],
-    labels: [],
-    dependencies: [],
-    estimatedHours: 0,
-    actualHours: 0,
-    subtasks: [],
-    createdAt: '2026-08-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -204,56 +168,42 @@ describe('selectDoNow', () => {
 });
 
 describe('selectAttention', () => {
-  it('tiers overdue tasks above blockers, reviews and deadlines', () => {
+  it('tiers overdue tasks above due-today tasks and deadlines', () => {
     const overdue = makeTask({ id: 't-overdue', deadline: new Date(2026, 7, 2).getTime() });
-    const blocker = makeBlocker({ id: 'b1', severity: 'critical' });
-    const review = makeReview({ id: 'r1' });
-    const deadline = { id: 'd1', title: 'Sprint end', dueDate: '2026-08-08' };
-    const result = selectAttention([overdue], [blocker], [review], [deadline], NOW, 7, 8);
-    expect(result[0]).toMatchObject({ kind: 'overdue', taskId: 't-overdue' });
-    expect(result[1]).toMatchObject({ kind: 'blocker' });
-    expect(result[2]).toMatchObject({ kind: 'review' });
-    expect(result[3]).toMatchObject({ kind: 'deadline' });
+    const deadline = { id: 'd1', title: 'Milestone', dueDate: '2026-08-08' };
+    const result = selectAttention([overdue], [deadline], NOW, 7, 8);
+    expect(result.map((i) => i.kind)).toEqual(['overdue', 'deadline']);
+    expect(result[0]).toMatchObject({ taskId: 't-overdue' });
   });
 
-  it('sorts overdue by priority and blockers by severity', () => {
+  it('sorts overdue tasks by priority', () => {
     const lowOverdue = makeTask({ id: 't-low', priority: 'low', deadline: new Date(2026, 7, 2).getTime() });
     const urgentOverdue = makeTask({ id: 't-urgent', priority: 'urgent', deadline: new Date(2026, 7, 2).getTime() });
-    const mediumBlocker = makeBlocker({ id: 'b-medium', severity: 'medium' });
-    const criticalBlocker = makeBlocker({ id: 'b-critical', severity: 'critical' });
-    const result = selectAttention([lowOverdue, urgentOverdue], [mediumBlocker, criticalBlocker], [], [], NOW, 7, 8);
-    expect(result.map((i) => i.id)).toEqual(['task-t-urgent', 'task-t-low', 'blocker-b-critical', 'blocker-b-medium']);
+    const result = selectAttention([lowOverdue, urgentOverdue], [], NOW, 7, 8);
+    expect(result.map((i) => i.id)).toEqual(['task-t-urgent', 'task-t-low']);
   });
 
-  it('flags due-today tasks and skips resolved blockers', () => {
+  it('flags due-today tasks', () => {
     const dueToday = makeTask({ id: 't-today', deadline: new Date(2026, 7, 4).getTime() });
-    const resolved = makeBlocker({ id: 'b-resolved', status: 'resolved' });
-    const result = selectAttention([dueToday], [resolved], [], [], NOW, 7, 8);
+    const result = selectAttention([dueToday], [], NOW, 7, 8);
     expect(result.map((i) => i.kind)).toEqual(['due-today']);
   });
 
   it('includes only deadlines inside the horizon and orders soonest first', () => {
     const today = { id: 'd-today', title: 'Due today', dueDate: '2026-08-04' };
-    const far = { id: 'd-far', title: 'Sprint end', dueDate: '2026-08-08' };
+    const far = { id: 'd-far', title: 'Milestone', dueDate: '2026-08-08' };
     const past = { id: 'd-past', title: 'Past', dueDate: '2026-07-01' };
-    const result = selectAttention([], [], [], [far, today, past], NOW, 7, 8);
+    const result = selectAttention([], [far, today, past], NOW, 7, 8);
     expect(result.map((i) => i.id)).toEqual(['deadline-d-today', 'deadline-d-far']);
   });
 
-  it('maps urgent priority to critical severity', () => {
-    const urgentReview = makeReview({ id: 'r-urgent', priority: 'urgent' });
-    const result = selectAttention([], [], [urgentReview], [], NOW, 7, 8);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ kind: 'review', severity: 'critical' });
-  });
-
   it('respects the limit', () => {
-    const items = Array.from({ length: 10 }, (_, i) => makeBlocker({ id: `b-${i}`, severity: 'low' }));
-    expect(selectAttention([], items, [], [], NOW, 7, 4)).toHaveLength(4);
+    const items = Array.from({ length: 10 }, (_, i) => ({ id: `d-${i}`, title: `D${i}`, dueDate: '2026-08-05' }));
+    expect(selectAttention([], items, NOW, 7, 4)).toHaveLength(4);
   });
 
   it('returns [] for empty input', () => {
-    expect(selectAttention([], [], [], [], NOW, 7, 8)).toEqual([]);
+    expect(selectAttention([], [], NOW, 7, 8)).toEqual([]);
   });
 });
 
@@ -268,8 +218,6 @@ describe('selectToday', () => {
       activeTaskId: 't-running',
       activeSessionId: 'sess-1',
       workLogs: [log],
-      blockers: [],
-      reviews: [],
       deadlines: [],
       todayMs: 45 * 60 * 1000,
       weekMs: 2 * 3600 * 1000,
@@ -287,8 +235,6 @@ describe('selectToday', () => {
       activeTaskId: null,
       activeSessionId: null,
       workLogs: [],
-      blockers: [],
-      reviews: [],
       deadlines: [],
       todayMs: 9 * 3600 * 1000,
       weekMs: 12 * 3600 * 1000,
@@ -304,7 +250,7 @@ describe('selectToday', () => {
   it('returns null progress when the daily goal is zero (honest —)', () => {
     const view = selectToday({
       tasks: [], activeTaskId: null, activeSessionId: null, workLogs: [],
-      blockers: [], reviews: [], deadlines: [],
+      deadlines: [],
       todayMs: 1000, weekMs: 0, dailyGoalMs: 0, now: NOW,
     });
     expect(view.stats.progressPct).toBeNull();
@@ -318,7 +264,7 @@ describe('selectToday', () => {
     const view = selectToday({
       tasks: [doneToday, doneBefore, overdue, open],
       activeTaskId: null, activeSessionId: null, workLogs: [],
-      blockers: [], reviews: [], deadlines: [],
+      deadlines: [],
       todayMs: 0, weekMs: 0, dailyGoalMs: 8 * 3600 * 1000, now: NOW,
     });
     expect(view.stats.completedToday).toBe(1);
@@ -334,8 +280,6 @@ describe('selectToday', () => {
       activeTaskId: null,
       activeSessionId: null,
       workLogs: [],
-      blockers: [],
-      reviews: [],
       deadlines: [],
       todayMs: 1000,
       weekMs: 0,

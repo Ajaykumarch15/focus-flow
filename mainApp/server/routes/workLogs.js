@@ -17,151 +17,6 @@ const { getWorkspaceRole, getProjectRole, isTeamLeader, isUserIdInTeam } = requi
 const router = express.Router();
 router.use(protect);
 
-// ── GET /api/worklogs/workspace/:workspaceId ──────────────────────────────────
-// Returns all company WorkLogs in a workspace. Accessible by workspace Owner/Admin.
-router.get('/workspace/:workspaceId', validate(null, { params: z.object({ workspaceId: objectId }) }), async (req, res, next) => {
-  try {
-    const workspace = await Workspace.findById(req.params.workspaceId).select('members createdBy');
-    if (!workspace) return res.status(404).json({ message: 'Workspace not found' });
-
-    const allowed = can(req.user, 'worklog.view_team', { workspace });
-    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view workspace worklogs' });
-
-    // Find all tasks in this workspace
-    const workspaceTasks = await Task.find({ workspaceRef: workspace._id }).select('_id');
-    const taskIds = workspaceTasks.map(t => t._id);
-
-    // Find all projects in this workspace
-    const workspaceProjects = await Project.find({ workspaceRef: workspace._id }).select('_id');
-    const projectIds = workspaceProjects.map(p => p._id);
-
-    // Find WorkLogs that belong to this workspace (via task or project)
-    const filter = {
-      $or: [
-        { taskRef: { $in: taskIds } },
-        { projectRef: { $in: projectIds } },
-      ],
-    };
-
-    let logs = await WorkLog.find(filter)
-      .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef')
-      .sort({ isActive: -1, updatedAt: -1 });
-
-    const timeZone = userTimezone(req);
-    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
-
-    res.json(logs.map((log) => {
-      const json = typeof log.toObject === 'function' ? log.toObject() : log;
-      delete json.timelineEntries;
-      delete json.progressSnapshots;
-      delete json.attachments;
-      return json;
-    }));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── GET /api/worklogs/project/:projectId ──────────────────────────────────────
-// Returns all WorkLogs in a project. Accessible by PM and workspace Owner/Admin.
-router.get('/project/:projectId', validate(null, { params: z.object({ projectId: objectId }) }), async (req, res, next) => {
-  try {
-    const project = await Project.findById(req.params.projectId).select('workspaceRef userId members');
-    if (!project) return res.status(404).json({ message: 'Project not found' });
-
-    let workspace = null;
-    if (project.workspaceRef) {
-      workspace = await Workspace.findById(project.workspaceRef).select('members createdBy');
-    }
-
-    const allowed = can(req.user, 'worklog.view_project', { workspace, project });
-    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view project worklogs' });
-
-    // Find tasks in this project
-    const projectTasks = await Task.find({ projectRef: project._id }).select('_id');
-    const taskIds = projectTasks.map(t => t._id);
-
-    // Find WorkLogs that belong to this project (via task or direct projectRef)
-    const filter = {
-      $or: [
-        { taskRef: { $in: taskIds } },
-        { projectRef: project._id },
-      ],
-    };
-
-    let logs = await WorkLog.find(filter)
-      .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef')
-      .sort({ isActive: -1, updatedAt: -1 });
-
-    const timeZone = userTimezone(req);
-    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
-
-    res.json(logs.map((log) => {
-      const json = typeof log.toObject === 'function' ? log.toObject() : log;
-      delete json.timelineEntries;
-      delete json.progressSnapshots;
-      delete json.attachments;
-      return json;
-    }));
-  } catch (err) {
-    next(err);
-  }
-});
-
-// ── GET /api/worklogs/team/:teamId ────────────────────────────────────────────
-// Returns WorkLogs of team members. Accessible by Team Leader and workspace Owner/Admin.
-router.get('/team/:teamId', validate(null, { params: z.object({ teamId: objectId }) }), async (req, res, next) => {
-  try {
-    const team = await Team.findById(req.params.teamId);
-    if (!team) return res.status(404).json({ message: 'Team not found' });
-
-    let workspace = null;
-    if (team.workspaceRef) {
-      workspace = await Workspace.findById(team.workspaceRef).select('members createdBy');
-    }
-
-    let project = null;
-    if (team.projectRef) {
-      project = await Project.findById(team.projectRef).select('workspaceRef userId members');
-    }
-
-    const allowed = can(req.user, 'worklog.view_team', { workspace, team, project });
-    if (!allowed) return res.status(403).json({ message: 'You do not have permission to view team worklogs' });
-
-    // Find WorkLogs owned by team members
-    const memberIds = team.members || [];
-    const filter = { userId: { $in: memberIds } };
-
-    // If the team is project-scoped, also filter by project
-    if (team.projectRef) {
-      filter.$or = [
-        { projectRef: team.projectRef },
-        { taskRef: { $in: (await Task.find({ projectRef: team.projectRef }).select('_id')).map(t => t._id) } },
-      ];
-    }
-
-    let logs = await WorkLog.find(filter)
-      .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef')
-      .sort({ isActive: -1, updatedAt: -1 });
-
-    const timeZone = userTimezone(req);
-    logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone });
-
-    res.json(logs.map((log) => {
-      const json = typeof log.toObject === 'function' ? log.toObject() : log;
-      delete json.timelineEntries;
-      delete json.progressSnapshots;
-      delete json.attachments;
-      return json;
-    }));
-  } catch (err) {
-    next(err);
-  }
-});
-
 // IES-P0-16: body/param schemas — size caps keep documents well under the
 // Mongo 16 MB limit, enums match the model, numbers are NaN-safe.
 const WORKLOG_STATUS = ['planning', 'in-progress', 'reviewing', 'blocked', 'done'];
@@ -376,7 +231,7 @@ router.get('/', async (req, res, next) => {
 
     let logs = await WorkLog.find(filter)
       .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId')
       .sort({ isActive: -1, updatedAt: -1 });
 
     const timeZone = userTimezone(req);
@@ -410,7 +265,7 @@ router.get('/by-task/:taskId', validate(null, { params: z.object({ taskId: objec
   try {
     let logs = await WorkLog.find({ userId: req.user._id, taskRef: req.params.taskId })
       .populate('taskRef', 'title color category totalTime')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+      .populate('projectRef', 'name googleFolderId workLogsFolderId');
 
     // IES-P1-02: GET computes effective totals without writing to the DB.
     logs = await syncWorkLogsBulk(logs, req.user._id, { timeZone: userTimezone(req) });
@@ -434,37 +289,14 @@ router.get('/by-task/:taskId', validate(null, { params: z.object({ taskId: objec
 router.get('/:id', async (req, res, next) => {
   try {
     let log = await WorkLog.findById(req.params.id)
-      .populate('taskRef', 'title color category totalTime workspaceRef projectRef')
-      .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+      .populate('taskRef', 'title color category totalTime')
+      .populate('projectRef', 'name googleFolderId workLogsFolderId');
 
     if (!log) return res.status(404).json({ message: 'Not found' });
 
-    // Owner can always view their own
+    // WorkLogs are private to their owner.
     const isOwner = String(log.userId) === String(req.user._id);
-
-    if (!isOwner) {
-      // For non-owners, derive scope and check authorization
-      let task = null;
-      if (log.taskRef) {
-        task = log.taskRef;
-      }
-
-      let project = null;
-      if (log.projectRef) {
-        project = log.projectRef;
-      } else if (task && task.projectRef) {
-        project = await Project.findById(task.projectRef).select('workspaceRef userId members');
-      }
-
-      let workspace = null;
-      const workspaceId = (task && task.workspaceRef) || (project && project.workspaceRef);
-      if (workspaceId) {
-        workspace = await Workspace.findById(workspaceId).select('members createdBy');
-      }
-
-      const allowed = can(req.user, 'worklog.view_team', { resource: log, workspace, project, task });
-      if (!allowed) return res.status(403).json({ message: 'You do not have permission to view this worklog' });
-    }
+    if (!isOwner) return res.status(403).json({ message: 'You do not have permission to view this worklog' });
 
     // IES-P1-02: GET computes effective totals without writing to the DB.
     log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req), persist: false });
@@ -626,7 +458,7 @@ router.patch('/:id', validate(workLogPatchSchema, { params: workLogParamsSchema 
       { $set: patch },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
 
     if (!log) return res.status(404).json({ message: 'Not found' });
     triggerGoogleDocSync(req, log);
@@ -649,7 +481,7 @@ router.patch('/:id/entries/:entryId', validate(
       { $set: { 'workEntries.$.what': what } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -670,7 +502,7 @@ router.post('/:id/timeline', validate(timelineEntrySchema, { params: workLogPara
       { $push: { timelineEntries: { $each: [{ title, description, type: type || 'note', category: category || 'General', metadata, timestamp: timestamp || Date.now() }], $slice: -ARRAY_CAPS.timelineEntries } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -692,7 +524,7 @@ router.post('/:id/decisions', validate(decisionSchema, { params: workLogParamsSc
       },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -708,7 +540,7 @@ router.delete('/:id/decisions/:decId', validate(null, { params: itemParams('decI
       { $pull: { decisions: { _id: req.params.decId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -730,7 +562,7 @@ router.post('/:id/blockers', validate(blockerCreateSchema, { params: workLogPara
       },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -752,7 +584,7 @@ router.patch('/:id/blockers/:blkId', validate(blockerPatchSchema, { params: item
       { $set: patch },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -768,7 +600,7 @@ router.delete('/:id/blockers/:blkId', validate(null, { params: itemParams('blkId
       { $pull: { blockerList: { _id: req.params.blkId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -790,7 +622,7 @@ router.post('/:id/snapshots', validate(snapshotCreateSchema, { params: workLogPa
       },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -806,7 +638,7 @@ router.delete('/:id/snapshots/:snapId', validate(null, { params: itemParams('sna
       { $pull: { progressSnapshots: { _id: req.params.snapId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -823,7 +655,7 @@ router.post('/:id/attachments', validate(attachmentCreateSchema, { params: workL
       { $push: { attachments: { $each: [{ name, type: type || 'file', url, sizeBytes: sizeBytes || 0, description: description || '', uploadDate: Date.now() }], $slice: -ARRAY_CAPS.attachments } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -839,7 +671,7 @@ router.delete('/:id/attachments/:attId', validate(null, { params: itemParams('at
       { $pull: { attachments: { _id: req.params.attId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
@@ -861,7 +693,7 @@ router.post('/:id/completed', validate(completedItemCreateSchema, { params: work
       },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     triggerGoogleDocSync(req, log);
     res.json(log);
@@ -878,7 +710,7 @@ router.delete('/:id/completed/:itemId', validate(null, { params: itemParams('ite
       { $pull: { completedItems: { _id: req.params.itemId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     triggerGoogleDocSync(req, log);
     res.json(log);
@@ -896,7 +728,7 @@ router.post('/:id/links', validate(linkCreateSchema, { params: workLogParamsSche
       { $push: { links: { $each: [{ label, url, category: category || 'General' }], $slice: -ARRAY_CAPS.links } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     triggerGoogleDocSync(req, log);
     res.json(log);
@@ -913,7 +745,7 @@ router.delete('/:id/links/:linkId', validate(null, { params: itemParams('linkId'
       { $pull: { links: { _id: req.params.linkId } } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     triggerGoogleDocSync(req, log);
     res.json(log);
@@ -953,7 +785,7 @@ router.patch('/:id/task', validate(workLogTaskPatchSchema, { params: workLogPara
       taskRef ? { $set: { taskRef } } : { $unset: { taskRef: '' }, $set: { totalActiveMs: 0, workEntries: [] } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
 
     if (!log) return res.status(404).json({ message: 'Not found' });
     log = await syncWorkLog(log, req.user._id, { timeZone: userTimezone(req) });
@@ -975,7 +807,7 @@ router.post('/:id/close', validate(null, { params: workLogParamsSchema }), async
       { $set: { status: 'done', isActive: false, closedAt: Date.now() } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
     Activity.create({ userId: req.user._id, action: 'worklog.closed', details: { worklogTitle: log.title } }).catch(() => {});
@@ -992,7 +824,7 @@ router.post('/:id/continue', validate(null, { params: workLogParamsSchema }), as
       { $set: { status: 'in-progress', isActive: true, closedAt: null, reopenedAt: Date.now() } },
       { new: true, runValidators: true }
     ).populate('taskRef', 'title color category totalTime')
-     .populate('projectRef', 'name googleFolderId workLogsFolderId workspaceRef');
+     .populate('projectRef', 'name googleFolderId workLogsFolderId');
     if (!log) return res.status(404).json({ message: 'Not found' });
     res.json(log);
   } catch (err) {
