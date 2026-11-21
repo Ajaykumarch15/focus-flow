@@ -25,7 +25,7 @@ function SettingSection({ icon: Icon, title, description, children }: {
 
 export function AdminSettings() {
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       <PageHeader title="Settings" description="Organization configuration and administration"
         icon={<Settings size={18} className="text-purple-400" />} />
 

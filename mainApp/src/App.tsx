@@ -31,11 +31,9 @@ const Journal         = lazy(() => import('@personal/pages/Journal').then(module
 const PersonalPage     = lazy(() => import('@personal/pages/PersonalPage').then(module => ({ default: module.PersonalPage })));
 const PersonalActivityPage = lazy(() => import('@personal/pages/PersonalActivityPage').then(module => ({ default: module.PersonalActivityPage })));
 const Settings        = lazy(() => import('@shared/pages/Settings').then(module => ({ default: module.Settings })));
-const Habits          = lazy(() => import('@worklog/pages/Habits').then(module => ({ default: module.Habits })));
 const WorkLogPage     = lazy(() => import('@worklog/pages/WorkLog').then(module => ({ default: module.WorkLogPage })));
 const KnowledgePage   = lazy(() => import('@worklog/pages/Knowledge').then(module => ({ default: module.KnowledgePage })));
 const ReportsPage     = lazy(() => import('@worklog/pages/Reports').then(module => ({ default: module.ReportsPage })));
-const InsightsPage    = lazy(() => import('@worklog/pages/InsightsPage').then(module => ({ default: module.InsightsPage })));
 const CalendarPage    = lazy(() => import('@worklog/pages/CalendarPage').then(module => ({ default: module.CalendarPage })));
 const ShareReportPage = lazy(() => import('@shared/pages/ShareReport').then(module => ({ default: module.ShareReportPage })));
 const WorkspaceSelector = lazy(() => import('@shared/pages/WorkspaceSelector').then(module => ({ default: module.WorkspaceSelector })));
@@ -199,9 +197,9 @@ export default function App() {
                 <Route path="/worklog/knowledge" element={<KnowledgePage />} />
                 <Route path="/worklog/search" element={<SearchResultsPage />} />
                 <Route path="/worklog/reports" element={<ReportsPage />} />
-                <Route path="/worklog/insights" element={<InsightsPage />} />
+                <Route path="/worklog/insights" element={<Navigate to="/worklog/reports" replace />} />
                 <Route path="/worklog/office-time" element={<OfficeWorkTimeAnalytics />} />
-                <Route path="/worklog/habits" element={<Habits />} />
+                <Route path="/worklog/habits" element={<Navigate to="/worklog/tasks" replace />} />
                 <Route path="/worklog/worklog-dashboard" element={<WorkLogDashboard />} />
                 <Route path="/worklog/settings" element={<WorklogSettingsPage />} />
               </Route>

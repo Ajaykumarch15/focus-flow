@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Brain, TrendingUp, Target, Clock, Flame,
-  CheckCircle2, Activity, ArrowRight, Lightbulb,
+  CheckCircle2, Activity, ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@worklog/services/useStore';
@@ -99,7 +99,7 @@ export function PersonalPage() {
 
   if (loading) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
         <div className="h-10 w-48 bg-surface-800 rounded-xl animate-pulse" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -111,7 +111,7 @@ export function PersonalPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -119,9 +119,6 @@ export function PersonalPage() {
           <p className="text-sm text-surface-400 mt-0.5">Your productivity intelligence & personal overview</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/worklog/insights')} className="gap-1.5 text-xs">
-            <Lightbulb size={14} /> Insights
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate('/personal/analytics')} className="gap-1.5 text-xs">
             <TrendingUp size={14} /> Analytics
           </Button>

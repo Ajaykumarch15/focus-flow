@@ -56,13 +56,6 @@ export function HomePage() {
   return (
     <div className="h-dvh md:h-auto md:min-h-screen bg-surface-950 text-surface-50 p-4 sm:p-5 relative overflow-hidden md:overflow-y-auto flex flex-col">
       
-      {/* Background Decorative Gradients */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-[20%] left-[10%] w-48 h-48 rounded-full bg-brand-400/[0.06] blur-3xl pointer-events-none" />
-      <div className="absolute top-[60%] left-[55%] w-40 h-40 rounded-[2rem] rotate-12 bg-info-400/[0.05] blur-2xl pointer-events-none" />
-      <div className="absolute bottom-[10%] right-[10%] w-52 h-28 rounded-full bg-brand-400/[0.04] blur-3xl pointer-events-none" />
-      
       {/* Header Bar */}
       <header className="flex items-center justify-between max-w-6xl mx-auto w-full z-10 relative shrink-0">
         <div className="flex items-center gap-2.5">

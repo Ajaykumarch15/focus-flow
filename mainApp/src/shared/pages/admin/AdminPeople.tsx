@@ -496,16 +496,16 @@ export function AdminPeople() {
   const adminCount = users.filter(u => (u as any).roleId?.level >= 60 && (u as any).roleId?.level < 100).length;
   const superAdminCount = users.filter(u => (u as any).roleId?.level === 100).length;
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-5 gap-4">{Array.from({ length: 5 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1760px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-5 gap-4">{Array.from({ length: 5 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   if (selectedUser) return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto">
       <UserProfilePanel user={selectedUser} onBack={() => setSelectedUser(null)} />
     </div>
   );
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-5">
       <PageHeader
         title="User Management"
         description="Provision, manage, and govern all workspace user accounts"

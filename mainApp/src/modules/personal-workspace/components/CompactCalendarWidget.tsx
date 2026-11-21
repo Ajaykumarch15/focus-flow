@@ -63,45 +63,45 @@ export function CompactCalendarWidget({ taskDates = [] }: CompactCalendarWidgetP
       initial={{ opacity: 0, x: 20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: 0.1 }}
-      className="rounded-2xl border border-surface-800 bg-surface-900 p-4"
+      className="w-full rounded-xl border border-surface-800 bg-surface-900 p-3"
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-surface-100">{monthName}</h3>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-xs font-bold text-surface-100">{monthName}</h3>
+        <div className="flex items-center gap-0.5">
           <button
             onClick={prevMonth}
-            className="w-7 h-7 rounded-lg hover:bg-surface-800 flex items-center justify-center transition-colors"
+            className="w-6 h-6 rounded-md hover:bg-surface-800 flex items-center justify-center transition-colors"
             aria-label="Previous month"
           >
-            <ChevronLeft size={14} className="text-surface-400" />
+            <ChevronLeft size={12} className="text-surface-400" />
           </button>
           <button
             onClick={nextMonth}
-            className="w-7 h-7 rounded-lg hover:bg-surface-800 flex items-center justify-center transition-colors"
+            className="w-6 h-6 rounded-md hover:bg-surface-800 flex items-center justify-center transition-colors"
             aria-label="Next month"
           >
-            <ChevronRight size={14} className="text-surface-400" />
+            <ChevronRight size={12} className="text-surface-400" />
           </button>
         </div>
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="text-center text-[10px] font-medium text-surface-500 py-1">
+      <div className="grid grid-cols-7 gap-0.5 mb-1">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
+          <div key={i} className="text-center text-[9px] font-medium text-surface-500 py-0.5">
             {day}
           </div>
         ))}
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {days.map((dayInfo, idx) => (
           <div
             key={idx}
             className={`
-              relative w-full aspect-square flex items-center justify-center text-xs rounded-lg
+              relative w-full aspect-square flex items-center justify-center text-[10px] rounded-md
               ${!dayInfo.isCurrentMonth ? 'text-surface-600' : 'text-surface-300'}
               ${dayInfo.isToday ? 'bg-brand-500 text-white font-bold' : ''}
               ${dayInfo.hasTask && !dayInfo.isToday ? 'font-semibold text-surface-100' : ''}

@@ -176,7 +176,7 @@ export function ActiveTimersPage() {
 
   if (!hydrated) {
     return (
-      <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      <div className="relative p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
         <PageHeader
           title="Active Timers"
           description="Monitor and control all your running focus sessions"
@@ -195,7 +195,7 @@ export function ActiveTimersPage() {
   }
 
   return (
-    <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+    <div className="relative p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       <PageHeader
         title="Active Timers"
         description="Monitor and control all your running focus sessions"

@@ -98,7 +98,7 @@ export function AdminActivity() {
   }, [load]);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-5">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-5">
       <PageHeader title="Activity" description="Live organization activity feed"
         icon={<Activity size={18} className="text-purple-400" />} />
 

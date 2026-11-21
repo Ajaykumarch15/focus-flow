@@ -226,7 +226,7 @@ export function CalendarPage() {
 
       {/* Sticky header bar */}
       <header className="sticky top-0 z-20 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
-        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/home')}
@@ -252,7 +252,7 @@ export function CalendarPage() {
       </header>
 
       {/* Main content */}
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5 relative z-10">
+      <main className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5 relative z-10">
         {/* Page header */}
         <motion.div
           variants={fadeUp}

@@ -66,7 +66,7 @@ export function FutureGoalsPage() {
   }, [goals]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-5 sm:space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1760px] mx-auto space-y-5 sm:space-y-6">
       {/* Hero Banner */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}

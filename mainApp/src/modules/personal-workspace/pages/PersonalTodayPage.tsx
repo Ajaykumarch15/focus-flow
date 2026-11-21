@@ -22,7 +22,6 @@ import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components/ui/Skeleton';
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
-import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
 
 import type { Task } from '@shared/types';
 import { fetchPersonalSessions, sumClosedSessionMs, computeLivePersonalMs, type PersonalSessionLite } from '@personal/services/personalFocusTime';
@@ -132,7 +131,7 @@ export function PersonalTodayPage() {
   // Loading skeleton while data is fetching
   if (dataLoading && personalTasks.length === 0) {
     return (
-      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto space-y-6">
+      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1760px] mx-auto space-y-6">
         <div className="rounded-3xl border border-surface-800/60 bg-surface-900 p-8 space-y-4">
           <Skeleton className="h-6 w-48" />
           <Skeleton className="h-4 w-72" />
@@ -150,7 +149,7 @@ export function PersonalTodayPage() {
   // Error state with retry button
   if (dataError) {
     return (
-      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto space-y-6">
+      <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1760px] mx-auto space-y-6">
         <motion.div variants={fadeUp} initial="hidden" animate="show"
           className="flex items-center gap-3 p-4 rounded-2xl border border-danger-500/20 bg-danger-500/5">
           <div className="w-9 h-9 rounded-xl bg-danger-500/10 flex items-center justify-center flex-shrink-0">
@@ -167,17 +166,12 @@ export function PersonalTodayPage() {
   }
 
   return (
-    <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1320px] mx-auto flex flex-col gap-4 lg:gap-5">
+    <div className="relative p-4 sm:p-5 lg:p-6 max-w-[1760px] mx-auto flex flex-col gap-4 lg:gap-5">
 
       {/* HERO — greeting, illustration and daily goal (responsive) */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Personal dashboard overview"
         className="relative -mx-4 sm:-mx-5 lg:-mx-6 overflow-hidden
                    px-4 sm:px-5 lg:px-6 pt-0 pb-1 lg:pb-5">
-        {/* Decorative background blobs */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
-          <div className="absolute top-[35%] -right-10 w-36 h-44 rounded-full bg-brand-300/[0.14] dark:bg-brand-400/[0.05] blur-2xl" />
-        </div>
         <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-5">
           {/* Left: Greeting & date */}
           <div className="flex-1 min-w-0">
@@ -194,11 +188,9 @@ export function PersonalTodayPage() {
           {/* Right: Focus illustration (desktop) + daily goal card */}
           <div className="flex w-full items-center justify-center gap-3 sm:gap-4 lg:contents">
             {/* Illustration — hidden on phones so the hero can use the full width */}
-            <div className="relative mx-auto hidden shrink-0 sm:block">
-              <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-20 pointer-events-none bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent blur-2xl" />
+            <div className="mx-auto hidden shrink-0 sm:block">
               <motion.img variants={fadeUp} src="/SVG/focus.svg.png" alt="" aria-hidden="true" loading="eager" draggable={false}
                 className="relative w-auto max-w-[130px] lg:max-w-[235px] xl:max-w-[245px] h-auto object-contain select-none pointer-events-none" />
-              <div aria-hidden="true" className="absolute top-1/2 -translate-y-1/2 -inset-x-4 h-12 pointer-events-none bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06] dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03] blur-xl" />
             </div>
             {/* Daily goal progress card */}
             <div className="min-w-0 flex-1 w-full max-w-none sm:max-w-[280px] lg:flex-none lg:w-full lg:max-w-[260px]">
@@ -430,11 +422,9 @@ export function PersonalTodayPage() {
           </motion.section>
         </div>
 
-        {/* RIGHT COLUMN — Calendar + Quick Actions (stacked on mobile) */}
+        {/* RIGHT COLUMN — Calendar */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-5">
           <CompactCalendarWidget />
-          <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
-         {/* <RightSidebar />*/}
         </div>
       </div>
 

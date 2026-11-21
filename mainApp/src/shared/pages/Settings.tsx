@@ -148,7 +148,7 @@ export function Settings() {
     <div className="min-h-screen bg-surface-950">
       {/* Header */}
       <div className="border-b border-surface-800/60 bg-surface-950/80 backdrop-blur-xl sticky top-0 z-30">
-        <div className="max-w-[1200px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+        <div className="max-w-[1760px] mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-display font-bold text-surface-50 tracking-tight">Settings</h1>
             <p className="text-xs text-surface-400 font-medium mt-0.5">Customize your FocusFlow workspace</p>
@@ -164,7 +164,7 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="max-w-[1200px] mx-auto px-6 lg:px-10 flex gap-8 py-8">
+      <div className="max-w-[1760px] mx-auto px-6 lg:px-10 flex gap-8 py-8">
         {/* Sidebar Nav */}
         <aside className="hidden lg:block w-52 flex-shrink-0">
           <nav className="sticky top-24 space-y-0.5">

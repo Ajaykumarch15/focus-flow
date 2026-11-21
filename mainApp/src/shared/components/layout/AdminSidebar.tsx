@@ -2,7 +2,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   Users, Activity, Settings, LogOut,
-  Globe, ArrowLeft, Bell, HelpCircle,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { useStore } from '@worklog/services/useStore';
@@ -13,26 +13,10 @@ import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
 const ADMIN_NAV: NavPanelDef[] = [
   { to: '/admin/audit', icon: Activity, label: 'Audit' },
   { to: '/admin/people', icon: Users, label: 'People' },
-  { to: '/admin/teams', icon: Globe, label: 'Teams' },
   {
     to: '/admin/settings', icon: Settings, label: 'Settings',
     children: [
       { to: '/admin/settings', label: 'Admin Settings' },
-    ],
-  },
-];
-
-const BOTTOM_NAV: NavPanelDef[] = [
-  {
-    to: '#notifications', icon: Bell, label: 'Notifications',
-    children: [
-      { to: '/admin/audit', label: 'View All' },
-    ],
-  },
-  {
-    to: '#help', icon: HelpCircle, label: 'Help & Support',
-    children: [
-      { to: '/admin/audit', label: 'Documentation' },
     ],
   },
 ];
@@ -144,7 +128,6 @@ export function AdminSidebar({ expanded = false }: AdminSidebarProps) {
   const activePanelDef = hoveredItem === 'profile'
     ? null
     : ADMIN_NAV.find(n => n.to === hoveredItem) ||
-      BOTTOM_NAV.find(n => n.to === hoveredItem) ||
       (hoveredItem === 'back' ? backToPersonal : null);
 
   return (
@@ -174,16 +157,6 @@ export function AdminSidebar({ expanded = false }: AdminSidebarProps) {
           />
         ))}
 
-        <div className="my-2 mx-2 border-t border-surface-800" />
-        {BOTTOM_NAV.map(item => (
-          <AdminRailIcon
-            key={item.to}
-            item={item}
-            onEnter={handleIconEnter}
-            onLeave={handleIconLeave}
-            ref={(el) => { if (el) iconRefs.current[item.to] = el; }}
-          />
-        ))}
       </nav>
 
       {/* Back to Personal */}
