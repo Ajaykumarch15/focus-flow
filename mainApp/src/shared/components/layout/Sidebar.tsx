@@ -2,9 +2,9 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useRef, useCallback, useEffect, forwardRef } from 'react';
 import {
   LayoutDashboard, CheckSquare,
-  Settings, LogOut, BookMarked, LineChart, Activity, ShieldCheck,
-  Library, Map, BarChart3, Calendar, Lightbulb,
-  Bell, HelpCircle, ChevronRight, User, Timer, Target,
+  LogOut, BookMarked, ShieldCheck,
+  Library, Map, Calendar,
+  ChevronRight, User, Timer, Target,
 } from 'lucide-react';
 import { useAuthStore } from '@shared/services/useAuthStore';
 import { Avatar } from '@shared/components/ui/Avatar';
@@ -12,7 +12,7 @@ import { SidebarHoverPanel, type NavPanelDef } from './SidebarHoverPanel';
 
 // ── Navigation definitions with sub-items ──────────────────────────────────
 
-const PERSONAL_NAV: NavPanelDef[] = [
+export const PERSONAL_NAV: NavPanelDef[] = [
   //{ to: '/personal', icon: Brain, label: 'Personal' },
   { to: '/personal/today', icon: LayoutDashboard, label: 'Today' },
   {
@@ -32,10 +32,9 @@ const PERSONAL_NAV: NavPanelDef[] = [
     ],
   },
   { to: '/personal/goals', icon: Target, label: 'Goals' },
-  { to: '/personal/analytics', icon: BarChart3, label: 'Analytics' },
 ];
 
-const WORKLOG_NAV: NavPanelDef[] = [
+export const WORKLOG_NAV: NavPanelDef[] = [
   { to: '/worklog/dashboard', icon: LayoutDashboard, label: 'Today' },
   {
     to: '/worklog/tasks', icon: CheckSquare, label: 'Tasks',
@@ -47,27 +46,11 @@ const WORKLOG_NAV: NavPanelDef[] = [
   },
   { to: '/worklog/schedule', icon: Calendar, label: 'Schedule' },
   { to: '/worklog/logs', icon: BookMarked, label: 'Work Logs' },
-  { to: '/worklog/habits', icon: Activity, label: 'Habits' },
-  { to: '/worklog/reports', icon: LineChart, label: 'Reports' },
-  { to: '/worklog/insights', icon: Lightbulb, label: 'Insights' },
   { to: '/worklog/knowledge', icon: Library, label: 'Knowledge' },
 ];
 
 const BOTTOM_NAV: NavPanelDef[] = [
   { to: '/active-timers', icon: Timer, label: 'Active Timers' },
-  {
-    to: '#notifications', icon: Bell, label: 'Notifications',
-    children: [
-      { to: '/personal/today', label: 'View All' },
-    ],
-  },
-  {
-    to: '#help', icon: HelpCircle, label: 'Help & Support',
-    children: [
-      { to: '/personal', label: 'Documentation' },
-    ],
-  },
-  { to: '/settings', icon: Settings, label: 'Settings' },
 ];
 
 interface SidebarProps {
@@ -91,7 +74,6 @@ export function Sidebar({ expanded = false }: SidebarProps) {
     children: [
       { to: '/admin/audit', label: 'Audit' },
       { to: '/admin/people', label: 'People' },
-      { to: '/admin/teams', label: 'Teams' },
       { to: '/admin/settings', label: 'Settings' },
     ],
   };
@@ -266,7 +248,6 @@ export function Sidebar({ expanded = false }: SidebarProps) {
           label: user?.name || 'Account',
           children: [
             { to: '/profile', label: 'Profile' },
-            { to: '/settings', label: 'Settings' },
           ],
         }}
         topOffset={hoveredTop}

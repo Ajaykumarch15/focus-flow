@@ -30,8 +30,7 @@ import { Skeleton, SkeletonStatCard, SkeletonTaskCard } from '@shared/components
 import { formatHours, formatMs } from '@shared/utils/time';
 
 import { CompactCalendarWidget } from '@personal/components/CompactCalendarWidget';
-import { QuickActionsPanel } from '@personal/components/QuickActionsPanel';
-import { RightSidebar } from '@personal/components/RightSidebar';
+import { HabitsSummaryCard } from '@worklog/components/habits/HabitsSummaryCard';
 
 // ── Motion ────────────────────────────────────────────────────────────────────
 
@@ -121,7 +120,7 @@ export function TodayPage() {
 
   if (dataError) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1320px] mx-auto">
+      <div className="p-6 lg:p-8 max-w-[1760px] mx-auto">
         <div className="rounded-2xl border border-danger-500/20 bg-danger-500/5 p-4 flex items-center gap-3" role="alert">
           <AlertTriangle size={18} className="text-danger-500 flex-shrink-0" />
           <p className="text-sm text-surface-300 flex-1">{dataError}</p>
@@ -133,7 +132,7 @@ export function TodayPage() {
 
   if (dataLoading && tasks.length === 0) {
     return (
-      <div className="p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+      <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
         <div className="rounded-3xl border border-surface-800 bg-surface-900 p-8">
           <div className="flex items-start justify-between gap-6">
             <div className="space-y-3 flex-1">
@@ -160,23 +159,12 @@ export function TodayPage() {
   }
 
   return (
-    <div className="relative p-6 lg:p-8 max-w-[1320px] mx-auto space-y-6">
+    <div className="relative p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
 
       {/* ═══════════════ HEADER ═══════════════ */}
       <motion.section variants={fadeUp} initial="hidden" animate="show" aria-label="Dashboard overview"
         className="hidden lg:block relative -mx-8 overflow-hidden
                    px-8 pt-0 pb-5">
-        {/* ── Hero card decorative spots ── */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          {/* Spot — top left corner */}
-          
-          {/* Spot — behind buttons area */}
-          <div className="absolute bottom-[12%] left-[15%] w-52 h-36 rounded-full
-            bg-info-400/[0.14] dark:bg-info-300/[0.05] blur-3xl" />
-          {/* Spot — right edge between corner */}
-          <div className="absolute top-[35%] -right-10 w-36 h-44 rounded-full
-            bg-brand-300/[0.14] dark:bg-brand-400/[0.05] blur-2xl" />
-        </div>
         <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-5">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -197,12 +185,7 @@ export function TodayPage() {
           </div>
 
           {/* CENTER — decorative productivity illustration */}
-          <div className="relative mx-auto shrink-0">
-            {/* Localized horizontal glow behind illustration */}
-            <div aria-hidden="true"
-              className="absolute top-1/2 -translate-y-1/2 -inset-x-8 h-20 pointer-events-none
-                         bg-gradient-to-r from-transparent via-brand-400/[0.04] to-transparent
-                         dark:via-brand-400/[0.04] blur-2xl" />
+          <div className="mx-auto shrink-0">
             <motion.img
               variants={fadeUp}
               src="/SVG/focus.svg.png"
@@ -212,12 +195,6 @@ export function TodayPage() {
               draggable={false}
               className="relative w-auto max-w-[110px] sm:max-w-[130px] lg:max-w-[235px] xl:max-w-[245px] h-auto object-contain select-none pointer-events-none"
             />
-            {/* Subtle accent gradient flowing left → right across the image */}
-            <div aria-hidden="true"
-              className="absolute top-1/2 -translate-y-1/2 -inset-x-4 h-12 pointer-events-none
-                         bg-gradient-to-r from-brand-400/[0.30] via-brand-400/[0.16] to-brand-400/[0.06]
-                         dark:from-brand-400/[0.05] dark:via-brand-400/[0.10] dark:to-brand-400/[0.03]
-                         blur-xl" />
           </div>
 
           {/* RIGHT — compact Daily Goal card */}
@@ -540,8 +517,7 @@ export function TodayPage() {
         {/* RIGHT COLUMN */}
         <div className="space-y-5">
           <CompactCalendarWidget />
-          <QuickActionsPanel onCreateTask={() => setShowCreate(true)} />
-          <RightSidebar />
+          <HabitsSummaryCard />
         </div>
       </div>
 

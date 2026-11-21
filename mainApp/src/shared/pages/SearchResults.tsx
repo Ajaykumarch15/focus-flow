@@ -71,7 +71,7 @@ export function SearchResultsPage() {
   const totalResults = facets.reduce((sum, f) => sum + f.items.length, 0);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1200px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-display font-extrabold text-surface-50 flex items-center gap-2.5">
           <Search size={24} className="text-brand-400" /> Global Search

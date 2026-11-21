@@ -66,12 +66,12 @@ export function AdminOverview() {
     })();
   }, []);
 
-  if (loading) return <div className="p-6 lg:p-8 max-w-[1500px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
+  if (loading) return <div className="p-6 lg:p-8 max-w-[1760px] mx-auto"><div role="status" aria-live="polite" className="grid grid-cols-2 lg:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <SkeletonStatCard key={i} />)}</div></div>;
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       {/* Hero */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
         className="relative rounded-3xl border border-surface-800/60 bg-surface-900 p-8 lg:p-10 overflow-hidden">

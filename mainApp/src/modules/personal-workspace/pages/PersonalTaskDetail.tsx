@@ -103,7 +103,7 @@ export function PersonalTaskDetail() {
     <div className="min-h-screen">
       {/* ═══ Top Bar ═══ */}
       <div className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-2">
+        <div className="max-w-[1760px] mx-auto px-3 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-2">
           <Button
             variant="ghost"
             size="sm"
@@ -142,7 +142,7 @@ export function PersonalTaskDetail() {
       </div>
 
       {/* ═══ Main Content ═══ */}
-      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
+      <div className="max-w-[1760px] mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-5">
 
         {/* ═══ Linked Roadmap (full width, at top) ═══ */}
         {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (

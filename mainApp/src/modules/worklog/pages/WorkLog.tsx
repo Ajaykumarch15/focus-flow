@@ -650,7 +650,7 @@ export function WorkLogPage() {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto">
 
       {/* IES-P1-24: a failed Drive sync is surfaced here with a recovery hint —
           the Google Drive connection is managed in Settings → Integrations. */}

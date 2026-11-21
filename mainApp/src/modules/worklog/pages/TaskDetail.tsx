@@ -101,7 +101,7 @@ export function TaskDetail() {
     <div className="min-h-screen">
       {/* ═══ Top Bar (sticky) ═══ */}
       <div className="sticky top-0 z-40 bg-surface-950/80 backdrop-blur-xl border-b border-surface-800/60">
-        <div className="max-w-[1400px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between">
+        <div className="max-w-[1760px] mx-auto px-4 lg:px-8 h-14 flex items-center justify-between">
           <Button
             variant="ghost"
             size="sm"
@@ -143,7 +143,7 @@ export function TaskDetail() {
       </div>
 
       {/* ═══ Main Content ═══ */}
-      <div className="max-w-[1400px] mx-auto px-4 lg:px-8 py-6 space-y-5">
+      <div className="max-w-[1760px] mx-auto px-4 lg:px-8 py-6 space-y-5">
 
         {/* ═══ Linked Roadmap (full width, at top) ═══ */}
         {(task.roadmapRef || task.phaseRef || task.milestoneRef) && (

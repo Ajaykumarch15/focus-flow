@@ -267,7 +267,7 @@ export function PersonalAnalyticsPage() {
 
   if (loading && !data) {
     return (
-      <div className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
         <div className="space-y-2">
           <div className="h-7 w-56 bg-surface-800 rounded animate-pulse" />
           <div className="h-4 w-80 bg-surface-800 rounded animate-pulse" />
@@ -281,7 +281,7 @@ export function PersonalAnalyticsPage() {
   }
 
   return (
-    <div ref={pageRef} className="p-4 sm:p-6 lg:p-8 max-w-[1400px] mx-auto space-y-6">
+    <div ref={pageRef} className="p-4 sm:p-6 lg:p-8 max-w-[1760px] mx-auto space-y-6">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start justify-between">
         <div className="space-y-1">

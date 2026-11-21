@@ -20,7 +20,9 @@ export function AdminLayout() {
         <AdminSidebar />
       </div>
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <GlobalHeader />
+        <div className="mx-3 mt-3">
+          <GlobalHeader />
+        </div>
         <main className="flex-1 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, y: 8 }}

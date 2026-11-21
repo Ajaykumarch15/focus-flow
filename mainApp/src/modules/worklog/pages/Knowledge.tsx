@@ -44,7 +44,7 @@ export function KnowledgePage() {
   };
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1500px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto">
       <KnowledgePanel
         docs={docs}
         workLogs={workLogs}

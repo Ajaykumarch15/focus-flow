@@ -847,7 +847,7 @@ export function ReportsPage() {
   const activeDays = summary.filter(d => d.totalHours > 0 || d.workLogCount > 0);
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1400px] mx-auto">
+    <div className="p-6 lg:p-8 max-w-[1760px] mx-auto">
 
       {/* ═══ Hero Header ═══ */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
