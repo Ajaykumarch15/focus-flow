@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import { useScheduleStore, getTodayDateString } from '@worklog/services/useScheduleStore';
 import { useStore } from '@worklog/services/useStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { CalendarGrid } from '@worklog/components/calendar/CalendarGrid';
 import { MonthView } from '@worklog/components/calendar/MonthView';
 import { QuickCreatePopover } from '@worklog/components/calendar/QuickCreatePopover';
@@ -93,7 +92,6 @@ export function CalendarPage() {
     closeModal,
     openDetails,
   } = useCalendarStore();
-  const { members } = useCollaborationStore();
 
   const [quickCreate, setQuickCreate] = useState<{ open: boolean; date: string; startTime: string }>({
     open: false,
@@ -220,9 +218,6 @@ export function CalendarPage() {
           })()
         : formatMonthLabel(selectedDate);
 
-  const memberAvatars = members.slice(0, 3);
-  const overflowCount = Math.max(0, members.length - 3);
-
   return (
     <div className="min-h-screen bg-surface-950 relative overflow-x-hidden overflow-y-auto">
       {/* Background decorative gradients */}
@@ -252,28 +247,6 @@ export function CalendarPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Member avatars */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-900 border border-surface-800 text-xs">
-              <div className="flex -space-x-1.5">
-                {memberAvatars.map((m) => (
-                  <div
-                    key={m.id}
-                    className="w-5 h-5 rounded-full bg-gradient-to-br from-brand-500/20 to-cyan-500/15 flex items-center justify-center text-[7px] font-bold text-brand-600 dark:text-brand-300 ring-2 ring-surface-900"
-                  >
-                    {m.name.charAt(0)}
-                  </div>
-                ))}
-              </div>
-              {overflowCount > 0 && (
-                <span className="text-surface-400 font-medium">+{overflowCount}</span>
-              )}
-            </div>
-            <button
-              onClick={() => {}}
-              className="hidden sm:flex items-center gap-1.5 text-xs font-semibold text-surface-300 hover:text-surface-100 transition-colors bg-surface-900 hover:bg-surface-800 px-3 py-1.5 rounded-xl border border-surface-800"
-            >
-              Invite
-            </button>
           </div>
         </div>
       </header>

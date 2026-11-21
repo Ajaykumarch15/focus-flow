@@ -29,7 +29,6 @@ const ROUTE_MAP: Record<string, string> = {
   knowledge: 'Knowledge',
   insights: 'Insights',
   personal: 'Personal',
-  collab: 'Collab',
   home: 'Home',
   search: 'Search',
 };

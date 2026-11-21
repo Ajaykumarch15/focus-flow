@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, Clock, GitBranch, CheckCircle2, AlertTriangle, AlertCircle,
-  ExternalLink, BookMarked, Timer, FolderOpen,
+  BookMarked, Timer, FolderOpen,
   TrendingUp, Calendar, Zap, FileText, Download, Plus, X,
   LayoutList, Lightbulb, AlertOctagon,
   Paperclip, Eye, MapPin, Play, Pause, Square,
@@ -244,14 +244,11 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
 
   const handleBack = onBack ?? (() => navigate(-1));
 
-  const kanbanWorkspaceId = log.projectRef?.workspaceRef;
-  const kanbanProjectId = log.projectRef?._id;
-  const kanbanTaskId = log.taskRef?._id;
-  const canOpenKanban = !!kanbanWorkspaceId && !!kanbanProjectId && !!kanbanTaskId;
+  const linkedTaskId = log.taskRef?._id;
 
   // Check if task was just completed (for showing CompletionPromptPanel)
   const { tasks } = useStore();
-  const linkedTask = kanbanTaskId ? tasks.find(t => t.id === kanbanTaskId) : null;
+  const linkedTask = linkedTaskId ? tasks.find(t => t.id === linkedTaskId) : null;
   const isTaskCompleted = linkedTask?.status === 'completed';
 
   return (
@@ -260,10 +257,10 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
       <WorkLogToolbar log={log} onBack={handleBack} onComplete={() => setShowCompletionPrompt(true)} />
 
       {/* Completion Prompt (shows after task is completed) */}
-      {showCompletionPrompt && kanbanTaskId && (
+      {showCompletionPrompt && linkedTaskId && (
         <CompletionPromptPanel
           completed={isTaskCompleted}
-          taskId={kanbanTaskId}
+          taskId={linkedTaskId}
           workLogTitle={log.title}
         />
       )}
@@ -287,23 +284,11 @@ export function WorkLogDetailPanel({ workLog: log, onBack }: { workLog: WorkLog;
                     {log.gitBranch}
                   </Badge>
                 )}
-                {canOpenKanban && log.taskRef && (
-                  <>
-                    <span className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
-                      style={{ background: `${log.taskRef.color}15`, color: log.taskRef.color }}>
-                      <Timer size={11} /> {log.taskRef.title}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => navigate(`/collab/${kanbanWorkspaceId}/projects/${kanbanProjectId}/kanban?select=${kanbanTaskId}`)}
-                      className="text-brand-400 hover:text-brand-300 hover:bg-brand-500/10"
-                      leftIcon={<ExternalLink size={11} />}
-                      aria-label="View in Kanban"
-                    >
-                      Kanban
-                    </Button>
-                  </>
+                {log.taskRef && (
+                  <span className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg font-semibold"
+                    style={{ background: `${log.taskRef.color}15`, color: log.taskRef.color }}>
+                    <Timer size={11} /> {log.taskRef.title}
+                  </span>
                 )}
                 {log.projectRef && (
                   <Badge tone="neutral" icon={<FolderOpen size={11} />}>

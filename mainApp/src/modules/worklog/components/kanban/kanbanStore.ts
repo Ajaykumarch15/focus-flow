@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import type { CollaborativeTask } from '@collab/types/collaboration';
-import type { SprintStatus } from '@collab/types/collaboration';
 import type { KanbanTask, KanbanStatus, KanbanView, KanbanLabel, SortBy } from './types';
-import { SAMPLE_KANBAN_TASKS, LABEL_PRESETS } from './types';
+import { SAMPLE_KANBAN_TASKS } from './types';
 
 interface KanbanState {
   tasks: KanbanTask[];
@@ -45,9 +43,7 @@ interface KanbanState {
   toggleSubtask: (taskId: string, subtaskId: string) => void;
   addLabelToTask: (taskId: string, label: KanbanLabel) => void;
   removeLabelFromTask: (taskId: string, labelName: string) => void;
-  loadFromProject: (tasks: CollaborativeTask[], members?: Record<string, { name: string; avatar?: string }>) => void;
   setDependencies: (taskId: string, depIds: string[]) => void;
-  setContext: (workspaceId: string, projectId: string, members?: Record<string, { name: string; avatar?: string }>) => void;
 }
 
 export const useKanbanStore = create<KanbanState>((set) => ({
@@ -119,20 +115,9 @@ export const useKanbanStore = create<KanbanState>((set) => ({
     })),
 
   moveTask: (taskId, toStatus, toIndex) => {
-    // Reverse map: kanban status -> sprint status for server persistence
-    const kanbanToSprint: Record<KanbanStatus, SprintStatus> = {
-      todo: 'backlog',
-      doing: 'in_progress',
-      review: 'review',
-      done: 'done',
-    };
-
-    // Capture task before set() for server persistence
-    let movedTask: KanbanTask | undefined;
     set((state) => {
       const task = state.tasks.find((t) => t.id === taskId);
       if (!task) return state;
-      movedTask = task;
 
       const tasks = state.tasks.filter((t) => t.id !== taskId);
       const destTasks = tasks.filter((t) => t.status === toStatus);
@@ -147,14 +132,6 @@ export const useKanbanStore = create<KanbanState>((set) => ({
 
       return { tasks: [...otherTasks, ...reordered] };
     });
-
-    // Persist to server (fire-and-forget — local state is already optimistic)
-    if (movedTask?.workspaceId) {
-      const sprintStatus = kanbanToSprint[toStatus];
-      import('@collab/services/useCollaborationStore').then(({ useCollaborationStore }) => {
-        useCollaborationStore.getState().updateTaskStatus(taskId, sprintStatus);
-      });
-    }
   },
 
   reorderInColumn: (status, fromIndex, toIndex) =>
@@ -203,60 +180,12 @@ export const useKanbanStore = create<KanbanState>((set) => ({
       ),
     })),
 
-  loadFromProject: (collabTasks, members = {}) => {
-    const statusMap: Record<string, KanbanStatus> = {
-      backlog: 'todo',
-      ready: 'todo',
-      in_progress: 'doing',
-      review: 'review',
-      done: 'done',
-    };
-    const labelColorMap: Record<string, string> = {};
-    for (const lp of LABEL_PRESETS) labelColorMap[lp.name.toLowerCase()] = lp.color;
-
-    const mapped: KanbanTask[] = collabTasks.map((ct, i) => {
-      const status = statusMap[ct.sprintStatus] ?? 'todo';
-      const labels: KanbanLabel[] = (ct.labels ?? []).map((name) => ({
-        name,
-        color: labelColorMap[name.toLowerCase()] ?? '#6b7280',
-      }));
-      const assignees = (ct.assigneeIds ?? []).map((id) => ({
-        id,
-        name: members[id]?.name ?? id,
-        avatar: members[id]?.avatar,
-      }));
-      return {
-        id: ct.id,
-        title: ct.title,
-        description: ct.description,
-        status,
-        priority: ct.priority,
-        labels,
-        assignees,
-        dueDate: ct.deadline,
-        subtasks: (ct.subtasks ?? []).map((s) => ({ id: s.id, title: s.title, completed: s.completed })),
-        comments: 0,
-        attachments: 0,
-        createdAt: ct.createdAt,
-        order: i,
-        dependencies: ct.dependencies ?? [],
-        workspaceId: ct.workspaceId,
-        projectId: ct.projectId,
-        ownerId: ct.ownerId,
-      };
-    });
-    set({ tasks: mapped });
-  },
-
   setDependencies: (taskId, depIds) =>
     set((state) => ({
       tasks: state.tasks.map((t) =>
         t.id === taskId ? { ...t, dependencies: depIds } : t
       ),
     })),
-
-  setContext: (workspaceId, projectId, members = {}) =>
-    set({ workspaceId, projectId, membersMap: members }),
 
   setWorklogTaskIds: (ids) => set({ worklogTaskIds: ids }),
 }));

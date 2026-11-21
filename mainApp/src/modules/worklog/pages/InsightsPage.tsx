@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { api } from '@shared/utils/api';
 import { timerEngine } from '@worklog/services/timerEngine';
 import { mapSession, type MemorySession } from '@personal/services/memorySelectors';
@@ -149,7 +148,6 @@ function FeaturedInsight({ insight, accent, eyebrow = 'Most Important' }: { insi
 export function InsightsPage() {
   const { tasks, journals, profile, theme, dataLoading, activeTaskId, activeSessionId, activeTimerState, currentSessionStart } = useStore();
   const { todayLog, activeLogs, closedLogs, loadActive, loadClosed, loadToday } = useWorkLogStore();
-  const docs = useCollaborationStore((s) => s.docs);
 
   const [apiSessions, setApiSessions] = useState<MemorySession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
@@ -252,8 +250,8 @@ export function InsightsPage() {
   );
 
   const knowledge = useMemo(
-    () => selectKnowledgeInsights({ docs, workLogs, journals }),
-    [docs, workLogs, journals],
+    () => selectKnowledgeInsights({ docs: [], workLogs, journals }),
+    [workLogs, journals],
   );
 
   const accent = theme?.accentColor || '#0ea5e9';

@@ -6,8 +6,6 @@ import {
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import {
   selectPersonalTimeline,
   groupTimelineEvents,
@@ -47,9 +45,6 @@ const EVENT_CONFIG: Record<TimelineEventKind, { icon: typeof Play; bg: string; c
   blocker:                   { icon: AlertTriangle,  bg: 'bg-red-500/10',    color: 'text-red-400' },
   worklog_blocker:           { icon: AlertTriangle,  bg: 'bg-red-500/10',    color: 'text-red-400' },
   worklog_blocker_resolved:  { icon: CheckCircle2,   bg: 'bg-emerald-500/10',color: 'text-emerald-400' },
-  blocker_raised:            { icon: AlertTriangle,  bg: 'bg-red-500/10',    color: 'text-red-400' },
-  blocker_resolved:          { icon: CheckCircle2,   bg: 'bg-emerald-500/10',color: 'text-emerald-400' },
-  feature_created:           { icon: Sparkles,       bg: 'bg-purple-500/10', color: 'text-purple-400' },
 };
 
 const SEVERITY_TONE: Record<string, BadgeTone> = {
@@ -68,8 +63,6 @@ const RANGE_OPTIONS: { value: TimelineRange; label: string }[] = [
 export function PersonalActivityTimeline() {
   const { tasks, journals, dataLoading, dataError, loadAll, startParallelTimer } = useStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
-  const { blockers, features } = useCollaborationStore();
-  const currentUserId = useAuthStore((s) => s.user?._id);
   const navigate = useNavigate();
 
   const [range, setRange] = useState<TimelineRange>('all');
@@ -78,8 +71,8 @@ export function PersonalActivityTimeline() {
   const workLogs = useMemo(() => [...activeLogs, ...closedLogs], [activeLogs, closedLogs]);
 
   const input = useMemo(
-    () => ({ tasks, journals, workLogs, blockers, features, currentUserId, now: Date.now() }),
-    [tasks, journals, workLogs, blockers, features, currentUserId],
+    () => ({ tasks, journals, workLogs, now: Date.now() }),
+    [tasks, journals, workLogs],
   );
 
   const hasAnyActivity = useMemo(() => selectPersonalTimeline(input, {}).length > 0, [input]);

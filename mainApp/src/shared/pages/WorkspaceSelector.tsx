@@ -18,8 +18,8 @@ export function WorkspaceSelector() {
 
   const handleSelect = (ws: WorkspaceType) => {
     setWorkspace(ws);
-    setAuthWorkspace(ws === 'collab' ? 'collab' : ws);
-    navigate(ws === 'personal' ? '/dashboard' : ws === 'work' ? '/worklog/dashboard' : '/collab/workspaces');
+    setAuthWorkspace(ws);
+    navigate(ws === 'personal' ? '/personal/today' : '/worklog/dashboard');
   };
 
   return (
@@ -45,7 +45,7 @@ export function WorkspaceSelector() {
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 gap-4"
         >
           {WORKSPACE_LIST.map((ws) => {
             const Icon = ws.icon;

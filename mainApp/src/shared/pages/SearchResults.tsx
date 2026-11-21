@@ -1,9 +1,9 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Search, FolderOpen, CheckSquare, BookOpen, Hash, LayoutGrid, Loader2, ArrowRight, X } from 'lucide-react';
+import { Search, FolderOpen, CheckSquare, BookOpen, Loader2, ArrowRight, X } from 'lucide-react';
 import { api } from '@shared/utils/api';
-import type { SearchResults, SearchResultItem } from '@collab/types/collaboration';
+import type { SearchResults, SearchResultItem } from '@shared/types/apiCompat';
 import { Input } from '@shared/components/ui/Input';
 import { EmptyState } from '@shared/components/ui/EmptyState';
 import { StartSearching, NoSearchResults } from '@shared/components/illustrations';
@@ -12,19 +12,13 @@ const SECTION_ICONS: Record<SearchResultItem['kind'], ReactNode> = {
   project: <FolderOpen size={14} className="text-brand-400" />,
   task: <CheckSquare size={14} className="text-sky-400" />,
   worklog: <BookOpen size={14} className="text-amber-400" />,
-  member: <Hash size={14} className="text-emerald-400" />,
-  workspace: <LayoutGrid size={14} className="text-cyan-400" />,
-  team: <FolderOpen size={14} className="text-purple-400" />,
 };
 
-const FACET_KEYS: SearchFacet[] = ['workspaces', 'projects', 'teams', 'tasks', 'worklogs', 'members'];
+const FACET_KEYS: SearchFacet[] = ['tasks', 'worklogs', 'projects'];
 const FACET_LABELS: Record<string, string> = {
-  workspaces: 'Workspaces',
-  projects: 'Projects',
-  teams: 'Teams',
   tasks: 'Tasks',
   worklogs: 'Work Logs',
-  members: 'Members',
+  projects: 'Projects',
 };
 
 type SearchFacet = Exclude<keyof SearchResults, 'query' | 'workspaceId'>;
@@ -83,9 +77,7 @@ export function SearchResultsPage() {
           <Search size={24} className="text-brand-400" /> Global Search
         </h1>
         <p className="text-xs text-surface-400 mt-1">
-          {workspaceIdParam
-            ? 'Searching inside the current workspace — projects, teams, and members.'
-            : 'Searching your personal workspace — tasks, work logs, projects, and workspaces.'}
+          Searching your tasks, work logs, and projects.
         </p>
       </div>
 

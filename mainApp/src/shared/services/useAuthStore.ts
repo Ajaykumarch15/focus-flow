@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { api } from '@shared/utils/api';
 import { clearTimer, clearTodayMs } from '@worklog/services/timerPersist';
 import { timerEngine } from '@worklog/services/timerEngine';
-import { deriveWorkspaceFromPath } from '@collab/services/workspaceRouting';
+import { deriveWorkspaceFromPath } from '@shared/services/workspaceRouting';
 
 let restorePromise: Promise<void> | null = null;
 
@@ -18,7 +18,7 @@ interface AuthUser {
   driveSyncError?: string;
 }
 
-export type Workspace = 'personal' | 'admin' | 'work' | 'collab';
+export type Workspace = 'personal' | 'admin' | 'work';
 
 interface AuthState {
   user:    AuthUser | null;

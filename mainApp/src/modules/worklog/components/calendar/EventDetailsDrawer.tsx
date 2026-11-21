@@ -4,7 +4,6 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { Badge, type BadgeTone } from '@shared/components/ui/Badge';
 import type { CalendarEventType } from '@worklog/types/calendar';
 
@@ -38,19 +37,12 @@ function formatDateLabel(dateStr: string): string {
 export function EventDetailsDrawer() {
   const navigate = useNavigate();
   const { selectedEvent, isDetailsOpen, closeDetails, deleteEvent } = useCalendarStore();
-  const { members, projects } = useCollaborationStore();
 
   if (!selectedEvent) return null;
 
   const typeConfig = TYPE_CONFIG[selectedEvent.type];
 
-  const assignedMembers = (selectedEvent.assigneeIds || [])
-    .map((id) => members.find((m) => m.id === id))
-    .filter(Boolean);
-
-  const project = selectedEvent.projectId
-    ? projects.find((p) => p.id === selectedEvent.projectId)
-    : null;
+  const participantNames = selectedEvent.participantNames ?? [];
 
   const handleDelete = () => {
     if (selectedEvent.type !== 'task') {
@@ -128,27 +120,27 @@ export function EventDetailsDrawer() {
               )}
 
               {/* Project */}
-              {project && (
+              {selectedEvent.projectName && (
                 <div className="flex items-center gap-3 text-sm text-surface-300">
                   <FolderOpen size={14} className="text-surface-500 shrink-0" />
-                  <span className="font-semibold">{project.name}</span>
+                  <span className="font-semibold">{selectedEvent.projectName}</span>
                 </div>
               )}
 
               {/* Participants */}
-              {assignedMembers.length > 0 && (
+              {participantNames.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold text-surface-400">
                     <Users size={13} />
                     Participants
                   </div>
                   <div className="space-y-1.5">
-                    {assignedMembers.map((m) => m && (
-                      <div key={m.id} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-850 border border-surface-800">
+                    {participantNames.map((name) => (
+                      <div key={name} className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface-850 border border-surface-800">
                         <div className="w-6 h-6 rounded-full bg-gradient-to-br from-brand-500/15 to-cyan-500/10 flex items-center justify-center text-[9px] font-bold text-brand-600 dark:text-brand-300">
-                          {m.name.charAt(0)}
+                          {name.charAt(0)}
                         </div>
-                        <span className="text-xs font-semibold text-surface-200">{m.name}</span>
+                        <span className="text-xs font-semibold text-surface-200">{name}</span>
                       </div>
                     ))}
                   </div>

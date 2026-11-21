@@ -5,7 +5,7 @@ import {
   BookOpen, Lightbulb, GraduationCap, Link2, Search, X,
   RefreshCw, ArrowRight, FileText, NotebookPen,
 } from 'lucide-react';
-import type { KnowledgeDoc } from '@collab/types/collaboration';
+import type { KnowledgeDoc } from '@worklog/services/knowledgeSelectors';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import type { JournalEntry } from '@shared/types';
 import { selectKnowledge, filterKnowledge, type KnowledgeDecision, type KnowledgeLesson, type KnowledgeLink } from '@worklog/services/knowledgeSelectors';

@@ -56,7 +56,6 @@ export default defineConfig({
     alias: {
       '@personal': path.resolve(__dirname, 'src/modules/personal-workspace'),
       '@worklog': path.resolve(__dirname, 'src/modules/worklog'),
-      '@collab': path.resolve(__dirname, 'src/modules/collab'),
       '@meetings': path.resolve(__dirname, 'src/modules/meetings'),
       '@timers': path.resolve(__dirname, 'src/modules/timers'),
       '@shared': path.resolve(__dirname, 'src/shared'),

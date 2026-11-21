@@ -1,11 +1,10 @@
 import { useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  BrainCircuit, CircleDashed, GitBranch, GitPullRequest, LayoutGrid,
-  FolderOpen, Layers, Sparkles, ListChecks, PenLine, Zap,
+  BrainCircuit, CircleDashed, GitBranch, GitPullRequest,
+  ListChecks, PenLine, Zap,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { selectTaskContinuation, type StoppedWhere } from '@personal/services/continuationSelectors';
@@ -16,22 +15,12 @@ import { formatHours, formatRelativeTime } from '@shared/utils/time';
 
 // ── TaskContinuationPanel (S2-T1) ─────────────────────────────────────────────
 // Reusable "Current Task continuation" surface for TaskDetail. It projects what
-// already exists: workspace → project → sprint → feature chain, session state +
-// clock, git context (branch / PR), and "where I stopped" (the most recent prose
-// written about the task — work log progress/entries, else the last journal
-// note). It reuses the S1-T5 focus selector through selectTaskContinuation and
-// renders only values that exist — no fabricated continuation. The panel is
-// read-only for session controls (the TaskDetail timer card owns those) so no
-// timer control is mounted twice.
-
-function Chip({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-surface-800/60 bg-surface-950/40 px-2.5 py-1">
-      <span className="text-surface-500 flex-shrink-0">{icon}</span>
-      <span className="text-xs text-surface-400 truncate">{label}</span>
-    </span>
-  );
-}
+// already exists: session state + clock, git context (branch / PR), and "where I
+// stopped" (the most recent prose written about the task — work log
+// progress/entries, else the last journal note). It reuses the S1-T5 focus
+// selector through selectTaskContinuation and renders only values that exist —
+// no fabricated continuation. The panel is read-only for session controls (the
+// TaskDetail timer card owns those) so no timer control is mounted twice.
 
 function sectionLabel(icon: ReactNode, text: string) {
   return (
@@ -62,10 +51,6 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
     tasks, journals, activeTaskId, activeSessionId, activeTimerState,
     dataLoading, dataError, loadAll,
   } = useStore();
-  const {
-    workspaces, projects, sprints, features,
-    tasks: collabTasks, blockers,
-  } = useCollaborationStore();
   const { activeLogs, closedLogs } = useWorkLogStore();
   const { display } = useActiveTimer();
 
@@ -73,15 +58,14 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
 
   const view = useMemo(
     () => selectTaskContinuation({
-      tasks, collabTasks, workspaces, projects, sprints, features,
-      workLogs, blockers, journals,
+      tasks, workLogs, journals,
       activeTaskId, activeSessionId, activeTimerState,
       focusTaskId: taskId,
     }),
-    [tasks, collabTasks, workspaces, projects, sprints, features, workLogs, blockers, journals, activeTaskId, activeSessionId, activeTimerState, taskId],
+    [tasks, workLogs, journals, activeTaskId, activeSessionId, activeTimerState, taskId],
   );
 
-  if (dataLoading && tasks.length === 0 && collabTasks.length === 0) {
+  if (dataLoading && tasks.length === 0) {
     return (
       <section aria-label="Continuation" className={className}>
         <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 space-y-4">
@@ -120,7 +104,6 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
   const hasAnyContext =
     view.taskId !== null &&
     Boolean(
-      view.workspace || view.project || view.sprint || view.feature ||
       view.hasActiveSession || (view.totalTimeMs ?? 0) > 0 ||
       view.git.branch || view.git.pr ||
       view.whereIStopped || view.workLog ||
@@ -148,16 +131,6 @@ export function TaskContinuationPanel({ taskId, className }: TaskContinuationPan
     <section aria-label="Continuation" className={className}>
       <div className="rounded-2xl border border-surface-800 bg-surface-900 p-5 flex flex-col gap-4">
         {header}
-
-        {/* Context chain */}
-        {(view.workspace || view.project || view.sprint || view.feature) && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {view.workspace && <Chip icon={<LayoutGrid size={12} />} label={view.workspace.label} />}
-            {view.project && <Chip icon={<FolderOpen size={12} />} label={view.project.label} />}
-            {view.sprint && <Chip icon={<Layers size={12} />} label={view.sprint.label} />}
-            {view.feature && <Chip icon={<Sparkles size={12} />} label={view.feature.label} />}
-          </div>
-        )}
 
         {/* Session state + clock (read-only; the timer card owns controls) */}
         {view.hasActiveSession && (

@@ -1,29 +1,29 @@
 import type { JournalEntry, TimerState } from '@shared/types';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
-import type {
-  CollaborativeTask, GitContext,
-} from '@collab/types/collaboration';
 import {
-  selectFocusSession, type FocusChip, type FocusInput, type FocusSubtask,
+  selectFocusSession, type FocusInput, type FocusSubtask,
 } from './focusSelectors';
 import { stripHtml } from '@shared/utils/htmlContent';
 
 // ── S2-T1: Current Task continuation selector (ECIS §G · DCX) ────────────────
 // Answers "Where am I with this task, and where do I pick up next?" for the
 // TaskDetail continuation surface. It reuses the S1-T5 focus selector for the
-// task + context chain + session + linked work log (no duplicated derivation),
-// then adds the two facets the spec requires: git context (branch / PR) and
-// "where I stopped" (the most recent prose written about this task — work log
-// progress/entries, else the last journal note). 100% pure — same inputs always
+// task + session + linked work log (no duplicated derivation), then adds the two
+// facets the spec requires: git context (branch / PR) and "where I stopped"
+// (the most recent prose written about this task — work log progress/entries,
+// else the last journal note). Personal-only and 100% pure — same inputs always
 // produce the same result, no Date.now() in ranking, no localStorage, no side
 // effects. Missing data resolves to `null` so the surface renders an honest
 // continuation state; nothing is fabricated.
 
+export type ReviewStatus = 'pending' | 'approved' | 'changes_requested';
+export type MergeStatus = 'open' | 'merged' | 'closed';
+
 export interface ContinuationPr {
   number: string | null;
   url: string | null;
-  reviewStatus: GitContext['reviewStatus'] | null;
-  mergeStatus: GitContext['mergeStatus'] | null;
+  reviewStatus: ReviewStatus | null;
+  mergeStatus: MergeStatus | null;
 }
 
 export interface ContinuationGit {
@@ -56,11 +56,6 @@ export interface ContinuationView {
   hasActiveSession: boolean;
   totalTimeMs: number | null;
   lastWorkedAt: number | null;
-  workspaceId: string | null;
-  workspace: FocusChip | null;
-  project: FocusChip | null;
-  sprint: FocusChip | null;
-  feature: FocusChip | null;
   subtasks: FocusSubtask[];
   subtasksDone: number;
   subtasksTotal: number;
@@ -78,24 +73,9 @@ function toMs(value: number | string): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-// Git context: collaborative tasks carry it on gitContext; personal tasks and
-// collab tasks without one fall back to the linked work log's git fields.
-function resolveGit(collab: CollaborativeTask | undefined, workLog: WorkLog | null): ContinuationGit {
-  if (collab?.gitContext) {
-    const gc = collab.gitContext;
-    return {
-      branch: gc.branch ?? null,
-      pr: gc.prNumber != null
-        ? {
-            number: String(gc.prNumber),
-            url: gc.prUrl ?? null,
-            reviewStatus: gc.reviewStatus ?? null,
-            mergeStatus: gc.mergeStatus ?? null,
-          }
-        : null,
-    };
-  }
-
+// Git context comes from the linked work log's git fields (personal tasks carry
+// no git context of their own).
+function resolveGit(workLog: WorkLog | null): ContinuationGit {
   if (workLog) {
     const prLink = workLog.links?.find((l) => l.category === 'PR' && l.url) ?? null;
     const prNumber = workLog.gitRef?.prNumber || null;
@@ -198,8 +178,8 @@ function whereStopped(workLog: WorkLog | null, journals: JournalEntry[], taskId:
 }
 
 // ── selectTaskContinuation ────────────────────────────────────────────────────
-// Composes the focus session view (task resolution, context chain, subtasks,
-// session, linked work log) with the git and "where I stopped" facets.
+// Composes the focus session view (task resolution, subtasks, session, linked
+// work log) with the git and "where I stopped" facets.
 
 export function selectTaskContinuation(input: FocusInput): ContinuationView {
   const focus = selectFocusSession(input);
@@ -214,11 +194,6 @@ export function selectTaskContinuation(input: FocusInput): ContinuationView {
     hasActiveSession: false,
     totalTimeMs: null,
     lastWorkedAt: null,
-    workspaceId: null,
-    workspace: null,
-    project: null,
-    sprint: null,
-    feature: null,
     subtasks: [],
     subtasksDone: 0,
     subtasksTotal: 0,
@@ -230,7 +205,6 @@ export function selectTaskContinuation(input: FocusInput): ContinuationView {
 
   if (!focus.taskId) return none;
 
-  const collab = input.collabTasks.find((t) => t.id === focus.taskId);
   const workLog = focus.workLog ? input.workLogs.find((l) => l._id === focus.workLog!.id) ?? null : null;
 
   return {
@@ -244,11 +218,6 @@ export function selectTaskContinuation(input: FocusInput): ContinuationView {
     hasActiveSession: focus.hasActiveSession,
     totalTimeMs: focus.totalTimeMs,
     lastWorkedAt: focus.lastWorkedAt,
-    workspaceId: focus.workspaceId,
-    workspace: focus.workspace,
-    project: focus.project,
-    sprint: focus.sprint,
-    feature: focus.feature,
     subtasks: focus.subtasks,
     subtasksDone: focus.subtasks.filter((s) => s.completed).length,
     subtasksTotal: focus.subtasks.length,
@@ -261,7 +230,7 @@ export function selectTaskContinuation(input: FocusInput): ContinuationView {
           updatedAt: workLog ? toMs(workLog.updatedAt) : 0,
         }
       : null,
-    git: resolveGit(collab, workLog),
+    git: resolveGit(workLog),
     whereIStopped: whereStopped(workLog, input.journals, focus.taskId),
   };
 }

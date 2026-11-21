@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
 import { useStore } from '@worklog/services/useStore';
 import { toast } from '@shared/services/useToastStore';
 import { KnowledgePanel } from '@worklog/components/KnowledgePanel';
+import type { KnowledgeDoc } from '@worklog/services/knowledgeSelectors';
 
 // ── KnowledgePage (S3-T2 · L1 personal) ───────────────────────────────────────
 // Personal Knowledge surface (ECIS §B.5 · IA §8.9-5, §8.10-4): "What do we
@@ -16,7 +16,7 @@ import { KnowledgePanel } from '@worklog/components/KnowledgePanel';
 
 export function KnowledgePage() {
   const navigate = useNavigate();
-  const docs = useCollaborationStore((s) => s.docs);
+  const docs = useMemo<KnowledgeDoc[]>(() => [], []);
   const activeLogs = useWorkLogStore((s) => s.activeLogs);
   const closedLogs = useWorkLogStore((s) => s.closedLogs);
   const loading = useWorkLogStore((s) => s.loading);

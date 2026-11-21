@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
-import { User, Briefcase, Users } from 'lucide-react';
+import { User, Briefcase } from 'lucide-react';
 
-export type WorkspaceType = 'personal' | 'work' | 'collab';
+export type WorkspaceType = 'personal' | 'work';
 
 export interface WorkspaceConfig {
   id: WorkspaceType;
@@ -31,15 +31,6 @@ export const WORKSPACES: Record<WorkspaceType, WorkspaceConfig> = {
     color: '#8b5cf6',
     route: '/worklog/dashboard',
     description: 'Professional work, projects & career',
-  },
-  collab: {
-    id: 'collab',
-    title: 'Collab',
-    subtitle: 'Team projects, shared tasks & collaboration',
-    icon: Users,
-    color: '#10b981',
-    route: '/collab/dashboard',
-    description: 'Team projects, shared tasks & collaboration',
   },
 };
 

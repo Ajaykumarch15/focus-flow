@@ -7,16 +7,13 @@ import {
   Calendar,
 } from 'lucide-react';
 import { useStore } from '@worklog/services/useStore';
-import { useAuthStore } from '@shared/services/useAuthStore';
 import { useWorkLogStore } from '@worklog/services/useWorkLogStore';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useRoadmapStore } from '@personal/services/useRoadmapStore';
 import { fetchMilestonesDueToday, type TodayMilestone } from '@personal/services/milestoneSchedule';
 import { selectToday } from '@worklog/services/todaySelectors';
 import type {
   TodayView, ContinueItem, DoNowItem, AttentionItem, AttentionKind, AttentionDeadline,
 } from '@worklog/services/todaySelectors';
-import type { CollaborativeTask } from '@collab/types/collaboration';
 import type { Task } from '@shared/types';
 import { useActiveTimer } from '@shared/hooks/useActiveTimer';
 import { CreateTaskModal } from '@worklog/components/tasks/CreateTaskModal';
@@ -46,8 +43,6 @@ const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const KIND_META: Record<AttentionKind, { label: string; tone: BadgeTone }> = {
   overdue: { label: 'Overdue', tone: 'danger' },
   'due-today': { label: 'Due today', tone: 'warning' },
-  blocker: { label: 'Blocker', tone: 'danger' },
-  review: { label: 'Review', tone: 'brand' },
   deadline: { label: 'Deadline', tone: 'info' },
 };
 
@@ -71,9 +66,7 @@ export function TodayPage() {
     tasks, profile, theme,
     dataLoading, dataError, getTodayTime, getWeekTime, loadAll, startParallelTimer,
   } = useStore();
-  const { user } = useAuthStore();
   const { activeLogs } = useWorkLogStore();
-  const { blockers, tasks: collabTasks, sprints, projects } = useCollaborationStore();
   const { roadmaps, loadRoadmaps } = useRoadmapStore();
   const { activeTaskId, activeSessionId, activeTimerState, activeTask, display } = useActiveTimer();
   const navigate = useNavigate();
@@ -90,40 +83,24 @@ export function TodayPage() {
   const weekMs = getWeekTime();
   const dailyGoalMs = profile.dailyGoal * 3600000;
 
-  const reviews = useMemo<CollaborativeTask[]>(
-    () => collabTasks.filter((t) => t.reviewerId && t.reviewerId === (user?._id ?? null) && t.sprintStatus === 'review'),
-    [collabTasks, user?._id],
+  const deadlines = useMemo<AttentionDeadline[]>(
+    () => todayMilestones
+      .filter((ms) => ms.targetDate)
+      .map((ms) => ({ id: `milestone-${ms._id}`, title: ms.title, dueDate: ms.targetDate! })),
+    [todayMilestones],
   );
-
-  const deadlines = useMemo<AttentionDeadline[]>(() => {
-    const items: AttentionDeadline[] = [];
-    const activeSprint = sprints.find((s) => s.status === 'active' && s.endDate);
-    if (activeSprint?.endDate) {
-      items.push({ id: `sprint-${activeSprint.id}`, title: `Sprint ends: ${activeSprint.name}`, dueDate: activeSprint.endDate });
-    }
-    for (const p of projects) {
-      for (const ms of p.milestones) {
-        if (ms.status !== 'completed' && ms.dueDate) {
-          items.push({ id: `ms-${p.id}-${ms.id}`, title: `${p.name} · ${ms.title}`, dueDate: ms.dueDate });
-        }
-      }
-    }
-    return items;
-  }, [sprints, projects]);
 
   const view: TodayView = useMemo(() => selectToday({
     tasks,
     activeTaskId,
     activeSessionId,
     workLogs: activeLogs,
-    blockers,
-    reviews,
     deadlines,
     todayMs,
     weekMs,
     dailyGoalMs,
     now: Date.now(),
-  }), [tasks, activeTaskId, activeSessionId, activeLogs, blockers, reviews, deadlines, todayMs, weekMs, dailyGoalMs]);
+  }), [tasks, activeTaskId, activeSessionId, activeLogs, deadlines, todayMs, weekMs, dailyGoalMs]);
 
   const firstName = profile.name.trim().split(' ')[0] || 'there';
   const remainingMs = view.stats.progressPct !== null ? Math.max(0, dailyGoalMs - todayMs) : null;
@@ -527,7 +504,7 @@ export function TodayPage() {
                 <EmptyState
                   illustration={<NothingNeedsAttention />}
                   title="Nothing needs attention"
-                  description="No overdue tasks, blockers, or pending reviews right now."
+                  description="No overdue tasks or upcoming deadlines right now."
                 />
               </Card>
             ) : (
@@ -650,7 +627,7 @@ function AttentionRow({ item, onOpen }: { item: AttentionItem; onOpen: () => voi
     <>
       <div className="flex items-center gap-2 mb-1 flex-wrap">
         <Badge tone={meta.tone}>{meta.label}</Badge>
-        {(item.kind === 'overdue' || item.kind === 'due-today' || item.kind === 'blocker') && (
+        {(item.kind === 'overdue' || item.kind === 'due-today') && (
           <Badge tone="neutral">{item.severity}</Badge>
         )}
       </div>

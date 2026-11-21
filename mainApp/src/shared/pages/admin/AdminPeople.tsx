@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search,
   GitBranch, ArrowLeft,
-  Trash2, Edit2, X, Check, ShieldCheck, ShieldAlert, AlertTriangle,
+  Trash2, Edit2, X, Check, ShieldCheck, AlertTriangle,
   Trash, RotateCcw, UserPlus, Mail, User, Lock, EyeOff,
   Eye, Building2, Ban, CheckCircle2, KeyRound,
 } from 'lucide-react';
@@ -18,7 +18,7 @@ import { toast } from '@shared/services/useToastStore';
 import { runMutation } from '@shared/utils/mutation';
 import { Markdown } from '@shared/utils';
 import { SkeletonStatCard } from '@shared/components/ui/Skeleton';
-import { getRoleDisplayName, getRoleBadgeClass, getWorkspaceRoles, normalizeRole } from '@collab/utils/roleDisplay';
+import { getRoleDisplayName, normalizeRole } from '@shared/utils/roleDisplay';
 import { PageHeader } from '@shared/components/ui/PageHeader';
 import { Button } from '@shared/components/ui/Button';
 import { Input } from '@shared/components/ui/Input';
@@ -26,7 +26,7 @@ import { Card } from '@shared/components/ui/Card';
 import { Badge } from '@shared/components/ui/Badge';
 import { StatusBadge } from '@shared/components/ui/StatusBadge';
 import { EmptyState } from '@shared/components/ui/EmptyState';
-import { NoWorkLogs, NoMemberships, NoUsersFound } from '@shared/components/illustrations';
+import { NoWorkLogs, NoUsersFound } from '@shared/components/illustrations';
 
 const stagger = { show: { transition: { staggerChildren: 0.05 } } };
 const fadeUp = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] } } };
@@ -179,38 +179,12 @@ function EditUserModal({ user, onClose, onSave }: { user: UserSummary; onClose: 
   const [email, setEmail] = useState(user.email);
   const [role, setRole] = useState(normalizeRole((user as any).roleId?.name || user.role));
   const [saving, setSaving] = useState(false);
-  const [ownerStatus, setOwnerStatus] = useState<{ isOwner: boolean; workspaces: any[] } | null>(null);
-  const [ownerLoading, setOwnerLoading] = useState(true);
-  const [showOwnerConfirm, setShowOwnerConfirm] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const status = await api.admin.getOwnerStatus(user._id);
-        if (!cancelled) setOwnerStatus(status);
-      } catch {
-        if (!cancelled) setOwnerStatus({ isOwner: false, workspaces: [] });
-      } finally {
-        if (!cancelled) setOwnerLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [user._id]);
 
   const availableRoles = isSuperAdmin
     ? [{ value: 'nonadmin', label: 'Nonadmin', icon: Users }, { value: 'admin', label: 'Admin', icon: ShieldCheck }, { value: 'superadmin', label: 'Super Admin', icon: ShieldCheck }]
     : [{ value: 'nonadmin', label: 'Nonadmin', icon: Users }, { value: 'admin', label: 'Admin', icon: ShieldCheck }];
 
-  const isTargetOwner = ownerStatus?.isOwner ?? false;
-  const roleChanged = role !== ((user as any).roleId?.name || user.role);
-  const needsOwnerConfirm = isTargetOwner && roleChanged && isSuperAdmin;
-
   const handleSave = async () => {
-    if (needsOwnerConfirm && !showOwnerConfirm) {
-      setShowOwnerConfirm(true);
-      return;
-    }
     setSaving(true);
     try {
       await onSave({ name, email, role });
@@ -219,7 +193,6 @@ function EditUserModal({ user, onClose, onSave }: { user: UserSummary; onClose: 
       toast.error('Update Failed', e.message || 'Failed to update user');
     } finally {
       setSaving(false);
-      setShowOwnerConfirm(false);
     }
   };
 
@@ -237,210 +210,56 @@ function EditUserModal({ user, onClose, onSave }: { user: UserSummary; onClose: 
           <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close edit user dialog"><X size={16} /></Button>
         </div>
 
-        {ownerLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="admin-edit-name" className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">Name</label>
+            <Input id="admin-edit-name" className="w-full rounded-xl text-xs" value={name} onChange={e => setName(e.target.value)} />
           </div>
-        ) : (
-          <>
-            {isTargetOwner && (
-              <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
-                  <ShieldAlert size={14} />
-                  <span>Workspace Super Admin</span>
-                </div>
-                <p className="text-[11px] text-amber-400/70 mt-1">
-                  This user owns {ownerStatus?.workspaces.length === 1 ? 'a workspace' : `${ownerStatus?.workspaces.length} workspaces`}: {' '}
-                  {ownerStatus?.workspaces.map(w => w.name).join(', ')}
-                </p>
-                {!isSuperAdmin && roleChanged && (
-                  <p className="text-[11px] text-red-400 mt-1 font-bold">
-                    Only super admins can change the role of a workspace owner.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {showOwnerConfirm && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
-                  <AlertTriangle size={14} />
-                  <span>Confirm Role Change</span>
-                </div>
-                <p className="text-[11px] text-red-400/70 mt-1">
-                  You are about to change the role of workspace owner <strong>{user.name}</strong>. This may affect their workspace access. Are you sure?
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="admin-edit-name" className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">Name</label>
-                <Input id="admin-edit-name" className="w-full rounded-xl text-xs" value={name} onChange={e => setName(e.target.value)} />
-              </div>
-              <div>
-                <label htmlFor="admin-edit-email" className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">Email</label>
-                <Input id="admin-edit-email" className="w-full rounded-xl text-xs" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">System Role</label>
-                <div className="flex gap-2">
-                  {availableRoles.map(r => {
-                    const disabled = isTargetOwner && !isSuperAdmin;
-                    return (
-                      <button key={r.value} onClick={() => !disabled && setRole(r.value)}
-                        disabled={disabled}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
-                          role === r.value ? 'bg-brand-500/15 text-brand-400 border-brand-500/30' : disabled ? 'bg-surface-800/50 text-surface-600 border-surface-800 cursor-not-allowed' : 'bg-surface-800 text-surface-400 border-surface-800 hover:text-surface-200'
-                        }`}>
-                        <r.icon size={13} className="inline mr-1.5" />
-                        {r.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+          <div>
+            <label htmlFor="admin-edit-email" className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">Email</label>
+            <Input id="admin-edit-email" className="w-full rounded-xl text-xs" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-xs text-surface-400 font-bold uppercase tracking-wider mb-1.5 block">System Role</label>
+            <div className="flex gap-2">
+              {availableRoles.map(r => (
+                <button key={r.value} onClick={() => setRole(r.value)}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all border ${
+                    role === r.value ? 'bg-brand-500/15 text-brand-400 border-brand-500/30' : 'bg-surface-800 text-surface-400 border-surface-800 hover:text-surface-200'
+                  }`}>
+                  <r.icon size={13} className="inline mr-1.5" />
+                  {r.label}
+                </button>
+              ))}
             </div>
-            <div className="flex gap-3 mt-6">
-              <Button variant="secondary" size="lg" onClick={onClose} className="flex-1 py-2.5 text-xs">Cancel</Button>
-              <Button onClick={handleSave}
-                disabled={saving || !name.trim() || !email.trim() || (isTargetOwner && !isSuperAdmin && roleChanged)}
-                loading={saving}
-                leftIcon={<Check size={14} />}
-                className="flex-1 py-2.5 text-xs font-bold">
-                {showOwnerConfirm ? 'Confirm Change' : 'Save Changes'}
-              </Button>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <Button variant="secondary" size="lg" onClick={onClose} className="flex-1 py-2.5 text-xs">Cancel</Button>
+          <Button onClick={handleSave}
+            disabled={saving || !name.trim() || !email.trim()}
+            loading={saving}
+            leftIcon={<Check size={14} />}
+            className="flex-1 py-2.5 text-xs font-bold">
+            Save Changes
+          </Button>
+        </div>
       </motion.div>
     </motion.div>
   );
 }
 
-// ── Workspace Role Selector (inline in admin user profile) ──────────────────
-function WorkspaceRoleSelector({
-  userId,
-  workspace,
-  onRoleChanged,
-}: {
-  userId: string;
-  workspace: { workspaceId: string; memberRole: string; isCreator: boolean };
-  onRoleChanged: (newRole: string) => void;
-}) {
-  const { user: currentUser } = useAuthStore();
-  const isSuperAdmin = (currentUser?.roleId?.level ?? 0) === 100;
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const isTargetOwner = workspace.isCreator;
-  const availableRoles = getWorkspaceRoles(isSuperAdmin);
-
-  const canEdit = isSuperAdmin || !isTargetOwner;
-  const currentRoleLabel = getRoleDisplayName(workspace.memberRole || 'nonadmin');
-
-  const handleRoleChange = async (newRole: string) => {
-    if (newRole === workspace.memberRole) {
-      setEditing(false);
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      await api.admin.setWorkspaceRole(userId, {
-        workspaceId: workspace.workspaceId,
-        role: newRole,
-      });
-      onRoleChanged(newRole);
-      setEditing(false);
-      toast.success('Role Updated', `Workspace role changed to ${newRole}.`);
-    } catch (e: any) {
-      setError(e.message || 'Failed to change role');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const roleBadgeClass = getRoleBadgeClass(workspace.memberRole || 'nonadmin');
-
-  if (!canEdit) {
-    return (
-      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase ${roleBadgeClass}`}>
-        {currentRoleLabel}
-      </span>
-    );
-  }
-
-  if (!editing) {
-    return (
-      <button
-        onClick={() => setEditing(true)}
-        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all hover:brightness-125 ${roleBadgeClass}`}
-      >
-        {currentRoleLabel} <Edit2 size={9} className="inline ml-1" />
-      </button>
-    );
-  }
-
-  return (
-    <div className="relative">
-      {error && (
-        <div className="absolute bottom-full mb-1 right-0 px-2 py-1 rounded-lg bg-danger-500/10 border border-danger-500/20 text-[10px] text-danger-400 whitespace-nowrap z-10">
-          {error}
-        </div>
-      )}
-      <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1 border border-surface-700">
-        {availableRoles.map(r => (
-          <button
-            key={r.value}
-            onClick={() => handleRoleChange(r.value)}
-            disabled={saving}
-            className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
-              r.value === workspace.memberRole
-                ? `${r.color} bg-surface-700`
-                : 'text-surface-400 hover:text-surface-200'
-            } ${saving ? 'opacity-50' : ''}`}
-          >
-            {saving && r.value !== workspace.memberRole ? (
-              <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full inline-block animate-spin" />
-            ) : r.value}
-          </button>
-        ))}
-        <button
-          onClick={() => { setEditing(false); setError(''); }}
-          disabled={saving}
-          className="px-1.5 py-1 rounded-md text-[10px] text-surface-500 hover:text-surface-300"
-        >
-          <X size={10} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── User Profile Panel ────────────────────────────────────────────────────────
 function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => void }) {
-  const [tab, setTab] = useState<'analytics' | 'worklogs' | 'workspaces'>('analytics');
+  const [tab, setTab] = useState<'analytics' | 'worklogs'>('analytics');
   const [analytics, setAnalytics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [workspacesLoading, setWorkspacesLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
     api.admin.getUserAnalytics(user._id).then(d => { setAnalytics(d); setLoading(false); }).catch(() => setLoading(false));
   }, [user._id]);
-
-  useEffect(() => {
-    if (tab !== 'workspaces' || workspaces.length > 0 || workspacesLoading) return;
-    setWorkspacesLoading(true);
-    api.admin.getUserWorkspaces(user._id)
-      .then(data => setWorkspaces(data))
-      .catch(() => {})
-      .finally(() => setWorkspacesLoading(false));
-  }, [tab, user._id]);
 
   const chartData = useMemo(() => {
     if (!analytics?.sessions) return [];
@@ -487,7 +306,7 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
       </motion.div>
 
       <div className="flex gap-1 bg-surface-800/60 p-1 rounded-xl border border-surface-800 mb-5 w-fit">
-        {(['analytics', 'worklogs', 'workspaces'] as const).map(t => (
+        {(['analytics', 'worklogs'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all capitalize ${tab === t ? 'bg-surface-700/80 text-surface-50 shadow-sm border border-surface-600/30' : 'text-surface-400 hover:text-surface-200'}`}>{t}</button>
         ))}
@@ -545,63 +364,6 @@ function UserProfilePanel({ user, onBack }: { user: UserSummary; onBack: () => v
           )) : <EmptyState illustration={<NoWorkLogs />} title="No work logs" description="" />}
         </div>
       )}
-
-      {tab === 'workspaces' && (
-        <div className="space-y-3">
-          {workspacesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : workspaces.length === 0 ? (
-            <EmptyState
-              illustration={<NoMemberships />}
-              title="No workspace memberships"
-              description="This user is not a member of any workspace."
-            />
-          ) : (
-            workspaces.map(ws => (
-              <Card key={ws.workspaceId} className="p-5">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{ws.icon || '🚀'}</span>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-semibold text-surface-100">{ws.name}</h4>
-                        {ws.isCreator && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                            CREATOR
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-surface-500">{ws.type} workspace</p>
-                    </div>
-                  </div>
-                  <WorkspaceRoleSelector
-                    userId={user._id}
-                    workspace={ws}
-                    onRoleChanged={(newRole) => {
-                      setWorkspaces(prev =>
-                        prev.map(w =>
-                          w.workspaceId === ws.workspaceId
-                            ? { ...w, memberRole: newRole }
-                            : w
-                        )
-                      );
-                    }}
-                  />
-                </div>
-                {ws.description && (
-                  <p className="text-xs text-surface-400 mt-2 line-clamp-2">{ws.description}</p>
-                )}
-                <div className="flex items-center gap-4 mt-3 text-[11px] text-surface-500">
-                  <span>Joined {format(new Date(ws.joinedAt), 'MMM d, yyyy')}</span>
-                  <span>Created {format(new Date(ws.createdAt), 'MMM d, yyyy')}</span>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -626,8 +388,6 @@ export function AdminPeople() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<UserSummary | null>(null);
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState<UserSummary | null>(null);
-  const [ownerUserIds, setOwnerUserIds] = useState<Set<string>>(new Set());
-  const [userWorkspaceCounts, setUserWorkspaceCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     Promise.all([api.admin.listUsers(), api.admin.listDeletedUsers()])
@@ -638,24 +398,6 @@ export function AdminPeople() {
         setDeletedUsers(d.items);
         setDeletedHasMore(d.hasMore);
         setDeletedCursor(d.nextCursor);
-        // Check owner status for all users
-        const userIds = u.items.map((user: any) => user._id || user.id);
-        Promise.all(userIds.map((id: string) => api.admin.getOwnerStatus(id).catch(() => ({ isOwner: false, workspaces: [] }))))
-          .then(results => {
-            const ownerIds = new Set<string>();
-            results.forEach((result, idx) => {
-              if (result.isOwner) ownerIds.add(userIds[idx]);
-            });
-            setOwnerUserIds(ownerIds);
-          });
-        // Fetch workspace counts for all users
-        Promise.all(userIds.map((id: string) =>
-          api.admin.getUserWorkspaces(id).then(ws => ({ id, count: ws.length })).catch(() => ({ id, count: 0 }))
-        )).then(results => {
-          const counts: Record<string, number> = {};
-          results.forEach(r => { counts[r.id] = r.count; });
-          setUserWorkspaceCounts(counts);
-        });
       })
       .finally(() => setLoading(false));
   }, []);
@@ -885,11 +627,6 @@ export function AdminPeople() {
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-semibold text-surface-100">{u.name}</p>
                         {isDisabled && <Ban size={11} className="text-danger-500" />}
-                        {ownerUserIds.has(u._id) && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">
-                            OWNER
-                          </span>
-                        )}
                       </div>
                       <p className="text-[11px] text-surface-500">{u.email}</p>
                     </div>
@@ -902,12 +639,6 @@ export function AdminPeople() {
                     <span className="text-[11px] text-surface-500">Joined {format(new Date(u.createdAt), 'MMM d, yyyy')}</span>
                     {u.lastLoginAt && (
                       <p className="text-[10px] text-surface-600">Last login: {format(new Date(u.lastLoginAt), 'MMM d')}</p>
-                    )}
-                    {userWorkspaceCounts[u._id] > 0 && (
-                      <p className="text-[10px] text-surface-500 flex items-center gap-1">
-                        <Building2 size={9} />
-                        {userWorkspaceCounts[u._id]} workspace{userWorkspaceCounts[u._id] !== 1 ? 's' : ''}
-                      </p>
                     )}
                   </div>
                   <div className="flex gap-1" onClick={e => e.stopPropagation()}>

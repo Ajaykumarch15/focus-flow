@@ -1,6 +1,19 @@
-import type { KnowledgeDoc } from '@collab/types/collaboration';
 import type { WorkLog, DecisionItem, WorkLink } from '@worklog/services/useWorkLogStore';
 import type { JournalEntry } from '@shared/types';
+
+// Personal knowledge docs are captured in the work-log layer. Kept as a local
+// shape so the Knowledge surface no longer depends on the removed collab module.
+export interface KnowledgeDoc {
+  id: string;
+  title: string;
+  category: string;
+  version?: string | number;
+  content: string;
+  tags: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  [key: string]: any;
+}
 
 // ── S3-T2: pure Knowledge selector (ECIS §B.5 · DCX "What do we already know?") ──
 // The Knowledge surface is a read-only projection of knowledge the developer

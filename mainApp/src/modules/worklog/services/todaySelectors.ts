@@ -1,6 +1,5 @@
 import type { Task, TaskStatus, Priority } from '@shared/types';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
-import type { CentralBlocker, CollaborativeTask } from '@collab/types/collaboration';
 import type { DeadlineStatus } from '@shared/utils/time';
 import { dayKey, daysBetweenKeys } from '@shared/utils/time';
 
@@ -34,7 +33,7 @@ export interface DoNowItem {
   subtaskProgress: SubtaskProgress | null;
 }
 
-export type AttentionKind = 'overdue' | 'due-today' | 'blocker' | 'review' | 'deadline';
+export type AttentionKind = 'overdue' | 'due-today' | 'deadline';
 
 export interface AttentionItem {
   id: string;
@@ -68,8 +67,6 @@ export interface TodayInput {
   activeTaskId: string | null;
   activeSessionId: string | null;
   workLogs: WorkLog[];
-  blockers: CentralBlocker[];
-  reviews: CollaborativeTask[];
   deadlines: AttentionDeadline[];
   todayMs: number;
   weekMs: number;
@@ -87,7 +84,6 @@ export interface TodayView {
 // ── Internal ranking helpers ──────────────────────────────────────────────────
 
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 4, high: 3, medium: 2, low: 1 };
-const SEVERITY_RANK: Record<AttentionItem['severity'], number> = { critical: 4, high: 3, medium: 2, low: 1 };
 
 function severityForPriority(priority: Priority): AttentionItem['severity'] {
   if (priority === 'urgent') return 'critical';
@@ -235,14 +231,11 @@ export function selectDoNow(
 }
 
 // ── selectAttention ───────────────────────────────────────────────────────────
-// What needs attention, tiered: overdue tasks (critical priority first) →
-// unresolved blockers (critical first) → tasks due today → pending reviews →
-// deadlines inside the horizon (soonest first).
+// What needs attention, tiered: overdue tasks (critical priority first) → tasks
+// due today → deadlines inside the horizon (soonest first).
 
 export function selectAttention(
   tasks: Task[],
-  blockers: CentralBlocker[],
-  reviews: CollaborativeTask[],
   deadlines: AttentionDeadline[],
   now = Date.now(),
   horizonDays = 7,
@@ -277,31 +270,6 @@ export function selectAttention(
         score: 700 + PRIORITY_RANK[t.priority],
       });
     }
-  }
-
-  for (const b of blockers) {
-    if (b.status === 'resolved') continue;
-    items.push({
-      id: `blocker-${b.id}`,
-      kind: 'blocker',
-      title: b.title,
-      subtitle: b.impactDescription || undefined,
-      severity: b.severity,
-      taskId: b.taskId,
-      score: 900 + SEVERITY_RANK[b.severity],
-    });
-  }
-
-  for (const r of reviews) {
-    items.push({
-      id: `review-${r.id}`,
-      kind: 'review',
-      title: r.title,
-      subtitle: 'Awaiting your review',
-      severity: severityForPriority(r.priority),
-      taskId: r.id,
-      score: 500 + PRIORITY_RANK[r.priority],
-    });
   }
 
   for (const d of deadlines) {
@@ -349,7 +317,7 @@ export function selectToday(input: TodayInput): TodayView {
   return {
     continue: selectContinue(input.tasks, input.activeTaskId, input.activeSessionId, input.workLogs),
     doNow: selectDoNow(input.tasks, input.activeTaskId, now),
-    attention: selectAttention(input.tasks, input.blockers, input.reviews, input.deadlines, now),
+    attention: selectAttention(input.tasks, input.deadlines, now),
     stats: {
       todayMs: input.todayMs,
       weekMs: input.weekMs,

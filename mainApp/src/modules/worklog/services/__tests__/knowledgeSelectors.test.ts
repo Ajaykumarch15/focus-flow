@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { selectKnowledge, filterKnowledge, type KnowledgeView } from '../knowledgeSelectors';
-import type { KnowledgeDoc } from '@collab/types/collaboration';
+import type { KnowledgeDoc } from '@worklog/services/knowledgeSelectors';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import type { JournalEntry } from '@shared/types';
 

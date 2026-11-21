@@ -9,7 +9,7 @@ import {
 } from '../insightsSelectors';
 import type { MemorySession } from '@personal/services/memorySelectors';
 import type { Task, JournalEntry } from '@shared/types';
-import type { KnowledgeDoc } from '@collab/types/collaboration';
+import type { KnowledgeDoc } from '@worklog/services/knowledgeSelectors';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 
 // ── PI-1.1: pure Daily Insights selector tests (Phase PI) ─────────────────────

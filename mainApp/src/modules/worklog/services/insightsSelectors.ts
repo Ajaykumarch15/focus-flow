@@ -1,9 +1,8 @@
 import type { Task, JournalEntry } from '@shared/types';
-import type { KnowledgeDoc } from '@collab/types/collaboration';
 import type { WorkLog } from '@worklog/services/useWorkLogStore';
 import type { MemorySession } from '@personal/services/memorySelectors';
 import { computeRangeStats, getComparisonDelta } from './reportsSelectors';
-import { selectKnowledge } from './knowledgeSelectors';
+import { selectKnowledge, type KnowledgeDoc } from './knowledgeSelectors';
 import {
   dayKeyInTz,
   daysBetweenKeys,

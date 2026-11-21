@@ -11,7 +11,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const { parseArgs, runMigrations, pendingMigrations } = require('./core');
 
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+const MIGRATIONS_DIR = __dirname;
 
 function usage() {
   console.log(

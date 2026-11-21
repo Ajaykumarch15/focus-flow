@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useCollaborationStore } from '@collab/services/useCollaborationStore';
 import { useCalendarStore } from '@worklog/services/useCalendarStore';
 import { Dialog } from '@shared/components/ui/Dialog';
 import { Button } from '@shared/components/ui/Button';
@@ -26,7 +25,6 @@ function todayStr(): string {
 
 export function CreateCalendarEventModal({ open, onClose, defaults }: CreateCalendarEventModalProps) {
   const { addEvent } = useCalendarStore();
-  const { projects } = useCollaborationStore();
 
   const [type, setType] = useState<CalendarEventType>(defaults?.type || 'task');
   const [title, setTitle] = useState('');
@@ -194,13 +192,7 @@ export function CreateCalendarEventModal({ open, onClose, defaults }: CreateCale
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
               className="input text-sm"
-              list="cal-project-list"
             />
-            <datalist id="cal-project-list">
-              {projects.map((p) => (
-                <option key={p.id} value={p.name} />
-              ))}
-            </datalist>
           </div>
         )}
 
